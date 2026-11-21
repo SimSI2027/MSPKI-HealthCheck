@@ -27,6 +27,55 @@ $script:MspkiGuiStages = @(
     @('Analysis:StaleReferences', 'Reviewing stale references')
 )
 
+# Icon (Segoe MDL2 Assets code point) and tone for every status word the window shows. Icon + text, never colour alone.
+$script:MspkiGuiStatusStyle = @{
+    Critical = @('Bad', 0xEA39); Fail = @('Bad', 0xE711); Error = @('Admin', 0xE783); PermissionDenied = @('Admin', 0xE72E)
+    Warning = @('Warn', 0xE7BA); Timeout = @('Warn', 0xE916); Skipped = @('Neutral', 0xE7E8); Information = @('Info', 0xE946)
+    Pass = @('Good', 0xE73E); NotApplicable = @('Neutral', 0xE738); NotTested = @('Neutral', 0xE738); Unknown = @('Neutral', 0xE897)
+}
+$script:MspkiGuiConfidenceStyle = @{
+    Confirmed = @('Good', 0xE73E); Referenced = @('Info', 0xE71B); Inferred = @('Warn', 0xE897); Unknown = @('Neutral', 0xE897)
+}
+$script:MspkiGuiSeverityStyle = @{
+    High = @('Bad', 0xE7BA); Medium = @('Warn', 0xE7BA); Low = @('Info', 0xE946); ReviewRequired = @('Admin', 0xE7B3); Information = @('Neutral', 0xE946); None = @('Neutral', 0xE738)
+}
+
+function New-MspkiGuiPill {
+    <#
+    .SYNOPSIS
+    A badge for the window: Text, Tone (Good, Warn, Bad, Info, Admin, Neutral) and Glyph (an icon character).
+    #>
+    [CmdletBinding()]
+    param(
+        [AllowEmptyString()][string]$Text = '',
+        [ValidateSet('Good', 'Warn', 'Bad', 'Info', 'Admin', 'Neutral')][string]$Tone = 'Neutral',
+        [int]$Code = 0
+    )
+    $g = ''
+    if ($Code -gt 0) { $g = [string][char]$Code }
+    return [pscustomobject][ordered]@{ Text = $Text; Tone = $Tone; Glyph = $g }
+}
+
+function Get-MspkiGuiStatusPill {
+    <#
+    .SYNOPSIS
+    The pill (icon, tone, text) for a finding status, a severity or a confidence value.
+    #>
+    [CmdletBinding()]
+    param(
+        [AllowEmptyString()][string]$Value,
+        [ValidateSet('Status', 'Severity', 'Confidence')][string]$Kind = 'Status',
+        [string]$Text = ''
+    )
+    $t = $script:MspkiGuiStatusStyle
+    if ($Kind -eq 'Severity') { $t = $script:MspkiGuiSeverityStyle }
+    if ($Kind -eq 'Confidence') { $t = $script:MspkiGuiConfidenceStyle }
+    if (-not $Value) { return (New-MspkiGuiPill -Text '' -Tone Neutral) }
+    if (-not $Text) { $Text = ($Value -creplace '([a-z])([A-Z])', '$1 $2') }
+    if ($t.ContainsKey($Value)) { return (New-MspkiGuiPill -Text $Text -Tone $t[$Value][0] -Code $t[$Value][1]) }
+    return (New-MspkiGuiPill -Text $Text -Tone Neutral -Code 0xE897)
+}
+
 function Get-MspkiGuiStatusOrder {
     <#
     .SYNOPSIS
@@ -87,6 +136,18 @@ function Get-MspkiGuiProgressPercent {
     return [int][math]::Min(100, [math]::Floor(100 * $known.Count / $names.Count))
 }
 
+function New-MspkiGuiLogRow {
+    <#
+    .SYNOPSIS
+    One Run Log row: the text, the level (Info, Warning, Error, Debug) and a short level tag shown as text next to the colour.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Text, [string]$Level = 'Info')
+    $tag = @{ Info = 'INFO '; Warning = 'WARN '; Error = 'ERROR'; Debug = 'DEBUG' }[$Level]
+    if (-not $tag) { $tag = 'INFO ' }
+    return [pscustomobject][ordered]@{ Text = $Text; Level = $Level; Tag = $tag; Search = $Text.ToLowerInvariant() }
+}
+
 function ConvertTo-MspkiGuiLogRow {
     <#
     .SYNOPSIS
@@ -96,7 +157,7 @@ function ConvertTo-MspkiGuiLogRow {
     param([Parameter(Mandatory = $true)]$Message)
     $level = [string]$Message.Level
     if (-not $level) { $level = 'Info' }
-    return [pscustomobject][ordered]@{ Text = [string]$Message.Text; Level = $level }
+    return (New-MspkiGuiLogRow -Text ([string]$Message.Text) -Level $level)
 }
 
 function ConvertTo-MspkiGuiLogRowFromLine {
@@ -110,7 +171,7 @@ function ConvertTo-MspkiGuiLogRowFromLine {
     if ($Line -match '^\S+\s+\[(INFO|WARNING|ERROR|DEBUG)\]') {
         $level = (Get-Culture).TextInfo.ToTitleCase($Matches[1].ToLowerInvariant())
     }
-    return [pscustomobject][ordered]@{ Text = $Line; Level = $level }
+    return (New-MspkiGuiLogRow -Text $Line -Level $level)
 }
 
 function ConvertTo-MspkiGuiRow {
@@ -136,6 +197,9 @@ function ConvertTo-MspkiGuiRow {
         Endpoint       = [string]$f.Endpoint
         Confidence     = [string]$f.Confidence
         ConfidenceRank = (Get-MspkiGuiRank -Kind Confidence -Value ([string]$f.Confidence))
+        StatusPill     = (Get-MspkiGuiStatusPill -Value ([string]$f.Status))
+        ConfidencePill = (Get-MspkiGuiStatusPill -Value ([string]$f.Confidence) -Kind Confidence)
+        SeverityPill   = (Get-MspkiGuiStatusPill -Value ([string]$f.Severity) -Kind Severity)
         StatusCode     = [string]$f.StatusCode
         Source         = $source
         Message        = $msg
@@ -160,20 +224,24 @@ function Test-MspkiGuiRowFilter {
     <#
     .SYNOPSIS
     True when a grid row passes the filters. Text: every word must appear somewhere in the row (case-insensitive).
-    Status, Category and Confidence: an exact match, or no filter when empty or "(all)".
+    Status: one or several values (a row passes when it matches any of them). Severity, Category and Confidence: an exact
+    match. An empty value or "(all)" means no filter.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]$Row,
         [AllowEmptyString()][string]$Text = '',
-        [AllowEmptyString()][string]$Status = '',
+        [AllowNull()][string[]]$Status = @(),
         [AllowEmptyString()][string]$Category = '',
-        [AllowEmptyString()][string]$Confidence = ''
+        [AllowEmptyString()][string]$Confidence = '',
+        [AllowEmptyString()][string]$Severity = ''
     )
     $all = $script:MspkiGuiAllChoice
-    if ($Status -and $Status -ne $all -and $Row.Status -ne $Status) { return $false }
+    $wanted = @($Status | Where-Object { $_ -and $_ -ne $all })
+    if ($wanted.Count -gt 0 -and $wanted -notcontains $Row.Status) { return $false }
     if ($Category -and $Category -ne $all -and $Row.Category -ne $Category) { return $false }
     if ($Confidence -and $Confidence -ne $all -and $Row.Confidence -ne $Confidence) { return $false }
+    if ($Severity -and $Severity -ne $all -and $Row.Severity -ne $Severity) { return $false }
     if ($Text) {
         foreach ($w in @($Text.ToLowerInvariant() -split '\s+' | Where-Object { $_ })) {
             if ($Row.SearchText.IndexOf($w, [System.StringComparison]::Ordinal) -lt 0) { return $false }
@@ -190,191 +258,26 @@ function Get-MspkiGuiFilteredRow {
     [CmdletBinding()]
     param(
         [AllowEmptyCollection()][object[]]$Rows = @(),
-        [string]$Text = '', [string]$Status = '', [string]$Category = '', [string]$Confidence = ''
+        [string]$Text = '', [AllowNull()][string[]]$Status = @(), [string]$Category = '', [string]$Confidence = '', [string]$Severity = ''
     )
-    return @($Rows | Where-Object { Test-MspkiGuiRowFilter -Row $_ -Text $Text -Status $Status -Category $Category -Confidence $Confidence })
+    return @($Rows | Where-Object { Test-MspkiGuiRowFilter -Row $_ -Text $Text -Status $Status -Category $Category -Confidence $Confidence -Severity $Severity })
 }
 
 function Get-MspkiGuiFilterChoice {
     <#
     .SYNOPSIS
     The values for a filter drop-down: "(all)" and then the distinct values present in the rows
-    (statuses and confidence by rank, categories alphabetically).
+    (statuses, severity and confidence by rank, categories alphabetically).
     #>
     [CmdletBinding()]
     param(
         [AllowEmptyCollection()][object[]]$Rows = @(),
-        [Parameter(Mandatory = $true)][ValidateSet('Status', 'Category', 'Confidence')][string]$Field
+        [Parameter(Mandatory = $true)][ValidateSet('Status', 'Category', 'Confidence', 'Severity')][string]$Field
     )
     $values = @($Rows | ForEach-Object { [string]$_.$Field } | Where-Object { $_ } | Select-Object -Unique)
-    if ($Field -eq 'Status') { $values = @($values | Sort-Object { -1 * (Get-MspkiGuiRank -Kind Status -Value $_) }) }
-    elseif ($Field -eq 'Confidence') { $values = @($values | Sort-Object { -1 * (Get-MspkiGuiRank -Kind Confidence -Value $_) }) }
+    if ($Field -in @('Status', 'Confidence', 'Severity')) { $values = @($values | Sort-Object { -1 * (Get-MspkiGuiRank -Kind $Field -Value $_) }) }
     else { $values = @($values | Sort-Object) }
     return @($script:MspkiGuiAllChoice) + $values
-}
-
-function ConvertTo-MspkiGuiTreeNode {
-    <#
-    .SYNOPSIS
-    Turns a Discovery Map node (Get-MspkiDiscoveryTree) into a plain tree item for the TreeView: label, status,
-    confidence, a hint when something worse is below it, and the child items.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]$Node,
-        [int]$Depth = 0
-    )
-    $kids = New-Object 'System.Collections.Generic.List[object]'
-    foreach ($c in @($Node.Children)) { if ($null -ne $c) { $kids.Add((ConvertTo-MspkiGuiTreeNode -Node $c -Depth ($Depth + 1))) } }
-    $status = [string]$Node.Status
-    $below = [string]$Node.WorstBelow
-    $belowText = ''
-    $belowRank = Get-MspkiGuiRank -Kind Status -Value $below
-    if ($below -and $belowRank -gt (Get-MspkiGuiRank -Kind Status -Value $status) -and $belowRank -ge (Get-MspkiGuiRank -Kind Status -Value 'Warning')) {
-        $belowText = 'worst below: {0}' -f $below
-    }
-    $conf = [string]$Node.Confidence
-    $confText = ''
-    if ($conf) { $confText = '({0})' -f $conf }
-    return [pscustomobject][ordered]@{
-        Type           = [string]$Node.Type
-        Label          = [string]$Node.Label
-        Status         = $status
-        Confidence     = $conf
-        ConfidenceText = $confText
-        BelowText      = $belowText
-        Expanded       = ($Depth -lt 2)
-        Detail         = [string[]]@($Node.Detail)
-        Sources        = [string[]]@($Node.Sources)
-        FindingIds     = [string[]]@($Node.FindingIds)
-        Children       = [object[]]$kids.ToArray()
-    }
-}
-
-function Get-MspkiGuiNodeSummary {
-    <#
-    .SYNOPSIS
-    Text for the panel next to the tree: the node's type, status, confidence, details and sources.
-    #>
-    [CmdletBinding()]
-    param([AllowNull()]$Node)
-    if ($null -eq $Node) { return '' }
-    $lines = New-Object 'System.Collections.Generic.List[string]'
-    $lines.Add([string]$Node.Label)
-    $lines.Add(('Type: {0}' -f $Node.Type))
-    if ($Node.Status) { $lines.Add(('Status: {0}' -f $Node.Status)) }
-    if ($Node.Confidence) { $lines.Add(('Confidence: {0}' -f $Node.Confidence)) }
-    if ($Node.BelowText) { $lines.Add([string]$Node.BelowText) }
-    foreach ($d in @($Node.Detail)) { $lines.Add([string]$d) }
-    if (@($Node.Sources).Count -gt 0) { $lines.Add(('Sources: {0}' -f (@($Node.Sources) -join ', '))) }
-    return ($lines -join "`r`n")
-}
-
-function Get-MspkiGuiSummary {
-    <#
-    .SYNOPSIS
-    The data for the Summary tab: forest, domain, DC, user, admin, exit code, counts by status and the CAs found.
-    #>
-    [CmdletBinding()]
-    param(
-        [AllowNull()]$RunInfo = $null,
-        [AllowNull()]$Inventory = $null,
-        [AllowEmptyCollection()][object[]]$Findings = @(),
-        [AllowNull()]$ExitCode = $null
-    )
-    $all = @($Findings | Where-Object { $null -ne $_ })
-    $ctx = $null
-    if ($null -ne $Inventory) { $ctx = $Inventory.AdContext }
-    $pick = {
-        param([string]$Name)
-        $v = ''
-        if ($null -ne $RunInfo -and $RunInfo.$Name) { $v = [string]$RunInfo.$Name }
-        if (-not $v -and $null -ne $ctx -and $ctx.$Name) { $v = [string]$ctx.$Name }
-        return $v
-    }
-    $exitText = ''
-    if ($null -ne $ExitCode -and '' -ne [string]$ExitCode) {
-        $exitText = [string]$ExitCode
-        if (Get-Command -Name 'Get-MspkiExitCodeInfo' -ErrorAction SilentlyContinue) {
-            try { $exitText = '{0} - {1}' -f $ExitCode, (Get-MspkiExitCodeInfo -Code ([int]$ExitCode)).Name } catch { $exitText = [string]$ExitCode }
-        }
-    }
-    $tiles = @(foreach ($s in $script:MspkiGuiStatusOrder) {
-        [pscustomobject][ordered]@{ Status = $s; Count = @($all | Where-Object { $_.Status -eq $s }).Count }
-    })
-    $cas = @()
-    if ($null -ne $Inventory) {
-        $cas = @(foreach ($ca in @($Inventory.EnterpriseCAs | Where-Object { $_ })) {
-            $mine = @($all | Where-Object { $_.RelatedCA -eq $ca.Name -or ($_.Category -eq 'CA' -and $_.Target -eq $ca.Name) })
-            $worst = ''; $rank = -2
-            foreach ($f in $mine) { $r = Get-MspkiGuiRank -Kind Status -Value ([string]$f.Status); if ($r -gt $rank) { $rank = $r; $worst = [string]$f.Status } }
-            [pscustomobject][ordered]@{
-                Name         = [string]$ca.Name
-                Host         = [string]$ca.DnsHostName
-                Config       = [string]$ca.Config
-                Certificates = @($ca.CertificateThumbprints).Count
-                Templates    = @($ca.Templates).Count
-                Findings     = $mine.Count
-                Status       = $worst
-            }
-        })
-    }
-    $isAdmin = ''
-    if ($null -ne $RunInfo -and $null -ne $RunInfo.IsAdmin) {
-        if ([bool]$RunInfo.IsAdmin) { $isAdmin = 'Yes (elevated)' } else { $isAdmin = 'No (standard user)' }
-    }
-    $runState = ''
-    if ($null -ne $RunInfo -and $null -ne $RunInfo.Completed) {
-        if ([bool]$RunInfo.Completed) { $runState = 'Finished' } else { $runState = 'Did not finish (partial results)' }
-    }
-    $user = ''; $computer = ''; $started = ''
-    if ($null -ne $RunInfo) { $user = [string]$RunInfo.UserContext; $computer = [string]$RunInfo.ComputerName; $started = [string]$RunInfo.StartedUtc }
-    return [pscustomobject][ordered]@{
-        Forest           = (& $pick 'Forest')
-        Domain           = (& $pick 'Domain')
-        DomainController = (& $pick 'DomainController')
-        Site             = (& $pick 'Site')
-        User             = $user
-        Computer         = $computer
-        IsAdmin          = $isAdmin
-        ExitCode         = $exitText
-        RunState         = $runState
-        Started          = $started
-        Total            = $all.Count
-        Tiles            = $tiles
-        CAs              = $cas
-    }
-}
-
-function Get-MspkiGuiFindingDetail {
-    <#
-    .SYNOPSIS
-    Every field of a finding, grouped for the Details tab: header fields, sources, layer statuses, evidence, remediation, notes.
-    #>
-    [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Finding)
-    $f = $Finding
-    $fieldNames = @('Id', 'Timestamp', 'Stage', 'Category', 'Role', 'Target', 'Endpoint', 'RelatedCA', 'Confidence', 'Status', 'Severity', 'StatusCode', 'Scope', 'Forest', 'Domain')
-    $fields = @(foreach ($n in $fieldNames) { [pscustomobject][ordered]@{ Name = $n; Value = [string]$f.$n } })
-    $layerMap = @(@('DNS', 'DnsStatus'), @('TCP', 'TcpStatus'), @('TLS', 'TlsStatus'), @('HTTP', 'HttpStatus'), @('Redirect', 'RedirectStatus'),
-        @('Content', 'ContentStatus'), @('Chain', 'ChainStatus'), @('Discovery', 'DiscoveryStatus'))
-    $layers = @(foreach ($l in $layerMap) {
-        $v = [string]$f.($l[1])
-        if (-not $v) { $v = 'NotTested' }
-        [pscustomobject][ordered]@{ Name = $l[0]; Status = $v }
-    })
-    return [pscustomobject][ordered]@{
-        Id          = [string]$f.Id
-        Status      = [string]$f.Status
-        Title       = ('{0}  {1}  {2}' -f $f.Id, $f.Category, $f.Target).Trim()
-        Message     = [string]$f.Message
-        Fields      = $fields
-        Sources     = [string[]]@($f.Sources | Where-Object { $_ })
-        Layers      = $layers
-        Evidence    = ((@($f.Evidence) | Where-Object { $null -ne $_ }) -join "`r`n")
-        Remediation = [string]$f.Remediation
-        Notes       = [string]$f.Notes
-    }
 }
 
 function Read-MspkiGuiResults {

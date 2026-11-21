@@ -29,16 +29,19 @@ function Test-MspkiGuiApartment {
 function New-MspkiGuiWindow {
     <#
     .SYNOPSIS
-    Loads the window from its XAML file and returns the window and a table of its named controls.
+    Loads the window from its XAML file (the theme file next to it is merged by the XAML itself) and returns the window
+    and a table of its named controls.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$XamlPath)
-    $xaml = [System.IO.File]::ReadAllText($XamlPath, [System.Text.Encoding]::UTF8)
-    $sr = New-Object System.IO.StringReader($xaml)
-    $xr = [System.Xml.XmlReader]::Create($sr)
+    $full = [System.IO.Path]::GetFullPath($XamlPath)
+    $xaml = [System.IO.File]::ReadAllText($full, [System.Text.Encoding]::UTF8)
+    $ctx = New-Object System.Windows.Markup.ParserContext
+    $ctx.BaseUri = New-Object System.Uri($full)
+    $stream = New-Object System.IO.MemoryStream(, [System.Text.Encoding]::UTF8.GetBytes($xaml))
     $window = $null
-    try { $window = [System.Windows.Markup.XamlReader]::Load($xr) }
-    finally { $xr.Close(); $sr.Close() }
+    try { $window = [System.Windows.Markup.XamlReader]::Load($stream, $ctx) }
+    finally { $stream.Dispose() }
     $ui = @{}
     foreach ($m in [regex]::Matches($xaml, 'x:Name="(\w+)"')) {
         $n = $m.Groups[1].Value
@@ -57,6 +60,58 @@ function Show-MspkiGuiMessage {
     else { [void][System.Windows.MessageBox]::Show($Text, $Title, 'OK', $Icon) }
 }
 
+function Get-MspkiGuiBrush {
+    <#
+    .SYNOPSIS
+    A brush from the theme (for example 'B.GoodFore').
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Key)
+    return $script:MspkiGui.Window.FindResource($Key)
+}
+
+function Get-MspkiGuiToneBrush {
+    [CmdletBinding()]
+    param([string]$Tone)
+    $k = @{ Good = 'B.GoodFore'; Warn = 'B.WarnFore'; Bad = 'B.BadFore'; Info = 'B.InfoFore'; Admin = 'B.AdminFore'; Neutral = 'B.NeutralFore' }[$Tone]
+    if (-not $k) { $k = 'B.NeutralFore' }
+    return (Get-MspkiGuiBrush -Key $k)
+}
+
+function Set-MspkiGuiState {
+    <#
+    .SYNOPSIS
+    The run state in the status bar: an icon and a short sentence. Icon and text always go together.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Text,
+        [ValidateSet('Ready', 'Running', 'Done', 'Warn', 'Bad')][string]$State = 'Ready'
+    )
+    $ui = $script:MspkiGui.Ui
+    $spec = @{
+        Ready = @(0xE946, 'Info'); Running = @(0xE895, 'Info'); Done = @(0xE73E, 'Good'); Warn = @(0xE7BA, 'Warn'); Bad = @(0xE711, 'Bad')
+    }[$State]
+    $ui.StatusIcon.Text = [string][char]$spec[0]
+    $ui.StatusIcon.Foreground = Get-MspkiGuiToneBrush -Tone $spec[1]
+    $ui.TxtStage.Text = $Text
+}
+
+function Set-MspkiGuiClipboard {
+    <#
+    .SYNOPSIS
+    Puts text on the clipboard (another program can hold it for a moment, so it retries a few times).
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Text)
+    for ($i = 0; $i -lt 5; $i++) {
+        try { [System.Windows.Clipboard]::SetText($Text); return $true }
+        catch { Start-Sleep -Milliseconds 80 }
+    }
+    Show-MspkiGuiMessage -Text 'The clipboard is in use by another program. Try again.' -Icon 'Warning'
+    return $false
+}
+
 function Set-MspkiGuiBusy {
     <#
     .SYNOPSIS
@@ -66,9 +121,42 @@ function Set-MspkiGuiBusy {
     param([Parameter(Mandatory = $true)][bool]$Busy)
     $ui = $script:MspkiGui.Ui
     $ui.BtnRun.IsEnabled = -not $Busy
+    $ui.BtnWelcomeRun.IsEnabled = -not $Busy
+    $ui.BtnWelcomeOpen.IsEnabled = -not $Busy
     $ui.BtnCancel.IsEnabled = $Busy
     $ui.BtnOpenResults.IsEnabled = -not $Busy
     foreach ($n in @('TxtTimeout', 'ChkSkipNetwork', 'ChkProxy', 'ChkNdesAdmin')) { $ui[$n].IsEnabled = -not $Busy }
+}
+
+function Update-MspkiGuiOptionsSummary {
+    <#
+    .SYNOPSIS
+    The one-line summary next to the Options header, so a collapsed panel still shows what will run.
+    #>
+    [CmdletBinding()]
+    param()
+    $ui = $script:MspkiGui.Ui
+    $t = Test-MspkiGuiTimeout -Text ([string]$ui.TxtTimeout.Text)
+    $parts = New-Object 'System.Collections.Generic.List[string]'
+    if ($null -eq $t) { $parts.Add('timeout is not valid') } else { $parts.Add(('timeout {0} s' -f $t)) }
+    if ([bool]$ui.ChkSkipNetwork.IsChecked) { $parts.Add('Active Directory only') } else { $parts.Add('network checks on') }
+    if ([bool]$ui.ChkProxy.IsChecked) { $parts.Add('system proxy') } else { $parts.Add('direct web access') }
+    if ([bool]$ui.ChkNdesAdmin.IsChecked) { $parts.Add('NDES admin probe on') } else { $parts.Add('NDES admin probe off') }
+    $ui.TxtOptionsSummary.Text = ($parts -join '  |  ')
+}
+
+function Update-MspkiGuiHeader {
+    <#
+    .SYNOPSIS
+    The header strip (forest, domain, domain controller, user, Administrator badge) from a summary, or from this Windows session.
+    #>
+    [CmdletBinding()]
+    param([AllowNull()]$Summary = $null)
+    $ui = $script:MspkiGui.Ui
+    $c = Get-MspkiGuiContext -Summary $Summary
+    $ui.HdrContext.ItemsSource = @($c.Items)
+    $ui.HdrBadge.Content = $c.Badge
+    return $c
 }
 
 function Add-MspkiGuiLogRow {
@@ -79,10 +167,30 @@ function Add-MspkiGuiLogRow {
     if ($log.Count -gt 40000) { for ($i = 0; $i -lt 5000; $i++) { $log.RemoveAt(0) } }
 }
 
+function Update-MspkiGuiLogView {
+    <#
+    .SYNOPSIS
+    Applies the log filter box and level drop-down, updates the count and (when asked) scrolls to the newest line.
+    #>
+    [CmdletBinding()]
+    param([switch]$Scroll)
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $g.LogFilter.Text = ([string]$ui.FltLog.Text).Trim().ToLowerInvariant()
+    $g.LogFilter.Level = [string]$ui.FltLogLevel.SelectedItem
+    $g.LogView.Refresh()
+    $shown = @($ui.LogList.Items).Count
+    $ui.TxtLogCount.Text = '{0} of {1} line(s) shown' -f $shown, $g.LogRows.Count
+    $ui.TxtLogEmpty.Visibility = 'Collapsed'
+    if ($g.LogRows.Count -eq 0) { $ui.TxtLogEmpty.Text = 'The log fills in while a run is in progress.'; $ui.TxtLogEmpty.Visibility = 'Visible' }
+    elseif ($shown -eq 0) { $ui.TxtLogEmpty.Text = 'No log line matches the filter.'; $ui.TxtLogEmpty.Visibility = 'Visible' }
+    if ($Scroll -and [bool]$ui.ChkFollow.IsChecked -and $shown -gt 0) { $ui.LogList.ScrollIntoView($ui.LogList.Items[$shown - 1]) }
+}
+
 function Update-MspkiGuiFilter {
     <#
     .SYNOPSIS
-    Reads the filter boxes, refreshes the Findings grid and shows how many findings match.
+    Reads the filter controls, refreshes the Findings grid and shows how many findings match.
     #>
     [CmdletBinding()]
     param()
@@ -90,61 +198,123 @@ function Update-MspkiGuiFilter {
     if ($null -eq $g.View) { return }
     $ui = $g.Ui
     $g.Filter.Text = [string]$ui.FltText.Text
-    $g.Filter.Status = [string]$ui.FltStatus.SelectedItem
+    $g.Filter.Status = [string[]]@($g.Chips | Where-Object { $_.IsChecked } | ForEach-Object { [string]$_.Tag })
     $g.Filter.Category = [string]$ui.FltCategory.SelectedItem
     $g.Filter.Confidence = [string]$ui.FltConfidence.SelectedItem
+    $g.Filter.Severity = [string]$ui.FltSeverity.SelectedItem
     $g.View.Refresh()
-    $ui.TxtShowing.Text = 'Showing {0} of {1}' -f $g.View.Count, $g.Rows.Count
-}
-
-function Show-MspkiGuiDetail {
-    <#
-    .SYNOPSIS
-    Fills the Details tab with every field of one finding (null clears it).
-    #>
-    [CmdletBinding()]
-    param([AllowNull()]$Finding)
-    $ui = $script:MspkiGui.Ui
-    if ($null -eq $Finding) {
-        $ui.DetPanel.Visibility = 'Collapsed'; $ui.DetNone.Visibility = 'Visible'
-        return
+    $shown = @($ui.FindingsGrid.Items).Count
+    $ui.TxtShowing.Text = 'Showing {0} of {1} finding(s)' -f $shown, $g.Rows.Count
+    $ui.TxtGridEmpty.Visibility = 'Collapsed'
+    if ($g.Rows.Count -gt 0 -and $shown -eq 0) {
+        $ui.TxtGridEmpty.Text = 'No finding matches the current filters. Use "Clear filters" to see all of them.'
+        $ui.TxtGridEmpty.Visibility = 'Visible'
     }
-    $ui.DetPanel.DataContext = (Get-MspkiGuiFindingDetail -Finding $Finding)
-    $ui.DetNone.Visibility = 'Collapsed'; $ui.DetPanel.Visibility = 'Visible'
+    elseif ($g.Rows.Count -eq 0) {
+        $ui.TxtGridEmpty.Text = 'There are no findings yet. Run a health check, or open an earlier results.json.'
+        $ui.TxtGridEmpty.Visibility = 'Visible'
+    }
 }
 
-function Clear-MspkiGuiResult {
+function Clear-MspkiGuiFilter {
     <#
     .SYNOPSIS
-    Empties every results view (used when a new run starts and before results are loaded).
+    Resets every filter control on the Findings tab (and refreshes the grid).
     #>
     [CmdletBinding()]
     param()
     $g = $script:MspkiGui
     $ui = $g.Ui
-    $g.Data = $null; $g.Rows = (New-Object 'System.Collections.Generic.List[object]'); $g.View = $null; $g.RowById = @{}
-    $ui.FindingsGrid.ItemsSource = $null
-    $ui.MapTree.ItemsSource = $null
-    $ui.MapFindings.ItemsSource = $null
-    $ui.MapDetail.Text = 'Select an item in the tree.'
-    $ui.TileList.ItemsSource = $null
-    $ui.CaGrid.ItemsSource = $null
-    $ui.SumNoCa.Visibility = 'Collapsed'
-    foreach ($n in @('SumForest', 'SumDomain', 'SumDc', 'SumUser', 'SumAdmin', 'SumState', 'SumExit')) { $ui[$n].Text = '' }
-    $ui.SumTotal.Text = 'Findings by status'
-    $ui.TxtBanner.Visibility = 'Collapsed'; $ui.TxtBanner.Text = ''
-    $ui.TxtShowing.Text = ''
-    foreach ($n in @('FltStatus', 'FltCategory', 'FltConfidence')) { $ui[$n].ItemsSource = @('(all)'); $ui[$n].SelectedIndex = 0 }
     $ui.FltText.Text = ''
-    $g.Filter.Text = ''; $g.Filter.Status = ''; $g.Filter.Category = ''; $g.Filter.Confidence = ''
-    Show-MspkiGuiDetail -Finding $null
+    foreach ($c in $g.Chips) { $c.IsChecked = $false }
+    foreach ($n in @('FltSeverity', 'FltCategory', 'FltConfidence')) { if ($null -ne $ui[$n].Items -and $ui[$n].Items.Count -gt 0) { $ui[$n].SelectedIndex = 0 } }
+    Update-MspkiGuiFilter
+}
+
+function New-MspkiGuiChip {
+    <#
+    .SYNOPSIS
+    A status filter chip (toggle button with the status icon, name and count).
+    #>
+    [CmdletBinding()]
+    param([string]$Status, [int]$Count)
+    $w = $script:MspkiGui.Window
+    $pill = Get-MspkiGuiStatusPill -Value $Status
+    $chip = New-Object System.Windows.Controls.Primitives.ToggleButton
+    $chip.Style = $w.FindResource('ChipToggle')
+    $sp = New-Object System.Windows.Controls.StackPanel
+    $sp.Orientation = 'Horizontal'
+    $ic = New-Object System.Windows.Controls.TextBlock
+    $ic.FontFamily = $w.FindResource('F.Icons'); $ic.Text = $pill.Glyph; $ic.FontSize = 12
+    $ic.Margin = New-Object System.Windows.Thickness(0, 0, 6, 0); $ic.VerticalAlignment = 'Center'
+    $ic.Foreground = Get-MspkiGuiToneBrush -Tone $pill.Tone
+    $tx = New-Object System.Windows.Controls.TextBlock
+    $tx.Text = '{0}  {1}' -f $pill.Text, $Count
+    $tx.VerticalAlignment = 'Center'
+    [void]$sp.Children.Add($ic); [void]$sp.Children.Add($tx)
+    $chip.Content = $sp
+    $chip.Tag = $Status
+    $chip.ToolTip = 'Show only {0} findings. Select several to combine them.' -f $pill.Text
+    [System.Windows.Automation.AutomationProperties]::SetName($chip, ('{0} findings: {1}' -f $pill.Text, $Count))
+    $chip.Add_Click({ Update-MspkiGuiFilter })
+    return $chip
+}
+
+function Show-MspkiGuiFindingPane {
+    <#
+    .SYNOPSIS
+    Fills the details pane of the Findings tab (null clears it).
+    #>
+    [CmdletBinding()]
+    param([AllowNull()]$Finding)
+    $ui = $script:MspkiGui.Ui
+    if ($null -eq $Finding) { $ui.FindingHost.Content = Get-MspkiGuiEmptyPane; return }
+    $ui.FindingHost.Content = Get-MspkiGuiFindingDetail -Finding $Finding
+}
+
+function Clear-MspkiGuiResult {
+    <#
+    .SYNOPSIS
+    Empties every results view (used when a new run starts and before results are loaded) and shows the welcome state.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $g.Data = $null; $g.Summary = $null; $g.Rows = (New-Object 'System.Collections.Generic.List[object]'); $g.View = $null; $g.RowById = @{}; $g.MapPane = $null
+    $g.Chips = @()
+    $ui.FindingsGrid.ItemsSource = $null
+    $ui.ChipList.ItemsSource = $null
+    $ui.MapTree.ItemsSource = $null
+    $ui.MapHost.Content = Get-MspkiGuiEmptyPane -Text 'Select an item in the tree to see what was found and why.'
+    $ui.FindingHost.Content = Get-MspkiGuiEmptyPane
+    foreach ($n in @('KpiList', 'TileList', 'SevTileList', 'CaList', 'TopList', 'CoverageList')) { $ui[$n].ItemsSource = $null }
+    $ui.PanelResults.Visibility = 'Collapsed'
+    $ui.PanelWelcome.Visibility = 'Visible'
+    $ui.TxtNote.Visibility = 'Collapsed'
+    $ui.TxtShowing.Text = ''
+    $ui.TxtTabFindings.Text = ''
+    $ui.TxtMapCount.Text = ''
+    $ui.TxtGridEmpty.Text = 'There are no findings yet. Run a health check, or open an earlier results.json.'
+    $ui.TxtGridEmpty.Visibility = 'Visible'
+    $ui.FltText.Text = ''
+    foreach ($n in @('FltSeverity', 'FltCategory', 'FltConfidence')) { $ui[$n].ItemsSource = @('(all)'); $ui[$n].SelectedIndex = 0 }
+    $ui.ChkGroup.IsChecked = $false
+    $g.Filter.Text = ''; $g.Filter.Status = @(); $g.Filter.Category = ''; $g.Filter.Confidence = ''; $g.Filter.Severity = ''
     $ui.BtnOpenReport.IsEnabled = $false
+    $ui.TxtCount.Text = '0 findings'
+    $ui.TxtOutputPath.Text = $g.OutputRoot
+    $ui.TxtOutputPath.ToolTip = $g.OutputRoot
+    [void](Update-MspkiGuiHeader -Summary $null)
+    $c = Get-MspkiGuiContext -Summary $null
+    $ui.TxtWelcomeContext.Text = 'This window runs as {0} ({1}). Administrator rights are not required; some local checks on a CA server need them. Output goes to: {2}' -f `
+        $c.Items[3].Value, $c.Badge.Text.ToLowerInvariant(), $g.OutputRoot
 }
 
 function Show-MspkiGuiResult {
     <#
     .SYNOPSIS
-    Shows a run (live or loaded from results.json) in the Summary, Discovery Map, Findings and Details tabs.
+    Shows a run (live or loaded from results.json) in the Summary, Findings and Discovery Map tabs.
     #>
     [CmdletBinding()]
     param(
@@ -159,14 +329,33 @@ function Show-MspkiGuiResult {
 
     # Summary
     $s = Get-MspkiGuiSummary -RunInfo $Data.RunInfo -Inventory $Data.Inventory -Findings $findings -ExitCode $Data.ExitCode
-    $ui.SumForest.Text = $s.Forest; $ui.SumDomain.Text = $s.Domain; $ui.SumDc.Text = $s.DomainController
-    $ui.SumUser.Text = $s.User; $ui.SumAdmin.Text = $s.IsAdmin; $ui.SumState.Text = $s.RunState; $ui.SumExit.Text = $s.ExitCode
-    $ui.SumTotal.Text = 'Findings by status ({0} in total)' -f $s.Total
+    $g.Summary = $s
+    [void](Update-MspkiGuiHeader -Summary $s)
+    $h = $s.Health
+    $ui.Banner.DataContext = $h
+    $ui.BannerGlyph.Text = $h.Glyph
+    $ui.BannerTitle.Text = $h.Title
+    $ui.BannerText.Text = $h.Text
+    $ui.BannerMeta1.Text = 'Exit code: {0}' -f $(if ($s.ExitCode) { $s.ExitCode } else { [string][char]0x2014 })
+    $ui.BannerMeta2.Text = '{0}{1}' -f $(if ($s.RunState) { $s.RunState } else { 'State unknown' }), $(if ($s.Duration) { ' in ' + $s.Duration } else { '' })
+    $sd = ConvertTo-MspkiGuiDateTime -Value $s.Started
+    $ui.BannerMeta3.Text = 'Started: {0}' -f $(if ($null -ne $sd) { $sd.ToString('yyyy-MM-dd HH:mm') + ' UTC' } else { [string][char]0x2014 })
+    $ui.TxtTotal.Text = 'Findings ({0} in total)' -f $s.Total
+    $ui.KpiList.ItemsSource = @($s.Kpis)
     $ui.TileList.ItemsSource = @($s.Tiles)
-    $ui.CaGrid.ItemsSource = @($s.CAs)
-    if (@($s.CAs).Count -eq 0) { $ui.SumNoCa.Visibility = 'Visible' }
+    $ui.SevTileList.ItemsSource = @($s.SeverityTiles)
+    $ui.CaList.ItemsSource = @($s.CAs)
+    $ui.TxtNoCa.Visibility = $(if (@($s.CAs).Count -eq 0) { 'Visible' } else { 'Collapsed' })
+    $ui.TopList.ItemsSource = @($s.TopIssues)
+    $ui.TxtNoTop.Visibility = $(if (@($s.TopIssues).Count -eq 0) { 'Visible' } else { 'Collapsed' })
+    $ui.TxtCoverage.Text = $s.Coverage.Text
+    $ui.CoverageList.ItemsSource = @($s.Coverage.Items)
+    if (@($s.Limits).Count -gt 0) { $ui.TxtLimits.Text = 'Limits of this run: ' + (@($s.Limits) -join ' '); $ui.TxtLimits.Visibility = 'Visible' }
+    else { $ui.TxtLimits.Visibility = 'Collapsed' }
+    $ui.PanelWelcome.Visibility = 'Collapsed'
+    $ui.PanelResults.Visibility = 'Visible'
 
-    # Findings grid with filters and sorting
+    # Findings grid with filters, chips, sorting and grouping
     $g.Rows = (ConvertTo-MspkiGuiRowList -Findings $findings)
     $g.RowById = @{}
     foreach ($r in $g.Rows) { $g.RowById[$r.Id] = $r }
@@ -175,26 +364,44 @@ function Show-MspkiGuiResult {
     $g.View.Filter = [System.Predicate[object]]{
         param($row)
         $f = $script:MspkiGui.Filter
-        return (Test-MspkiGuiRowFilter -Row $row -Text $f.Text -Status $f.Status -Category $f.Category -Confidence $f.Confidence)
+        return (Test-MspkiGuiRowFilter -Row $row -Text $f.Text -Status $f.Status -Category $f.Category -Confidence $f.Confidence -Severity $f.Severity)
     }
-    $ui.FltStatus.ItemsSource = @(Get-MspkiGuiFilterChoice -Rows $g.Rows -Field Status)
+    [void]$g.View.SortDescriptions.Add((New-Object System.ComponentModel.SortDescription('StatusRank', [System.ComponentModel.ListSortDirection]::Descending)))
+    [void]$g.View.SortDescriptions.Add((New-Object System.ComponentModel.SortDescription('Id', [System.ComponentModel.ListSortDirection]::Ascending)))
+    $ui.FltSeverity.ItemsSource = @(Get-MspkiGuiFilterChoice -Rows $g.Rows -Field Severity)
     $ui.FltCategory.ItemsSource = @(Get-MspkiGuiFilterChoice -Rows $g.Rows -Field Category)
     $ui.FltConfidence.ItemsSource = @(Get-MspkiGuiFilterChoice -Rows $g.Rows -Field Confidence)
-    foreach ($n in @('FltStatus', 'FltCategory', 'FltConfidence')) { $ui[$n].SelectedIndex = 0 }
-    $ui.TxtShowing.Text = 'Showing {0} of {1}' -f $g.Rows.Count, $g.Rows.Count
+    foreach ($n in @('FltSeverity', 'FltCategory', 'FltConfidence')) { $ui[$n].SelectedIndex = 0 }
+    $chips = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($st in (Get-MspkiGuiStatusOrder)) {
+        $n = @($g.Rows | Where-Object { $_.Status -eq $st }).Count
+        if ($n -gt 0) { $chips.Add((New-MspkiGuiChip -Status $st -Count $n)) }
+    }
+    $g.Chips = $chips.ToArray()
+    $ui.ChipList.ItemsSource = $g.Chips
+    $ui.TxtTabFindings.Text = '{0}' -f $g.Rows.Count
+    $ui.TxtCount.Text = '{0} finding{1}' -f $g.Rows.Count, $(if ($g.Rows.Count -eq 1) { '' } else { 's' })
+    Update-MspkiGuiFilter
 
     # Discovery Map
     $tree = Get-MspkiDiscoveryTree -Inventory $Data.Inventory -Findings $findings -RunInfo $Data.RunInfo
-    $ui.MapTree.ItemsSource = @(ConvertTo-MspkiGuiTreeNode -Node $tree)
+    $root = ConvertTo-MspkiGuiTreeNode -Node $tree
+    $ui.MapTree.ItemsSource = @($root)
+    $ui.TxtMapCount.Text = '{0} item(s)' -f (Get-MspkiGuiNodeCount -Node $root)
 
-    # Buttons and banner
-    $ui.BtnOpenReport.IsEnabled = [bool]($Data.ReportPath)
+    # Buttons, folder and notes
+    $ui.BtnOpenReport.IsEnabled = [bool]$Data.ReportPath
+    $where = [string]$Data.OutputFolder
+    if (-not $where) { $where = $g.OutputRoot }
+    $ui.TxtOutputPath.Text = $where
+    $ui.TxtOutputPath.ToolTip = $where
     $notes = New-Object 'System.Collections.Generic.List[string]'
     if ($Banner) { $notes.Add($Banner) }
     if ($null -ne $Data.RunInfo -and $null -ne $Data.RunInfo.Completed -and -not [bool]$Data.RunInfo.Completed) {
         $notes.Add('This run did not finish (it was cancelled or stopped by an error), so the results are partial.')
     }
-    if ($notes.Count -gt 0) { $ui.TxtBanner.Text = ($notes -join ' '); $ui.TxtBanner.Visibility = 'Visible' }
+    if ($notes.Count -gt 0) { $ui.TxtNote.Text = ($notes -join ' '); $ui.TxtNote.Visibility = 'Visible' }
+    if ($s.Duration) { $ui.TxtElapsed.Text = 'Took {0}' -f $s.Duration } else { $ui.TxtElapsed.Text = '' }
 }
 
 function Show-MspkiGuiLogFile {
@@ -207,10 +414,12 @@ function Show-MspkiGuiLogFile {
     $g = $script:MspkiGui
     $g.LogRows.Clear()
     if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        Add-MspkiGuiLogRow -Row ([pscustomobject]@{ Text = '(no run.log was found next to this results.json)'; Level = 'Info' })
-        return
+        Add-MspkiGuiLogRow -Row (New-MspkiGuiLogRow -Text '(no run.log was found next to this results.json)' -Level 'Info')
     }
-    foreach ($line in [System.IO.File]::ReadLines($Path)) { Add-MspkiGuiLogRow -Row (ConvertTo-MspkiGuiLogRowFromLine -Line $line) }
+    else {
+        foreach ($line in [System.IO.File]::ReadLines($Path)) { Add-MspkiGuiLogRow -Row (ConvertTo-MspkiGuiLogRowFromLine -Line $line) }
+    }
+    Update-MspkiGuiLogView -Scroll
 }
 
 function Open-MspkiGuiResultsFile {
@@ -225,9 +434,12 @@ function Open-MspkiGuiResultsFile {
         $data = Read-MspkiGuiResults -Path $Path
         Show-MspkiGuiResult -Data $data -Banner ('Showing an earlier run loaded from {0}. Nothing was scanned.' -f $data.ResultsPath)
         Show-MspkiGuiLogFile -Path $data.LogPath
-        $g.Ui.TxtStage.Text = 'Loaded {0} finding(s) from {1}' -f @($data.Findings).Count, $data.ResultsPath
         $g.Ui.Progress.Value = 0
         $g.Ui.TxtTarget.Text = ''
+        $state = 'Done'
+        if ($g.Summary.Health.Level -ne 'Green') { $state = 'Warn' }
+        Set-MspkiGuiState -Text ('Loaded {0} finding(s) from an earlier run' -f @($data.Findings).Count) -State $state
+        $g.Ui.Tabs.SelectedItem = $g.Ui.TabSummary
     }
     catch {
         Show-MspkiGuiMessage -Text $_.Exception.Message -Title 'Could not open the results' -Icon 'Warning'
@@ -287,7 +499,7 @@ function Request-MspkiGuiCancel {
     $g.Run.Control['Cancel'] = $true
     if ($null -eq $g.Run.CancelRequested) { $g.Run.CancelRequested = [DateTime]::Now }
     $g.Ui.BtnCancel.IsEnabled = $false
-    $g.Ui.TxtStage.Text = 'Cancelling... waiting for the current step to finish (a few seconds at most).'
+    Set-MspkiGuiState -Text 'Cancelling... waiting for the current step to finish (a few seconds at most).' -State Warn
 }
 
 function Start-MspkiGuiRun {
@@ -302,6 +514,7 @@ function Start-MspkiGuiRun {
     if ($null -ne $g.Run) { return }
     $timeout = Test-MspkiGuiTimeout -Text ([string]$ui.TxtTimeout.Text)
     if ($null -eq $timeout) {
+        $ui.ExpOptions.IsExpanded = $true
         Show-MspkiGuiMessage -Text 'The timeout must be a whole number of seconds from 1 to 120.' -Title 'Check the options' -Icon 'Warning'
         $ui.TxtTimeout.Focus() | Out-Null
         return
@@ -315,13 +528,13 @@ function Start-MspkiGuiRun {
     }
     Clear-MspkiGuiResult
     $g.LogRows.Clear()
+    Update-MspkiGuiLogView
     $g.FinishedStages = New-Object 'System.Collections.Generic.List[string]'
-    $ui.Progress.IsIndeterminate = $false
     $ui.Progress.Value = 0
-    $ui.TxtStage.Text = 'Starting...'
+    Set-MspkiGuiState -Text 'Starting...' -State Running
     $ui.TxtTarget.Text = ''
-    $ui.TxtBanner.Text = 'A run is in progress. Findings appear here when it finishes; the Run Log tab shows the run live.'
-    $ui.TxtBanner.Visibility = 'Visible'
+    $ui.TxtElapsed.Text = 'Elapsed 0:00'
+    $ui.TxtWelcomeContext.Text = 'A run is in progress. Findings appear here when it finishes; the Run Log tab shows the run live.'
     $ui.Tabs.SelectedItem = $ui.TabLog
     $control = New-MspkiRunControl
     try {
@@ -356,7 +569,7 @@ function Receive-MspkiGuiProgress {
         switch ($item.Kind) {
             'StageStart' {
                 $g.CurrentStage = [string]$item.Text
-                if ($item.Text -ne 'Discovery') { $ui.TxtStage.Text = 'Stage: {0}' -f (Get-MspkiGuiStageLabel -Stage ([string]$item.Text)) }
+                if ($item.Text -ne 'Discovery' -and $null -eq $run.CancelRequested) { Set-MspkiGuiState -Text ('Running: {0}' -f (Get-MspkiGuiStageLabel -Stage ([string]$item.Text))) -State Running }
             }
             'StageEnd' {
                 if (-not $g.FinishedStages.Contains([string]$item.Text)) { $g.FinishedStages.Add([string]$item.Text) }
@@ -366,12 +579,9 @@ function Receive-MspkiGuiProgress {
             'Log' { Add-MspkiGuiLogRow -Row (ConvertTo-MspkiGuiLogRow -Message $item); $added = $true }
         }
     }
-    if ($added) {
-        $ui.TxtLogCount.Text = '{0} line(s)' -f $g.LogRows.Count
-        if ([bool]$ui.ChkFollow.IsChecked -and $g.LogRows.Count -gt 0) { $ui.LogList.ScrollIntoView($g.LogRows[$g.LogRows.Count - 1]) }
-    }
+    if ($added) { Update-MspkiGuiLogView -Scroll }
     $el = [DateTime]::Now - $run.Started
-    $ui.TxtElapsed.Text = 'Elapsed {0:00}:{1:00}' -f [int][math]::Floor($el.TotalMinutes), $el.Seconds
+    $ui.TxtElapsed.Text = 'Elapsed {0}' -f (Get-MspkiGuiDurationText -Seconds $el.TotalSeconds)
 
     # The window was closed during the run: wait a little for the engine to stop, then end it.
     if ($g.CloseRequested -and $null -ne $run.CancelRequested -and ([DateTime]::Now - $run.CancelRequested).TotalSeconds -gt 45 -and -not $run.Handle.IsCompleted) {
@@ -403,7 +613,7 @@ function Complete-MspkiGuiRun {
     }
     catch { $problem = $_.Exception.Message }
     foreach ($e in @($run.PowerShell.Streams.Error)) {
-        Add-MspkiGuiLogRow -Row ([pscustomobject]@{ Text = ('ERROR {0}' -f $e.ToString()); Level = 'Error' })
+        Add-MspkiGuiLogRow -Row (New-MspkiGuiLogRow -Text ('ERROR {0}' -f $e.ToString()) -Level 'Error')
         if (-not $problem) { $problem = $e.ToString() }
     }
     $cancelled = ($null -ne $run.CancelRequested)
@@ -420,15 +630,18 @@ function Complete-MspkiGuiRun {
             OutputFolder = [string]$result.OutputFolder; ResultsPath = [string]$result.ResultsPath; ReportPath = [string]$result.ReportPath; LogPath = $log
         }
         Show-MspkiGuiResult -Data $data
+        Update-MspkiGuiLogView -Scroll
         $g.LastFolder = [string]$result.OutputFolder
-        if ($cancelled) { $ui.TxtStage.Text = 'Cancelled. Partial results are shown and were saved to {0}' -f $result.OutputFolder }
-        else { $ui.Progress.Value = 100; $ui.TxtStage.Text = 'Finished. Results were saved to {0}' -f $result.OutputFolder }
+        $state = 'Done'
+        if ($g.Summary.Health.Level -ne 'Green') { $state = 'Warn' }
+        if ($cancelled) { Set-MspkiGuiState -Text 'Cancelled. Partial results are shown and were saved.' -State Warn }
+        else { $ui.Progress.Value = 100; Set-MspkiGuiState -Text ('Finished: {0}' -f $g.Summary.Health.Title) -State $state }
         if (-not $g.CloseRequested) { $ui.Tabs.SelectedItem = $ui.TabSummary }
     }
     else {
-        $ui.TxtBanner.Text = 'The run ended without results. See the Run Log tab.'
-        $ui.TxtBanner.Visibility = 'Visible'
-        $ui.TxtStage.Text = 'The run ended without results.'
+        Clear-MspkiGuiResult
+        Set-MspkiGuiState -Text 'The run ended without results. See the Run Log tab.' -State Bad
+        $ui.TxtWelcomeContext.Text = 'The last run ended without results. See the Run Log tab for the reason, then try again.'
         if ($problem -and -not $g.CloseRequested) { Show-MspkiGuiMessage -Text ('The run stopped with an error: {0}' -f $problem) -Icon 'Error' }
     }
     if ($g.CloseRequested) { $g.Window.Close() }
@@ -449,6 +662,132 @@ function Open-MspkiGuiPath {
     catch { Show-MspkiGuiMessage -Text ('Could not open the {0}: {1}' -f $What, $_.Exception.Message) -Icon 'Warning' }
 }
 
+function Show-MspkiGuiFinding {
+    <#
+    .SYNOPSIS
+    Opens one finding in the Findings tab (clears the filters first so that the row is visible) and selects it.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Id)
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    if (-not $g.RowById.ContainsKey($Id)) { return }
+    $row = $g.RowById[$Id]
+    $ui.Tabs.SelectedItem = $ui.TabFindings
+    $visible = Test-MspkiGuiRowFilter -Row $row -Text $g.Filter.Text -Status $g.Filter.Status -Category $g.Filter.Category -Confidence $g.Filter.Confidence -Severity $g.Filter.Severity
+    if (-not $visible) { Clear-MspkiGuiFilter }
+    $ui.FindingsGrid.SelectedItem = $row
+    $ui.FindingsGrid.ScrollIntoView($row)
+    $ui.FindingsGrid.Focus() | Out-Null
+}
+
+function Show-MspkiGuiFilteredStatus {
+    <#
+    .SYNOPSIS
+    From a Summary tile: opens the Findings tab filtered to one status or one severity.
+    #>
+    [CmdletBinding()]
+    param([string]$Value)
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    if (-not $Value -or $null -eq $g.View) { return }
+    Clear-MspkiGuiFilter
+    if ($script:MspkiGuiStatusOrder -contains $Value) {
+        foreach ($c in $g.Chips) { if ([string]$c.Tag -eq $Value) { $c.IsChecked = $true } }
+    }
+    else {
+        $idx = @($ui.FltSeverity.Items).IndexOf($Value)
+        if ($idx -ge 0) { $ui.FltSeverity.SelectedIndex = $idx }
+    }
+    Update-MspkiGuiFilter
+    $ui.Tabs.SelectedItem = $ui.TabFindings
+}
+
+function Get-MspkiGuiSelectedRowsText {
+    <#
+    .SYNOPSIS
+    The selected rows of the Findings grid as tab-separated text (what "Copy selected rows" puts on the clipboard).
+    #>
+    [CmdletBinding()]
+    param()
+    $grid = $script:MspkiGui.Ui.FindingsGrid
+    $lines = foreach ($r in @($grid.SelectedItems)) {
+        (@($r.Id, $r.Status, $r.Severity, $r.Category, $r.Target, $r.Endpoint, $r.Confidence, $r.Message) | ForEach-Object { ([string]$_) -replace '[\t\r\n]+', ' ' }) -join "`t"
+    }
+    return ($lines -join "`r`n")
+}
+
+function Export-MspkiGuiFilteredView {
+    <#
+    .SYNOPSIS
+    Writes the findings that match the current filters to a CSV file in the run's output folder (never anywhere else).
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    if ($null -eq $g.View -or $g.Rows.Count -eq 0) { Show-MspkiGuiMessage -Text 'There are no findings to export yet.' -Icon 'Information'; return }
+    $items = @($g.View | ForEach-Object { $_.Finding })
+    if ($items.Count -eq 0) { Show-MspkiGuiMessage -Text 'No finding matches the current filters, so there is nothing to export.' -Icon 'Information'; return }
+    $folder = ''
+    if ($null -ne $g.Data -and $g.Data.OutputFolder) { $folder = [string]$g.Data.OutputFolder }
+    $rootFull = [System.IO.Path]::GetFullPath($g.OutputRoot).TrimEnd('\') + '\'
+    if (-not $folder -or -not ([System.IO.Path]::GetFullPath($folder).TrimEnd('\') + '\').StartsWith($rootFull, [System.StringComparison]::OrdinalIgnoreCase)) { $folder = $g.OutputRoot }
+    $path = Join-Path $folder ('findings-filtered-{0}.csv' -f [DateTime]::Now.ToString('yyyyMMdd-HHmmss'))
+    try {
+        $mod = Get-Module -Name MspkiHealthCheck
+        & $mod {
+            param($p, $f)
+            $text = ConvertTo-MspkiCsvText -Findings $f
+            [void](Use-MspkiOutputFolder -Path (Split-Path -Parent $p))
+            Write-MspkiOutputFile -Path $p -Content $text -Bom
+        } $path $items
+        $g.LastExport = $path
+        Set-MspkiGuiState -Text ('Exported {0} finding(s) to {1}' -f $items.Count, (Split-Path -Leaf $path)) -State Done
+        Show-MspkiGuiMessage -Text ('Exported {0} finding(s) to:{1}{2}' -f $items.Count, [Environment]::NewLine, $path) -Title 'Export finished'
+    }
+    catch { Show-MspkiGuiMessage -Text ('The export failed: {0}' -f $_.Exception.Message) -Title 'Export' -Icon 'Warning' }
+}
+
+function Set-MspkiGuiTreeExpansion {
+    <#
+    .SYNOPSIS
+    Expands or collapses every branch of the Discovery Map tree (the first level stays open when collapsing).
+    #>
+    [CmdletBinding()]
+    param($Parent, [bool]$Expand, [int]$Depth = 0)
+    foreach ($item in @($Parent.Items)) {
+        $c = $Parent.ItemContainerGenerator.ContainerFromItem($item)
+        if ($null -eq $c) { continue }
+        if ($Expand) { $c.IsExpanded = $true } else { $c.IsExpanded = ($Depth -lt 1) }
+        if ($c.IsExpanded) { $c.UpdateLayout() }
+        Set-MspkiGuiTreeExpansion -Parent $c -Expand $Expand -Depth ($Depth + 1)
+    }
+}
+
+function Invoke-MspkiGuiOpenDialog {
+    <#
+    .SYNOPSIS
+    Asks for an earlier results.json and shows it (nothing is scanned).
+    #>
+    [CmdletBinding()]
+    param()
+    $dlg = New-Object Microsoft.Win32.OpenFileDialog
+    $dlg.Title = 'Open an earlier results.json'
+    $dlg.Filter = 'results.json|results.json|JSON files (*.json)|*.json'
+    $root = $script:MspkiGui.OutputRoot
+    if (Test-Path -LiteralPath $root -PathType Container) { $dlg.InitialDirectory = $root }
+    if ($dlg.ShowDialog($script:MspkiGui.Window)) { Open-MspkiGuiResultsFile -Path $dlg.FileName }
+}
+
+function Select-MspkiGuiTab {
+    [CmdletBinding()]
+    param([int]$Index)
+    $ui = $script:MspkiGui.Ui
+    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabLog)
+    if ($Index -ge 0 -and $Index -lt $tabs.Count) { $ui.Tabs.SelectedItem = $tabs[$Index] }
+}
+
 function Initialize-MspkiGuiApplication {
     <#
     .SYNOPSIS
@@ -464,33 +803,51 @@ function Initialize-MspkiGuiApplication {
     $w = New-MspkiGuiWindow -XamlPath $XamlPath
     $script:MspkiGui = @{
         Window = $w.Window; Ui = $w.Ui; ModulePath = $ModulePath; OutputRoot = $OutputPath
-        Run = $null; Timer = $null; Data = $null; Rows = (New-Object 'System.Collections.Generic.List[object]'); View = $null; RowById = @{}
-        Filter = @{ Text = ''; Status = ''; Category = ''; Confidence = '' }
-        LogRows = (New-Object 'System.Collections.ObjectModel.ObservableCollection[object]')
+        Run = $null; Timer = $null; Data = $null; Summary = $null; Rows = (New-Object 'System.Collections.Generic.List[object]'); View = $null; RowById = @{}
+        Chips = @(); MapPane = $null; LastExport = ''
+        Filter = @{ Text = ''; Status = @(); Category = ''; Confidence = ''; Severity = '' }
+        LogFilter = @{ Text = ''; Level = '' }
+        LogRows = (New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'); LogView = $null
         FinishedStages = (New-Object 'System.Collections.Generic.List[string]')
         CurrentStage = ''; CloseRequested = $false; LastFolder = ''
     }
     $g = $script:MspkiGui
     $ui = $g.Ui
+
+    # Run Log list with its filter
     $ui.LogList.ItemsSource = $g.LogRows
-    $ui.TxtOutput.Text = 'Output folder: {0}' -f $OutputPath
+    $g.LogView = [System.Windows.Data.CollectionViewSource]::GetDefaultView($g.LogRows)
+    $g.LogView.Filter = [System.Predicate[object]]{
+        param($row)
+        $f = $script:MspkiGui.LogFilter
+        if ($f.Text -and $row.Search.IndexOf($f.Text, [System.StringComparison]::Ordinal) -lt 0) { return $false }
+        if ($f.Level -eq 'Warnings and errors' -and $row.Level -notin @('Warning', 'Error')) { return $false }
+        if ($f.Level -eq 'Errors only' -and $row.Level -ne 'Error') { return $false }
+        return $true
+    }
+    $ui.FltLogLevel.ItemsSource = @('All levels', 'Warnings and errors', 'Errors only')
+    $ui.FltLogLevel.SelectedIndex = 0
+
+    $m = Get-Module -Name MspkiHealthCheck
+    if ($null -ne $m) { $ui.HdrVersion.Text = 'v{0}' -f $m.Version }
+    $ui.TxtOutput.Text = $OutputPath
     $ui.TxtElapsed.Text = ''
     Clear-MspkiGuiResult
+    Update-MspkiGuiLogView
+    Update-MspkiGuiOptionsSummary
+    Set-MspkiGuiState -Text 'Ready. Press Run to start a health check, or open an earlier results.json.' -State Ready
 
     $g.Timer = New-Object System.Windows.Threading.DispatcherTimer
     $g.Timer.Interval = [TimeSpan]::FromMilliseconds(200)
     $g.Timer.Add_Tick({ Receive-MspkiGuiProgress })
 
+    # Toolbar and welcome buttons
+
     $ui.BtnRun.Add_Click({ Start-MspkiGuiRun })
+    $ui.BtnWelcomeRun.Add_Click({ Start-MspkiGuiRun })
     $ui.BtnCancel.Add_Click({ Request-MspkiGuiCancel })
-    $ui.BtnOpenResults.Add_Click({
-        $dlg = New-Object Microsoft.Win32.OpenFileDialog
-        $dlg.Title = 'Open an earlier results.json'
-        $dlg.Filter = 'results.json|results.json|JSON files (*.json)|*.json'
-        $root = $script:MspkiGui.OutputRoot
-        if (Test-Path -LiteralPath $root -PathType Container) { $dlg.InitialDirectory = $root }
-        if ($dlg.ShowDialog($script:MspkiGui.Window)) { Open-MspkiGuiResultsFile -Path $dlg.FileName }
-    })
+    $ui.BtnOpenResults.Add_Click({ Invoke-MspkiGuiOpenDialog })
+    $ui.BtnWelcomeOpen.Add_Click({ Invoke-MspkiGuiOpenDialog })
     $ui.BtnOpenReport.Add_Click({
         $d = $script:MspkiGui.Data
         if ($null -ne $d) { Open-MspkiGuiPath -Path ([string]$d.ReportPath) -What 'HTML report' }
@@ -503,34 +860,124 @@ function Initialize-MspkiGuiApplication {
         Open-MspkiGuiPath -Path $p -What 'output folder'
     })
 
+    # Options summary
+    $ui.TxtTimeout.Add_TextChanged({ Update-MspkiGuiOptionsSummary })
+    foreach ($n in @('ChkSkipNetwork', 'ChkProxy', 'ChkNdesAdmin')) { $ui[$n].Add_Click({ Update-MspkiGuiOptionsSummary }) }
+
+    # Findings: filters, grouping, selection, copy, export
     $ui.FltText.Add_TextChanged({ Update-MspkiGuiFilter })
-    foreach ($n in @('FltStatus', 'FltCategory', 'FltConfidence')) { $ui[$n].Add_SelectionChanged({ Update-MspkiGuiFilter }) }
-    $ui.BtnClearFilters.Add_Click({
-        $u = $script:MspkiGui.Ui
-        $u.FltText.Text = ''
-        foreach ($n in @('FltStatus', 'FltCategory', 'FltConfidence')) { $u[$n].SelectedIndex = 0 }
-        Update-MspkiGuiFilter
-    })
+    foreach ($n in @('FltSeverity', 'FltCategory', 'FltConfidence')) { $ui[$n].Add_SelectionChanged({ Update-MspkiGuiFilter }) }
+    $ui.BtnClearFilters.Add_Click({ Clear-MspkiGuiFilter })
+    $ui.BtnExport.Add_Click({ Export-MspkiGuiFilteredView })
+    $groupOn = {
+        $s = $script:MspkiGui
+        if ($null -eq $s.View) { return }
+        $s.View.GroupDescriptions.Clear()
+        if ([bool]$s.Ui.ChkGroup.IsChecked) { $s.View.GroupDescriptions.Add((New-Object System.Windows.Data.PropertyGroupDescription('Category'))) }
+    }
+    $ui.ChkGroup.Add_Click($groupOn)
     $ui.FindingsGrid.Add_SelectionChanged({
         $row = $script:MspkiGui.Ui.FindingsGrid.SelectedItem
-        if ($null -ne $row) { Show-MspkiGuiDetail -Finding $row.Finding }
+        if ($null -ne $row) { Show-MspkiGuiFindingPane -Finding $row.Finding } else { Show-MspkiGuiFindingPane -Finding $null }
     })
-    $ui.FindingsGrid.Add_MouseDoubleClick({
-        $u = $script:MspkiGui.Ui
-        if ($null -ne $u.FindingsGrid.SelectedItem) { $u.Tabs.SelectedItem = $u.TabDetails }
+    $ui.FindingsGrid.Add_PreviewKeyDown({
+        param($sender, $e)
+        if ($e.Key -eq 'C' -and ([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control)) {
+            $t = Get-MspkiGuiSelectedRowsText
+            if ($t) { [void](Set-MspkiGuiClipboard -Text $t) }
+            $e.Handled = $true
+        }
     })
+    $ui.MenuCopyRows.Add_Click({ $t = Get-MspkiGuiSelectedRowsText; if ($t) { [void](Set-MspkiGuiClipboard -Text $t) } })
+    $ui.MenuCopyMessage.Add_Click({ $r = $script:MspkiGui.Ui.FindingsGrid.SelectedItem; if ($null -ne $r) { [void](Set-MspkiGuiClipboard -Text ([string]$r.Finding.Message)) } })
+    $ui.MenuCopyTarget.Add_Click({ $r = $script:MspkiGui.Ui.FindingsGrid.SelectedItem; if ($null -ne $r) { [void](Set-MspkiGuiClipboard -Text ([string]$r.Finding.Target)) } })
+    $ui.MenuCopyDetails.Add_Click({ $r = $script:MspkiGui.Ui.FindingsGrid.SelectedItem; if ($null -ne $r) { [void](Set-MspkiGuiClipboard -Text (Get-MspkiGuiFindingDetail -Finding $r.Finding).CopyText) } })
+    # A right-click selects the row under the pointer first, so that "Copy" acts on what the user pointed at.
+    $ui.FindingsGrid.Add_PreviewMouseRightButtonDown({
+        param($sender, $e)
+        $d = $e.OriginalSource -as [System.Windows.DependencyObject]
+        while ($null -ne $d -and $d -isnot [System.Windows.Controls.DataGridRow]) { $d = [System.Windows.Media.VisualTreeHelper]::GetParent($d) }
+        if ($null -ne $d -and -not $d.IsSelected) { $sender.SelectedItems.Clear(); $d.IsSelected = $true }
+    })
+
+    # Summary: tiles and top issues are buttons; one handler per list
+    $btnClick = [System.Windows.Controls.Primitives.ButtonBase]::ClickEvent
+    $tagOf = {
+        param($e)
+        $b = $e.OriginalSource -as [System.Windows.Controls.Button]
+        if ($null -eq $b) { $b = $e.Source -as [System.Windows.Controls.Button] }
+        if ($null -eq $b) { return '' }
+        return [string]$b.Tag
+    }
+    $tileHandler = [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFilteredStatus -Value $t } }
+    $script:MspkiGuiTagOf = $tagOf
+    $ui.TileList.AddHandler($btnClick, $tileHandler)
+    $ui.SevTileList.AddHandler($btnClick, $tileHandler)
+    $ui.TopList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFinding -Id $t } })
+
+    # Details pane of the Findings tab: Copy
+    $ui.FindingHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{
+        param($s, $e)
+        $t = (& $script:MspkiGuiTagOf $e)
+        $c = $script:MspkiGui.Ui.FindingHost.Content
+        if ($t -eq 'Copy' -and $null -ne $c -and $c.CopyText) { [void](Set-MspkiGuiClipboard -Text $c.CopyText) }
+    })
+
+    # Discovery Map: selection, details pane, drill into a finding and back, expand/collapse
     $ui.MapTree.Add_SelectedItemChanged({
         $s = $script:MspkiGui
         $node = $s.Ui.MapTree.SelectedItem
-        $s.Ui.MapDetail.Text = Get-MspkiGuiNodeSummary -Node $node
-        $rows = @()
-        if ($null -ne $node) { $rows = @($node.FindingIds | Where-Object { $_ -and $s.RowById.ContainsKey($_) } | ForEach-Object { $s.RowById[$_] }) }
-        $s.Ui.MapFindings.ItemsSource = $rows
+        $s.MapPane = Get-MspkiGuiNodePane -Node $node -RowById $s.RowById
+        $s.Ui.MapHost.Content = $s.MapPane
     })
-    $ui.MapFindings.Add_MouseDoubleClick({
-        $u = $script:MspkiGui.Ui
-        $row = $u.MapFindings.SelectedItem
-        if ($null -ne $row) { Show-MspkiGuiDetail -Finding $row.Finding; $u.Tabs.SelectedItem = $u.TabDetails }
+    $ui.MapHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{
+        param($s, $e)
+        $t = (& $script:MspkiGuiTagOf $e)
+        $st = $script:MspkiGui
+        $c = $st.Ui.MapHost.Content
+        if (-not $t -or $null -eq $c) { return }
+        if ($t -eq 'Copy') { if ($c.CopyText) { [void](Set-MspkiGuiClipboard -Text $c.CopyText) }; return }
+        if ($t -eq 'Back') { if ($null -ne $st.MapPane) { $st.Ui.MapHost.Content = $st.MapPane }; return }
+        if ($st.RowById.ContainsKey($t)) { $st.Ui.MapHost.Content = Get-MspkiGuiFindingDetail -Finding $st.RowById[$t].Finding -CanGoBack $true }
+    })
+    $ui.BtnExpandAll.Add_Click({ $t = $script:MspkiGui.Ui.MapTree; Set-MspkiGuiTreeExpansion -Parent $t -Expand $true })
+    $ui.BtnCollapseAll.Add_Click({ $t = $script:MspkiGui.Ui.MapTree; Set-MspkiGuiTreeExpansion -Parent $t -Expand $false })
+
+    # Run Log
+    $ui.FltLog.Add_TextChanged({ Update-MspkiGuiLogView })
+    $ui.FltLogLevel.Add_SelectionChanged({ Update-MspkiGuiLogView })
+    $ui.ChkFollow.Add_Click({ if ([bool]$script:MspkiGui.Ui.ChkFollow.IsChecked) { Update-MspkiGuiLogView -Scroll } })
+    $ui.BtnCopyLog.Add_Click({
+        $lines = @($script:MspkiGui.Ui.LogList.Items | ForEach-Object { $_.Text })
+        if ($lines.Count -gt 0) { [void](Set-MspkiGuiClipboard -Text ($lines -join "`r`n")) }
+    })
+
+    # Keyboard: F5 run, Esc clear the focused filter or cancel, Ctrl+1..4 tabs, Ctrl+F search, Ctrl+O open
+    $g.Window.Add_PreviewKeyDown({
+        param($sender, $e)
+        $s = $script:MspkiGui
+        $u = $s.Ui
+        $ctrl = ([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control) -ne 0
+        if ($e.Key -eq 'F5' -and $u.BtnRun.IsEnabled) { Start-MspkiGuiRun; $e.Handled = $true; return }
+        if ($e.Key -eq 'Escape') {
+            $f = [System.Windows.Input.Keyboard]::FocusedElement
+            if (($f -eq $u.FltText -and $u.FltText.Text) -or ($f -eq $u.FltLog -and $u.FltLog.Text)) { $f.Text = ''; $e.Handled = $true; return }
+            if ($null -ne $s.Run) { Request-MspkiGuiCancel; $e.Handled = $true }
+            return
+        }
+        if ($ctrl) {
+            switch ($e.Key) {
+                'D1' { Select-MspkiGuiTab -Index 0; $e.Handled = $true }
+                'D2' { Select-MspkiGuiTab -Index 1; $e.Handled = $true }
+                'D3' { Select-MspkiGuiTab -Index 2; $e.Handled = $true }
+                'D4' { Select-MspkiGuiTab -Index 3; $e.Handled = $true }
+                'O' { if ($u.BtnOpenResults.IsEnabled) { Invoke-MspkiGuiOpenDialog }; $e.Handled = $true }
+                'F' {
+                    if ($u.Tabs.SelectedItem -eq $u.TabFindings) { [void]$u.FltText.Focus(); $e.Handled = $true }
+                    elseif ($u.Tabs.SelectedItem -eq $u.TabLog) { [void]$u.FltLog.Focus(); $e.Handled = $true }
+                }
+            }
+        }
     })
 
     $g.Window.Add_Closing({
@@ -547,7 +994,7 @@ function Initialize-MspkiGuiApplication {
         $e.Cancel = $true
         $s.CloseRequested = $true
         Request-MspkiGuiCancel
-        $s.Ui.TxtStage.Text = 'Cancelling the run before closing... the window closes by itself in a few seconds.'
+        Set-MspkiGuiState -Text 'Cancelling the run before closing... the window closes by itself in a few seconds.' -State Warn
     })
     $g.Window.Add_Closed({
         $s = $script:MspkiGui

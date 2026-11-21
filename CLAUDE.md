@@ -66,7 +66,8 @@ src/Discovery/   # AD Configuration partition, CA COM properties, local policy a
 src/Probes/      # DNS, TCP, HTTP, TLS, LDAP: cached and time-limited
 src/Analyzers/   # CA/hierarchy, CRL, endpoints, AD containers, templates, CEP/CES, NDES, stale refs
 src/Reporters/   # JSON, CSV, HTML, log
-src/Gui/         # GUI only: MainWindow.xaml, GuiModel.ps1 (pure data helpers), GuiApp.ps1 (window, runspace, events)
+src/Gui/         # GUI only: MainWindow.xaml + Theme.xaml (look: see docs/GUI-DESIGN.md), GuiModel.ps1 / GuiView.ps1 (pure data helpers and view models),
+                 # GuiApp.ps1 (window, runspace, events), GuiSnapshot.ps1 (developer PNG snapshots; writes only inside out\)
 demo/            # demo script: runs the reporters on the example.test fixture, writes out/demo
 tests/fixtures/  # sanitised recorded samples (example.test only)
 tests/*.Tests.ps1
