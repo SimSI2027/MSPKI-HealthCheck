@@ -175,6 +175,18 @@ function Start-MspkiHealthCheck {
             }
             $inventory | Add-Member -NotePropertyName 'NdesHosts' -NotePropertyValue $ndesHosts -Force
             Add-MspkiStageTiming -Stage 'Probe:NDES' -Stopwatch $sw
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                $intune = Invoke-MspkiIntuneConnectorAnalysis -NdesHosts $ndesHosts
+                foreach ($f in $intune.Findings) { [void]$findings.Add($f) }
+                $inventory | Add-Member -NotePropertyName 'IntuneConnector' -NotePropertyValue $intune.Data -Force
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('Intune connector check stopped: {0}' -f $_.Exception.Message)
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'IntuneConnector' -Role 'IntuneConnector' `
+                    -Target 'Intune Certificate Connector' -Sources 'Local:Win32_Service' -Action 'checking this computer for the Intune Certificate Connector' -Scope 'Local'))
+            }
+            Add-MspkiStageTiming -Stage 'Discovery:IntuneConnector' -Stopwatch $sw
             $inventory | Add-Member -NotePropertyName 'Leads'-NotePropertyValue @(Get-MspkiLead | ForEach-Object { ConvertTo-MspkiLeadExport -Lead $_ }) -Force
             $inventory | Add-Member -NotePropertyName 'LeadStatistics' -NotePropertyValue (Get-MspkiLeadStatistic) -Force
         }
