@@ -6,6 +6,7 @@ BeforeDiscovery {
     $script:codeFiles = @(Get-ChildItem -LiteralPath (Join-Path $repo 'src') -Recurse -File |
         Where-Object { @('.ps1', '.psm1', '.psd1') -contains $_.Extension } | ForEach-Object { @{ Path = $_.FullName; Name = $_.Name } })
     $script:codeFiles += @{ Path = (Join-Path $repo 'Invoke-MspkiHealthCheck.ps1'); Name = 'Invoke-MspkiHealthCheck.ps1' }
+    $script:codeFiles += @{ Path = (Join-Path $repo 'Start-MspkiHealthCheckGui.ps1'); Name = 'Start-MspkiHealthCheckGui.ps1' }
     $script:codeFiles += @{ Path = (Join-Path $repo 'demo\Invoke-MspkiDemo.ps1'); Name = 'Invoke-MspkiDemo.ps1' }
 }
 
@@ -24,7 +25,8 @@ BeforeAll {
 
     $script:forbidden = [ordered]@{
         'Invoke-Expression'            = '(?i)Invoke-Expression|\biex\b'
-        'Add-Type'                     = '(?i)Add-Type'
+        # Only "Add-Type -AssemblyName <in-box WPF assembly>" is allowed (CLAUDE.md rule 6); -TypeDefinition / -MemberDefinition are not.
+        'Add-Type'                     = '(?i)Add-Type(?!\s+-AssemblyName\s+(PresentationFramework|PresentationCore|WindowsBase)\b)'
         'encoded command'              = '(?i)-EncodedCommand|\s-enc\s|\s-e\s'
         'Base64 decoding'              = '(?i)FromBase64'
         'execution policy'             = '(?i)ExecutionPolicy'
@@ -111,7 +113,7 @@ Describe 'Function naming and help' {
 Describe 'Public repository hygiene' {
     BeforeAll {
         $skip = '(?i)[\\/](\.git|ref|out)([\\/]|$)'
-        $ext = @('.ps1', '.psm1', '.psd1', '.md', '.json', '.txt', '.xml', '.html', '.css', '.csv', '.yml', '.yaml', '')
+        $ext = @('.ps1', '.psm1', '.psd1', '.md', '.json', '.txt', '.xml', '.xaml', '.html', '.css', '.csv', '.yml', '.yaml', '')
         $script:textFiles = @(Get-ChildItem -LiteralPath $script:RepoRoot -Recurse -File -Force |
             Where-Object { $_.FullName -notmatch $skip -and ($ext -contains $_.Extension -or $_.Name -eq '.gitignore') })
         $script:hostCi = '(?i)(?<![\w$.\\-])((?:[a-z0-9-]+\.)+(?:com|net|org|local|lan|corp|internal|intra|gov|edu|io|uk|de|nl|ie|eu|fr|ch|be|au|info|biz|cloud|online|tech|test|lab))\b'

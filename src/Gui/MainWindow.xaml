@@ -1,0 +1,351 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MSPKI Health Check" Width="1280" Height="820" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="13">
+  <Window.Resources>
+    <!-- Status colours: every chip uses white text, so each background has enough contrast. -->
+    <Style x:Key="StatusChip" TargetType="Border">
+      <Setter Property="Background" Value="#616161"/>
+      <Setter Property="CornerRadius" Value="3"/>
+      <Setter Property="Padding" Value="6,1"/>
+      <Setter Property="Margin" Value="0,1,6,1"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding Status}" Value="Critical"><Setter Property="Background" Value="#8E0000"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="Fail"><Setter Property="Background" Value="#C62828"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="Error"><Setter Property="Background" Value="#6A1B9A"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="Warning"><Setter Property="Background" Value="#B26A00"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="Skipped"><Setter Property="Background" Value="#546E7A"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="Information"><Setter Property="Background" Value="#0B5CAD"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="Pass"><Setter Property="Background" Value="#2E7D32"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="NotApplicable"><Setter Property="Background" Value="#757575"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="NotTested"><Setter Property="Background" Value="#9E9E9E"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="PermissionDenied"><Setter Property="Background" Value="#6A1B9A"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="Timeout"><Setter Property="Background" Value="#C25100"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="Unknown"><Setter Property="Background" Value="#757575"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="ChipText" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="FontSize" Value="12"/>
+    </Style>
+    <Style x:Key="Tile" TargetType="Border" BasedOn="{StaticResource StatusChip}">
+      <Setter Property="Padding" Value="14,8"/>
+      <Setter Property="Margin" Value="0,0,10,10"/>
+      <Setter Property="MinWidth" Value="104"/>
+      <Setter Property="CornerRadius" Value="6"/>
+    </Style>
+    <Style x:Key="FactLabel" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#555555"/>
+      <Setter Property="Margin" Value="0,2,14,2"/>
+    </Style>
+    <Style x:Key="FactValue" TargetType="TextBlock">
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,2,0,2"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="SectionTitle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,12,0,6"/>
+    </Style>
+    <Style x:Key="ReadBox" TargetType="TextBox">
+      <Setter Property="IsReadOnly" Value="True"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+      <Setter Property="Background" Value="#F7F7F7"/>
+      <Setter Property="BorderBrush" Value="#CCCCCC"/>
+      <Setter Property="Padding" Value="6"/>
+      <Setter Property="FontFamily" Value="Consolas"/>
+    </Style>
+  </Window.Resources>
+
+  <DockPanel>
+    <!-- Bottom status line -->
+    <Border DockPanel.Dock="Bottom" Background="#EEEEEE" BorderBrush="#CCCCCC" BorderThickness="0,1,0,0" Padding="10,4">
+      <DockPanel>
+        <TextBlock x:Name="TxtElapsed" DockPanel.Dock="Right" Margin="12,0,0,0" Foreground="#555555"/>
+        <TextBlock x:Name="TxtTarget" TextTrimming="CharacterEllipsis" Foreground="#555555"/>
+      </DockPanel>
+    </Border>
+
+    <!-- Top bar -->
+    <StackPanel DockPanel.Dock="Top" Background="#F3F3F3">
+      <WrapPanel Margin="10,8,10,2">
+        <Button x:Name="BtnRun" Content="Run" Width="90" Height="30" Margin="0,0,8,6" FontWeight="SemiBold"
+                ToolTip="Start a new health check. It only reads; nothing is changed."/>
+        <Button x:Name="BtnCancel" Content="Cancel" Width="90" Height="30" Margin="0,0,18,6" IsEnabled="False"
+                ToolTip="Stop the run at the next step. Partial results are still saved."/>
+        <Button x:Name="BtnOpenResults" Content="Open results.json..." Height="30" Padding="12,0" Margin="0,0,8,6"
+                ToolTip="Look at an earlier run without scanning anything."/>
+        <Button x:Name="BtnOpenReport" Content="Open HTML report" Height="30" Padding="12,0" Margin="0,0,8,6" IsEnabled="False"/>
+        <Button x:Name="BtnOpenFolder" Content="Open output folder" Height="30" Padding="12,0" Margin="0,0,8,6"/>
+      </WrapPanel>
+      <Grid Margin="10,0,10,8">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Column="0">
+          <ProgressBar x:Name="Progress" Height="14" Minimum="0" Maximum="100" Value="0"/>
+          <TextBlock x:Name="TxtStage" Margin="0,4,0,0" Text="Ready. Press Run to start a health check, or open an earlier results.json."/>
+        </StackPanel>
+      </Grid>
+      <Expander Header="Options" Margin="10,0,10,8" IsExpanded="True">
+        <WrapPanel Margin="4,6,0,0">
+          <StackPanel Orientation="Horizontal" Margin="0,0,24,4">
+            <TextBlock Text="Timeout per probe (seconds):" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox x:Name="TxtTimeout" Width="48" Text="5" VerticalContentAlignment="Center" ToolTip="Whole number from 1 to 120."/>
+          </StackPanel>
+          <CheckBox x:Name="ChkSkipNetwork" Content="Skip network (read Active Directory only)" Margin="0,3,24,4"
+                    ToolTip="Do not contact any CA or web server. Only Active Directory is read."/>
+          <CheckBox x:Name="ChkProxy" Content="Use the system proxy for web probes" Margin="0,3,24,4"
+                    ToolTip="Off by default: web probes connect directly, without credentials."/>
+          <CheckBox x:Name="ChkNdesAdmin" Content="Also probe the NDES admin page (opt-in)" Margin="0,3,24,4"
+                    ToolTip="Sends one anonymous request to the NDES admin page. If that page is wrongly open it creates a challenge password on the server, so this is off by default."/>
+          <TextBlock x:Name="TxtOutput" Margin="0,3,0,4" Foreground="#555555" VerticalAlignment="Center"/>
+        </WrapPanel>
+      </Expander>
+    </StackPanel>
+
+    <TabControl x:Name="Tabs" Margin="6,6,6,6">
+      <!-- Summary -->
+      <TabItem Header="Summary" x:Name="TabSummary">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="14,8,14,14">
+            <TextBlock x:Name="TxtBanner" TextWrapping="Wrap" Margin="0,0,0,8" Padding="8" Background="#FFF4CE" Visibility="Collapsed"/>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Text="Forest" Style="{StaticResource FactLabel}"/>
+              <TextBlock Grid.Row="0" Grid.Column="1" x:Name="SumForest" Style="{StaticResource FactValue}"/>
+              <TextBlock Grid.Row="1" Text="Domain" Style="{StaticResource FactLabel}"/>
+              <TextBlock Grid.Row="1" Grid.Column="1" x:Name="SumDomain" Style="{StaticResource FactValue}"/>
+              <TextBlock Grid.Row="2" Text="Domain controller used" Style="{StaticResource FactLabel}"/>
+              <TextBlock Grid.Row="2" Grid.Column="1" x:Name="SumDc" Style="{StaticResource FactValue}"/>
+              <TextBlock Grid.Row="3" Text="Run as" Style="{StaticResource FactLabel}"/>
+              <TextBlock Grid.Row="3" Grid.Column="1" x:Name="SumUser" Style="{StaticResource FactValue}"/>
+              <TextBlock Grid.Row="4" Text="Administrator" Style="{StaticResource FactLabel}"/>
+              <TextBlock Grid.Row="4" Grid.Column="1" x:Name="SumAdmin" Style="{StaticResource FactValue}"/>
+              <TextBlock Grid.Row="5" Text="Run state" Style="{StaticResource FactLabel}"/>
+              <TextBlock Grid.Row="5" Grid.Column="1" x:Name="SumState" Style="{StaticResource FactValue}"/>
+              <TextBlock Grid.Row="6" Text="Exit code" Style="{StaticResource FactLabel}"/>
+              <TextBlock Grid.Row="6" Grid.Column="1" x:Name="SumExit" Style="{StaticResource FactValue}"/>
+            </Grid>
+            <TextBlock x:Name="SumTotal" Style="{StaticResource SectionTitle}" Text="Findings by status"/>
+            <ItemsControl x:Name="TileList">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Style="{StaticResource Tile}">
+                    <StackPanel>
+                      <TextBlock Text="{Binding Count}" Foreground="White" FontSize="26" FontWeight="Bold"/>
+                      <TextBlock Text="{Binding Status}" Foreground="White" FontSize="12"/>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Style="{StaticResource SectionTitle}" Text="Certification authorities found"/>
+            <DataGrid x:Name="CaGrid" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" CanUserAddRows="False"
+                      GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#DDDDDD" Background="White" BorderBrush="#CCCCCC"
+                      MaxHeight="320" SelectionMode="Single">
+              <DataGrid.Columns>
+                <DataGridTemplateColumn Header="Status" SortMemberPath="Status" Width="110">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Style="{StaticResource StatusChip}"><TextBlock Text="{Binding Status}" Style="{StaticResource ChipText}"/></Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="CA" Binding="{Binding Name}" Width="*"/>
+                <DataGridTextColumn Header="Host" Binding="{Binding Host}" Width="*"/>
+                <DataGridTextColumn Header="Certificates" Binding="{Binding Certificates}" Width="90"/>
+                <DataGridTextColumn Header="Templates" Binding="{Binding Templates}" Width="90"/>
+                <DataGridTextColumn Header="Findings" Binding="{Binding Findings}" Width="80"/>
+              </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock x:Name="SumNoCa" Margin="0,6,0,0" Foreground="#555555" Visibility="Collapsed" Text="No Enterprise CA was found in this run."/>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <!-- Discovery Map -->
+      <TabItem Header="Discovery Map" x:Name="TabMap">
+        <Grid Margin="6">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="3*"/>
+            <ColumnDefinition Width="6"/>
+            <ColumnDefinition Width="2*"/>
+          </Grid.ColumnDefinitions>
+          <TreeView x:Name="MapTree" Grid.Column="0" BorderBrush="#CCCCCC">
+            <TreeView.ItemContainerStyle>
+              <Style TargetType="TreeViewItem">
+                <Setter Property="IsExpanded" Value="{Binding Expanded, Mode=OneTime}"/>
+              </Style>
+            </TreeView.ItemContainerStyle>
+            <TreeView.ItemTemplate>
+              <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                <StackPanel Orientation="Horizontal" Margin="0,1">
+                  <Border Style="{StaticResource StatusChip}"><TextBlock Text="{Binding Status}" Style="{StaticResource ChipText}"/></Border>
+                  <TextBlock Text="{Binding Label}" VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding ConfidenceText}" Foreground="#555555" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding BelowText}" Foreground="#C62828" Margin="8,0,0,0" VerticalAlignment="Center" FontStyle="Italic"/>
+                </StackPanel>
+              </HierarchicalDataTemplate>
+            </TreeView.ItemTemplate>
+          </TreeView>
+          <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="#EEEEEE"/>
+          <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="2*"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="2*"/>
+            </Grid.RowDefinitions>
+            <TextBox x:Name="MapDetail" Grid.Row="0" Style="{StaticResource ReadBox}" Text="Select an item in the tree."/>
+            <TextBlock Grid.Row="1" Text="Findings for this item (double-click to open in Details)" Margin="0,8,0,4" FontWeight="SemiBold"/>
+            <ListBox x:Name="MapFindings" Grid.Row="2" BorderBrush="#CCCCCC">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel Orientation="Horizontal">
+                    <Border Style="{StaticResource StatusChip}"><TextBlock Text="{Binding Status}" Style="{StaticResource ChipText}"/></Border>
+                    <TextBlock Text="{Binding Message}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+        </Grid>
+      </TabItem>
+
+      <!-- Findings -->
+      <TabItem Header="Findings" x:Name="TabFindings">
+        <DockPanel Margin="6">
+          <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+            <TextBlock Text="Search:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBox x:Name="FltText" Width="240" Margin="0,0,14,0" VerticalContentAlignment="Center"
+                     ToolTip="Type words; a finding must contain every word somewhere (target, message, source, evidence...)."/>
+            <TextBlock Text="Status:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox x:Name="FltStatus" Width="120" Margin="0,0,14,0"/>
+            <TextBlock Text="Category:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox x:Name="FltCategory" Width="130" Margin="0,0,14,0"/>
+            <TextBlock Text="Confidence:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox x:Name="FltConfidence" Width="120" Margin="0,0,14,0"/>
+            <Button x:Name="BtnClearFilters" Content="Clear filters" Padding="10,2" Margin="0,0,14,0"/>
+            <TextBlock x:Name="TxtShowing" VerticalAlignment="Center" Foreground="#555555"/>
+          </WrapPanel>
+          <DataGrid x:Name="FindingsGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"
+                    CanUserSortColumns="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#DDDDDD"
+                    Background="White" BorderBrush="#CCCCCC" EnableRowVirtualization="True">
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Header="Status" SortMemberPath="StatusRank" Width="100">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Border Style="{StaticResource StatusChip}"><TextBlock Text="{Binding Status}" Style="{StaticResource ChipText}"/></Border>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" SortMemberPath="SeverityRank" Width="90"/>
+              <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="100"/>
+              <DataGridTextColumn Header="Target" Binding="{Binding Target}" Width="180"/>
+              <DataGridTextColumn Header="Endpoint" Binding="{Binding Endpoint}" Width="200"/>
+              <DataGridTextColumn Header="Confidence" Binding="{Binding Confidence}" SortMemberPath="ConfidenceRank" Width="90"/>
+              <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="160"/>
+              <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" MinWidth="420"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </TabItem>
+
+      <!-- Details -->
+      <TabItem Header="Details" x:Name="TabDetails">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="14,8,14,14">
+            <TextBlock x:Name="DetNone" Text="Select a finding in the Findings tab (or in the Discovery Map) to see everything about it here." Foreground="#555555"/>
+            <StackPanel x:Name="DetPanel" Visibility="Collapsed">
+              <StackPanel Orientation="Horizontal">
+                <Border x:Name="DetChip" Style="{StaticResource StatusChip}"><TextBlock x:Name="DetStatus" Text="{Binding Status}" Style="{StaticResource ChipText}"/></Border>
+                <TextBlock x:Name="DetTitle" Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap"/>
+              </StackPanel>
+              <TextBox x:Name="DetMessage" Text="{Binding Message, Mode=OneWay}" Style="{StaticResource ReadBox}" FontFamily="Segoe UI" Margin="0,8,0,0"/>
+              <TextBlock Style="{StaticResource SectionTitle}" Text="Fields"/>
+              <ItemsControl x:Name="DetFields" ItemsSource="{Binding Fields}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                      <TextBlock Text="{Binding Name}" Foreground="#555555" Margin="0,1"/>
+                      <TextBox Grid.Column="1" Text="{Binding Value, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent" TextWrapping="Wrap" Margin="0,1"/>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Style="{StaticResource SectionTitle}" Text="Layer statuses"/>
+              <ItemsControl x:Name="DetLayers" ItemsSource="{Binding Layers}">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                      <TextBlock Text="{Binding Name}" Foreground="#555555" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                      <Border Style="{StaticResource StatusChip}"><TextBlock Text="{Binding Status}" Style="{StaticResource ChipText}"/></Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Style="{StaticResource SectionTitle}" Text="Sources"/>
+              <ListBox x:Name="DetSources" ItemsSource="{Binding Sources}" BorderBrush="#CCCCCC" MaxHeight="130"/>
+              <TextBlock Style="{StaticResource SectionTitle}" Text="Evidence"/>
+              <TextBox x:Name="DetEvidence" Text="{Binding Evidence, Mode=OneWay}" Style="{StaticResource ReadBox}" MinHeight="70" MaxHeight="320"/>
+              <TextBlock Style="{StaticResource SectionTitle}" Text="Remediation"/>
+              <TextBox x:Name="DetRemediation" Text="{Binding Remediation, Mode=OneWay}" Style="{StaticResource ReadBox}" FontFamily="Segoe UI" MinHeight="40" MaxHeight="200"/>
+              <TextBlock Style="{StaticResource SectionTitle}" Text="Notes"/>
+              <TextBox x:Name="DetNotes" Text="{Binding Notes, Mode=OneWay}" Style="{StaticResource ReadBox}" FontFamily="Segoe UI" MinHeight="40" MaxHeight="200"/>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <!-- Run Log -->
+      <TabItem Header="Run Log" x:Name="TabLog">
+        <DockPanel Margin="6">
+          <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+            <CheckBox x:Name="ChkFollow" Content="Follow the newest line" IsChecked="True" VerticalAlignment="Center" Margin="0,0,14,0"/>
+            <TextBlock x:Name="TxtLogCount" VerticalAlignment="Center" Foreground="#555555"/>
+          </WrapPanel>
+          <ListBox x:Name="LogList" BorderBrush="#CCCCCC" FontFamily="Consolas" FontSize="12"
+                   ScrollViewer.HorizontalScrollBarVisibility="Auto" VirtualizingStackPanel.IsVirtualizing="True">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding Text}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding Level}" Value="Error">
+                          <Setter Property="Foreground" Value="#B71C1C"/><Setter Property="FontWeight" Value="Bold"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Level}" Value="Warning">
+                          <Setter Property="Foreground" Value="#B26A00"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>

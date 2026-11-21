@@ -25,6 +25,11 @@ function Start-MspkiHealthCheck {
     Also sends the one anonymous request to the NDES admin page. Off by default: an admin page that is wrongly open to
     anonymous users creates a challenge password on the server when it is requested.
 
+    .PARAMETER Control
+    Optional object from New-MspkiRunControl, for a caller that runs this function in another runspace (the GUI). Setting
+    $Control.Cancel to $true stops the run at the next stage or probe (partial results are still written); progress messages
+    are added to $Control.Queue. Without it nothing changes.
+
     .EXAMPLE
     Start-MspkiHealthCheck -OutputPath .\out
     #>
@@ -43,8 +48,10 @@ function Start-MspkiHealthCheck {
         [ValidateRange(1, 100)][int]$RootCrlCriticalPercent = 95,
         [ValidateRange(1, 100)][int]$IssuingCrlWarningPercent = 75,
         [ValidateRange(1, 100)][int]$IssuingCrlCriticalPercent = 95,
-        [ValidateRange(1, 1440)][int]$CrlPublicationGraceMinutes = 60
+        [ValidateRange(1, 1440)][int]$CrlPublicationGraceMinutes = 60,
+        [hashtable]$Control = $null
     )
+    Set-MspkiRunControl -Control $Control
     $thresholds = Get-MspkiThreshold -Override @{
         RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays
         IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
@@ -222,7 +229,14 @@ function Start-MspkiHealthCheck {
             $inventory | Add-Member -NotePropertyName 'Leads'-NotePropertyValue @(Get-MspkiLead | ForEach-Object { ConvertTo-MspkiLeadExport -Lead $_ }) -Force
             $inventory | Add-Member -NotePropertyName 'LeadStatistics' -NotePropertyValue (Get-MspkiLeadStatistic) -Force
         }
+        if (Test-MspkiCancelled) { throw (New-Object System.OperationCanceledException('The run was cancelled.')) }
         $completed = $true
+    }
+    catch [System.OperationCanceledException] {
+        Write-MspkiLog -Level Warning -Message 'The run was cancelled by the user; the results are incomplete.'
+        [void]$findings.Add((New-MspkiFinding -Category 'Run' -Role 'Run' -Target 'Run' -Status 'Information' -StatusCode 'NOT_APPLICABLE' `
+            -Confidence 'Confirmed' -Sources 'Run' -Stage 'Run' -Scope 'Local' `
+            -Message 'The run was cancelled before it finished. Stages that had not run are missing and the stage that was running is incomplete, so these results are partial.'))
     }
     finally {
         # Also runs on Ctrl+C, so a partial results.json is still written.
@@ -252,6 +266,7 @@ function Start-MspkiHealthCheck {
             }
         }
     }
+    Set-MspkiRunControl -Control $null
     return [pscustomobject][ordered]@{
         OutputFolder = $folder
         ResultsPath  = $resultsPath

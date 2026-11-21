@@ -129,6 +129,8 @@ function New-MspkiErrorFinding {
                              $msg = ('Not supported while {0}.' -f $Action) }
         'NotFound'         { $st = 'Information'; $code = $NotFoundCode; $layer = 'Fail'
                              $msg = ('Nothing found while {0}.' -f $Action) }
+        'Cancelled'        { $st = 'Skipped'; $code = 'NOT_APPLICABLE'; $layer = 'Skipped'
+                             $msg = ('Stopped because the run was cancelled while {0}; this part is incomplete.' -f $Action) }
         'Timeout'          { $st = $UnreachableStatus; $code = 'TIMEOUT'; $layer = 'Timeout'
                              $msg = ('Timed out while {0}.' -f $Action) }
         'Unreachable'      { $st = $UnreachableStatus; $code = 'RETRIEVAL_FAIL'; $layer = 'Fail'

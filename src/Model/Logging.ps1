@@ -24,6 +24,7 @@ function Write-MspkiLog {
     $line = '{0} [{1}] {2}' -f [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'), $Level.ToUpperInvariant(), $Message
     [void]$script:MspkiLogLines.Add($line)
     Write-Verbose $line
+    Send-MspkiProgress -Kind 'Log' -Text $line -Level $Level
     if ($script:MspkiLogPath) {
         try { Write-MspkiOutputFile -Path $script:MspkiLogPath -Content ($line + "`r`n") -Append }
         catch { $script:MspkiLogPath = '' }

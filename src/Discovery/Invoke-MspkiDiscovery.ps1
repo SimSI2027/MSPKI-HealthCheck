@@ -159,6 +159,7 @@ function Invoke-MspkiDiscovery {
     $props = @{}
     $propFindings = New-Object System.Collections.ArrayList
     foreach ($ca in $cas) {
+        if (Test-MspkiCancelled) { break }
         try {
             $r = Get-MspkiCAProperty -CA $ca -Context $ctx -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork
             if ($null -ne $r.Data) { $props[$ca.Name] = $r.Data }

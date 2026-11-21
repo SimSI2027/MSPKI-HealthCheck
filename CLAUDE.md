@@ -39,6 +39,10 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
    and CRLs returned by CA COM properties such as `GetCAProperty`) with `[Convert]::FromBase64String` is
    allowed. Do it only in `ConvertFrom-MspkiBase64Data` (`src/Model/BinaryData.ps1`), which accepts only
    certificate/CRL-shaped DER data. Never decode and then run, load, dot-source or write anything.
+   *Clarification:* `Add-Type -AssemblyName` to load the in-box WPF assemblies (`PresentationFramework`, `PresentationCore`,
+   `WindowsBase`) is allowed, for the GUI only (`Start-MspkiHealthCheckGui.ps1`, `src/Gui/`). `Add-Type` with `-TypeDefinition` or
+   `-MemberDefinition`, which compiles code, stays banned. Everything else in this rule still applies. `tests/Hygiene.Tests.ps1`
+   enforces it.
 7. **No secrets.** Never read, log or export private keys, passwords, tokens, challenge passwords or
    protected configuration values.
 8. **Honest results.** Every finding carries its sources, evidence and confidence. Never present an Inferred
@@ -55,12 +59,14 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
 ## Layout
 ```
 Invoke-MspkiHealthCheck.ps1   # thin entry point: parameters, exit code
+Start-MspkiHealthCheckGui.ps1 # Windows GUI entry point (WPF, STA); engine runs in a background runspace
 src/MspkiHealthCheck.psd1/.psm1
 src/Model/       # New-MspkiFinding, lead registry, URL/host normalisation
 src/Discovery/   # AD Configuration partition, CA COM properties, local policy and services
 src/Probes/      # DNS, TCP, HTTP, TLS, LDAP: cached and time-limited
 src/Analyzers/   # CA/hierarchy, CRL, endpoints, AD containers, templates, CEP/CES, NDES, stale refs
 src/Reporters/   # JSON, CSV, HTML, log
+src/Gui/         # GUI only: MainWindow.xaml, GuiModel.ps1 (pure data helpers), GuiApp.ps1 (window, runspace, events)
 demo/            # demo script: runs the reporters on the example.test fixture, writes out/demo
 tests/fixtures/  # sanitised recorded samples (example.test only)
 tests/*.Tests.ps1

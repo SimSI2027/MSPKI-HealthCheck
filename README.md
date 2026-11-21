@@ -47,6 +47,33 @@ To see what the report looks like without a domain, run the demo (it uses saniti
 Exit codes: `0` passed · `2` informational · `3` warnings · `4` failures · `5` incomplete (unsupported or
 error) · `6` incomplete (permissions).
 
+## Using the GUI
+
+If you prefer a window to a command line, start it from a normal Windows PowerShell 5.1 prompt (the blue one, not PowerShell 7):
+
+```powershell
+.\Start-MspkiHealthCheckGui.ps1
+```
+
+If it says it needs a single-threaded session, start it as `powershell.exe -STA -File .\Start-MspkiHealthCheckGui.ps1`.
+
+- **Run** starts the same read-only check as the command line and writes the same four files (`results.json`, `findings.csv`,
+  `report.html`, `run.log`) to a new folder under `out\`. The window stays usable while it runs: the progress bar and the line
+  under it show the current step, and the **Run Log** tab shows the log live (errors in red).
+- **Cancel** stops the run within a few seconds. What was found so far is still saved and shown, marked as partial. Closing the
+  window during a run does the same and then closes by itself.
+- **Open results.json...** shows an earlier run without scanning anything. **Open HTML report** and **Open output folder** open
+  the files of the run on screen.
+- **Options**: the timeout for each probe, *Skip network* (read Active Directory only), *Use the system proxy* and *Also probe the
+  NDES admin page*. These are the same switches as on the command line and all start switched off.
+- **Summary**: forest, domain, the domain controller used, who ran it and whether that account is an administrator, a coloured
+  tile per status, and the CAs that were found. **Discovery Map**: a tree of forest, CAs, CA certificates and their endpoints,
+  templates, CES and NDES, each with its status and confidence. **Findings**: every finding in a table you can search, filter
+  by status, category and confidence, and sort by clicking a column heading. **Details**: select a finding to see all of it
+  (sources, evidence, the DNS/TCP/TLS/HTTP/redirect/content/chain results, remediation, notes).
+
+The window only shows and filters what the engine found; it checks nothing itself, and it changes nothing on any server.
+
 ## Safety
 
 - Read-only. It never enrolls, requests, revokes, publishes, restarts or changes anything. It writes only

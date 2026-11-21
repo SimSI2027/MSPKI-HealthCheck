@@ -92,6 +92,8 @@ function Start-MspkiStageTimer {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Stage)
+    Assert-MspkiNotCancelled
+    Send-MspkiProgress -Kind 'StageStart' -Text $Stage
     Write-MspkiLog -Message ('Stage {0} started' -f $Stage)
     return [System.Diagnostics.Stopwatch]::StartNew()
 }
@@ -127,6 +129,7 @@ function Add-MspkiStageTiming {
         [Parameter(Mandatory = $true)][string]$Stage,
         [Parameter(Mandatory = $true)][System.Diagnostics.Stopwatch]$Stopwatch
     )
+    Send-MspkiProgress -Kind 'StageEnd' -Text $Stage
     if ($null -eq $script:MspkiRun) { return }
     [void]$script:MspkiRun.StageTimings.Add([pscustomobject][ordered]@{
         Stage     = $Stage

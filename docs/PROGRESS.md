@@ -3,6 +3,20 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## GUI (WPF): `Start-MspkiHealthCheckGui.ps1`, `src\Gui\` — done (725 tests)
+- Engine: optional `-Control` on `Start-MspkiHealthCheck` (`New-MspkiRunControl`: cancel flag + ConcurrentQueue; `src\Model\RunControl.ps1`). Stage starts, probes (DNS/TCP/TLS/HTTP/LDAP/COM)
+  and log lines feed the queue; stage starts and probes throw `OperationCanceledException` once cancelled, DNS/TCP/COM waits poll every 200 ms (cancel ~1.5 s on the lab). A cancelled run writes
+  the same four files, `RunInfo.Completed = false`, exit code at least 5, one Run finding saying so. Without `-Control` nothing changes (CLI untouched).
+- GUI: XAML + `GuiModel.ps1` (pure helpers) + `GuiApp.ps1` (window, background STA runspace, DispatcherTimer reading the queue). Tabs: Summary (tiles, CAs), Discovery Map (TreeView over
+  `Get-MspkiDiscoveryTree`), Findings (sortable DataGrid, text/status/category/confidence filters), Details (all fields, layers, evidence), Run Log (live, errors red). Open results.json
+  without scanning. Closing mid-run cancels, waits, closes (forced after 45 s or a second close).
+- Rule clarification added to CLAUDE.md: `Add-Type -AssemblyName` for PresentationFramework/PresentationCore/WindowsBase only; `-TypeDefinition`/`-MemberDefinition` still banned (Hygiene test updated, GUI files scanned).
+- Tested here without seeing the screen: Pester (cancel flag, queue, helpers, XAML loads, window shows the example.test fixture, filter/sort in an STA runspace) and a harness that pumps the WPF
+  dispatcher: full run on the lab (47 findings), Cancel mid-run, close mid-run (results.json Completed=false, no leftover runspace), open earlier results.json; screenshots rendered to a temp folder, not kept.
+- Known limits: findings appear when the run ends (the engine returns them at the end); HTTP GET and TLS handshake are synchronous, so a cancel can wait up to one probe timeout for those;
+  a results.json above ~2 MB cannot be opened (Windows PowerShell 5.1 `ConvertFrom-Json`), the window says so and points to report.html.
+- Next: the user's click-through on the real screen (docs\TESTING.md, "Using the window"); fix what they report.
+
 ## Second live run on the lab computer + audit L5 — done (688 tests)
 - Re-ran the tool (normal user): same result as the first live run, 47 findings, exit 4. The only Fail items are the two `RETRIEVAL_FAIL` (0x800706BA) from
   `GetCAProperty`; the finding already says "TCP 135 answered but the CA did not: the Certificate Services service may be stopped, or dynamic RPC ports are

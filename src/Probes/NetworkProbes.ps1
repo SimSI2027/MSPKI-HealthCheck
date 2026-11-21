@@ -17,6 +17,26 @@ function New-MspkiProbeResult {
     }
 }
 
+function Wait-MspkiAsyncResult {
+    <#
+    .SYNOPSIS
+    Waits for an asynchronous call for at most TimeoutMs and returns whether it finished. Waits in short slices and throws an
+    OperationCanceledException when the caller cancelled the run, so a cancel does not have to wait for a probe timeout.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$AsyncResult,
+        [Parameter(Mandatory = $true)][int]$TimeoutMs
+    )
+    $deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMs)
+    while ($true) {
+        $left = ($deadline - [DateTime]::UtcNow).TotalMilliseconds
+        if ($left -le 0) { return [bool]$AsyncResult.IsCompleted }
+        if ($AsyncResult.AsyncWaitHandle.WaitOne([int][math]::Min(200, $left))) { return $true }
+        Assert-MspkiNotCancelled
+    }
+}
+
 function Resolve-MspkiDnsName {
     <#
     .SYNOPSIS
@@ -32,11 +52,13 @@ function Resolve-MspkiDnsName {
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
 
+    Assert-MspkiNotCancelled
+    Send-MspkiProgress -Kind 'Target' -Text ('DNS {0}' -f $h)
     $r = New-MspkiProbeResult -Probe 'DNS' -Target $h
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $ar = [System.Net.Dns]::BeginGetHostAddresses($h, $null, $null)
-        if ($ar.AsyncWaitHandle.WaitOne($TimeoutMs)) {
+        if (Wait-MspkiAsyncResult -AsyncResult $ar -TimeoutMs $TimeoutMs) {
             $addrs = [System.Net.Dns]::EndGetHostAddresses($ar)
             $r.Addresses = @($addrs | ForEach-Object { $_.IPAddressToString })
             if ($r.Addresses.Count -gt 0) { $r.Status = 'Pass'; $r.StatusCode = 'OK' }
@@ -47,6 +69,7 @@ function Resolve-MspkiDnsName {
         }
     }
     catch {
+        if ($_.Exception -is [System.OperationCanceledException]) { throw }
         $r.Status = 'Fail'; $r.StatusCode = 'DNS_FAIL'; $r.Error = (Get-MspkiErrorInfo $_).Message
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
@@ -75,7 +98,7 @@ function Resolve-MspkiDnsEntry {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $ar = [System.Net.Dns]::BeginGetHostEntry($h, $null, $null)
-        if ($ar.AsyncWaitHandle.WaitOne($TimeoutMs)) {
+        if (Wait-MspkiAsyncResult -AsyncResult $ar -TimeoutMs $TimeoutMs) {
             $entry = [System.Net.Dns]::EndGetHostEntry($ar)
             $r.Addresses = @($entry.AddressList | ForEach-Object { $_.IPAddressToString })
             $r.CanonicalName = ConvertTo-MspkiHostName $entry.HostName
@@ -87,6 +110,7 @@ function Resolve-MspkiDnsEntry {
         }
     }
     catch {
+        if ($_.Exception -is [System.OperationCanceledException]) { throw }
         $r.Status = 'Fail'; $r.StatusCode = 'DNS_FAIL'; $r.Error = (Get-MspkiErrorInfo $_).Message
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
@@ -112,12 +136,14 @@ function Test-MspkiTcpPort {
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
 
+    Assert-MspkiNotCancelled
+    Send-MspkiProgress -Kind 'Target' -Text ('TCP {0}:{1}' -f $h, $Port)
     $r = New-MspkiProbeResult -Probe 'TCP' -Target ('{0}:{1}' -f $h, $Port)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $client = New-Object System.Net.Sockets.TcpClient
     try {
         $ar = $client.BeginConnect($h, $Port, $null, $null)
-        if ($ar.AsyncWaitHandle.WaitOne($TimeoutMs)) {
+        if (Wait-MspkiAsyncResult -AsyncResult $ar -TimeoutMs $TimeoutMs) {
             try { $client.EndConnect($ar); $r.Status = 'Pass'; $r.StatusCode = 'OK' }
             catch { $r.Status = 'Fail'; $r.StatusCode = 'TCP_FAIL'; $r.Error = (Get-MspkiErrorInfo $_).Message }
         }
@@ -126,6 +152,7 @@ function Test-MspkiTcpPort {
         }
     }
     catch {
+        if ($_.Exception -is [System.OperationCanceledException]) { throw }
         $r.Status = 'Fail'; $r.StatusCode = 'TCP_FAIL'; $r.Error = (Get-MspkiErrorInfo $_).Message
     }
     finally { $client.Close() }
@@ -150,6 +177,8 @@ function Invoke-MspkiTimeLimitedScript {
         [object[]]$ArgumentList = @(),
         [ValidateRange(1, 3600)][int]$TimeoutSeconds = 30
     )
+    Assert-MspkiNotCancelled
+    Send-MspkiProgress -Kind 'Target' -Text 'Calling a CA (COM)'
     $res = [pscustomobject][ordered]@{
         Completed = $false; TimedOut = $false; Output = @(); Errors = @(); ElapsedMs = 0
     }
@@ -163,7 +192,19 @@ function Invoke-MspkiTimeLimitedScript {
     [void]$ps.AddScript($ScriptBlock.ToString(), $true)
     foreach ($a in $ArgumentList) { [void]$ps.AddArgument($a) }
     $handle = $ps.BeginInvoke()
-    if ($handle.AsyncWaitHandle.WaitOne($TimeoutSeconds * 1000)) {
+    # Wait in short slices so that a cancel request is honoured within a fraction of a second.
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $done = $false
+    $cancelled = $false
+    while (-not $done -and [DateTime]::UtcNow -lt $deadline) {
+        if (Test-MspkiCancelled) { $cancelled = $true; break }
+        $done = $handle.AsyncWaitHandle.WaitOne(250)
+    }
+    if ($cancelled) {
+        try { [void]$ps.BeginStop($null, $null) } catch { }
+        throw (New-Object System.OperationCanceledException('The run was cancelled.'))
+    }
+    if ($done) {
         try {
             $res.Output = @($ps.EndInvoke($handle) | ForEach-Object { if ($null -ne $_) { $_.psobject.BaseObject } })
             $res.Completed = $true

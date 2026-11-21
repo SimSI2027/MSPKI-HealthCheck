@@ -129,6 +129,8 @@ function Invoke-MspkiHttpGet {
     if ($DiscardBody) { $key += '|nobody' }
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
+    Assert-MspkiNotCancelled
+    Send-MspkiProgress -Kind 'Target' -Text ('HTTP {0}' -f $Url)
     $r = [pscustomobject][ordered]@{
         Url = $Url; FinalUrl = $Url; HttpStatus = 0; Code = 'RETRIEVAL_FAIL'; Redirected = $false
         Hops = (New-Object System.Collections.ArrayList); ContentType = ''; Bytes = $null; Error = ''; ElapsedMs = 0; FromCache = $false
@@ -240,6 +242,8 @@ function Test-MspkiTlsEndpoint {
     $key = 'tls|{0}|{1}' -f $h, $Port
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
+    Assert-MspkiNotCancelled
+    Send-MspkiProgress -Kind 'Target' -Text ('TLS {0}:{1}' -f $h, $Port)
     $r = [pscustomobject][ordered]@{
         Probe = 'TLS'; Target = ('{0}:{1}' -f $h, $Port); Status = 'Fail'; Code = 'TLS_HANDSHAKE_FAIL'; Protocol = ''
         NameMatch = $null; ChainErrors = @(); Subject = ''; Issuer = ''; Thumbprint = ''; NotAfter = ''; Error = ''; ElapsedMs = 0; FromCache = $false
@@ -266,7 +270,7 @@ function Test-MspkiTlsEndpoint {
         $retry = $false
         try {
             $ar = $client.BeginConnect($h, $Port, $null, $null)
-            if (-not $ar.AsyncWaitHandle.WaitOne($TimeoutMs)) { throw (New-Object System.TimeoutException('TCP connect timed out.')) }
+            if (-not (Wait-MspkiAsyncResult -AsyncResult $ar -TimeoutMs $TimeoutMs)) { throw (New-Object System.TimeoutException('TCP connect timed out.')) }
             $client.EndConnect($ar)
             $ns = $client.GetStream()
             $ns.ReadTimeout = $TimeoutMs
@@ -299,6 +303,7 @@ function Test-MspkiTlsEndpoint {
             else { $r.Code = 'OK'; $r.Status = 'Pass' }
         }
         catch {
+            if ($_.Exception -is [System.OperationCanceledException]) { throw }
             $ei = Get-MspkiErrorInfo $_
             $r.Error = $ei.Message
             if ($ei.Class -eq 'Timeout' -or $ei.ExceptionType -like '*IOException') { $r.Code = 'TLS_HANDSHAKE_FAIL' }
@@ -370,6 +375,8 @@ function Get-MspkiLdapUrlContent {
     $key = 'ldapurl|' + $Url
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { return $cached }
+    Assert-MspkiNotCancelled
+    Send-MspkiProgress -Kind 'Target' -Text ('LDAP {0}' -f $Url)
     $r = [pscustomobject][ordered]@{ Url = $Url; Server = ''; Code = 'RETRIEVAL_FAIL'; Bytes = $null; ValueCount = 0; Error = ''; ElapsedMs = 0; Contacted = $true }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {

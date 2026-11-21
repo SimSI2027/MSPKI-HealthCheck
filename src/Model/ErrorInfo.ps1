@@ -27,7 +27,7 @@ function Get-MspkiErrorInfo {
     <#
     .SYNOPSIS
     Classifies an ErrorRecord or Exception into PermissionDenied, NotFound, Unreachable, Timeout,
-    Unsupported, NotDomainJoined or Error.
+    Unsupported, NotDomainJoined, Cancelled (the user stopped the run) or Error.
     #>
     [CmdletBinding()]
     param(
@@ -52,6 +52,7 @@ function Get-MspkiErrorInfo {
     if ($class -eq 'Error') {
         foreach ($c in $chain) {
             if ($c -is [System.UnauthorizedAccessException] -or $c -is [System.Security.SecurityException]) { $class = 'PermissionDenied'; break }
+            if ($c -is [System.OperationCanceledException]) { $class = 'Cancelled'; break }
             if ($c -is [System.TimeoutException]) { $class = 'Timeout'; break }
             if ($c -is [System.NotSupportedException] -or $c -is [System.PlatformNotSupportedException]) {
                 $class = 'Unsupported'; break
