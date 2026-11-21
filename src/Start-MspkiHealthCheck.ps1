@@ -161,6 +161,20 @@ function Start-MspkiHealthCheck {
                     -Target 'EnrollmentServices' -Sources 'Run' -Action 'checking CEP and CES endpoints' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Probe:EnrollmentServices' -Stopwatch $sw
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $ndesHosts = @()
+            try {
+                $ndes = Invoke-MspkiNdesAnalysis -Discovery $d -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork
+                foreach ($f in $ndes.Findings) { [void]$findings.Add($f) }
+                $ndesHosts = @($ndes.Hosts)
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('NDES checks stopped: {0}' -f $_.Exception.Message)
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'NDES' -Role 'NDESEndpoint' `
+                    -Target 'NDES' -Sources 'Run' -Action 'checking NDES / SCEP' -Stage 'Run'))
+            }
+            $inventory | Add-Member -NotePropertyName 'NdesHosts' -NotePropertyValue $ndesHosts -Force
+            Add-MspkiStageTiming -Stage 'Probe:NDES' -Stopwatch $sw
             $inventory | Add-Member -NotePropertyName 'Leads'-NotePropertyValue @(Get-MspkiLead | ForEach-Object { ConvertTo-MspkiLeadExport -Lead $_ }) -Force
             $inventory | Add-Member -NotePropertyName 'LeadStatistics' -NotePropertyValue (Get-MspkiLeadStatistic) -Force
         }

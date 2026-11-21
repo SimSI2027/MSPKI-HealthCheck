@@ -45,9 +45,11 @@ function Invoke-MspkiHttpGet {
         [Parameter(Mandatory = $true)][string]$Url,
         [ValidateRange(100, 600000)][int]$TimeoutMs = 5000,
         [ValidateRange(1024, 104857600)][int]$MaxBytes = 10485760,
-        [ValidateRange(0, 10)][int]$MaxRedirects = 5
+        [ValidateRange(0, 10)][int]$MaxRedirects = 5,
+        [switch]$DiscardBody
     )
     $key = 'http|' + $Url
+    if ($DiscardBody) { $key += '|nobody' }
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
     $r = [pscustomobject][ordered]@{
@@ -102,9 +104,12 @@ function Invoke-MspkiHttpGet {
             $r.HttpStatus = $sc
             $r.ContentType = [string]$resp.ContentType
             if ($sc -eq 200) {
-                $body = Read-MspkiResponseBody -Response $resp -MaxBytes $MaxBytes
-                if ($body.TooLarge) { $r.Code = 'RETRIEVAL_FAIL'; $r.Error = ('Response larger than {0} bytes; not read.' -f $MaxBytes) }
-                else { $r.Bytes = $body.Bytes; $r.Code = 'OK' }
+                if ($DiscardBody) { $r.Code = 'OK' }   # the body is never read (used for pages that must not be read)
+                else {
+                    $body = Read-MspkiResponseBody -Response $resp -MaxBytes $MaxBytes
+                    if ($body.TooLarge) { $r.Code = 'RETRIEVAL_FAIL'; $r.Error = ('Response larger than {0} bytes; not read.' -f $MaxBytes) }
+                    else { $r.Bytes = $body.Bytes; $r.Code = 'OK' }
+                }
             }
             elseif ($sc -eq 400) { $r.Code = 'HTTP_400' }
             elseif ($sc -eq 401 -or $sc -eq 403) { $r.Code = 'HTTP_401_403' }

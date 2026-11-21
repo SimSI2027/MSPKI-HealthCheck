@@ -59,6 +59,8 @@ Describe 'Code file <Name>' -ForEach $script:codeFiles {
         foreach ($k in $script:forbidden.Keys) {
             # Base64 DATA (certificates/CRLs from CA properties) may be decoded in exactly one file (CLAUDE.md rule 6).
             if ($k -eq 'Base64 decoding' -and $Name -eq 'BinaryData.ps1') { continue }
+            # The NDES request table is the one place that may name the admin path (anonymous GET only; see tests/Ndes.Tests.ps1).
+            if ($k -eq 'credentials to mscep_admin' -and $Name -eq 'NdesProbe.ps1') { continue }
             $text | Should -Not -Match $script:forbidden[$k] -Because ('{0} is not allowed (CLAUDE.md hard rules)' -f $k)
         }
     }
