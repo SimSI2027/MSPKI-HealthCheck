@@ -163,7 +163,7 @@ function Start-MspkiHealthCheck {
                 }
             }
             catch {
-                Write-MspkiLog -Level Error -Message ('Endpoint checks stopped: {0}' -f $_.Exception.Message)
+                Write-MspkiLog -Level Error -Message ('Endpoint checks stopped: {0} | {1}' -f $_.Exception.Message, (($_.ScriptStackTrace -split "`r?`n" | Select-Object -First 6) -join ' <- '))
                 [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Run' -Role 'Run' `
                     -Target 'Endpoints' -Sources 'Run' -Action 'checking AIA/CDP/OCSP endpoints' -Stage 'Run'))
             }

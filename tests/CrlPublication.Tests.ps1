@@ -198,3 +198,25 @@ Describe 'Test-MspkiCaCrlPublication' {
         }
     }
 }
+
+Describe 'Get-MspkiCaOwnCrl uses the live CA properties, not the JSON-safe inventory summary' {
+    It 'returns the decoded CRL (DateTime dates) and grading it does not throw' {
+        $bytes = New-TestCrl -Issuer $script:root -Number 5 -CAVersion 0
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ Bytes = $bytes } {
+            param($Bytes)
+            $live = ConvertFrom-MspkiCrl -Bytes $Bytes
+            # What the inventory holds: dates as strings (ConvertTo-MspkiCrlSummary), no raw bytes.
+            $summary = ConvertTo-MspkiCrlSummary -Crl $live
+            $ca = [pscustomobject]@{ Name = 'Example Issuing CA'; Config = 'ca01.corp.example.test\Example Issuing CA'
+                Properties = [pscustomobject]@{ SigningCertificates = @([pscustomobject]@{ Index = 0; BaseCrl = $summary; DeltaCrl = $null; BaseCrlPublishStatus = 0 }) } }
+            $fromSummary = @(Get-MspkiCaOwnCrl -EnterpriseCAs @($ca))
+            $fromLive = @(Get-MspkiCaOwnCrl -EnterpriseCAs @($ca) -LiveProperties @{
+                'Example Issuing CA' = [pscustomobject]@{ SigningCertificates = @([pscustomobject]@{ Index = 0; BaseCrl = $live; DeltaCrl = $null; BaseCrlPublishStatus = 0 }) } })
+            $graded = Test-MspkiCaCrlPublication -CaCrls $fromLive -Records @() -Certificates @()
+            [pscustomobject]@{ SummaryNextUpdateType = $fromSummary[0].Crl.NextUpdate.GetType().Name; LiveNextUpdateType = $fromLive[0].Crl.NextUpdate.GetType().Name; Graded = @($graded.Findings).Count }
+        }
+        $r.SummaryNextUpdateType | Should -Be 'String'
+        $r.LiveNextUpdateType | Should -Be 'DateTime'
+        $r.Graded | Should -Be 1
+    }
+}

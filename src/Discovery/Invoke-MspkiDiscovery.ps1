@@ -111,7 +111,8 @@ function Invoke-MspkiDiscovery {
         OidRead        = $false
     }
     $certMap = @{}
-    $result = { [pscustomobject]@{ Inventory = [pscustomobject]$inventory; Findings = @($findings); Certificates = $certMap } }
+    $props = @{}   # live (decoded) CA properties by CA name; never exported, the inventory holds the JSON-safe summary
+    $result = { [pscustomobject]@{ Inventory = [pscustomobject]$inventory; Findings = @($findings); Certificates = $certMap; CAProperties = $props } }
 
     $sw = Start-MspkiStageTimer -Stage 'Discovery:ADContext'
     $ad = Get-MspkiAdContext -TimeoutSeconds $TimeoutSeconds

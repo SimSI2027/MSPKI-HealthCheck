@@ -8,10 +8,16 @@ function Get-MspkiCaOwnCrl {
     The CA's own current base and delta CRLs (one entry per signing certificate and kind) from the CA properties.
     #>
     [CmdletBinding()]
-    param([AllowEmptyCollection()][object[]]$EnterpriseCAs = @())
+    param(
+        [AllowEmptyCollection()][object[]]$EnterpriseCAs = @(),
+        # Live (decoded) CA properties by CA name. The inventory copy is the JSON-safe summary (string dates, no bytes) and cannot be graded.
+        [hashtable]$LiveProperties = @{}
+    )
     foreach ($ca in @($EnterpriseCAs)) {
-        if ($null -eq $ca.Properties) { continue }
-        foreach ($s in @($ca.Properties.SigningCertificates)) {
+        $props = $ca.Properties
+        if ($LiveProperties.ContainsKey($ca.Name)) { $props = $LiveProperties[$ca.Name] }
+        if ($null -eq $props) { continue }
+        foreach ($s in @($props.SigningCertificates)) {
             foreach ($kind in @('Base', 'Delta')) {
                 $crl = $s.($kind + 'Crl')
                 if ($null -eq $crl) { continue }

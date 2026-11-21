@@ -3,6 +3,13 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## Fact-finding session (RPC blocker, lab map, admin vs standard) - done, no features (746 tests)
+- Setup: elevated terminal confirmed; Pester 5.7.1 installed for the current user; CLAUDE.md got the "lab dev machine" rule; `docs/ROADMAP.md`, `docs/RESEARCH.md` written; real names only in `C:\ClaudeCode\private\LAB-FACTS.md` (outside the repo).
+- RPC 0x800706BA: not reproducible as admin (CA hosts were rebuilt after the last failing run); `pktmon` capture shows 135 + dynamic ports answering; CR_PROP ids verified live (23/24). Open: the same run as the standard-user account (steps in RESEARCH.md).
+- One product bug fixed because it blocked D1: the endpoint stage crashed whenever a CA answered (analysers graded the JSON-safe CA summary, string dates, instead of the live CRL); now `CAProperties` (live, not exported) is passed to `Get-MspkiCaOwnCrl`; regression test added; stack trace now in the run.log line.
+- Found, not fixed: false Fail for a CDP LDAP URL with no attribute; NDES missed without the CA database view (`CertificateAuthority.View` is not in-box on clients); `runas /trustlevel` is not a standard-user test for a domain admin.
+- Next: D2 endpoint identity (A/PTR/CNAME/TLS names/server header), D3 local evidence, D4 NDES via template ACE + SPN, then the false-Fail fix. Push: this account has no GitHub credentials (commits stay local until someone runs `gh auth login`).
+
 ## GUI look rebuilt (enterprise style) + developer snapshots â€” done (744 tests)
 - Look: `src\Gui\Theme.xaml` (palette and shapes from the old window, see `docs\GUI-DESIGN.md`) and a new `MainWindow.xaml`: two-row header (title, context strip with forest / domain / DC / user,
   Administrator or Standard user badge), toolbar with Segoe MDL2 icons (Run is the accent button), collapsible options with a one-line summary, status bar (state icon + text, target, elapsed, findings, output path),

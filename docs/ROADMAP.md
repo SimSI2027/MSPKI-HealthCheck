@@ -11,8 +11,11 @@ capture, RSAT, PSPKI, Sysinternals) are for understanding on the lab machine; th
 
 ## BLOCKER
 - CA reads fail with 0x800706BA (RPC server unavailable) although the CA host is reachable on TCP 135.
-  Until this is solved the CA properties, the CA database view and the CR_PROP ids are unverified. Investigation: see
-  `docs/RESEARCH.md` once written.
+  STATUS (2026-11-21): not reproducible as an administrator after the CA hosts were rebuilt; CR_PROP ids and the connection string are now
+  verified live (23 of 24 reads succeed, the 24th is a normal "no parent"). Still open: the same run as the standard-user account, and the
+  CA database view, which is not in-box on clients. Details and the owner-side fix steps: `docs/RESEARCH.md`.
+- New from research (to schedule): a CDP LDAP URL without an attribute part is graded Fail (false positive); NDES is missed when the CA
+  database view is unavailable (add the template-ACE / SPN route); the HTTPS reset on a CA host is reported without its meaning.
 
 ## DISCOVERY (top priority)
 - **D1 Full hierarchy health.** Every root, intermediate and issuing CA; every CA certificate generation; every AIA, CDP and OCSP

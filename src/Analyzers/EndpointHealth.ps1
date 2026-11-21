@@ -512,7 +512,9 @@ function Invoke-MspkiEndpointAnalysis {
     Write-MspkiLeadLimitSummary
     $allCerts = @($certMap.Values)
     foreach ($rec in $records) { [void]$findings.Add((Test-MspkiCrlHealth -Record $rec -Certificates $allCerts -Thresholds $Thresholds)) }
-    $ownCrls = @(Get-MspkiCaOwnCrl -EnterpriseCAs @($Discovery.Inventory.EnterpriseCAs))
+    $live = @{}
+    if ($null -ne $Discovery.PSObject.Properties['CAProperties'] -and $Discovery.CAProperties -is [hashtable]) { $live = $Discovery.CAProperties }
+    $ownCrls = @(Get-MspkiCaOwnCrl -EnterpriseCAs @($Discovery.Inventory.EnterpriseCAs) -LiveProperties $live)
     $judgedUrls = @()
     if ($ownCrls.Count -gt 0) {
         $pub = Test-MspkiCaCrlPublication -CaCrls $ownCrls -Records @($records) -Certificates $allCerts -Thresholds $Thresholds
