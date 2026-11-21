@@ -95,6 +95,7 @@ function Invoke-MspkiDiscovery {
         [int]$TimeoutSeconds = 5,
         [switch]$SkipNetwork
     )
+    Reset-MspkiSidCache
     $findings = New-Object System.Collections.ArrayList
     $inventory = [ordered]@{
         AdContext      = $null
@@ -102,6 +103,12 @@ function Invoke-MspkiDiscovery {
         Containers     = @()
         EnterpriseCAs  = @()
         CACertificates = @()
+        Templates      = @()
+        TemplatesRead  = $false
+        Kra            = @()
+        KraRead        = $false
+        OidObjects     = @()
+        OidRead        = $false
     }
     $certMap = @{}
     $result = { [pscustomobject]@{ Inventory = [pscustomobject]$inventory; Findings = @($findings); Certificates = $certMap } }
@@ -129,6 +136,24 @@ function Invoke-MspkiDiscovery {
     $adCerts = Get-MspkiAdCACertificate -Context $ctx -TimeoutSeconds $TimeoutSeconds
     foreach ($f in $adCerts.Findings) { [void]$findings.Add($f) }
     Add-MspkiStageTiming -Stage 'Discovery:EnterpriseCAs' -Stopwatch $sw
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    foreach ($step in @(
+        @{ Name = 'Templates'; Fn = { Get-MspkiTemplateObject -Context $ctx -TimeoutSeconds $TimeoutSeconds }; Data = 'Templates'; Flag = 'TemplatesRead' },
+        @{ Name = 'KRA'; Fn = { Get-MspkiKraObject -Context $ctx -TimeoutSeconds $TimeoutSeconds }; Data = 'Kra'; Flag = 'KraRead' },
+        @{ Name = 'OID'; Fn = { Get-MspkiOidObject -Context $ctx -TimeoutSeconds $TimeoutSeconds }; Data = 'OidObjects'; Flag = 'OidRead' })) {
+        try {
+            $r = & $step.Fn
+            foreach ($f in $r.Findings) { [void]$findings.Add($f) }
+            $inventory[$step.Data] = @($r.Data)
+            $inventory[$step.Flag] = [bool]$r.Read
+        }
+        catch {
+            [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'ADContainer' -Role 'ADContainer' -Target $step.Name `
+                -Sources 'AD:PublicKeyServices' -Action ('reading the {0} objects' -f $step.Name) -Scope 'Local'))
+        }
+    }
+    Add-MspkiStageTiming -Stage 'Discovery:TemplatesKraOid' -Stopwatch $sw
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $props = @{}

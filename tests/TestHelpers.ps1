@@ -233,3 +233,34 @@ function Stop-TestHttpServer {
     try { $Server.Listener.Stop() } catch { }
     try { [void]$Server.PowerShell.BeginStop($null, $null) } catch { }
 }
+
+function New-TestSecurityDescriptor {
+    <#
+    Builds a binary security descriptor like the one on an AD object. Each ACE is a hashtable:
+    Sid, Type (Allow or Deny), Mask (int), ObjectType (GUID text, optional), Flags (AceFlags value, optional).
+    #>
+    param([string]$OwnerSid = "S-1-5-21-1111-2222-3333-512", [object[]]$Aces = @())
+    $acl = New-Object System.Security.AccessControl.RawAcl(2, [math]::Max(1, $Aces.Count))
+    $i = 0
+    foreach ($a in $Aces) {
+        $sid = New-Object System.Security.Principal.SecurityIdentifier($a.Sid)
+        $flags = [System.Security.AccessControl.AceFlags]::None
+        if ($a.Flags) { $flags = [System.Security.AccessControl.AceFlags][int]$a.Flags }
+        $qual = [System.Security.AccessControl.AceQualifier]::AccessAllowed
+        if ($a.Type -eq "Deny") { $qual = [System.Security.AccessControl.AceQualifier]::AccessDenied }
+        if ($a.ObjectType) {
+            $ace = New-Object System.Security.AccessControl.ObjectAce($flags, $qual, [int]$a.Mask, $sid,
+                [System.Security.AccessControl.ObjectAceFlags]::ObjectAceTypePresent, [guid]$a.ObjectType, [guid]::Empty, $false, $null)
+        }
+        else {
+            $ace = New-Object System.Security.AccessControl.CommonAce($flags, $qual, [int]$a.Mask, $sid, $false, $null)
+        }
+        $acl.InsertAce($i, $ace)
+        $i++
+    }
+    $owner = New-Object System.Security.Principal.SecurityIdentifier($OwnerSid)
+    $sd = New-Object System.Security.AccessControl.RawSecurityDescriptor([System.Security.AccessControl.ControlFlags]::DiscretionaryAclPresent, $owner, $null, $null, $acl)
+    $bytes = New-Object byte[] $sd.BinaryLength
+    $sd.GetBinaryForm($bytes, 0)
+    return , $bytes
+}

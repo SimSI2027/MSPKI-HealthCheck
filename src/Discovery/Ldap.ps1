@@ -27,7 +27,7 @@ function Get-MspkiLdapObject {
         if ($Scope -ne 'Base') { $searcher.PageSize = 500 }
         $searcher.ClientTimeout = [TimeSpan]::FromSeconds($TimeoutSeconds)
         $searcher.ServerTimeLimit = [TimeSpan]::FromSeconds($TimeoutSeconds)
-        if ($IncludeDacl) { $searcher.SecurityMasks = [System.DirectoryServices.SecurityMasks]::Dacl }
+        if ($IncludeDacl) { $searcher.SecurityMasks = [System.DirectoryServices.SecurityMasks]'Owner, Dacl' }
         $searcher.PropertiesToLoad.Clear()
         foreach ($p in $Properties) { [void]$searcher.PropertiesToLoad.Add($p) }
         $results = $searcher.FindAll()

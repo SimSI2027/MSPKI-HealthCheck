@@ -109,6 +109,16 @@ function Start-MspkiHealthCheck {
             Add-MspkiStageTiming -Stage 'Analysis:ADContainers' -Stopwatch $sw
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             try {
+                foreach ($f in (Test-MspkiAdContainerObject -Inventory $d.Inventory)) { [void]$findings.Add($f) }
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('Template/KRA/OID container review stopped: {0}' -f $_.Exception.Message)
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Run' -Role 'Run' `
+                    -Target 'ADContainerObjects' -Sources 'Run' -Action 'reviewing the template, KRA and OID containers' -Stage 'Run'))
+            }
+            Add-MspkiStageTiming -Stage 'Analysis:ADContainerObjects' -Stopwatch $sw
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
                 foreach ($f in (Invoke-MspkiEndpointAnalysis -Discovery $d -Thresholds $thresholds -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)) {
                     [void]$findings.Add($f)
                 }
