@@ -3,16 +3,34 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
-## Phase D, part 1: AD container consistency (REQUIREMENTS 5.4) â€” started
-- Done: `Test-MspkiAdContainerConsistency` (pure, over the inventory, review only, never says "delete"): per Enterprise
-  CA, current certificate in AIA / NTAuthCertificates and chain root in Certification Authorities; no clear
-  current/historical split; AD template list vs the CA's own list and Enrollment Services certificates vs the CA's valid
-  signing certificates (`STALE_DATA`). Missing publication is `NOT_DISCOVERED`. Wired into the run with its own
-  try/catch and stage timing. 337 tests.
-- Next (Phase D): read the Certificate Templates / KRA / OID containers (template object missing, template published by
-  no CA, KRA certificate missing or expired, OID group link that does not resolve), then the template review (ESC rules
-  with positive and negative fixtures, SIDs resolved once per run), CEP/CES, NDES, Intune local, stale references.
-- Open: whether the CA publish-status flags can be interpreted is unverified (shown raw). Not yet run against a live AD CS.
+## Phase D: templates, CEP/CES, NDES, Intune connector, stale references — done (572 tests)
+- Done: (1) AD container consistency + `CN=Certificate Templates` / `KRA` / `OID` read (SIDs named once per run, budgeted);
+  `Test-MspkiAdContainerObject` (published name without object, unpublished templates, KRA missing/expired, OID group link
+  that does not resolve; a failed read is never "missing"). (2) `Test-MspkiTemplateEnrollmentRisk`: patterns ESC1, 2, 3, 4,
+  9, 13, each needing every condition (listed in Evidence) with a firing and a non-firing test; new status code `CONFIG_RISK`.
+  (3) CEP (local policy keys, read-only) and CES (AD) probed anonymously with DNS/TCP/TLS/HTTP/content as separate facts;
+  standard CES/CEP paths on Enterprise CA hosts are `Inferred` constructed candidates. (4) NDES: candidates from the CA
+  database (`CertificateAuthority.View`) and from referenced SCEP URLs; `src/Probes/NdesProbe.ps1` is the only code that can
+  send NDES requests (GetCACaps, GetCACert, one anonymous admin GET, no redirects, admin body never read); a loopback-server
+  test records every request. (5) Intune connector: local services/products/certificate metadata only; other NDES hosts are
+  `UNSUPPORTED`. (6) Stale references: ActiveConfirmed / CurrentReference / HistoricalReference / UnreachableReference /
+  StaleReferenceCandidate (needs expired carriers only + no current reference + host not answering), evidence on every result.
+- Decisions: severity High -> Fail, Medium/ReviewRequired -> Warning, Low -> Information; unpublished templates one step lower.
+  ESC3's second template follows the spec literally (approval and broad-enroll state of it are shown in Evidence). CA-side
+  patterns (ESC6/7/11: CA flags, CA permissions) are not done: they need the CA registry or admin COM, which the rules forbid.
+  `mscep_admin` may be named only in `NdesProbe.ps1` (hygiene test updated). Constructed candidate URLs and NDES hosts built
+  from CA-database names are checked in DNS first; unresolvable ones are never contacted.
+- Next (Phase E, optional): `-CertificateFile`, AD dependencies, CES SPN review; add Phase D rows to the demo fixture; an audit
+  of src/ against CLAUDE.md (docs/SESSION-PROMPTS.md, after Phase 7).
+- Open: nothing in Phase D has run against a live AD CS. Unverified live: the `CertificateAuthority.View` column names and
+  restrictions (NDES evidence), the msPKI-Enrollment-Servers CES paths on a real CES, CEP policy key layout, Intune connector
+  service names (only the three Microsoft-documented ones are "Documented"). A standard account sees only its own CA-database
+  rows, so "NotDiscovered" for NDES is not proof that none exists.
+## Phase D, part 1: AD container consistency (REQUIREMENTS 5.4) — done
+- Done: `Test-MspkiAdContainerConsistency` (pure, review only, never says "delete"): per Enterprise CA, current certificate in
+  AIA / NTAuthCertificates and chain root in Certification Authorities; no clear current/historical split; AD template list
+  vs the CA's own list and Enrollment Services certificates vs the CA's valid signing certificates (`STALE_DATA`).
+- Open: whether the CA publish-status flags can be interpreted is unverified (shown raw).
 ## Phase C: HTML report, CSV, exit codes, demo — done
 - Done: `report.html` (one offline file, CSP blocks all network; summary, exit-code card, Discovery Map tree
   forest > CAs > certificates > endpoints/templates/CES with confidence + sources, filterable findings with

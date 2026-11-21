@@ -224,3 +224,11 @@ The work is tracked as five build phases. Each one groups the detailed steps in 
 - Intune Connector detection is local only.
 - ESC9 can't be fully judged without DC registry settings.
 - CEP URLs only appear if policy on this computer points to them.
+- The template review covers the patterns ESC1, ESC2, ESC3, ESC4, ESC9 and ESC13 only. Patterns that need the CA's own
+  registry settings or permissions (ESC6, ESC7, ESC11) are not covered: reading them needs remote registry or the CA admin
+  COM interface, which this tool does not use. Effective permissions (group nesting, deny ACEs) are not computed.
+- A constructed CEP/CES candidate (standard Microsoft path on an Enterprise CA host) stays `Inferred` even when something answers.
+- The CA database shows all requests only to CA administrators and certificate managers; for other accounts, "no NDES
+  found" is not proof that none exists.
+- A stale-reference candidate is never a conclusion: this tool cannot see the certificates a CA issued, so an old URL may
+  still be needed by certificates that have not expired.

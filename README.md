@@ -49,6 +49,9 @@ error) · `6` incomplete (permissions).
 - It probes only hosts and URLs it found in authoritative sources. No network or port scans.
 - No `Invoke-Expression`, no `Add-Type`, no encoded commands, no downloaded code.
 - It never reads or exports private keys, passwords or challenge passwords.
+- NDES: it can send exactly three anonymous GET requests to a NDES host (SCEP GetCACaps, GetCACert and one anonymous
+  request to the admin page, whose response body is never read). It never enrolls and never follows a redirect.
+- The Intune Certificate Connector is detected on the local computer only.
 
 ## Status
 

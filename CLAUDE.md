@@ -18,6 +18,10 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
    Configuration partition, CA properties, certificates, CRLs or local policy. No subnet scans, no port scans,
    no enumerating domain computers. Standard Microsoft PKI web paths may be tried only on hosts already proven
    to be PKI. Web probes are anonymous GETs; never send credentials to `/certsrv/mscep_admin/`.
+   *Clarification:* the SCEP request paths (including `/certsrv/mscep_admin/`) are named in one file only,
+   `src/Probes/NdesProbe.ps1`. It can send exactly three anonymous GETs (GetCACaps, GetCACert, one anonymous request to
+   the admin page whose body is never read), never follows a redirect, and never sends credentials. `tests/Ndes.Tests.ps1`
+   enforces this with static checks and a loopback server that records every request.
 5. **Windows PowerShell 5.1 and .NET Framework 4.x only.** No PS7-only syntax (`? :`, `??`, `&&`, `||`,
    `-Parallel`). No external runtime modules (no RSAT ActiveDirectory module, no PSPKI, no ImportExcel).
    Use `System.DirectoryServices`, `System.Security.Cryptography.X509Certificates`, `System.Net` and

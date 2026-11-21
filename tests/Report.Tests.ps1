@@ -322,3 +322,28 @@ Describe 'Discovery Map tree' {
         }
     }
 }
+
+Describe 'Discovery Map: Phase D review results' {
+    It 'groups template, CEP/CES, NDES, Intune connector and stale-reference findings, each exactly once' {
+        $r = InModuleScope MspkiHealthCheck {
+            Reset-MspkiFindingSequence
+            $f = @(
+                (New-MspkiFinding -Category Template -Target 'ExampleUser' -Status Fail -StatusCode CONFIG_RISK -Severity High -Sources 'AD:CertificateTemplates' -Message 'm1')
+                (New-MspkiFinding -Category CES -Target 'ces.corp.example.test' -Status Pass -StatusCode OK -Sources 'AD:EnrollmentServices:msPKI-Enrollment-Servers' -Message 'm2')
+                (New-MspkiFinding -Category NDES -Target 'ndes.corp.example.test' -Status Information -StatusCode NOT_DISCOVERED -Sources 'CA:CertificateAuthority.View' -Message 'm3')
+                (New-MspkiFinding -Category IntuneConnector -Target 'EXAMPLEHOST01' -Status NotApplicable -StatusCode NOT_DISCOVERED -Sources 'Local:Win32_Service' -Message 'm4')
+                (New-MspkiFinding -Category StaleRef -Target 'References' -Status Information -StatusCode OK -Sources 'Probe results' -Message 'm5'))
+            $tree = Get-MspkiDiscoveryTree -Inventory $null -Findings $f -RunInfo $null
+            $labels = @($tree.Children | ForEach-Object { $_.Label })
+            $ids = @(); $walk = { param($n) $script:__ids += @($n.FindingIds); foreach ($c in $n.Children) { & $walk $c } }
+            $script:__ids = @(); & $walk $tree
+            [pscustomobject]@{ Labels = $labels; Ids = @($script:__ids) } }
+        ($r.Labels -join '|') | Should -Match 'Certificate template review \(1\)'
+        ($r.Labels -join '|') | Should -Match 'Enrollment policy and web services \(CEP/CES\) \(1\)'
+        ($r.Labels -join '|') | Should -Match 'NDES / SCEP \(1\)'
+        ($r.Labels -join '|') | Should -Match 'Intune Certificate Connector \(this computer only\) \(1\)'
+        ($r.Labels -join '|') | Should -Match 'Historical and stale reference review \(1\)'
+        @($r.Ids | Select-Object -Unique).Count | Should -Be 5
+        @($r.Ids).Count | Should -Be 5
+    }
+}

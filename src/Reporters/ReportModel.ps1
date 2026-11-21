@@ -263,8 +263,21 @@ function Get-MspkiDiscoveryTree {
         [void]$root.Children.Add($g)
     }
 
+    # --- review results that belong to no CA node: templates, CEP/CES, NDES, the local Intune connector, stale references
+    $reviewGroups = @(
+        @{ Label = 'Certificate template review'; Cats = @('Template'); Src = @('AD:CertificateTemplates') }
+        @{ Label = 'Enrollment policy and web services (CEP/CES)'; Cats = @('CEP', 'CES'); Src = @('Policy:CEP:HKLM', 'AD:EnrollmentServices:msPKI-Enrollment-Servers') }
+        @{ Label = 'NDES / SCEP'; Cats = @('NDES'); Src = @('CA:CertificateAuthority.View') }
+        @{ Label = 'Intune Certificate Connector (this computer only)'; Cats = @('IntuneConnector'); Src = @('Local:Win32_Service') }
+        @{ Label = 'Historical and stale reference review'; Cats = @('StaleRef'); Src = @('Probe results') }
+    )
+    foreach ($g in $reviewGroups) {
+        $fs = @($all | Where-Object { $g.Cats -contains $_.Category -and -not $placed.ContainsKey($_.Id) })
+        if ($fs.Count -gt 0) { [void]$root.Children.Add((New-MspkiMapNode -Type 'Group' -Label ('{0} ({1})' -f $g.Label, $fs.Count) -Sources $g.Src -Findings (& $take $fs))) }
+    }
+
     # --- findings that belong to no node
-    $loose = @($all | Where-Object { -not $placed.ContainsKey($_.Id) })
+    $loose =@($all | Where-Object { -not $placed.ContainsKey($_.Id) })
     if ($loose.Count -gt 0) {
         [void]$root.Children.Add((New-MspkiMapNode -Type 'Group' -Label ('Other findings ({0})' -f $loose.Count) -Sources @('Run') -Findings $loose))
     }
