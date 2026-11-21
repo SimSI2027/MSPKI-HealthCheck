@@ -119,6 +119,16 @@ function Start-MspkiHealthCheck {
             Add-MspkiStageTiming -Stage 'Analysis:ADContainerObjects' -Stopwatch $sw
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             try {
+                foreach ($f in (Test-MspkiTemplateEnrollmentRisk -Inventory $d.Inventory)) { [void]$findings.Add($f) }
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('Template review stopped: {0}' -f $_.Exception.Message)
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Run' -Role 'Run' `
+                    -Target 'Templates' -Sources 'Run' -Action 'reviewing certificate templates' -Stage 'Run'))
+            }
+            Add-MspkiStageTiming -Stage 'Analysis:Templates' -Stopwatch $sw
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
                 foreach ($f in (Invoke-MspkiEndpointAnalysis -Discovery $d -Thresholds $thresholds -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)) {
                     [void]$findings.Add($f)
                 }

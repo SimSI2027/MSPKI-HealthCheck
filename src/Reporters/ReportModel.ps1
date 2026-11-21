@@ -239,7 +239,7 @@ function Get-MspkiDiscoveryTree {
         if ($tpl.Count -gt 0 -or ($null -ne $props -and @($props.Templates).Count -gt 0)) {
             $names = @($tpl)
             if ($names.Count -eq 0) { $names = @($props.Templates | ForEach-Object { $_.Name }) }
-            $tf = @($all | Where-Object { $_.Category -eq 'Template' -and $_.RelatedCA -eq $ca.Name })
+            $tf = @($all | Where-Object { $_.Category -eq 'Template' -and @($_.RelatedCA -split ',\s*') -contains $ca.Name })
             $g = New-MspkiMapNode -Type 'Group' -Label ('Published certificate templates ({0})' -f $names.Count) `
                 -Detail @($names | Select-Object -First 200) -Sources @('AD:EnrollmentServices:certificateTemplates') -Confidence 'Referenced' -Findings (& $take $tf)
             [void]$caNode.Children.Add($g)

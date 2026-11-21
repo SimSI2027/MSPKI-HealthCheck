@@ -41,6 +41,7 @@ Every result is one object created by `New-MspkiFinding`:
 `PUBLICATION_FAIL`, `RETRIEVAL_FAIL`, `EXPECTED_OFFLINE`, `PERMISSION_DENIED`, `NOT_CONFIGURED`, `NOT_DISCOVERED`,
 `NOT_APPLICABLE`, `UNSUPPORTED`, `OK`.
 Added in build phase B for CA chains (local trust, not TLS): `CHAIN_UNTRUSTED_ROOT`, `CHAIN_PARTIAL`, `CHAIN_INVALID`.
+Added in build phase D for the template review: `CONFIG_RISK` (a configuration that matches a reviewed risk pattern; the Evidence lists every condition). Absence of a pattern is reported as `OK`.
 
 Rules:
 - An endpoint failure is not the same thing as local trust failure.
