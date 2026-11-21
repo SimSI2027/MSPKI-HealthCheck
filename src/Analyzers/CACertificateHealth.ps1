@@ -6,8 +6,10 @@ $script:MspkiDefaultThresholds = @{
     RootCaCriticalDays    = 365
     IssuingCaWarningDays  = 180
     IssuingCaCriticalDays = 90
-    CrlWarningPercent     = 75
-    CrlCriticalPercent    = 95
+    RootCrlWarningPercent     = 75
+    RootCrlCriticalPercent    = 95
+    IssuingCrlWarningPercent  = 75
+    IssuingCrlCriticalPercent = 95
 }
 
 function Get-MspkiThreshold {

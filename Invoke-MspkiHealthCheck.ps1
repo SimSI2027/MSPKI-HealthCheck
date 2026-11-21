@@ -24,6 +24,10 @@ Days before a root CA certificate expires when a warning is raised (default 730;
 .PARAMETER IssuingCaWarningDays
 Days before a subordinate CA certificate expires when a warning is raised (default 180; critical default 90).
 
+.PARAMETER RootCrlWarningPercent
+Percentage of a root CA CRL's lifetime after which a warning is raised (default 75; critical default 95).
+The IssuingCrl* parameters do the same for CRLs of subordinate CAs.
+
 .EXAMPLE
 .\Invoke-MspkiHealthCheck.ps1
 
@@ -38,7 +42,11 @@ param(
     [ValidateRange(1, 36500)][int]$RootCaWarningDays = 730,
     [ValidateRange(1, 36500)][int]$RootCaCriticalDays = 365,
     [ValidateRange(1, 36500)][int]$IssuingCaWarningDays = 180,
-    [ValidateRange(1, 36500)][int]$IssuingCaCriticalDays = 90
+    [ValidateRange(1, 36500)][int]$IssuingCaCriticalDays = 90,
+    [ValidateRange(1, 100)][int]$RootCrlWarningPercent = 75,
+    [ValidateRange(1, 100)][int]$RootCrlCriticalPercent = 95,
+    [ValidateRange(1, 100)][int]$IssuingCrlWarningPercent = 75,
+    [ValidateRange(1, 100)][int]$IssuingCrlCriticalPercent = 95
 )
 
 $module = Join-Path $PSScriptRoot 'src\MspkiHealthCheck.psd1'
@@ -48,6 +56,8 @@ $run = @{
     OutputPath = $OutputPath; TimeoutSeconds = $TimeoutSeconds; SkipNetwork = $SkipNetwork
     RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays
     IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
+    RootCrlWarningPercent = $RootCrlWarningPercent; RootCrlCriticalPercent = $RootCrlCriticalPercent
+    IssuingCrlWarningPercent = $IssuingCrlWarningPercent; IssuingCrlCriticalPercent = $IssuingCrlCriticalPercent
 }
 $result = Start-MspkiHealthCheck @run
 

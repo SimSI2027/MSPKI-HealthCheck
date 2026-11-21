@@ -137,3 +137,95 @@ function Get-TestLdapRecord {
     foreach ($p in $obj.psobject.Properties) { $rec[$p.Name.ToLowerInvariant()] = @($p.Value) }
     return $rec
 }
+
+function New-TestCrl {
+    <#
+    Builds a signed DER CRL (v2) for an issuer from New-TestCertificate (RSA). HoursValid is the lifetime
+    from thisUpdate to nextUpdate; thisUpdate is HoursBefore hours ago.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]$Issuer,
+        [double]$HoursBefore = 24,
+        [double]$HoursValid = 240,
+        [int]$Number = 1,
+        [switch]$Delta,
+        [int]$BaseNumber = 1,
+        [string[]]$FreshestUrls = @(),
+        [switch]$NoNextUpdate,
+        $SigningKey = $null
+    )
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    $now = [DateTime]::UtcNow
+    $thisUpd = $now.AddHours(-$HoursBefore)
+    $next = $thisUpd.AddHours($HoursValid)
+    $alg = New-TestDer 0x30 (Join-TestBytes @((New-TestDer 0x06 ([byte[]](0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B))), (New-TestDer 0x05)))
+    $exts = @()
+    $exts += , (New-TestDer 0x30 (Join-TestBytes @((New-TestDer 0x06 ([byte[]](0x55, 0x1D, 0x14))), (New-TestDer 0x04 (ConvertTo-TestDerInteger $Number)))))
+    if ($Delta) {
+        $exts += , (New-TestDer 0x30 (Join-TestBytes @((New-TestDer 0x06 ([byte[]](0x55, 0x1D, 0x1B))), (New-TestDer 0x01 ([byte[]](0xFF))), (New-TestDer 0x04 (ConvertTo-TestDerInteger $BaseNumber)))))
+    }
+    if ($FreshestUrls.Count -gt 0) {
+        $exts += , (New-TestDer 0x30 (Join-TestBytes @((New-TestDer 0x06 ([byte[]](0x55, 0x1D, 0x2E))), (New-TestDer 0x04 (New-TestCdpExtensionValue -Urls $FreshestUrls)))))
+    }
+    $parts = @()
+    $parts += , (New-TestDer 0x02 ([byte[]](0x01)))
+    $parts += , $alg
+    $parts += , ([byte[]]$Issuer.Public.SubjectName.RawData)
+    $parts += , (New-TestDer 0x17 ([System.Text.Encoding]::ASCII.GetBytes($thisUpd.ToString('yyMMddHHmmss', $inv) + 'Z')))
+    if (-not $NoNextUpdate) { $parts += , (New-TestDer 0x17 ([System.Text.Encoding]::ASCII.GetBytes($next.ToString('yyMMddHHmmss', $inv) + 'Z'))) }
+    $parts += , (New-TestDer 0xA0 (New-TestDer 0x30 (Join-TestBytes $exts)))
+    $tbs = New-TestDer 0x30 (Join-TestBytes $parts)
+    $key = $SigningKey
+    if ($null -eq $key) { $key = $Issuer.Key }
+    $sig = $key.SignData($tbs, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+    $bits = New-TestDer 0x03 (Join-TestBytes @(([byte[]](0x00)), $sig))
+    return , (New-TestDer 0x30 (Join-TestBytes @($tbs, $alg, $bits)))
+}
+
+function Start-TestHttpServer {
+    <#
+    Minimal HTTP/1.1 server on 127.0.0.1 (random port) in a background runspace, for probe tests only.
+    Routes: path -> @{ Status; Body = [byte[]]; Headers = @{} }. Requests are logged with their headers.
+    #>
+    param([hashtable]$Routes)
+    $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, 0)
+    $listener.Start()
+    $log = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    [void]$ps.AddScript({
+        param($listener, $routes, $log)
+        while ($true) {
+            $client = $listener.AcceptTcpClient()
+            try {
+                $stream = $client.GetStream()
+                $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::ASCII, $false, 4096, $true)
+                $line = $reader.ReadLine()
+                $headers = @()
+                while ($true) { $h = $reader.ReadLine(); if ($null -eq $h -or $h -eq '') { break }; $headers += $h }
+                $path = ($line -split ' ')[1]
+                [void]$log.Add([pscustomobject]@{ Path = $path; Headers = $headers })
+                $route = $routes[$path]
+                if ($null -eq $route) { $route = @{ Status = 404; Body = [System.Text.Encoding]::ASCII.GetBytes('not found'); Headers = @{} } }
+                $body = [byte[]]$route.Body
+                $hdr = "HTTP/1.1 {0} Test`r`nContent-Length: {1}`r`nConnection: close`r`n" -f $route.Status, $body.Length
+                if ($route.Headers) { foreach ($k in $route.Headers.Keys) { $hdr += ("{0}: {1}`r`n" -f $k, $route.Headers[$k]) } }
+                $hdr += "`r`n"
+                $hb = [System.Text.Encoding]::ASCII.GetBytes($hdr)
+                $stream.Write($hb, 0, $hb.Length)
+                if ($body.Length -gt 0) { $stream.Write($body, 0, $body.Length) }
+                $stream.Flush()
+            }
+            catch { }
+            finally { $client.Close() }
+        }
+    }).AddArgument($listener).AddArgument($Routes).AddArgument($log)
+    $handle = $ps.BeginInvoke()
+    $port = $listener.LocalEndpoint.Port
+    return [pscustomobject]@{ Listener = $listener; PowerShell = $ps; Handle = $handle; Port = $port; Base = ('http://127.0.0.1:{0}' -f $port); Log = $log }
+}
+
+function Stop-TestHttpServer {
+    param($Server)
+    try { $Server.Listener.Stop() } catch { }
+    try { [void]$Server.PowerShell.BeginStop($null, $null) } catch { }
+}

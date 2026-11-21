@@ -3,6 +3,17 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## Phase B (steps 2–3), part 2: endpoints + CRL health — done (Phase B complete)
+- Done: anonymous HTTP GET (no credentials, manual redirects recorded per hop, 10 MB cap, cached); TLS handshake
+  probe (name match, untrusted root, partial chain kept apart); LDAP-URL fetch (PUBLICATION_FAIL vs
+  PERMISSION_DENIED); per-lead findings with DNS/TCP/TLS/HTTP/redirect/content layers; AIA content checked
+  against the expected issuer; downloaded certificates and Freshest CRL links add leads at depth + 1; CRL decode
+  and health (signature, issuer, base/delta, % of lifetime with separate root/issuing thresholds); STALE_DATA when
+  one location serves an older CRL number. OCSP: reachability only. 235 tests (loopback HTTP server, no internet).
+- Next: Phase C — HTML report (single offline file), findings.csv, exit-code polish; then Phase D.
+- Open: still not run against a live AD CS. CA's own CRL via GetCAProperty (Base64) is not read: the tool has no
+  Base64 decoding; CRLs come from CDP locations (HTTP/LDAP) instead. Short name → FQDN merging not done yet.
+
 ## Phase B (steps 2–3), part 1: leads + CA certificate health — done
 - Done: pure-PowerShell DER reader; CDP/Freshest CRL/AIA/OCSP URL extraction from certificates; lead registry
   (normalised keys: host case, http/https, default ports, %20, trailing slash; merged sources/origins/variants;

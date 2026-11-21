@@ -20,7 +20,13 @@ Every result states where it came from and how sure the tool is: **Confirmed**, 
 ```powershell
 .\Invoke-MspkiHealthCheck.ps1
 .\Invoke-MspkiHealthCheck.ps1 -OutputPath D:\Reports -TimeoutSeconds 10
+.\Invoke-MspkiHealthCheck.ps1 -SkipNetwork            # read AD only, contact no other host
 ```
+
+Thresholds are parameters with defaults: `-RootCaWarningDays 730`, `-RootCaCriticalDays 365`,
+`-IssuingCaWarningDays 180`, `-IssuingCaCriticalDays 90`, and CRL lifetime percentages
+`-RootCrlWarningPercent` / `-IssuingCrlWarningPercent` (75) and `-RootCrlCriticalPercent` /
+`-IssuingCrlCriticalPercent` (95).
 
 Output goes to `out\<yyyyMMdd-HHmmss>\`: `results.json`, `run.log`, and (later phases) `findings.csv`
 and a single offline `report.html`.

@@ -28,16 +28,24 @@ function Start-MspkiHealthCheck {
         [ValidateRange(1, 36500)][int]$RootCaWarningDays = 730,
         [ValidateRange(1, 36500)][int]$RootCaCriticalDays = 365,
         [ValidateRange(1, 36500)][int]$IssuingCaWarningDays = 180,
-        [ValidateRange(1, 36500)][int]$IssuingCaCriticalDays = 90
+        [ValidateRange(1, 36500)][int]$IssuingCaCriticalDays = 90,
+        [ValidateRange(1, 100)][int]$RootCrlWarningPercent = 75,
+        [ValidateRange(1, 100)][int]$RootCrlCriticalPercent = 95,
+        [ValidateRange(1, 100)][int]$IssuingCrlWarningPercent = 75,
+        [ValidateRange(1, 100)][int]$IssuingCrlCriticalPercent = 95
     )
     $thresholds = Get-MspkiThreshold -Override @{
         RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays
         IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
+        RootCrlWarningPercent = $RootCrlWarningPercent; RootCrlCriticalPercent = $RootCrlCriticalPercent
+        IssuingCrlWarningPercent = $IssuingCrlWarningPercent; IssuingCrlCriticalPercent = $IssuingCrlCriticalPercent
     }
     $runInfo = Initialize-MspkiRun -Parameters @{
         OutputPath = $OutputPath; TimeoutSeconds = $TimeoutSeconds; SkipNetwork = [bool]$SkipNetwork
         RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays
         IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
+        RootCrlWarningPercent = $RootCrlWarningPercent; RootCrlCriticalPercent = $RootCrlCriticalPercent
+        IssuingCrlWarningPercent = $IssuingCrlWarningPercent; IssuingCrlCriticalPercent = $IssuingCrlCriticalPercent
     }
     $folder = New-MspkiOutputFolder -Root $OutputPath
     Start-MspkiLogFile -Path (Join-Path $folder 'run.log')
@@ -83,9 +91,21 @@ function Start-MspkiHealthCheck {
                 [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Run' -Role 'Run' `
                     -Target 'Analysis' -Sources 'Run' -Action 'analysing CA certificates' -Stage 'Run'))
             }
+            Add-MspkiStageTiming -Stage 'Analysis:CACertificates' -Stopwatch $sw
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                foreach ($f in (Invoke-MspkiEndpointAnalysis -Discovery $d -Thresholds $thresholds -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)) {
+                    [void]$findings.Add($f)
+                }
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('Endpoint checks stopped: {0}' -f $_.Exception.Message)
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Run' -Role 'Run' `
+                    -Target 'Endpoints' -Sources 'Run' -Action 'checking AIA/CDP/OCSP endpoints' -Stage 'Run'))
+            }
+            Add-MspkiStageTiming -Stage 'Probe:Endpoints' -Stopwatch $sw
             $inventory | Add-Member -NotePropertyName 'Leads' -NotePropertyValue @(Get-MspkiLead | ForEach-Object { ConvertTo-MspkiLeadExport -Lead $_ }) -Force
             $inventory | Add-Member -NotePropertyName 'LeadStatistics' -NotePropertyValue (Get-MspkiLeadStatistic) -Force
-            Add-MspkiStageTiming -Stage 'Analysis:CACertificates' -Stopwatch $sw
         }
         $completed = $true
     }

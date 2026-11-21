@@ -24,7 +24,7 @@ BeforeAll {
             'CACertState[0]' = 4; 'CACertState[1]' = 3
             'CACertVersion[0]' = 0; 'CACertVersion[1]' = 65537
             'CrlState[0]' = 3; 'CrlState[1]' = 3
-            'CertCdpUrls[1]' = "http://pki.corp.example.test/cdp/Example%20Issuing%20CA.crl`nldap:///CN=Example Issuing CA,CN=ca01,CN=CDP,$($script:pks)"
+            'CertCdpUrls[1]' = "http://pki.corp.example.test/cdp/Example%20Issuing%20CA.crl`nldap:///CN=Example Issuing CA,CN=ca01,CN=CDP,$($script:pks)?certificateRevocationList?base?objectClass=cRLDistributionPoint"
             'CertAiaUrls[1]' = 'http://pki.corp.example.test/aia/ca01_Example%20Issuing%20CA(1).crt'
         }
         Errors = @{ 'CertAiaOcspUrls[0]' = @{ HResult = '80070057'; Message = 'The parameter is incorrect.' } }
@@ -59,6 +59,11 @@ BeforeAll {
         }
         Mock -ModuleName MspkiHealthCheck Resolve-MspkiDnsName { [pscustomobject]@{ Status = 'Pass'; StatusCode = 'OK'; Addresses = @('192.0.2.10'); Error = ''; ElapsedMs = 1 } }
         Mock -ModuleName MspkiHealthCheck Test-MspkiTcpPort { [pscustomobject]@{ Status = 'Pass'; StatusCode = 'OK'; Error = ''; ElapsedMs = 1 } }
+        Mock -ModuleName MspkiHealthCheck Invoke-MspkiHttpGet {
+            [pscustomobject]@{ Url = $Url; FinalUrl = $Url; HttpStatus = 404; Code = 'HTTP_404'; Redirected = $false
+                Hops = @([pscustomobject]@{ Url = $Url; HttpStatus = 404; Location = ''; Error = '' }); ContentType = ''; Bytes = $null; Error = ''; ElapsedMs = 1 }
+        }
+        Mock -ModuleName MspkiHealthCheck Test-MspkiTlsEndpoint { [pscustomobject]@{ Code = 'OK'; Protocol = 'Tls12'; Subject = ''; Issuer = ''; NotAfter = ''; NameMatch = $true; ChainErrors = @() } }
         Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript {
             [pscustomobject]@{ Completed = $true; TimedOut = $false; ElapsedMs = 5; Errors = @(); Output = @($script:rawCA) }
         }
@@ -269,7 +274,11 @@ Describe 'Invoke-MspkiDiscovery' {
         @($j.Findings | Where-Object { $_.Category -eq 'Hierarchy' }).Count | Should -Be 3
         @($j.Findings | Where-Object { $_.Stage -eq 'Analysis' -and $_.Category -eq 'CA' }).Count | Should -Be 3
         ($j.Findings | Where-Object { $_.Stage -eq 'Analysis' -and $_.Category -eq 'CA' -and $_.Message -like 'Historical*' }).Status | Should -Be 'Pass'
+        @($j.Findings | Where-Object { $_.Category -eq 'CDP' -and $_.StatusCode -eq 'HTTP_404' }).Count | Should -Be 1
+        @($j.Findings | Where-Object { $_.Category -eq 'CDP' -and $_.StatusCode -eq 'PUBLICATION_FAIL' }).Count | Should -Be 1
         $j.RunInfo.Completed | Should -BeTrue
+        $j.ExitCode | Should -Be 4
+        Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiHttpGet -Times 2 -Exactly
     }
 
     It 'contacts no host with -SkipNetwork' {
