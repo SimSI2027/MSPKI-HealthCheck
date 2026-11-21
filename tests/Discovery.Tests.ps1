@@ -259,6 +259,19 @@ Describe 'Invoke-MspkiDiscovery' {
         ($d.Findings | Where-Object { $_.StatusCode -eq 'TIMEOUT' }).Status | Should -Be 'Fail'
     }
 
+    It 'runs discovery, lead registration and CA certificate health end to end' {
+        & $script:mockAd
+        $r = Start-MspkiHealthCheck -OutputPath (Join-Path $TestDrive 'e2e') -TimeoutSeconds 1
+        $j = Get-Content -LiteralPath $r.ResultsPath -Raw | ConvertFrom-Json
+        @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'CDP' }).Count | Should -Be 2
+        @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'AIA' }).Count | Should -Be 1
+        @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'CES' }).Count | Should -Be 2
+        @($j.Findings | Where-Object { $_.Category -eq 'Hierarchy' }).Count | Should -Be 3
+        @($j.Findings | Where-Object { $_.Stage -eq 'Analysis' -and $_.Category -eq 'CA' }).Count | Should -Be 3
+        ($j.Findings | Where-Object { $_.Stage -eq 'Analysis' -and $_.Category -eq 'CA' -and $_.Message -like 'Historical*' }).Status | Should -Be 'Pass'
+        $j.RunInfo.Completed | Should -BeTrue
+    }
+
     It 'contacts no host with -SkipNetwork' {
         & $script:mockAd
         $d = & $script:discover -SkipNetwork

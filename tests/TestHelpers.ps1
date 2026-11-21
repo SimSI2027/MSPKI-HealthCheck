@@ -17,10 +17,47 @@ function ConvertTo-TestDerInteger {
     return , $out.ToArray()
 }
 
+function New-TestDer {
+    # One DER element: tag byte + definite length + content.
+    param([int]$Tag, [byte[]]$Content = @())
+    $out = New-Object System.Collections.Generic.List[byte]
+    $out.Add([byte]$Tag)
+    $n = $Content.Length
+    if ($n -lt 0x80) { $out.Add([byte]$n) }
+    elseif ($n -lt 0x100) { $out.Add([byte]0x81); $out.Add([byte]$n) }
+    else { $out.Add([byte]0x82); $out.Add([byte]($n -shr 8)); $out.Add([byte]($n -band 0xFF)) }
+    if ($n -gt 0) { $out.AddRange($Content) }
+    return , $out.ToArray()
+}
+
+function Join-TestBytes {
+    param([object[]]$Parts)
+    $out = New-Object System.Collections.Generic.List[byte]
+    foreach ($p in $Parts) { $out.AddRange([byte[]]$p) }
+    return , $out.ToArray()
+}
+
+function New-TestCdpExtensionValue {
+    param([string[]]$Urls)
+    $names = Join-TestBytes @($Urls | ForEach-Object { , (New-TestDer -Tag 0x86 -Content ([System.Text.Encoding]::ASCII.GetBytes($_))) })
+    $dp = New-TestDer -Tag 0x30 -Content (New-TestDer -Tag 0xA0 -Content (New-TestDer -Tag 0xA0 -Content $names))
+    return , (New-TestDer -Tag 0x30 -Content $dp)
+}
+
+function New-TestAiaExtensionValue {
+    param([string[]]$CaIssuers = @(), [string[]]$Ocsp = @())
+    $caOid = [byte[]](0x06, 0x08, 0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x02)
+    $ocspOid = [byte[]](0x06, 0x08, 0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01)
+    $items = @()
+    foreach ($u in $CaIssuers) { $items += , (New-TestDer -Tag 0x30 -Content (Join-TestBytes @($caOid, (New-TestDer -Tag 0x86 -Content ([System.Text.Encoding]::ASCII.GetBytes($u)))))) }
+    foreach ($u in $Ocsp) { $items += , (New-TestDer -Tag 0x30 -Content (Join-TestBytes @($ocspOid, (New-TestDer -Tag 0x86 -Content ([System.Text.Encoding]::ASCII.GetBytes($u)))))) }
+    return , (New-TestDer -Tag 0x30 -Content (Join-TestBytes $items))
+}
+
 function New-TestCertificate {
     <#
     Returns @{ Full = certificate with private key (only for signing other test certificates);
-               Public = public-only X509Certificate2 }.
+               Public = public-only X509Certificate2; Key = the key (to re-issue with the same key) }.
     #>
     param(
         [Parameter(Mandatory = $true)][string]$Subject,
@@ -29,11 +66,31 @@ function New-TestCertificate {
         [int]$DaysValid = 365,
         [bool]$IsCA = $true,
         [int64]$CAVersion = -1,
-        [string]$PreviousHashHex = ''
+        [string]$PreviousHashHex = '',
+        [string[]]$CdpUrls = @(),
+        [string[]]$AiaUrls = @(),
+        [string[]]$OcspUrls = @(),
+        [switch]$Ecdsa,
+        $Key = $null
     )
-    $rsa = [System.Security.Cryptography.RSA]::Create(2048)
-    $req = New-Object System.Security.Cryptography.X509Certificates.CertificateRequest($Subject, $rsa,
-        [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+    if ($Ecdsa) {
+        $rsa = $Key
+        if ($null -eq $rsa) { $rsa = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256) }
+        $req = New-Object System.Security.Cryptography.X509Certificates.CertificateRequest($Subject, $rsa,
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+    }
+    else {
+        $rsa = $Key
+        if ($null -eq $rsa) { $rsa = [System.Security.Cryptography.RSA]::Create(2048) }
+        $req = New-Object System.Security.Cryptography.X509Certificates.CertificateRequest($Subject, $rsa,
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+    }
+    if ($CdpUrls.Count -gt 0) {
+        $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509Extension('2.5.29.31', (New-TestCdpExtensionValue -Urls $CdpUrls), $false)))
+    }
+    if ($AiaUrls.Count -gt 0 -or $OcspUrls.Count -gt 0) {
+        $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509Extension('1.3.6.1.5.5.7.1.1', (New-TestAiaExtensionValue -CaIssuers $AiaUrls -Ocsp $OcspUrls), $false)))
+    }
     $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension($IsCA, $false, 0, $true)))
     $ku = [System.Security.Cryptography.X509Certificates.X509KeyUsageFlags]'KeyCertSign, CrlSign, DigitalSignature'
     $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509KeyUsageExtension($ku, $true)))
@@ -58,10 +115,11 @@ function New-TestCertificate {
         (New-Object System.Random).NextBytes($serial)
         $serial[0] = $serial[0] -band 0x7F
         $issued = $req.Create($Signer, $nb, $na, $serial)
-        $full = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::CopyWithPrivateKey($issued, $rsa)
+        if ($Ecdsa) { $full = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::CopyWithPrivateKey($issued, $rsa) }
+        else { $full = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::CopyWithPrivateKey($issued, $rsa) }
     }
     $public = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(, $full.RawData)
-    return [pscustomobject]@{ Full = $full; Public = $public }
+    return [pscustomobject]@{ Full = $full; Public = $public; Key = $rsa }
 }
 
 function ConvertTo-TestBase64 {

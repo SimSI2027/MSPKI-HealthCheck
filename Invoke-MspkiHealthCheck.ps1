@@ -18,6 +18,12 @@ Base timeout for each network probe. Default 5.
 .PARAMETER SkipNetwork
 Read AD only; do not contact CAs or other hosts.
 
+.PARAMETER RootCaWarningDays
+Days before a root CA certificate expires when a warning is raised (default 730; critical default 365).
+
+.PARAMETER IssuingCaWarningDays
+Days before a subordinate CA certificate expires when a warning is raised (default 180; critical default 90).
+
 .EXAMPLE
 .\Invoke-MspkiHealthCheck.ps1
 
@@ -28,13 +34,22 @@ Read AD only; do not contact CAs or other hosts.
 param(
     [string]$OutputPath = (Join-Path $PSScriptRoot 'out'),
     [ValidateRange(1, 120)][int]$TimeoutSeconds = 5,
-    [switch]$SkipNetwork
+    [switch]$SkipNetwork,
+    [ValidateRange(1, 36500)][int]$RootCaWarningDays = 730,
+    [ValidateRange(1, 36500)][int]$RootCaCriticalDays = 365,
+    [ValidateRange(1, 36500)][int]$IssuingCaWarningDays = 180,
+    [ValidateRange(1, 36500)][int]$IssuingCaCriticalDays = 90
 )
 
 $module = Join-Path $PSScriptRoot 'src\MspkiHealthCheck.psd1'
 Import-Module $module -Force -ErrorAction Stop
 
-$result = Start-MspkiHealthCheck -OutputPath $OutputPath -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork
+$run = @{
+    OutputPath = $OutputPath; TimeoutSeconds = $TimeoutSeconds; SkipNetwork = $SkipNetwork
+    RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays
+    IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
+}
+$result = Start-MspkiHealthCheck @run
 
 $counts = $result.Findings | Group-Object Status | Sort-Object Name | ForEach-Object { '{0}={1}' -f $_.Name, $_.Count }
 Write-Host ('MSPKI Health Check finished: {0} finding(s) [{1}]' -f @($result.Findings).Count, ($counts -join ', '))

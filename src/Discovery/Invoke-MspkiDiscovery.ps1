@@ -50,6 +50,22 @@ function ConvertTo-MspkiCACertificateExport {
     return [pscustomobject]$o
 }
 
+function Get-MspkiDiscoveredCertificateEntry {
+    <#
+    .SYNOPSIS
+    Rebuilds the merged CA certificate entries (inventory data plus the certificate object) for analyzers.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Discovery)
+    foreach ($c in @($Discovery.Inventory.CACertificates)) {
+        if (-not $Discovery.Certificates.ContainsKey($c.Thumbprint)) { continue }
+        $o = [ordered]@{}
+        foreach ($p in $c.psobject.Properties) { $o[$p.Name] = $p.Value }
+        $o['Certificate'] = $Discovery.Certificates[$c.Thumbprint]
+        [pscustomobject]$o
+    }
+}
+
 function Invoke-MspkiDiscovery {
     <#
     .SYNOPSIS

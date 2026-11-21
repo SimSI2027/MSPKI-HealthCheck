@@ -40,6 +40,7 @@ Every result is one object created by `New-MspkiFinding`:
 `TLS_NAME_MISMATCH`, `CONTENT_WRONG_TYPE`, `SIGNATURE_INVALID`, `OBJECT_EXPIRED`, `OBJECT_EXPIRING`, `STALE_DATA`,
 `PUBLICATION_FAIL`, `RETRIEVAL_FAIL`, `EXPECTED_OFFLINE`, `PERMISSION_DENIED`, `NOT_CONFIGURED`, `NOT_DISCOVERED`,
 `NOT_APPLICABLE`, `UNSUPPORTED`, `OK`.
+Added in build phase B for CA chains (local trust, not TLS): `CHAIN_UNTRUSTED_ROOT`, `CHAIN_PARTIAL`, `CHAIN_INVALID`.
 
 Rules:
 - An endpoint failure is not the same thing as local trust failure.

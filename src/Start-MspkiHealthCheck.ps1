@@ -24,10 +24,20 @@ function Start-MspkiHealthCheck {
     param(
         [Parameter(Mandatory = $true)][string]$OutputPath,
         [ValidateRange(1, 120)][int]$TimeoutSeconds = 5,
-        [switch]$SkipNetwork
+        [switch]$SkipNetwork,
+        [ValidateRange(1, 36500)][int]$RootCaWarningDays = 730,
+        [ValidateRange(1, 36500)][int]$RootCaCriticalDays = 365,
+        [ValidateRange(1, 36500)][int]$IssuingCaWarningDays = 180,
+        [ValidateRange(1, 36500)][int]$IssuingCaCriticalDays = 90
     )
+    $thresholds = Get-MspkiThreshold -Override @{
+        RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays
+        IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
+    }
     $runInfo = Initialize-MspkiRun -Parameters @{
         OutputPath = $OutputPath; TimeoutSeconds = $TimeoutSeconds; SkipNetwork = [bool]$SkipNetwork
+        RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays
+        IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
     }
     $folder = New-MspkiOutputFolder -Root $OutputPath
     Start-MspkiLogFile -Path (Join-Path $folder 'run.log')
@@ -46,6 +56,7 @@ function Start-MspkiHealthCheck {
                 -Message ('This tool targets Windows PowerShell 5.1; running on {0} {1} is not supported.' -f $PSVersionTable.PSEdition, $runInfo.PSVersion)))
         }
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $d = $null
         try {
             $d = Invoke-MspkiDiscovery -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork
             foreach ($f in $d.Findings) { [void]$findings.Add($f) }
@@ -57,6 +68,25 @@ function Start-MspkiHealthCheck {
                 -Target 'Discovery' -Sources 'Run' -Action 'running discovery' -Stage 'Run'))
         }
         Add-MspkiStageTiming -Stage 'Discovery' -Stopwatch $sw
+
+        if ($null -ne $d) {
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                $ctx = $d.Inventory.AdContext
+                Reset-MspkiLeadRegistry -LocalDomains @($ctx.ForestDomains) -TrustedDomains @($ctx.TrustedDomains)
+                Register-MspkiDiscoveredLead -Discovery $d
+                $entries = @(Get-MspkiDiscoveredCertificateEntry -Discovery $d)
+                foreach ($f in (Test-MspkiCACertificateHealth -Entries $entries -Thresholds $thresholds)) { [void]$findings.Add($f) }
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('Analysis stopped: {0}' -f $_.Exception.Message)
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Run' -Role 'Run' `
+                    -Target 'Analysis' -Sources 'Run' -Action 'analysing CA certificates' -Stage 'Run'))
+            }
+            $inventory | Add-Member -NotePropertyName 'Leads' -NotePropertyValue @(Get-MspkiLead | ForEach-Object { ConvertTo-MspkiLeadExport -Lead $_ }) -Force
+            $inventory | Add-Member -NotePropertyName 'LeadStatistics' -NotePropertyValue (Get-MspkiLeadStatistic) -Force
+            Add-MspkiStageTiming -Stage 'Analysis:CACertificates' -Stopwatch $sw
+        }
         $completed = $true
     }
     finally {

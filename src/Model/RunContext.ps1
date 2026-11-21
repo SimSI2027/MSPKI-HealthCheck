@@ -15,6 +15,7 @@ function Initialize-MspkiRun {
     Reset-MspkiFindingSequence
     Reset-MspkiProbeCache
     Reset-MspkiLog
+    Reset-MspkiLeadRegistry
 
     $isAdmin = $false
     $user = ''

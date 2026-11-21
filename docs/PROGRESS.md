@@ -3,6 +3,18 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## Phase B (steps 2–3), part 1: leads + CA certificate health — done
+- Done: pure-PowerShell DER reader; CDP/Freshest CRL/AIA/OCSP URL extraction from certificates; lead registry
+  (normalised keys: host case, http/https, default ports, %20, trailing slash; merged sources/origins/variants;
+  scope; depth 3 and cap 300 logged as a run limit); leads from CA certificates, CA properties and CES.
+  Signature check (RSA, RSA-PSS, ECDSA) with the issuer key; CA certificate health: validity vs thresholds
+  (limited by the parent), chain (partial / bad signature / untrusted root on this computer). 209 tests.
+- Next (part 2): HTTP (anonymous GET, manual redirects, size cap) and LDAP fetch of AIA/CDP leads with separate
+  layer statuses; content validation; CRL decoding and health (base/delta, % of lifetime, issuer, signature).
+- Decision: added status codes `CHAIN_UNTRUSTED_ROOT`, `CHAIN_PARTIAL`, `CHAIN_INVALID` (REQUIREMENTS §3) so CA
+  chain problems are not reported with TLS codes. Chains are built from discovered certificates only (no
+  CryptoAPI chain engine), so no hidden AIA downloads happen, also with `-SkipNetwork`.
+
 ## Phase A (steps 0–1): skeleton + AD/CA discovery — done
 - Done: module (`src/`), `New-MspkiFinding` + schema, error classification (permission vs unreachable vs
   timeout vs not found vs unsupported), run context, log, output-folder write guard, `results.json`, exit
