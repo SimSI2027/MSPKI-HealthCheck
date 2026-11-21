@@ -1,0 +1,15 @@
+# Old toolkit: reference only, may contain real environment names
+ref/
+
+# Run output: contains real discovery results
+out/
+*.log
+
+# Local editor / OS files
+.vscode/
+*.code-workspace
+Thumbs.db
+desktop.ini
+
+# Dev-only tooling
+.tools/
