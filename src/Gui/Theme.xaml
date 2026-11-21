@@ -575,7 +575,7 @@
             <ToggleButton x:Name="Hd" DockPanel.Dock="Top" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" Cursor="Hand" Focusable="True" FocusVisualStyle="{StaticResource FocusRing}">
               <ToggleButton.Template>
                 <ControlTemplate TargetType="ToggleButton">
-                  <Border x:Name="B" Background="Transparent" Padding="0,8">
+                  <Border x:Name="B" Background="Transparent" Padding="0,6">
                     <StackPanel Orientation="Horizontal">
                       <TextBlock x:Name="Chev" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="11" Foreground="{StaticResource B.Muted}" Margin="0,0,8,0"/>
                       <ContentPresenter VerticalAlignment="Center"/>
@@ -626,7 +626,7 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="TabItem">
-          <Border x:Name="Bd" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,3" Padding="{TemplateBinding Padding}" MinHeight="42" SnapsToDevicePixels="True">
+          <Border x:Name="Bd" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,3" Padding="{TemplateBinding Padding}" MinHeight="38" SnapsToDevicePixels="True">
             <ContentPresenter ContentSource="Header" VerticalAlignment="Center" HorizontalAlignment="Center" TextElement.FontFamily="Segoe UI Semibold" TextElement.FontSize="13"/>
           </Border>
           <ControlTemplate.Triggers>

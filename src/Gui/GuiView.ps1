@@ -306,6 +306,7 @@ function Get-MspkiGuiCaCard {
     # CRL state: the CRL findings for this CA; else the state the CA itself reported; else "not checked".
     $crlFindings = @($mine | Where-Object { $_.Category -eq 'CRL' })
     $crlPill = New-MspkiGuiPill -Text 'CRL not checked' -Tone Neutral -Code 0xE738
+    if (-not $CA.Properties) { $crlPill = New-MspkiGuiPill -Text 'CRL not read: the CA gave no properties' -Tone Neutral -Code 0xE738 }
     if ($crlFindings.Count -gt 0) {
         $w = Get-MspkiGuiWorstStatus -Findings $crlFindings
         switch ($w) {
@@ -378,9 +379,15 @@ function Get-MspkiGuiCoverage {
     $text = 'No discovery method details were recorded for this run.'
     if ($items.Count -gt 0) { $text = '{0} method(s) tried: {1}' -f $items.Count, ($parts -join ', ') }
     $problems = @($items | Where-Object { $_.Bucket -in @('Permission denied', 'Failed') }).Count
+    $attention = @($sorted | Where-Object { $_.Bucket -ne 'Succeeded' })
+    $ok = @($sorted | Where-Object { $_.Bucket -eq 'Succeeded' })
+    $okText = ''
+    if ($ok.Count -gt 0) { $okText = 'Show the {0} method(s) that succeeded' -f $ok.Count }
+    if ($items.Count -gt 0 -and $attention.Count -eq 0) { $text = '{0} method(s) tried: every one succeeded.' -f $items.Count }
     return [pscustomobject][ordered]@{
-        Items = [object[]]$sorted; Text = $text; Total = $items.Count; Problems = $problems
-        Succeeded = [int]$counts['Succeeded']; PermissionDenied = [int]$counts['Permission denied']; Failed = [int]$counts['Failed']
+        Items = [object[]]$sorted; Attention = [object[]]$attention; Succeeded = [object[]]$ok; SucceededText = $okText
+        Text = $text; Total = $items.Count; Problems = $problems
+        SucceededCount = [int]$counts['Succeeded']; PermissionDenied = [int]$counts['Permission denied']; Failed = [int]$counts['Failed']
         Skipped = [int]$counts['Skipped']; NotFound = [int]$counts['Not found']
     }
 }

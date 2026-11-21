@@ -3,6 +3,18 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## GUI look rebuilt (enterprise style) + developer snapshots â€” done (744 tests)
+- Look: `src\Gui\Theme.xaml` (palette and shapes from the old window, see `docs\GUI-DESIGN.md`) and a new `MainWindow.xaml`: two-row header (title, context strip with forest / domain / DC / user,
+  Administrator or Standard user badge), toolbar with Segoe MDL2 icons (Run is the accent button), collapsible options with a one-line summary, status bar (state icon + text, target, elapsed, findings, output path),
+  welcome state, health banner, KPI tiles, status and severity tiles that open the Findings tab filtered, CA cards, top issues, discovery coverage (problems first, successes under an expander), split Findings view
+  (status chips, filters, group by category, right-click copy, CSV export of the filtered view into the run folder), Discovery Map with icons, confidence badges, Expand/Collapse all and the same details pane, coloured Run Log
+  with filter and auto-scroll. Icon + text on every status. Keyboard: F5, Esc, Ctrl+1..4, Ctrl+F, Ctrl+O.
+- Data: `GuiView.ps1` (new) builds the view models; no engine change was needed (RunInfo.Methods, Inventory and findings already carry everything). Where the engine has nothing (no CA properties, no severity rating) the window says so
+  in words instead of leaving a blank.
+- `Start-MspkiHealthCheckGui.ps1 -Snapshot out\<folder> [-ResultsFile ...]` renders every tab to PNG with RenderTargetBitmap (refused outside `out\`, guard tested; hygiene test allows `GuiSnapshot.ps1` to write for that reason only).
+- Verified by looking at snapshots (demo fixture and a real run of this lab computer: 47 findings, 7 s), including the minimum window size (1080 x 700). Tests: theme and window load, view models, filters, export, snapshot guard.
+- Next: the user's click-through (checklist in the last message of this session); then fix what they report. Open: no WPF per-monitor DPI manifest is possible from powershell.exe (system DPI is used, text stays sharp);
+  Expand all on a very large map can take a moment; severity is "None" for every finding unless an analyzer names a risk, so the severity tiles collapse to a note in a clean run.
 ## GUI (WPF): `Start-MspkiHealthCheckGui.ps1`, `src\Gui\` — done (725 tests)
 - Engine: optional `-Control` on `Start-MspkiHealthCheck` (`New-MspkiRunControl`: cancel flag + ConcurrentQueue; `src\Model\RunControl.ps1`). Stage starts, probes (DNS/TCP/TLS/HTTP/LDAP/COM)
   and log lines feed the queue; stage starts and probes throw `OperationCanceledException` once cancelled, DNS/TCP/COM waits poll every 200 ms (cancel ~1.5 s on the lab). A cancelled run writes

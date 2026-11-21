@@ -126,19 +126,23 @@ project folder:
 It does exactly what the command-line tool does and writes the same files to a new `out\<date-time>\` folder. These are the
 things worth trying, and what you should see:
 
-1. **A full run.** Press **Run**. The Run button greys out and Cancel turns on. The progress bar moves, the line under it names
-   the current step, the line at the very bottom shows the address or server being checked, and the **Run Log** tab fills with
-   lines (errors would be red). The window never freezes: you can switch tabs and move it while the run is going. When it
-   finishes, the **Summary** tab opens with a coloured tile per status and the CAs that were found, and "Open HTML report" turns
-   on. Check **Findings** (try the search box and the Status / Category / Confidence lists, and click a column heading to sort),
-   select a finding and open **Details**, and expand the tree on **Discovery Map**.
+1. **A full run.** Before the first run the Summary tab shows a welcome page. Press **Run** (or F5). The Run button greys out
+   and Cancel turns on. The thin progress bar moves, the status bar at the bottom names the current step and the address being
+   checked, and the **Run Log** tab fills with lines (warnings amber, errors red, each with a level word). The window never
+   freezes: you can switch tabs and move it while the run is going. When it finishes, the **Summary** tab opens with a health
+   banner (green, amber or red, with a sentence), four tiles (CAs, CA certificates, endpoints, templates), a tile per status and
+   per severity (select one to jump to those findings), one card per CA, the top issues (select one to open it) and the
+   discovery coverage with the reason for every method that failed. "Open report" turns on. Check **Findings** (search box,
+   status chips, the Severity / Category / Confidence lists, "Group by category", click a column heading to sort, right-click a
+   row to copy, "Export filtered view" writes a CSV into the run folder), and the **Discovery Map** (icons, confidence badges,
+   Expand all / Collapse all, details on the right).
 2. **Cancel.** Press **Run** again and, after a few seconds, press **Cancel**. The text says it is cancelling, and within a few
    seconds the run stops. A yellow note on the Summary tab says the results are partial, and the files were still saved.
 3. **Closing during a run.** Press **Run** and close the window with the X while it runs. The window stays for a few seconds
    saying it is cancelling, then closes by itself. The newest folder under `out\` has a `results.json` whose `RunInfo.Completed`
    is `false`.
-4. **Opening an earlier run.** Press **Open results.json...**, choose a `results.json` from an earlier run. Nothing is scanned;
-   the Summary, Map, Findings, Details and Run Log tabs show that run, with a note saying so.
+4. **Opening an earlier run.** Press **Open results** (Ctrl+O), choose a `results.json` from an earlier run. Nothing is scanned;
+   the Summary, Findings, Map and Run Log tabs show that run, with a note saying so.
 5. **A wrong file.** Choose a file that is not a results file. A message says what is wrong and the window stays as it was.
 
 If something looks wrong, tell us which of the five it was and what you saw, and send `run.log` from that run (see "What to

@@ -342,7 +342,7 @@ Describe 'GUI model helpers' {
         # The CA that did not answer still gets an honest card, not empty fields.
         $c2 = @($s.CAs | Where-Object { $_.Name -eq 'Example Issuing CA 02' })[0]
         $c2.Certificate | Should -Not -BeNullOrEmpty
-        $c2.CrlPill.Text | Should -Be 'CRL not checked'
+        $c2.CrlPill.Text | Should -BeLike 'CRL not read*'
         # Top issues: worst first, never more than ten, never a pass or information.
         $s.TopIssues.Count | Should -BeLessOrEqual 10
         $s.TopIssues[0].StatusPill.Text | Should -Be 'Fail'
@@ -353,6 +353,10 @@ Describe 'GUI model helpers' {
         $s.Coverage.Items[-1].Bucket | Should -Be 'Succeeded'
         foreach ($i in $s.Coverage.Items) { $i.Reason | Should -Not -BeNullOrEmpty; $i.Pill.Glyph | Should -Not -BeNullOrEmpty }
         $s.Coverage.Text | Should -BeLike '*4 method(s) tried*'
+        $s.Coverage.Attention.Count | Should -Be 1
+        $s.Coverage.Succeeded.Count | Should -Be 3
+        $s.Coverage.SucceededText | Should -Be 'Show the 3 method(s) that succeeded'
+        (Get-MspkiGuiCoverage -RunInfo ([pscustomobject]@{ Methods = @([pscustomobject]@{ Method = 'a'; Outcome = 'Success'; Detail = 'x'; ElapsedMs = 1 }) })).Text | Should -BeLike '*every one succeeded*'
         $s.Duration | Should -Be '1:26'
     }
 
@@ -515,7 +519,7 @@ Describe 'GUI window (single-threaded runspace)' {
             $r.Welcome = [string]$ui.PanelWelcome.Visibility; $r.Results = [string]$ui.PanelResults.Visibility
             $r.GridCount = @($ui.FindingsGrid.Items).Count
             $r.Kpis = @($ui.KpiList.ItemsSource).Count; $r.Tiles = @($ui.TileList.ItemsSource).Count; $r.SevTiles = @($ui.SevTileList.ItemsSource).Count
-            $r.Cas = @($ui.CaList.ItemsSource).Count; $r.Top = @($ui.TopList.ItemsSource).Count; $r.Coverage = @($ui.CoverageList.ItemsSource).Count
+            $r.Cas = @($ui.CaList.ItemsSource).Count; $r.Top = @($ui.TopList.ItemsSource).Count; $r.Coverage = @($ui.CoverageList.ItemsSource).Count; $r.CoverageOk = @($ui.CoverageOkList.ItemsSource).Count; $r.SevNote = [string]$ui.TxtNoSeverity.Visibility; $r.Mapsel = ($null -ne $ui.MapHost.Content)
             $r.Banner = $ui.BannerTitle.Text; $r.BannerText = $ui.BannerText.Text; $r.BannerTone = $ui.Banner.DataContext.Tone
             $r.Forest = @($ui.HdrContext.ItemsSource)[0].Value
             $r.Note = $ui.TxtNote.Text
@@ -590,7 +594,9 @@ Describe 'GUI window (single-threaded runspace)' {
         $r.SevTiles | Should -Be 5
         $r.Cas | Should -Be 2
         $r.Top | Should -BeGreaterThan 0
-        $r.Coverage | Should -Be 4
+        $r.Coverage | Should -Be 1
+        $r.CoverageOk | Should -Be 3
+        $r.SevNote | Should -Be 'Visible'
         $r.Banner | Should -Be 'Action needed'
         $r.BannerTone | Should -Be 'Bad'
         $r.Forest | Should -Be 'corp.example.test'

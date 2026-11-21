@@ -1,6 +1,6 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MSPKI Health Check" Width="1360" Height="860" MinWidth="1000" MinHeight="640"
+        Title="MSPKI Health Check" Width="1360" Height="860" MinWidth="1080" MinHeight="700"
         WindowStartupLocation="CenterScreen" Style="{DynamicResource AppWindow}">
   <Window.Resources>
     <ResourceDictionary>
@@ -216,7 +216,7 @@
       <DataTemplate x:Key="TopIssue">
         <Button Style="{StaticResource RowButton}" Tag="{Binding Id}" ToolTip="Open this finding in the Findings tab">
           <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="104"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top"/>
             <StackPanel Grid.Column="1">
               <TextBlock Text="{Binding Title}" FontFamily="Segoe UI Semibold" TextTrimming="CharacterEllipsis"/>
@@ -286,9 +286,15 @@
     </Grid.RowDefinitions>
 
     <!-- ===== Header ===== -->
-    <Border Grid.Row="0" Background="{StaticResource B.Header}" Padding="24,14">
+    <Border Grid.Row="0" Background="{StaticResource B.Header}" Padding="24,12,24,8">
       <DockPanel>
-        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="0,0,32,0">
+        <Border DockPanel.Dock="Bottom" BorderBrush="#2C3E60" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,6,0,0">
+          <ItemsControl x:Name="HdrContext" ItemTemplate="{StaticResource HeaderFact}" IsTabStop="False">
+            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          </ItemsControl>
+        </Border>
+        <ContentPresenter x:Name="HdrBadge" DockPanel.Dock="Right" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top" Margin="16,0,0,0"/>
+        <StackPanel Orientation="Horizontal">
           <Border Width="44" Height="44" Background="{StaticResource B.Accent}" Margin="0,0,14,0">
             <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="24" Foreground="{StaticResource B.White}" HorizontalAlignment="Center"/>
           </Border>
@@ -300,15 +306,11 @@
             <TextBlock Foreground="{StaticResource B.HeaderSub}" Text="Read-only health check of Active Directory Certificate Services. Nothing is changed."/>
           </StackPanel>
         </StackPanel>
-        <ContentPresenter x:Name="HdrBadge" DockPanel.Dock="Right" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Center" Margin="16,0,0,0"/>
-        <ItemsControl x:Name="HdrContext" ItemTemplate="{StaticResource HeaderFact}" VerticalAlignment="Center" HorizontalAlignment="Right" IsTabStop="False">
-          <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Right"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-        </ItemsControl>
       </DockPanel>
     </Border>
 
     <!-- ===== Toolbar ===== -->
-    <Border Grid.Row="1" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1" Padding="24,8">
+    <Border Grid.Row="1" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1" Padding="24,6">
       <WrapPanel>
         <Button x:Name="BtnRun" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" MinWidth="104" ToolTip="Start a new health check (F5). It only reads; nothing is changed.">
           <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" Margin="0,0,8,0"/><TextBlock Text="Run"/></StackPanel>
@@ -368,7 +370,7 @@
       </Expander>
     </Border>
 
-    <ProgressBar x:Name="Progress" Grid.Row="3" Minimum="0" Maximum="100" Value="0"/>
+    <ProgressBar x:Name="Progress" Grid.Row="3" Minimum="0" Maximum="100" Value="0" Visibility="Hidden"/>
 
     <!-- ===== Tabs ===== -->
     <TabControl x:Name="Tabs" Grid.Row="4">
@@ -445,6 +447,7 @@
                   <ItemsControl x:Name="SevTileList" ItemTemplate="{StaticResource CountTile}" IsTabStop="False">
                     <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                   </ItemsControl>
+                  <TextBlock x:Name="TxtNoSeverity" Visibility="Collapsed" Style="{StaticResource Small}" Text="No finding in this run carries a severity rating. Severity is only set for the findings that name a risk (for example template permissions or an open NDES admin page)."/>
                 </StackPanel>
               </Border>
 
@@ -469,6 +472,10 @@
                     <TextBlock Text="Discovery coverage" Style="{StaticResource H2}"/>
                     <TextBlock x:Name="TxtCoverage" Style="{StaticResource Small}" Margin="0,2,0,12"/>
                     <ItemsControl x:Name="CoverageList" ItemTemplate="{StaticResource CoverageRow}" IsTabStop="False"/>
+                    <Expander x:Name="ExpCoverageOk" IsExpanded="False" Margin="0,4,0,0">
+                      <Expander.Header><TextBlock x:Name="TxtCoverageOk"/></Expander.Header>
+                      <ItemsControl x:Name="CoverageOkList" ItemTemplate="{StaticResource CoverageRow}" IsTabStop="False" Margin="22,8,0,0"/>
+                    </Expander>
                     <TextBlock x:Name="TxtLimits" Style="{StaticResource Small}" Margin="0,4,0,0" Visibility="Collapsed"/>
                   </StackPanel>
                 </Border>
@@ -490,7 +497,7 @@
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" MinWidth="380"/>
             <ColumnDefinition Width="8"/>
-            <ColumnDefinition Width="440" MinWidth="300"/>
+            <ColumnDefinition Width="400" MinWidth="300"/>
           </Grid.ColumnDefinitions>
           <DockPanel Grid.Column="0">
             <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="12,12,12,4" Margin="0,0,0,8">
@@ -500,17 +507,17 @@
                   <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                 </ItemsControl>
                 <WrapPanel Margin="0,0,0,8">
-                  <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                    <TextBlock Text="Severity" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <ComboBox x:Name="FltSeverity" Width="140"/>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                    <TextBlock Text="Severity" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="FltSeverity" Width="112"/>
                   </StackPanel>
-                  <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                    <TextBlock Text="Category" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <ComboBox x:Name="FltCategory" Width="140"/>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                    <TextBlock Text="Category" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="FltCategory" Width="112"/>
                   </StackPanel>
-                  <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                    <TextBlock Text="Confidence" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <ComboBox x:Name="FltConfidence" Width="140"/>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                    <TextBlock Text="Confidence" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="FltConfidence" Width="112"/>
                   </StackPanel>
                   <CheckBox x:Name="ChkGroup" Content="Group by category" Margin="0,0,16,0" VerticalAlignment="Center"/>
                   <Button x:Name="BtnClearFilters" Margin="0,0,8,0" Padding="12,0" ToolTip="Remove every filter">
@@ -557,20 +564,20 @@
                   </GroupStyle>
                 </DataGrid.GroupStyle>
                 <DataGrid.Columns>
-                  <DataGridTemplateColumn Header="Status" SortMemberPath="StatusRank" Width="140">
+                  <DataGridTemplateColumn Header="Status" SortMemberPath="StatusRank" Width="128" MinWidth="116">
                     <DataGridTemplateColumn.CellTemplate>
                       <DataTemplate><ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                   </DataGridTemplateColumn>
-                  <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" SortMemberPath="SeverityRank" Width="96"/>
-                  <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="92"/>
-                  <DataGridTextColumn Header="Target" Binding="{Binding Target}" Width="170">
+                  <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" SortMemberPath="SeverityRank" Width="88" MinWidth="80"/>
+                  <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="116" MinWidth="90"/>
+                  <DataGridTextColumn Header="Target" Binding="{Binding Target}" Width="150" MinWidth="110">
                     <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/></Style></DataGridTextColumn.ElementStyle>
                   </DataGridTextColumn>
-                  <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" MinWidth="240">
+                  <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" MinWidth="170">
                     <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/></Style></DataGridTextColumn.ElementStyle>
                   </DataGridTextColumn>
-                  <DataGridTemplateColumn Header="Confidence" SortMemberPath="ConfidenceRank" Width="130">
+                  <DataGridTemplateColumn Header="Confidence" SortMemberPath="ConfidenceRank" Width="128" MinWidth="116">
                     <DataGridTemplateColumn.CellTemplate>
                       <DataTemplate><ContentPresenter Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -596,7 +603,7 @@
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" MinWidth="380"/>
             <ColumnDefinition Width="8"/>
-            <ColumnDefinition Width="440" MinWidth="300"/>
+            <ColumnDefinition Width="400" MinWidth="300"/>
           </Grid.ColumnDefinitions>
           <DockPanel Grid.Column="0">
             <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="12,8" Margin="0,0,0,8">

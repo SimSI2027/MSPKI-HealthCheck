@@ -288,7 +288,9 @@ function Clear-MspkiGuiResult {
     $ui.MapTree.ItemsSource = $null
     $ui.MapHost.Content = Get-MspkiGuiEmptyPane -Text 'Select an item in the tree to see what was found and why.'
     $ui.FindingHost.Content = Get-MspkiGuiEmptyPane
-    foreach ($n in @('KpiList', 'TileList', 'SevTileList', 'CaList', 'TopList', 'CoverageList')) { $ui[$n].ItemsSource = $null }
+    foreach ($n in @('KpiList', 'TileList', 'SevTileList', 'CaList', 'TopList', 'CoverageList', 'CoverageOkList')) { $ui[$n].ItemsSource = $null }
+    $ui.TxtNoSeverity.Visibility = 'Collapsed'
+    $ui.ExpCoverageOk.Visibility = 'Collapsed'
     $ui.PanelResults.Visibility = 'Collapsed'
     $ui.PanelWelcome.Visibility = 'Visible'
     $ui.TxtNote.Visibility = 'Collapsed'
@@ -344,12 +346,18 @@ function Show-MspkiGuiResult {
     $ui.KpiList.ItemsSource = @($s.Kpis)
     $ui.TileList.ItemsSource = @($s.Tiles)
     $ui.SevTileList.ItemsSource = @($s.SeverityTiles)
+    $hasSeverity = (@($s.SeverityTiles | Where-Object { $_.Status -ne 'Information' -and $_.Count -gt 0 }).Count -gt 0)
+    $ui.SevTileList.Visibility = $(if ($hasSeverity) { 'Visible' } else { 'Collapsed' })
+    $ui.TxtNoSeverity.Visibility = $(if ($hasSeverity) { 'Collapsed' } else { 'Visible' })
     $ui.CaList.ItemsSource = @($s.CAs)
     $ui.TxtNoCa.Visibility = $(if (@($s.CAs).Count -eq 0) { 'Visible' } else { 'Collapsed' })
     $ui.TopList.ItemsSource = @($s.TopIssues)
     $ui.TxtNoTop.Visibility = $(if (@($s.TopIssues).Count -eq 0) { 'Visible' } else { 'Collapsed' })
     $ui.TxtCoverage.Text = $s.Coverage.Text
-    $ui.CoverageList.ItemsSource = @($s.Coverage.Items)
+    $ui.CoverageList.ItemsSource = @($s.Coverage.Attention)
+    $ui.CoverageOkList.ItemsSource = @($s.Coverage.Succeeded)
+    $ui.TxtCoverageOk.Text = $s.Coverage.SucceededText
+    $ui.ExpCoverageOk.Visibility = $(if (@($s.Coverage.Succeeded).Count -gt 0) { 'Visible' } else { 'Collapsed' })
     if (@($s.Limits).Count -gt 0) { $ui.TxtLimits.Text = 'Limits of this run: ' + (@($s.Limits) -join ' '); $ui.TxtLimits.Visibility = 'Visible' }
     else { $ui.TxtLimits.Visibility = 'Collapsed' }
     $ui.PanelWelcome.Visibility = 'Collapsed'
@@ -382,12 +390,18 @@ function Show-MspkiGuiResult {
     $ui.TxtTabFindings.Text = '{0}' -f $g.Rows.Count
     $ui.TxtCount.Text = '{0} finding{1}' -f $g.Rows.Count, $(if ($g.Rows.Count -eq 1) { '' } else { 's' })
     Update-MspkiGuiFilter
+    if ($g.Rows.Count -gt 0) { $ui.FindingsGrid.SelectedIndex = 0 }
 
     # Discovery Map
     $tree = Get-MspkiDiscoveryTree -Inventory $Data.Inventory -Findings $findings -RunInfo $Data.RunInfo
     $root = ConvertTo-MspkiGuiTreeNode -Node $tree
     $ui.MapTree.ItemsSource = @($root)
     $ui.TxtMapCount.Text = '{0} item(s)' -f (Get-MspkiGuiNodeCount -Node $root)
+    $g.MapPane = Get-MspkiGuiNodePane -Node $root -RowById $g.RowById
+    $ui.MapHost.Content = $g.MapPane
+    $ui.MapTree.UpdateLayout()
+    $rc = $ui.MapTree.ItemContainerGenerator.ContainerFromIndex(0)
+    if ($null -ne $rc) { $rc.IsSelected = $true }
 
     # Buttons, folder and notes
     $ui.BtnOpenReport.IsEnabled = [bool]$Data.ReportPath
@@ -546,6 +560,7 @@ function Start-MspkiGuiRun {
         return
     }
     Set-MspkiGuiBusy -Busy $true
+    $ui.Progress.Visibility = 'Visible'
     $g.Timer.Start()
 }
 
@@ -621,6 +636,7 @@ function Complete-MspkiGuiRun {
     $g.Run = $null
     $g.CurrentStage = ''
     Set-MspkiGuiBusy -Busy $false
+    $ui.Progress.Visibility = 'Hidden'
     $ui.TxtTarget.Text = ''
     if ($null -ne $result -and $null -ne $result.Findings) {
         $log = ''
@@ -943,7 +959,15 @@ function Initialize-MspkiGuiApplication {
     $ui.BtnExpandAll.Add_Click({ $t = $script:MspkiGui.Ui.MapTree; Set-MspkiGuiTreeExpansion -Parent $t -Expand $true })
     $ui.BtnCollapseAll.Add_Click({ $t = $script:MspkiGui.Ui.MapTree; Set-MspkiGuiTreeExpansion -Parent $t -Expand $false })
 
-    # Run Log
+    # Run Log (opening the tab scrolls to the newest line when auto-scroll is on)
+    $ui.Tabs.Add_SelectionChanged({
+        param($sender, $e)
+        if ($e.OriginalSource -ne $sender) { return }
+        $u = $script:MspkiGui.Ui
+        if ($u.Tabs.SelectedItem -eq $u.TabLog) {
+            [void]$u.LogList.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [System.Action]{ Update-MspkiGuiLogView -Scroll })
+        }
+    })
     $ui.FltLog.Add_TextChanged({ Update-MspkiGuiLogView })
     $ui.FltLogLevel.Add_SelectionChanged({ Update-MspkiGuiLogView })
     $ui.ChkFollow.Add_Click({ if ([bool]$script:MspkiGui.Ui.ChkFollow.IsChecked) { Update-MspkiGuiLogView -Scroll } })
