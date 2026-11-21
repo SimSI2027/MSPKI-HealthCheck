@@ -204,10 +204,11 @@ function Start-TestHttpServer {
                 $stream = $client.GetStream()
                 $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::ASCII, $false, 4096, $true)
                 $line = $reader.ReadLine()
+                if (-not $line) { continue }   # a bare TCP connect (port probe) sends no request
                 $headers = @()
                 while ($true) { $h = $reader.ReadLine(); if ($null -eq $h -or $h -eq '') { break }; $headers += $h }
                 $path = ($line -split ' ')[1]
-                [void]$log.Add([pscustomobject]@{ Path = $path; Headers = $headers })
+                [void]$log.Add([pscustomobject]@{ Method = ($line -split " ")[0]; Path = $path; Headers = $headers })
                 $route = $routes[$path]
                 if ($null -eq $route) { $route = @{ Status = 404; Body = [System.Text.Encoding]::ASCII.GetBytes('not found'); Headers = @{} } }
                 $body = [byte[]]$route.Body

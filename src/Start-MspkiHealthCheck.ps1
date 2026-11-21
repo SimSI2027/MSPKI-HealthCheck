@@ -139,7 +139,29 @@ function Start-MspkiHealthCheck {
                     -Target 'Endpoints' -Sources 'Run' -Action 'checking AIA/CDP/OCSP endpoints' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Probe:Endpoints' -Stopwatch $sw
-            $inventory | Add-Member -NotePropertyName 'Leads' -NotePropertyValue @(Get-MspkiLead | ForEach-Object { ConvertTo-MspkiLeadExport -Lead $_ }) -Force
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                $cep = Get-MspkiLocalCepPolicy
+                foreach ($f in $cep.Findings) { [void]$findings.Add($f) }
+                $inventory | Add-Member -NotePropertyName 'CepPolicies' -NotePropertyValue @($cep.Data) -Force
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('Local policy read stopped: {0}' -f $_.Exception.Message)
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'CEP' -Role 'Computer' `
+                    -Target 'Enrollment policy servers' -Sources 'Policy:CEP:HKLM' -Action 'reading the enrollment policy servers' -Scope 'Local'))
+            }
+            Add-MspkiStageTiming -Stage 'Discovery:LocalPolicy' -Stopwatch $sw
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                foreach ($f in (Invoke-MspkiEnrollmentServiceAnalysis -Discovery $d -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)) { [void]$findings.Add($f) }
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('CEP/CES checks stopped: {0}' -f $_.Exception.Message)
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Run' -Role 'Run' `
+                    -Target 'EnrollmentServices' -Sources 'Run' -Action 'checking CEP and CES endpoints' -Stage 'Run'))
+            }
+            Add-MspkiStageTiming -Stage 'Probe:EnrollmentServices' -Stopwatch $sw
+            $inventory | Add-Member -NotePropertyName 'Leads'-NotePropertyValue @(Get-MspkiLead | ForEach-Object { ConvertTo-MspkiLeadExport -Lead $_ }) -Force
             $inventory | Add-Member -NotePropertyName 'LeadStatistics' -NotePropertyValue (Get-MspkiLeadStatistic) -Force
         }
         $completed = $true

@@ -270,7 +270,9 @@ Describe 'Invoke-MspkiDiscovery' {
         $j = Get-Content -LiteralPath $r.ResultsPath -Raw | ConvertFrom-Json
         @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'CDP' }).Count | Should -Be 2
         @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'AIA' }).Count | Should -Be 1
-        @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'CES' }).Count | Should -Be 2
+        @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'CES' -and $_.Confidence -eq 'Referenced' }).Count | Should -Be 2
+        # Constructed candidates on the CA host are leads too, but always Inferred.
+        @($j.Inventory.Leads | Where-Object { ($_.Kind -eq 'CES' -or $_.Kind -eq 'CEP') -and $_.Confidence -eq 'Inferred' -and @($_.Sources) -contains 'Constructed:CAHost' }).Count | Should -BeGreaterThan 0
         @($j.Findings | Where-Object { $_.Category -eq 'Hierarchy' }).Count | Should -Be 3
         @($j.Findings | Where-Object { $_.Stage -eq 'Analysis' -and $_.Category -eq 'CA' }).Count | Should -Be 3
         ($j.Findings | Where-Object { $_.Stage -eq 'Analysis' -and $_.Category -eq 'CA' -and $_.Message -like 'Historical*' }).Status | Should -Be 'Pass'
@@ -278,7 +280,9 @@ Describe 'Invoke-MspkiDiscovery' {
         @($j.Findings | Where-Object { $_.Category -eq 'CDP' -and $_.StatusCode -eq 'PUBLICATION_FAIL' }).Count | Should -Be 1
         $j.RunInfo.Completed | Should -BeTrue
         $j.ExitCode | Should -Be 4
-        Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiHttpGet -Times 2 -Exactly
+        Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiHttpGet -Times 2 -Exactly -ParameterFilter { $Url -notmatch 'service.svc' }
+        # CEP/CES: the 2 URLs from AD plus the 6 constructed candidates on the CA host.
+        Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiHttpGet -Times 8 -Exactly -ParameterFilter { $Url -match 'service.svc' }
     }
 
     It 'contacts no host with -SkipNetwork' {
