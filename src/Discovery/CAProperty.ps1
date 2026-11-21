@@ -11,6 +11,8 @@ $script:MspkiCAProp = @{
     CAType               = @{ Id = 10; Type = 1 }
     CASigCertCount       = @{ Id = 11; Type = 1 }
     CASigCert            = @{ Id = 12; Type = 3 }   # indexed, binary
+    BaseCrl              = @{ Id = 17; Type = 3 }   # indexed, binary: the CA's own current base CRL
+    DeltaCrl             = @{ Id = 18; Type = 3 }   # indexed, binary: the CA's own current delta CRL
     CACertState          = @{ Id = 19; Type = 1 }   # indexed
     CrlState             = @{ Id = 20; Type = 1 }   # indexed
     DnsName              = @{ Id = 22; Type = 4 }
@@ -29,7 +31,7 @@ $script:MspkiCAProp = @{
 $script:MspkiCAPlainProps = @('CAName', 'SanitizedCAName', 'DnsName', 'ParentCA', 'FileVersion', 'ProductVersion',
     'RoleSeparation', 'AdvancedServer', 'KraCertCount', 'KraCertUsedCount', 'Templates')
 $script:MspkiCAIndexedProps = @('CASigCert', 'CACertState', 'CACertVersion', 'CrlState', 'BaseCrlPublishStatus',
-    'DeltaCrlPublishStatus', 'CertCdpUrls', 'CertAiaUrls', 'CertAiaOcspUrls')
+    'DeltaCrlPublishStatus', 'CertCdpUrls', 'CertAiaUrls', 'CertAiaOcspUrls', 'BaseCrl', 'DeltaCrl')
 
 # CA type (ENUM_CATYPES) and CA certificate / CRL state (CA_DISP_*).
 $script:MspkiCATypeNames = @{ 0 = 'EnterpriseRoot'; 1 = 'EnterpriseSubordinate'; 3 = 'StandaloneRoot'; 4 = 'StandaloneSubordinate' }
@@ -79,6 +81,33 @@ function Split-MspkiCAPropertyText {
     param([AllowNull()]$Value)
     if ($null -eq $Value) { return , @() }
     return , @(([string]$Value) -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+}
+
+function Read-MspkiCaCrlProperty {
+    <#
+    .SYNOPSIS
+    Decodes the CA's own base or delta CRL from a GetCAProperty value (Base64 data -> DER -> CRL).
+    State: Read | Empty (the CA has no such CRL, for example deltas are disabled) | Error | NotRead.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][hashtable]$Raw, [Parameter(Mandatory = $true)][string]$Name)
+    $o = @{ Crl = $null; State = 'NotRead'; Detail = '' }
+    if ($Raw.Values.ContainsKey($Name) -and $null -ne $Raw.Values[$Name]) {
+        try {
+            $bytes = ConvertFrom-MspkiBase64Data -Text ([string]$Raw.Values[$Name])
+            $o.Crl = ConvertFrom-MspkiCrl -Bytes $bytes
+            $o.State = 'Read'
+        }
+        catch { $o.State = 'Error'; $o.Detail = (Get-MspkiErrorInfo $_).Message }
+    }
+    elseif ($Raw.Errors.ContainsKey($Name)) {
+        $e = $Raw.Errors[$Name]
+        $class = 'Error'
+        if ($script:MspkiHResultClass.ContainsKey([string]$e.HResult)) { $class = $script:MspkiHResultClass[[string]$e.HResult] }
+        if ($class -eq 'NotFound') { $o.State = 'Empty'; $o.Detail = 'The CA holds no such CRL (property empty).' }
+        else { $o.State = 'Error'; $o.Detail = ('{0} 0x{1} {2}' -f $class, $e.HResult, $e.Message) }
+    }
+    return [pscustomobject]$o
 }
 
 function ConvertFrom-MspkiCAPropertyResult {
@@ -131,6 +160,8 @@ function ConvertFrom-MspkiCAPropertyResult {
         $baseCrlStatus = $null; $deltaCrlStatus = $null
         if ($v.ContainsKey(('BaseCrlPublishStatus[{0}]' -f $i))) { $baseCrlStatus = [int]$v[('BaseCrlPublishStatus[{0}]' -f $i)] }
         if ($v.ContainsKey(('DeltaCrlPublishStatus[{0}]' -f $i))) { $deltaCrlStatus = [int]$v[('DeltaCrlPublishStatus[{0}]' -f $i)] }
+        $baseCrl = Read-MspkiCaCrlProperty -Raw $Raw -Name ('BaseCrl[{0}]' -f $i)
+        $deltaCrl = Read-MspkiCaCrlProperty -Raw $Raw -Name ('DeltaCrl[{0}]' -f $i)
         [void]$sig.Add([pscustomobject][ordered]@{
             Index                 = $i
             Certificate           = $cert
@@ -142,7 +173,13 @@ function ConvertFrom-MspkiCAPropertyResult {
             CrlStateName          = $crlStateName
             BaseCrlPublishStatus  = $baseCrlStatus
             DeltaCrlPublishStatus = $deltaCrlStatus
-            CdpUrls               = (Split-MspkiCAPropertyText $v[('CertCdpUrls[{0}]' -f $i)])
+            BaseCrl               = $baseCrl.Crl
+            BaseCrlState          = $baseCrl.State
+            BaseCrlDetail         = $baseCrl.Detail
+            DeltaCrl              = $deltaCrl.Crl
+            DeltaCrlState         = $deltaCrl.State
+            DeltaCrlDetail        = $deltaCrl.Detail
+            CdpUrls               =(Split-MspkiCAPropertyText $v[('CertCdpUrls[{0}]' -f $i)])
             AiaUrls               = (Split-MspkiCAPropertyText $v[('CertAiaUrls[{0}]' -f $i)])
             OcspUrls              = (Split-MspkiCAPropertyText $v[('CertAiaOcspUrls[{0}]' -f $i)])
         })
@@ -153,6 +190,7 @@ function ConvertFrom-MspkiCAPropertyResult {
         $e = $Raw.Errors[$k]
         $class = 'Error'
         if ($script:MspkiHResultClass.ContainsKey([string]$e.HResult)) { $class = $script:MspkiHResultClass[[string]$e.HResult] }
+        if ($class -eq 'NotFound' -and $k -match '^(Base|Delta)Crl\[') { continue }   # no such CRL: shown as BaseCrlState/DeltaCrlState
         [void]$errs.Add([pscustomobject]@{ Property = $k; HResult = ('0x' + $e.HResult); Class = $class; Message = $e.Message })
     }
 

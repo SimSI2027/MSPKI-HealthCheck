@@ -28,6 +28,10 @@ Days before a subordinate CA certificate expires when a warning is raised (defau
 Percentage of a root CA CRL's lifetime after which a warning is raised (default 75; critical default 95).
 The IssuingCrl* parameters do the same for CRLs of subordinate CAs.
 
+.PARAMETER CrlPublicationGraceMinutes
+When a CDP location serves an older CRL than the CA holds: within this many minutes of the CA creating its newer
+CRL the finding is STALE_DATA (publication may be in progress); after that it is PUBLICATION_FAIL (default 60).
+
 .EXAMPLE
 .\Invoke-MspkiHealthCheck.ps1
 
@@ -46,7 +50,8 @@ param(
     [ValidateRange(1, 100)][int]$RootCrlWarningPercent = 75,
     [ValidateRange(1, 100)][int]$RootCrlCriticalPercent = 95,
     [ValidateRange(1, 100)][int]$IssuingCrlWarningPercent = 75,
-    [ValidateRange(1, 100)][int]$IssuingCrlCriticalPercent = 95
+    [ValidateRange(1, 100)][int]$IssuingCrlCriticalPercent = 95,
+    [ValidateRange(1, 1440)][int]$CrlPublicationGraceMinutes = 60
 )
 
 $module = Join-Path $PSScriptRoot 'src\MspkiHealthCheck.psd1'
@@ -58,6 +63,7 @@ $run = @{
     IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
     RootCrlWarningPercent = $RootCrlWarningPercent; RootCrlCriticalPercent = $RootCrlCriticalPercent
     IssuingCrlWarningPercent = $IssuingCrlWarningPercent; IssuingCrlCriticalPercent = $IssuingCrlCriticalPercent
+        CrlPublicationGraceMinutes = $CrlPublicationGraceMinutes
 }
 $result = Start-MspkiHealthCheck @run
 

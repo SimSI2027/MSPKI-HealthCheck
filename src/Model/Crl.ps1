@@ -13,8 +13,9 @@ $script:MspkiCrlOid = @{
 function ConvertFrom-MspkiPem {
     <#
     .SYNOPSIS
-    Returns DER bytes unchanged. PEM/Base64 CRLs are not decoded here (no Base64 handling in the tool);
-    the caller reports them as an unexpected format.
+    Returns DER bytes unchanged. PEM/Base64 CRLs from CDP locations are not decoded here (CDP locations serve
+    DER); the caller reports them as an unexpected format. CRLs that a CA returns as Base64 text go through
+    ConvertFrom-MspkiBase64Data first.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][byte[]]$Bytes)

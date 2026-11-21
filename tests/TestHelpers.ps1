@@ -152,6 +152,7 @@ function New-TestCrl {
         [int]$BaseNumber = 1,
         [string[]]$FreshestUrls = @(),
         [switch]$NoNextUpdate,
+        [int64]$CAVersion = -1,
         $SigningKey = $null
     )
     $inv = [System.Globalization.CultureInfo]::InvariantCulture
@@ -166,6 +167,9 @@ function New-TestCrl {
     }
     if ($FreshestUrls.Count -gt 0) {
         $exts += , (New-TestDer 0x30 (Join-TestBytes @((New-TestDer 0x06 ([byte[]](0x55, 0x1D, 0x2E))), (New-TestDer 0x04 (New-TestCdpExtensionValue -Urls $FreshestUrls)))))
+    }
+    if ($CAVersion -ge 0) {
+        $exts += , (New-TestDer 0x30 (Join-TestBytes @((New-TestDer 0x06 ([byte[]](0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x15, 0x01))), (New-TestDer 0x04 (ConvertTo-TestDerInteger $CAVersion)))))
     }
     $parts = @()
     $parts += , (New-TestDer 0x02 ([byte[]](0x01)))

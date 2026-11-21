@@ -26,6 +26,10 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
    reflection, downloaded code, hidden windows or `-ExecutionPolicy Bypass`. Keep `certutil` to the few
    opt-in uses listed in REQUIREMENTS. Use defensive names (`Test-MspkiTemplateEnrollmentRisk`, not
    `Find-Vulnerable*` / `Invoke-ESC*`).
+   *Clarification:* the ban is on encoded commands and Base64 **code**. Decoding Base64 **data** (certificates
+   and CRLs returned by CA COM properties such as `GetCAProperty`) with `[Convert]::FromBase64String` is
+   allowed. Do it only in `ConvertFrom-MspkiBase64Data` (`src/Model/BinaryData.ps1`), which accepts only
+   certificate/CRL-shaped DER data. Never decode and then run, load, dot-source or write anything.
 7. **No secrets.** Never read, log or export private keys, passwords, tokens, challenge passwords or
    protected configuration values.
 8. **Honest results.** Every finding carries its sources, evidence and confidence. Never present an Inferred

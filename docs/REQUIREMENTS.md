@@ -97,6 +97,11 @@ Rules:
 - Thresholds (parameters, separate for offline roots and issuing CAs): Pass < 75% · Warning 75–95% · Critical ≥ 95% ·
   Fail when expired · NotApplicable when delta CRLs are disabled · Unknown when it can't be validated.
 - Enabled or disabled delta CRLs are a configuration fact, not an error.
+- The CA's own current base and delta CRL are read with `GetCAProperty` (CR_PROP_BASECRL 17 / DELTACRL 18, Base64
+  data decoded only by `ConvertFrom-MspkiBase64Data`) and compared with each CDP location by issuer, base/delta and
+  CA version. Same CRL number = published correctly (Pass). Older number = `PUBLICATION_FAIL` (the served CRL has
+  expired, or the CA's newer CRL is older than `-CrlPublicationGraceMinutes`, default 60) or `STALE_DATA` (the CA's
+  newer CRL is younger than that, so publication may still be in progress).
 
 ### 5.3 AIA / CDP / OCSP endpoints
 - Check every lead's layers separately (§3). Validate downloaded content (is it a certificate or CRL, and the right one?).

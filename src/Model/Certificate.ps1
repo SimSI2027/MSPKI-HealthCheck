@@ -1,4 +1,4 @@
-# Certificate helpers: load public certificates from bytes or Base64 text and describe them as plain
+# Certificate helpers: load public certificates from bytes or Base64 data and describe them as plain
 # data (no private keys are ever loaded or exported).
 
 $script:MspkiOid = @{
@@ -13,14 +13,14 @@ function New-MspkiCertificate {
     <#
     .SYNOPSIS
     Creates a public X509Certificate2 from DER bytes, or from Base64/PEM text (as returned by the CA with
-    CR_OUT_BASE64). The .NET constructor decodes Base64 itself, so no Base64 handling is needed here.
+    CR_OUT_BASE64). Text is decoded as data by ConvertFrom-MspkiBase64Data and only ever parsed as a certificate.
     #>
     [CmdletBinding(DefaultParameterSetName = 'Bytes')]
     param(
         [Parameter(Mandatory = $true, ParameterSetName = 'Bytes')][byte[]]$Bytes,
         [Parameter(Mandatory = $true, ParameterSetName = 'Text')][string]$Text
     )
-    if ($PSCmdlet.ParameterSetName -eq 'Text') { $Bytes = [System.Text.Encoding]::ASCII.GetBytes($Text.Trim()) }
+    if ($PSCmdlet.ParameterSetName -eq 'Text') { $Bytes = ConvertFrom-MspkiBase64Data -Text $Text }
     $c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(, $Bytes)
     return $c
 }

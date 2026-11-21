@@ -307,7 +307,7 @@ function Test-MspkiCrlConsistency {
     same issuer and type is reported as STALE_DATA.
     #>
     [CmdletBinding()]
-    param([AllowEmptyCollection()][object[]]$Records = @())
+    param([AllowEmptyCollection()][object[]]$Records = @(), [string[]]$ExcludeUrl = @())
     $out = New-Object System.Collections.ArrayList
     $groups = @($Records | Group-Object { '{0}|{1}|{2}' -f $_.Crl.IssuerRawHex, $_.Crl.IsDelta, $_.Crl.CAVersion })
     foreach ($g in $groups) {
@@ -316,6 +316,7 @@ function Test-MspkiCrlConsistency {
         foreach ($r in $g.Group) { if (-not $max -or (Compare-MspkiHexNumber $r.Crl.CrlNumber $max) -gt 0) { $max = $r.Crl.CrlNumber } }
         $newest = @($g.Group | Where-Object { (Compare-MspkiHexNumber $_.Crl.CrlNumber $max) -eq 0 } | ForEach-Object { $_.Url })
         foreach ($r in $g.Group) {
+            if ($ExcludeUrl -contains $r.Url) { continue }
             if ((Compare-MspkiHexNumber $r.Crl.CrlNumber $max) -lt 0) {
                 $type = 'base'
                 if ($r.Crl.IsDelta) { $type = 'delta' }
@@ -386,6 +387,13 @@ function Invoke-MspkiEndpointAnalysis {
 
     $allCerts = @($certMap.Values)
     foreach ($rec in $records) { [void]$findings.Add((Test-MspkiCrlHealth -Record $rec -Certificates $allCerts -Thresholds $Thresholds)) }
-    foreach ($f in (Test-MspkiCrlConsistency -Records @($records))) { [void]$findings.Add($f) }
+    $ownCrls = @(Get-MspkiCaOwnCrl -EnterpriseCAs @($Discovery.Inventory.EnterpriseCAs))
+    $judgedUrls = @()
+    if ($ownCrls.Count -gt 0) {
+        $pub = Test-MspkiCaCrlPublication -CaCrls $ownCrls -Records @($records) -Certificates $allCerts -Thresholds $Thresholds
+        foreach ($f in $pub.Findings) { [void]$findings.Add($f) }
+        $judgedUrls = @($pub.JudgedUrls)
+    }
+    foreach ($f in (Test-MspkiCrlConsistency -Records @($records) -ExcludeUrl $judgedUrls)) { [void]$findings.Add($f) }
     return , $findings.ToArray()
 }

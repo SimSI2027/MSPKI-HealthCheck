@@ -10,6 +10,7 @@ $script:MspkiDefaultThresholds = @{
     RootCrlCriticalPercent    = 95
     IssuingCrlWarningPercent  = 75
     IssuingCrlCriticalPercent = 95
+    CrlPublicationGraceMinutes = 60
 }
 
 function Get-MspkiThreshold {

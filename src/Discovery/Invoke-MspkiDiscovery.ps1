@@ -1,6 +1,22 @@
 # Discovery stage (build phase A): AD context -> PKI containers -> Enterprise CAs -> AD-published CA
 # certificates -> CA properties -> CA certificate generations.
 
+function ConvertTo-MspkiCrlSummary {
+    <#
+    .SYNOPSIS
+    JSON-safe summary of a decoded CRL (no raw bytes).
+    #>
+    [CmdletBinding()]
+    param($Crl)
+    if ($null -eq $Crl) { return $null }
+    return [pscustomobject][ordered]@{
+        Issuer = $Crl.Issuer; CrlNumber = $Crl.CrlNumber; IsDelta = $Crl.IsDelta; BaseCrlNumber = $Crl.BaseCrlNumber
+        ThisUpdate = $Crl.ThisUpdate.ToString('yyyy-MM-ddTHH:mm:ssZ')
+        NextUpdate = $(if ($null -ne $Crl.NextUpdate) { $Crl.NextUpdate.ToString('yyyy-MM-ddTHH:mm:ssZ') } else { '' })
+        CAVersion = $Crl.CAVersion; RevokedCount = $Crl.RevokedCount; Sha1 = $Crl.Sha1
+    }
+}
+
 function ConvertTo-MspkiCAPropertiesExport {
     [CmdletBinding()]
     param($Properties)
@@ -11,7 +27,9 @@ function ConvertTo-MspkiCAPropertiesExport {
         [pscustomobject][ordered]@{
             Index = $_.Index; Thumbprint = $tp; CertificateError = $_.CertificateError; State = $_.StateName
             CAVersion = $_.CAVersion; CrlState = $_.CrlStateName; BaseCrlPublishStatus = $_.BaseCrlPublishStatus
-            DeltaCrlPublishStatus = $_.DeltaCrlPublishStatus; CdpUrls = @($_.CdpUrls); AiaUrls = @($_.AiaUrls)
+            DeltaCrlPublishStatus = $_.DeltaCrlPublishStatus; BaseCrlState = $_.BaseCrlState; BaseCrlDetail = $_.BaseCrlDetail
+            BaseCrl = (ConvertTo-MspkiCrlSummary -Crl $_.BaseCrl); DeltaCrlState = $_.DeltaCrlState; DeltaCrlDetail = $_.DeltaCrlDetail
+            DeltaCrl = (ConvertTo-MspkiCrlSummary -Crl $_.DeltaCrl); CdpUrls = @($_.CdpUrls); AiaUrls = @($_.AiaUrls)
             OcspUrls = @($_.OcspUrls)
         }
     })

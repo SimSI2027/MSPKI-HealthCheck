@@ -32,13 +32,15 @@ function Start-MspkiHealthCheck {
         [ValidateRange(1, 100)][int]$RootCrlWarningPercent = 75,
         [ValidateRange(1, 100)][int]$RootCrlCriticalPercent = 95,
         [ValidateRange(1, 100)][int]$IssuingCrlWarningPercent = 75,
-        [ValidateRange(1, 100)][int]$IssuingCrlCriticalPercent = 95
+        [ValidateRange(1, 100)][int]$IssuingCrlCriticalPercent = 95,
+        [ValidateRange(1, 1440)][int]$CrlPublicationGraceMinutes = 60
     )
     $thresholds = Get-MspkiThreshold -Override @{
         RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays
         IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
         RootCrlWarningPercent = $RootCrlWarningPercent; RootCrlCriticalPercent = $RootCrlCriticalPercent
         IssuingCrlWarningPercent = $IssuingCrlWarningPercent; IssuingCrlCriticalPercent = $IssuingCrlCriticalPercent
+        CrlPublicationGraceMinutes = $CrlPublicationGraceMinutes
     }
     $runInfo = Initialize-MspkiRun -Parameters @{
         OutputPath = $OutputPath; TimeoutSeconds = $TimeoutSeconds; SkipNetwork = [bool]$SkipNetwork
@@ -46,6 +48,7 @@ function Start-MspkiHealthCheck {
         IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
         RootCrlWarningPercent = $RootCrlWarningPercent; RootCrlCriticalPercent = $RootCrlCriticalPercent
         IssuingCrlWarningPercent = $IssuingCrlWarningPercent; IssuingCrlCriticalPercent = $IssuingCrlCriticalPercent
+        CrlPublicationGraceMinutes = $CrlPublicationGraceMinutes
     }
     $folder = New-MspkiOutputFolder -Root $OutputPath
     Start-MspkiLogFile -Path (Join-Path $folder 'run.log')
