@@ -3,6 +3,30 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## Phase C: HTML report, CSV, exit codes, demo — done
+- Done: `report.html` (one offline file, CSP blocks all network; summary, exit-code card, Discovery Map tree
+  forest > CAs > certificates > endpoints/templates/CES with confidence + sources, filterable findings with
+  evidence, run details, limits); `findings.csv` (UTF-8 BOM, formula-safe); exit codes 0/2/3/4/5/6 (an interrupted
+  run is >= 5, meaning table, deciding findings); a reporter failure becomes a finding. `demo\Invoke-MspkiDemo.ps1`
+  builds `out\demo\report.html` from `tests\fixtures\demo-results.json` (example.test only). 319 tests.
+- Fixed on the way: `$PSScriptRoot` is empty in the entry script's parameter defaults (default `-OutputPath` would
+  have failed); the default is now set in the script body.
+- Next: Phase D (template/CA security review, CEP/CES, NDES, Intune local, stale references).
+- Open: report regeneration from a results.json above ~2 MB is limited by Windows PowerShell 5.1 `ConvertFrom-Json`
+  (live runs are not affected). Not yet run against a live AD CS.
+
+## Fixes before Phase C (Base64 data, link following, short names) — done
+- Base64: CLAUDE.md rule 6 now allows decoding Base64 DATA (certificates/CRLs from CA properties) only in
+  `ConvertFrom-MspkiBase64Data` (DER-shaped, size-limited); hygiene test enforces one file. The CA's own base/delta CRL
+  (GetCAProperty 17/18) is compared with each CDP location by issuer, base/delta and CA version: same number =
+  published correctly; older = `PUBLICATION_FAIL` (expired, or the CA's newer CRL older than `-CrlPublicationGraceMinutes`,
+  default 60) or `STALE_DATA` (within the grace period).
+- Link following: depth 5, 1000 leads; each cap is logged and shown under Run details (final counts in run.log).
+- Short name -> FQDN merge only when DNS proves the same host (short name resolves to the FQDN, or both share a
+  canonical name; a shared IP alone is not proof); sources/origins are combined, the short URL stays as an alias.
+- Decisions: the publish-status flags of the CA are shown raw, not interpreted (not verified on a live CA).
+  Lead ids are now a monotonic counter (merging removes leads).
+
 ## Phase B (steps 2–3), part 2: endpoints + CRL health — done (Phase B complete)
 - Done: anonymous HTTP GET (no credentials, manual redirects recorded per hop, 10 MB cap, cached); TLS handshake
   probe (name match, untrusted root, partial chain kept apart); LDAP-URL fetch (PUBLICATION_FAIL vs
@@ -11,8 +35,7 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   and health (signature, issuer, base/delta, % of lifetime with separate root/issuing thresholds); STALE_DATA when
   one location serves an older CRL number. OCSP: reachability only. 235 tests (loopback HTTP server, no internet).
 - Next: Phase C — HTML report (single offline file), findings.csv, exit-code polish; then Phase D.
-- Open: still not run against a live AD CS. CA's own CRL via GetCAProperty (Base64) is not read: the tool has no
-  Base64 decoding; CRLs come from CDP locations (HTTP/LDAP) instead. Short name → FQDN merging not done yet.
+- Open: still not run against a live AD CS. (Resolved later: the CA's own CRL via GetCAProperty is now read, see above.)
 
 ## Phase B (steps 2–3), part 1: leads + CA certificate health — done
 - Done: pure-PowerShell DER reader; CDP/Freshest CRL/AIA/OCSP URL extraction from certificates; lead registry
@@ -42,8 +65,8 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 ### Decisions (Phase A)
 - Discovery facts are `Information` + `OK`; they do not raise the exit code. Exit precedence 4 > 6 > 5 > 3 > 2 > 0.
 - CA COM calls run only after DNS and TCP 135 succeed, inside a runspace with a hard limit (max(15, 4×timeout) s).
-- CA binary properties are requested as Base64 and decoded by the `X509Certificate2` constructor, so the code
-  needs no `FromBase64String` (forbidden by the hygiene test).
+- CA binary properties are requested as Base64 data. (Superseded: they are now decoded by `ConvertFrom-MspkiBase64Data`,
+  the one place where Base64 data decoding is allowed; see the fixes entry above.)
 - CA config string = `dNSHostName\displayName` (falls back to `cn`). CA_DISP 4 is reported as `Invalid`.
 - Role/lifecycle without CA data: Enterprise CA from AD → `Referenced`; same-subject dating → `Inferred`; only the
   CA's own signing-certificate list gives `Confirmed`.

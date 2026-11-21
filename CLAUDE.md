@@ -52,6 +52,7 @@ src/Discovery/   # AD Configuration partition, CA COM properties, local policy a
 src/Probes/      # DNS, TCP, HTTP, TLS, LDAP: cached and time-limited
 src/Analyzers/   # CA/hierarchy, CRL, endpoints, AD containers, templates, CEP/CES, NDES, stale refs
 src/Reporters/   # JSON, CSV, HTML, log
+demo/            # demo script: runs the reporters on the example.test fixture, writes out/demo
 tests/fixtures/  # sanitised recorded samples (example.test only)
 tests/*.Tests.ps1
 out/             # run output (git-ignored)

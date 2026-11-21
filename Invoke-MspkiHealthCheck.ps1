@@ -10,7 +10,8 @@ Exit codes: 0 passed, 2 informational, 3 warnings, 4 failures, 5 incomplete (uns
 6 incomplete (permissions).
 
 .PARAMETER OutputPath
-Root folder for run output. Default: the out folder next to this script.
+Root folder for run output. Default: the out folder next to this script. Each run writes results.json,
+findings.csv, report.html and run.log to a new timestamped sub-folder.
 
 .PARAMETER TimeoutSeconds
 Base timeout for each network probe. Default 5.
@@ -40,7 +41,7 @@ CRL the finding is STALE_DATA (publication may be in progress); after that it is
 #>
 [CmdletBinding()]
 param(
-    [string]$OutputPath = (Join-Path $PSScriptRoot 'out'),
+    [string]$OutputPath,
     [ValidateRange(1, 120)][int]$TimeoutSeconds = 5,
     [switch]$SkipNetwork,
     [ValidateRange(1, 36500)][int]$RootCaWarningDays = 730,
@@ -54,8 +55,14 @@ param(
     [ValidateRange(1, 1440)][int]$CrlPublicationGraceMinutes = 60
 )
 
+# The default is set here, not in the parameter block: $PSScriptRoot is not reliable in parameter defaults of an advanced script.
+if (-not $OutputPath) { $OutputPath = Join-Path $PSScriptRoot 'out' }
 $module = Join-Path $PSScriptRoot 'src\MspkiHealthCheck.psd1'
-Import-Module $module -Force -ErrorAction Stop
+try { Import-Module $module -Force -ErrorAction Stop }
+catch {
+    Write-Host ('MSPKI Health Check could not load its module: {0}' -f $_.Exception.Message)
+    exit 5
+}
 
 $run = @{
     OutputPath = $OutputPath; TimeoutSeconds = $TimeoutSeconds; SkipNetwork = $SkipNetwork
@@ -65,7 +72,11 @@ $run = @{
     IssuingCrlWarningPercent = $IssuingCrlWarningPercent; IssuingCrlCriticalPercent = $IssuingCrlCriticalPercent
         CrlPublicationGraceMinutes = $CrlPublicationGraceMinutes
 }
-$result = Start-MspkiHealthCheck @run
+try { $result = Start-MspkiHealthCheck @run }
+catch {
+    Write-Host ('MSPKI Health Check stopped with an error: {0}' -f $_.Exception.Message)
+    exit 5
+}
 
 $counts = $result.Findings | Group-Object Status | Sort-Object Name | ForEach-Object { '{0}={1}' -f $_.Name, $_.Count }
 Write-Host ('MSPKI Health Check finished: {0} finding(s) [{1}]' -f @($result.Findings).Count, ($counts -join ', '))
@@ -73,5 +84,7 @@ foreach ($f in @($result.Findings | Where-Object { $_.Status -notin @('Pass', 'I
     Write-Host ('  {0,-11} {1,-18} {2}' -f $f.Status, $f.StatusCode, $f.Message)
 }
 Write-Host ('Results: {0}' -f $result.ResultsPath)
+if ($result.CsvPath) { Write-Host ('CSV:     {0}' -f $result.CsvPath) }
+if ($result.ReportPath) { Write-Host ('Report:  {0}' -f $result.ReportPath) }
 Write-Host ('Exit code: {0}' -f $result.ExitCode)
 exit $result.ExitCode

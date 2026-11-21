@@ -27,6 +27,20 @@ function New-MspkiOutputFolder {
     return $path
 }
 
+function Use-MspkiOutputFolder {
+    <#
+    .SYNOPSIS
+    Creates the folder (if needed) and makes it the only folder the tool may write to. Used for report
+    regeneration and the demo; a normal run uses New-MspkiOutputFolder.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $full = [System.IO.Path]::GetFullPath($Path)
+    [void][System.IO.Directory]::CreateDirectory($full)
+    $script:MspkiOutputFolder = $full
+    return $full
+}
+
 function Set-MspkiOutputFolder {
     <#
     .SYNOPSIS
@@ -64,16 +78,18 @@ function Assert-MspkiOutputPath {
 function Write-MspkiOutputFile {
     <#
     .SYNOPSIS
-    Writes (or appends) UTF-8 text without BOM to a file inside the run output folder.
+    Writes (or appends) UTF-8 text to a file inside the run output folder. No BOM, unless -Bom is given
+    (the CSV uses it so that Excel reads UTF-8 correctly).
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Content,
-        [switch]$Append
+        [switch]$Append,
+        [switch]$Bom
     )
     $full = Assert-MspkiOutputPath -Path $Path
-    $enc = New-Object System.Text.UTF8Encoding($false)
+    $enc = New-Object System.Text.UTF8Encoding([bool]$Bom)
     if ($Append) { [System.IO.File]::AppendAllText($full, $Content, $enc) }
     else { [System.IO.File]::WriteAllText($full, $Content, $enc) }
     return

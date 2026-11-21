@@ -6,6 +6,7 @@ BeforeDiscovery {
     $script:codeFiles = @(Get-ChildItem -LiteralPath (Join-Path $repo 'src') -Recurse -File |
         Where-Object { @('.ps1', '.psm1', '.psd1') -contains $_.Extension } | ForEach-Object { @{ Path = $_.FullName; Name = $_.Name } })
     $script:codeFiles += @{ Path = (Join-Path $repo 'Invoke-MspkiHealthCheck.ps1'); Name = 'Invoke-MspkiHealthCheck.ps1' }
+    $script:codeFiles += @{ Path = (Join-Path $repo 'demo\Invoke-MspkiDemo.ps1'); Name = 'Invoke-MspkiDemo.ps1' }
 }
 
 BeforeAll {

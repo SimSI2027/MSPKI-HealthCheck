@@ -26,10 +26,18 @@ Every result states where it came from and how sure the tool is: **Confirmed**, 
 Thresholds are parameters with defaults: `-RootCaWarningDays 730`, `-RootCaCriticalDays 365`,
 `-IssuingCaWarningDays 180`, `-IssuingCaCriticalDays 90`, and CRL lifetime percentages
 `-RootCrlWarningPercent` / `-IssuingCrlWarningPercent` (75) and `-RootCrlCriticalPercent` /
-`-IssuingCrlCriticalPercent` (95).
+`-IssuingCrlCriticalPercent` (95). `-CrlPublicationGraceMinutes` (60) separates a CDP location that is only
+behind (STALE_DATA) from one where publication failed (PUBLICATION_FAIL).
 
-Output goes to `out\<yyyyMMdd-HHmmss>\`: `results.json`, `run.log`, and (later phases) `findings.csv`
-and a single offline `report.html`.
+Output goes to `out\<yyyyMMdd-HHmmss>\`: `results.json`, `findings.csv` (opens in Excel), a single offline
+`report.html` (summary, Discovery Map, filterable findings with source, confidence and evidence, run details) and
+`run.log`.
+
+To see what the report looks like without a domain, run the demo (it uses sanitised `example.test` data only):
+
+```powershell
+.\demo\Invoke-MspkiDemo.ps1 -Open       # writes out\demo\report.html and findings.csv
+```
 
 Exit codes: `0` passed · `2` informational · `3` warnings · `4` failures · `5` incomplete (unsupported or
 error) · `6` incomplete (permissions).

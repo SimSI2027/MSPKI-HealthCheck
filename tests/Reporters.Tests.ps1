@@ -65,6 +65,8 @@ Describe 'Start-MspkiHealthCheck end to end (local machine, -SkipNetwork)' {
         $j = Get-Content -LiteralPath $r.ResultsPath -Raw | ConvertFrom-Json
         $j.ExitCode | Should -Be $r.ExitCode
         $r.ExitCode | Should -BeIn @(0, 2, 3, 4, 5, 6)
+        Test-Path -LiteralPath (Join-Path $r.OutputFolder 'findings.csv') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $r.OutputFolder 'report.html') | Should -BeTrue
         $j.RunInfo.Completed | Should -BeTrue
         @($j.RunInfo.Methods).Count | Should -BeGreaterThan 0
         foreach ($f in $j.Findings) {
@@ -83,6 +85,8 @@ Describe 'Invoke-MspkiHealthCheck.ps1 entry point' {
         $code = $LASTEXITCODE
         $json = @(Get-ChildItem -LiteralPath $out -Recurse -Filter 'results.json')
         $json.Count | Should -Be 1
+        Test-Path -LiteralPath (Join-Path $json[0].DirectoryName 'report.html') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $json[0].DirectoryName 'findings.csv') | Should -BeTrue
         $j = Get-Content -LiteralPath $json[0].FullName -Raw | ConvertFrom-Json
         $code | Should -Be $j.ExitCode
         $j.RunInfo.PSEdition | Should -Be 'Desktop'

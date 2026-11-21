@@ -1,0 +1,1663 @@
+{
+    "Schema":  "mspki-healthcheck/1",
+    "RunInfo":  {
+                    "RunId":  "00000000-0000-4000-8000-000000000001",
+                    "Tool":  "MSPKI Health Check",
+                    "ToolVersion":  "0.1.0",
+                    "StartedUtc":  "2026-11-20T09:29:41Z",
+                    "FinishedUtc":  "2026-11-20T09:31:07Z",
+                    "Completed":  true,
+                    "ComputerName":  "WS01",
+                    "UserContext":  "CORP\\demo.user",
+                    "IsAdmin":  false,
+                    "PSVersion":  "5.1.19041.4648",
+                    "PSEdition":  "Desktop",
+                    "ClrVersion":  "4.0.30319.42000",
+                    "OSVersion":  "10.0.19045.0",
+                    "Parameters":  {
+                                       "OutputPath":  "out",
+                                       "TimeoutSeconds":  "5",
+                                       "SkipNetwork":  "False",
+                                       "RootCaWarningDays":  "730",
+                                       "RootCaCriticalDays":  "365",
+                                       "IssuingCaWarningDays":  "180",
+                                       "IssuingCaCriticalDays":  "90",
+                                       "CrlPublicationGraceMinutes":  "60"
+                                   },
+                    "Forest":  "corp.example.test",
+                    "Domain":  "corp.example.test",
+                    "DomainController":  "dc01.corp.example.test",
+                    "Site":  "Default-First-Site-Name",
+                    "StageTimings":  [
+                                         {
+                                             "Stage":  "Discovery:ADContext",
+                                             "ElapsedMs":  412
+                                         },
+                                         {
+                                             "Stage":  "Discovery:PKIContainers",
+                                             "ElapsedMs":  230
+                                         },
+                                         {
+                                             "Stage":  "Discovery:EnterpriseCAs",
+                                             "ElapsedMs":  305
+                                         },
+                                         {
+                                             "Stage":  "Discovery:CAProperties",
+                                             "ElapsedMs":  6120
+                                         },
+                                         {
+                                             "Stage":  "Analysis:CACertificates",
+                                             "ElapsedMs":  96
+                                         },
+                                         {
+                                             "Stage":  "Probe:Endpoints",
+                                             "ElapsedMs":  9876
+                                         }
+                                     ],
+                    "Methods":  [
+                                    {
+                                        "Method":  "AD:RootDSE",
+                                        "Outcome":  "Success",
+                                        "Detail":  "dc01.corp.example.test",
+                                        "ElapsedMs":  120
+                                    },
+                                    {
+                                        "Method":  "AD:PublicKeyServices",
+                                        "Outcome":  "Success",
+                                        "Detail":  "8 containers",
+                                        "ElapsedMs":  230
+                                    },
+                                    {
+                                        "Method":  "CA:GetCAProperty",
+                                        "Outcome":  "Success",
+                                        "Detail":  "ca01.corp.example.test\\Example Issuing CA 01: 2 signing certificate(s), 1 property error(s)",
+                                        "ElapsedMs":  3120
+                                    },
+                                    {
+                                        "Method":  "CA:GetCAProperty",
+                                        "Outcome":  "PermissionDenied",
+                                        "Detail":  "ca02.corp.example.test\\Example Issuing CA 02: 0x80070005",
+                                        "ElapsedMs":  410
+                                    }
+                                ],
+                    "Limits":  [
+
+                               ]
+                },
+    "ExitCode":  4,
+    "Summary":  null,
+    "Inventory":  {
+                      "AdContext":  {
+                                        "Ready":  true,
+                                        "IsDomainJoined":  true,
+                                        "ComputerDomain":  "corp.example.test",
+                                        "DomainController":  "dc01.corp.example.test",
+                                        "Forest":  "corp.example.test",
+                                        "ForestMode":  "Windows2016Forest",
+                                        "Domain":  "corp.example.test",
+                                        "Site":  "Default-First-Site-Name",
+                                        "ForestDomains":  [
+                                                              "corp.example.test",
+                                                              "child.corp.example.test"
+                                                          ],
+                                        "TrustedDomains":  [
+                                                               "partner.example.test"
+                                                           ],
+                                        "Trusts":  [
+                                                       {
+                                                           "Source":  "Forest",
+                                                           "TargetName":  "partner.example.test",
+                                                           "TrustType":  "Forest",
+                                                           "TrustDirection":  "Bidirectional"
+                                                       }
+                                                   ]
+                                    },
+                      "PksExists":  true,
+                      "Containers":  [
+                                         {
+                                             "Name":  "Enrollment Services",
+                                             "DistinguishedName":  "CN=Enrollment Services,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                                             "Kind":  "Container",
+                                             "Exists":  true,
+                                             "ChildCount":  2
+                                         },
+                                         {
+                                             "Name":  "Certification Authorities",
+                                             "DistinguishedName":  "CN=Certification Authorities,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                                             "Kind":  "Container",
+                                             "Exists":  true,
+                                             "ChildCount":  1
+                                         },
+                                         {
+                                             "Name":  "AIA",
+                                             "DistinguishedName":  "CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                                             "Kind":  "Container",
+                                             "Exists":  true,
+                                             "ChildCount":  2
+                                         },
+                                         {
+                                             "Name":  "CDP",
+                                             "DistinguishedName":  "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                                             "Kind":  "Container",
+                                             "Exists":  true,
+                                             "ChildCount":  2
+                                         },
+                                         {
+                                             "Name":  "Certificate Templates",
+                                             "DistinguishedName":  "CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                                             "Kind":  "Container",
+                                             "Exists":  true,
+                                             "ChildCount":  34
+                                         },
+                                         {
+                                             "Name":  "OID",
+                                             "DistinguishedName":  "CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                                             "Kind":  "Container",
+                                             "Exists":  true,
+                                             "ChildCount":  61
+                                         },
+                                         {
+                                             "Name":  "KRA",
+                                             "DistinguishedName":  "CN=KRA,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                                             "Kind":  "Container",
+                                             "Exists":  true,
+                                             "ChildCount":  0
+                                         },
+                                         {
+                                             "Name":  "NTAuthCertificates",
+                                             "DistinguishedName":  "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                                             "Kind":  "Container",
+                                             "Exists":  true,
+                                             "ChildCount":  1
+                                         }
+                                     ],
+                      "EnterpriseCAs":  [
+                                            {
+                                                "Name":  "Example Issuing CA 01",
+                                                "DnsHostName":  "ca01.corp.example.test",
+                                                "Config":  "ca01.corp.example.test\\Example Issuing CA 01",
+                                                "Templates":  [
+                                                                  "Machine",
+                                                                  "User",
+                                                                  "WebServer",
+                                                                  "WorkstationAuthentication",
+                                                                  "ExampleDeviceTemplate"
+                                                              ],
+                                                "EnrollmentServers":  [
+                                                                          {
+                                                                              "Url":  "https://ces.corp.example.test/Example Issuing CA 01_CES_Kerberos/service.svc/CES",
+                                                                              "AuthName":  "Kerberos",
+                                                                              "Priority":  1
+                                                                          }
+                                                                      ],
+                                                "Properties":  {
+                                                                   "CATypeName":  "EnterpriseSubordinate",
+                                                                   "Templates":  [
+
+                                                                                 ],
+                                                                   "SigningCertCount":  2,
+                                                                   "SigningCertificates":  [
+                                                                                               {
+                                                                                                   "Index":  0,
+                                                                                                   "Thumbprint":  "2B3C4D5E6F708192A3B4C5D6E7F8091011121314",
+                                                                                                   "State":  "Invalid",
+                                                                                                   "CAVersion":  "V0.0",
+                                                                                                   "CrlState":  "Valid",
+                                                                                                   "BaseCrlState":  "Read",
+                                                                                                   "DeltaCrlState":  "Read",
+                                                                                                   "CdpUrls":  [
+                                                                                                                   "http://pki.corp.example.test/cdp/Example Issuing CA 01.crl"
+                                                                                                               ],
+                                                                                                   "AiaUrls":  [
+                                                                                                                   "http://pki.corp.example.test/aia/Example Root CA.crt"
+                                                                                                               ],
+                                                                                                   "OcspUrls":  [
+
+                                                                                                                ]
+                                                                                               },
+                                                                                               {
+                                                                                                   "Index":  1,
+                                                                                                   "Thumbprint":  "3C4D5E6F708192A3B4C5D6E7F809101112131415",
+                                                                                                   "State":  "Valid",
+                                                                                                   "CAVersion":  "V1.0",
+                                                                                                   "CrlState":  "Valid",
+                                                                                                   "BaseCrlState":  "Read",
+                                                                                                   "DeltaCrlState":  "Read",
+                                                                                                   "CdpUrls":  [
+                                                                                                                   "http://pki.corp.example.test/cdp/Example Issuing CA 01.crl",
+                                                                                                                   "ldap:///CN=Example Issuing CA 01,CN=ca01,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test?certificateRevocationList?base?objectClass=cRLDistributionPoint"
+                                                                                                               ],
+                                                                                                   "AiaUrls":  [
+                                                                                                                   "http://pki.corp.example.test/aia/Example Root CA.crt"
+                                                                                                               ],
+                                                                                                   "OcspUrls":  [
+                                                                                                                    "http://ocsp.corp.example.test/ocsp"
+                                                                                                                ]
+                                                                                               }
+                                                                                           ]
+                                                               }
+                                            },
+                                            {
+                                                "Name":  "Example Issuing CA 02",
+                                                "DnsHostName":  "ca02.corp.example.test",
+                                                "Config":  "ca02.corp.example.test\\Example Issuing CA 02",
+                                                "Templates":  [
+                                                                  "Machine",
+                                                                  "User"
+                                                              ],
+                                                "EnrollmentServers":  [
+
+                                                                      ],
+                                                "Properties":  null
+                                            }
+                                        ],
+                      "CACertificates":  [
+                                             {
+                                                 "Thumbprint":  "1A2B3C4D5E6F708192A3B4C5D6E7F80910111213",
+                                                 "CAName":  "",
+                                                 "Role":  "StandaloneRoot",
+                                                 "RoleBasis":  "self-issued",
+                                                 "Lifecycle":  "Current",
+                                                 "LifecycleBasis":  "only certificate for this subject",
+                                                 "LifecycleConfidence":  "Inferred",
+                                                 "Generation":  "",
+                                                 "ComState":  null,
+                                                 "ComCrlState":  null,
+                                                 "Sources":  [
+                                                                 "AD:AIA",
+                                                                 "AD:CertificationAuthorities",
+                                                                 "AD:NTAuthCertificates"
+                                                             ],
+                                                 "Info":  {
+                                                              "Subject":  "CN=Example Root CA, DC=example, DC=test",
+                                                              "Issuer":  "CN=Example Root CA, DC=example, DC=test",
+                                                              "Thumbprint":  "1A2B3C4D5E6F708192A3B4C5D6E7F80910111213",
+                                                              "NotBefore":  "2016-09-12T08:00:00Z",
+                                                              "NotAfter":  "2036-09-12T08:00:00Z",
+                                                              "DaysLeft":  3583
+                                                          }
+                                             },
+                                             {
+                                                 "Thumbprint":  "2B3C4D5E6F708192A3B4C5D6E7F8091011121314",
+                                                 "CAName":  "Example Issuing CA 01",
+                                                 "Role":  "EnterpriseSubordinate",
+                                                 "RoleBasis":  "CA properties",
+                                                 "Lifecycle":  "Historical",
+                                                 "LifecycleBasis":  "CA reports state Invalid",
+                                                 "LifecycleConfidence":  "Confirmed",
+                                                 "Generation":  "V0.0",
+                                                 "ComState":  "Invalid",
+                                                 "ComCrlState":  "Valid",
+                                                 "Sources":  [
+                                                                 "AD:AIA",
+                                                                 "CA:GetCAProperty"
+                                                             ],
+                                                 "Info":  {
+                                                              "Subject":  "CN=Example Issuing CA 01, DC=corp, DC=example, DC=test",
+                                                              "Issuer":  "CN=Example Root CA, DC=example, DC=test",
+                                                              "Thumbprint":  "2B3C4D5E6F708192A3B4C5D6E7F8091011121314",
+                                                              "NotBefore":  "2019-05-02T10:00:00Z",
+                                                              "NotAfter":  "2024-05-02T10:00:00Z",
+                                                              "DaysLeft":  -932
+                                                          }
+                                             },
+                                             {
+                                                 "Thumbprint":  "3C4D5E6F708192A3B4C5D6E7F809101112131415",
+                                                 "CAName":  "Example Issuing CA 01",
+                                                 "Role":  "EnterpriseSubordinate",
+                                                 "RoleBasis":  "CA properties",
+                                                 "Lifecycle":  "Current",
+                                                 "LifecycleBasis":  "CA reports state Valid",
+                                                 "LifecycleConfidence":  "Confirmed",
+                                                 "Generation":  "V1.0",
+                                                 "ComState":  "Valid",
+                                                 "ComCrlState":  "Valid",
+                                                 "Sources":  [
+                                                                 "AD:EnrollmentServices",
+                                                                 "AD:AIA",
+                                                                 "CA:GetCAProperty"
+                                                             ],
+                                                 "Info":  {
+                                                              "Subject":  "CN=Example Issuing CA 01, DC=corp, DC=example, DC=test",
+                                                              "Issuer":  "CN=Example Root CA, DC=example, DC=test",
+                                                              "Thumbprint":  "3C4D5E6F708192A3B4C5D6E7F809101112131415",
+                                                              "NotBefore":  "2024-05-02T10:00:00Z",
+                                                              "NotAfter":  "2029-05-02T10:00:00Z",
+                                                              "DaysLeft":  912
+                                                          }
+                                             }
+                                         ],
+                      "Leads":  [
+                                    {
+                                        "Id":  "L0001",
+                                        "Kind":  "AIA",
+                                        "UrlType":  "Http",
+                                        "Url":  "http://pki.corp.example.test/aia/Example Root CA.crt",
+                                        "Host":  "pki.corp.example.test",
+                                        "Scope":  "Local",
+                                        "Depth":  0,
+                                        "Confidence":  "Referenced",
+                                        "Variants":  [
+                                                         "http://pki.corp.example.test/aia/Example Root CA.crt"
+                                                     ],
+                                        "Sources":  [
+                                                        "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:AIA"
+                                                    ],
+                                        "Origins":  [
+                                                        "CA certificate CN=Example Issuing CA 01 (3C4D5E6F708192A3B4C5D6E7F809101112131415)"
+                                                    ],
+                                        "RelatedCAs":  [
+                                                           "Example Issuing CA 01"
+                                                       ],
+                                        "Aliases":  [
+                                                        "http://pki/aia/Example Root CA.crt (same host as pki.corp.example.test: ShortNameResolvesToFqdn)"
+                                                    ]
+                                    },
+                                    {
+                                        "Id":  "L0002",
+                                        "Kind":  "AIA",
+                                        "UrlType":  "Ldap",
+                                        "Url":  "ldap:///CN=Example Root CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test?cACertificate?base?objectClass=certificationAuthority",
+                                        "Host":  "",
+                                        "Scope":  "Local",
+                                        "Depth":  0,
+                                        "Confidence":  "Referenced",
+                                        "Variants":  [
+                                                         "ldap:///CN=Example Root CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test?cACertificate?base?objectClass=certificationAuthority"
+                                                     ],
+                                        "Sources":  [
+                                                        "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:AIA"
+                                                    ],
+                                        "Origins":  [
+                                                        "CA certificate CN=Example Issuing CA 01 (3C4D5E6F708192A3B4C5D6E7F809101112131415)"
+                                                    ],
+                                        "RelatedCAs":  [
+                                                           "Example Issuing CA 01"
+                                                       ],
+                                        "Aliases":  [
+
+                                                    ]
+                                    },
+                                    {
+                                        "Id":  "L0003",
+                                        "Kind":  "AIA",
+                                        "UrlType":  "Http",
+                                        "Url":  "http://old-pki.example.test/aia/Example Root CA.crt",
+                                        "Host":  "old-pki.example.test",
+                                        "Scope":  "External",
+                                        "Depth":  0,
+                                        "Confidence":  "Referenced",
+                                        "Variants":  [
+                                                         "http://old-pki.example.test/aia/Example Root CA.crt"
+                                                     ],
+                                        "Sources":  [
+                                                        "Cert:2B3C4D5E6F708192A3B4C5D6E7F8091011121314:AIA"
+                                                    ],
+                                        "Origins":  [
+                                                        "CA certificate CN=Example Issuing CA 01 (2B3C4D5E6F708192A3B4C5D6E7F8091011121314)"
+                                                    ],
+                                        "RelatedCAs":  [
+                                                           "Example Issuing CA 01"
+                                                       ],
+                                        "Aliases":  [
+
+                                                    ]
+                                    },
+                                    {
+                                        "Id":  "L0004",
+                                        "Kind":  "CDP",
+                                        "UrlType":  "Http",
+                                        "Url":  "http://pki.corp.example.test/cdp/Example Issuing CA 01.crl",
+                                        "Host":  "pki.corp.example.test",
+                                        "Scope":  "Local",
+                                        "Depth":  0,
+                                        "Confidence":  "Referenced",
+                                        "Variants":  [
+                                                         "http://pki.corp.example.test/cdp/Example Issuing CA 01.crl"
+                                                     ],
+                                        "Sources":  [
+                                                        "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:CDP",
+                                                        "CA:Example Issuing CA 01:CertCdpUrls"
+                                                    ],
+                                        "Origins":  [
+                                                        "CA certificate CN=Example Issuing CA 01 (3C4D5E6F708192A3B4C5D6E7F809101112131415)"
+                                                    ],
+                                        "RelatedCAs":  [
+                                                           "Example Issuing CA 01"
+                                                       ],
+                                        "Aliases":  [
+
+                                                    ]
+                                    },
+                                    {
+                                        "Id":  "L0005",
+                                        "Kind":  "CDP",
+                                        "UrlType":  "Http",
+                                        "Url":  "http://pki2.corp.example.test/cdp/Example Issuing CA 01.crl",
+                                        "Host":  "pki2.corp.example.test",
+                                        "Scope":  "Local",
+                                        "Depth":  0,
+                                        "Confidence":  "Referenced",
+                                        "Variants":  [
+                                                         "http://pki2.corp.example.test/cdp/Example Issuing CA 01.crl"
+                                                     ],
+                                        "Sources":  [
+                                                        "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:CDP"
+                                                    ],
+                                        "Origins":  [
+                                                        "CA certificate CN=Example Issuing CA 01 (3C4D5E6F708192A3B4C5D6E7F809101112131415)"
+                                                    ],
+                                        "RelatedCAs":  [
+                                                           "Example Issuing CA 01"
+                                                       ],
+                                        "Aliases":  [
+
+                                                    ]
+                                    },
+                                    {
+                                        "Id":  "L0006",
+                                        "Kind":  "CDP",
+                                        "UrlType":  "Ldap",
+                                        "Url":  "ldap:///CN=Example Issuing CA 01,CN=ca01,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test?certificateRevocationList?base?objectClass=cRLDistributionPoint",
+                                        "Host":  "",
+                                        "Scope":  "Local",
+                                        "Depth":  0,
+                                        "Confidence":  "Referenced",
+                                        "Variants":  [
+                                                         "ldap:///CN=Example Issuing CA 01,CN=ca01,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test?certificateRevocationList?base?objectClass=cRLDistributionPoint"
+                                                     ],
+                                        "Sources":  [
+                                                        "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:CDP"
+                                                    ],
+                                        "Origins":  [
+                                                        "CA certificate CN=Example Issuing CA 01 (3C4D5E6F708192A3B4C5D6E7F809101112131415)"
+                                                    ],
+                                        "RelatedCAs":  [
+                                                           "Example Issuing CA 01"
+                                                       ],
+                                        "Aliases":  [
+
+                                                    ]
+                                    },
+                                    {
+                                        "Id":  "L0007",
+                                        "Kind":  "FreshestCRL",
+                                        "UrlType":  "Http",
+                                        "Url":  "http://pki.corp.example.test/cdp/Example Issuing CA 01+.crl",
+                                        "Host":  "pki.corp.example.test",
+                                        "Scope":  "Local",
+                                        "Depth":  1,
+                                        "Confidence":  "Referenced",
+                                        "Variants":  [
+                                                         "http://pki.corp.example.test/cdp/Example Issuing CA 01+.crl"
+                                                     ],
+                                        "Sources":  [
+                                                        "Crl:9F8E7D6C5B4A39281706F5E4D3C2B1A099887766:FreshestCRL"
+                                                    ],
+                                        "Origins":  [
+                                                        "CRL of CN=Example Issuing CA 01 downloaded from http://pki.corp.example.test/cdp/Example Issuing CA 01.crl"
+                                                    ],
+                                        "RelatedCAs":  [
+                                                           "Example Issuing CA 01"
+                                                       ],
+                                        "Aliases":  [
+
+                                                    ]
+                                    },
+                                    {
+                                        "Id":  "L0008",
+                                        "Kind":  "OCSP",
+                                        "UrlType":  "Http",
+                                        "Url":  "http://ocsp.corp.example.test/ocsp",
+                                        "Host":  "ocsp.corp.example.test",
+                                        "Scope":  "Local",
+                                        "Depth":  0,
+                                        "Confidence":  "Referenced",
+                                        "Variants":  [
+                                                         "http://ocsp.corp.example.test/ocsp"
+                                                     ],
+                                        "Sources":  [
+                                                        "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:OCSP"
+                                                    ],
+                                        "Origins":  [
+                                                        "CA certificate CN=Example Issuing CA 01 (3C4D5E6F708192A3B4C5D6E7F809101112131415)"
+                                                    ],
+                                        "RelatedCAs":  [
+                                                           "Example Issuing CA 01"
+                                                       ],
+                                        "Aliases":  [
+
+                                                    ]
+                                    },
+                                    {
+                                        "Id":  "L0009",
+                                        "Kind":  "CDP",
+                                        "UrlType":  "Http",
+                                        "Url":  "https://pki.corp.example.test/cdp/Example Root CA.crl",
+                                        "Host":  "pki.corp.example.test",
+                                        "Scope":  "Local",
+                                        "Depth":  0,
+                                        "Confidence":  "Referenced",
+                                        "Variants":  [
+                                                         "https://pki.corp.example.test/cdp/Example Root CA.crl"
+                                                     ],
+                                        "Sources":  [
+                                                        "Cert:1A2B3C4D5E6F708192A3B4C5D6E7F80910111213:CDP"
+                                                    ],
+                                        "Origins":  [
+                                                        "CA certificate CN=Example Root CA (1A2B3C4D5E6F708192A3B4C5D6E7F80910111213)"
+                                                    ],
+                                        "RelatedCAs":  [
+                                                           "Example Root CA"
+                                                       ],
+                                        "Aliases":  [
+
+                                                    ]
+                                    },
+                                    {
+                                        "Id":  "L0010",
+                                        "Kind":  "CES",
+                                        "UrlType":  "Http",
+                                        "Url":  "https://ces.corp.example.test/Example Issuing CA 01_CES_Kerberos/service.svc/CES",
+                                        "Host":  "ces.corp.example.test",
+                                        "Scope":  "Local",
+                                        "Depth":  0,
+                                        "Confidence":  "Referenced",
+                                        "Variants":  [
+                                                         "https://ces.corp.example.test/Example Issuing CA 01_CES_Kerberos/service.svc/CES"
+                                                     ],
+                                        "Sources":  [
+                                                        "AD:EnrollmentServices:msPKI-Enrollment-Servers"
+                                                    ],
+                                        "Origins":  [
+                                                        "Enrollment Services object of Example Issuing CA 01"
+                                                    ],
+                                        "RelatedCAs":  [
+                                                           "Example Issuing CA 01"
+                                                       ],
+                                        "Aliases":  [
+
+                                                    ]
+                                    }
+                                ],
+                      "LeadStatistics":  {
+                                             "Count":  10,
+                                             "Dropped":  0,
+                                             "DepthDropped":  0,
+                                             "MaxLeads":  1000,
+                                             "MaxDepth":  5
+                                         }
+                  },
+    "Findings":  [
+                     {
+                         "Id":  "F0001",
+                         "Timestamp":  "2026-11-20T09:30:02Z",
+                         "Stage":  "Discovery",
+                         "Category":  "Run",
+                         "Role":  "Forest",
+                         "Target":  "corp.example.test",
+                         "Endpoint":  "",
+                         "RelatedCA":  "",
+                         "Sources":  [
+                                         "AD:RootDSE",
+                                         "AD:Forest"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Forest corp.example.test, domain corp.example.test, domain controller dc01.corp.example.test, site Default-First-Site-Name.",
+                         "Evidence":  [
+                                          "Forest functional level: Windows2016Forest",
+                                          "Domains: corp.example.test, child.corp.example.test",
+                                          "Trust: partner.example.test (Forest, Bidirectional)"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0002",
+                         "Timestamp":  "2026-11-20T09:30:04Z",
+                         "Stage":  "Discovery",
+                         "Category":  "ADContainer",
+                         "Role":  "ADContainer",
+                         "Target":  "Enrollment Services",
+                         "Endpoint":  "CN=Enrollment Services,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                         "RelatedCA":  "",
+                         "Sources":  [
+                                         "AD:EnrollmentServices"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Enrollment Services: present, 2 object(s).",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0003",
+                         "Timestamp":  "2026-11-20T09:30:06Z",
+                         "Stage":  "Discovery",
+                         "Category":  "ADContainer",
+                         "Role":  "ADContainer",
+                         "Target":  "Certification Authorities",
+                         "Endpoint":  "CN=Certification Authorities,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                         "RelatedCA":  "",
+                         "Sources":  [
+                                         "AD:CertificationAuthorities"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Certification Authorities: present, 1 object(s).",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0004",
+                         "Timestamp":  "2026-11-20T09:30:08Z",
+                         "Stage":  "Discovery",
+                         "Category":  "ADContainer",
+                         "Role":  "ADContainer",
+                         "Target":  "AIA",
+                         "Endpoint":  "CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                         "RelatedCA":  "",
+                         "Sources":  [
+                                         "AD:AIA"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "AIA: present, 2 object(s).",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0005",
+                         "Timestamp":  "2026-11-20T09:30:10Z",
+                         "Stage":  "Discovery",
+                         "Category":  "ADContainer",
+                         "Role":  "ADContainer",
+                         "Target":  "CDP",
+                         "Endpoint":  "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                         "RelatedCA":  "",
+                         "Sources":  [
+                                         "AD:CDP"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "CDP: present, 2 object(s).",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0006",
+                         "Timestamp":  "2026-11-20T09:30:12Z",
+                         "Stage":  "Discovery",
+                         "Category":  "ADContainer",
+                         "Role":  "ADContainer",
+                         "Target":  "Certificate Templates",
+                         "Endpoint":  "CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                         "RelatedCA":  "",
+                         "Sources":  [
+                                         "AD:CertificateTemplates"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Certificate Templates: present, 34 object(s).",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0007",
+                         "Timestamp":  "2026-11-20T09:30:14Z",
+                         "Stage":  "Discovery",
+                         "Category":  "ADContainer",
+                         "Role":  "ADContainer",
+                         "Target":  "OID",
+                         "Endpoint":  "CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                         "RelatedCA":  "",
+                         "Sources":  [
+                                         "AD:OID"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "OID: present, 61 object(s).",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0008",
+                         "Timestamp":  "2026-11-20T09:30:16Z",
+                         "Stage":  "Discovery",
+                         "Category":  "ADContainer",
+                         "Role":  "ADContainer",
+                         "Target":  "KRA",
+                         "Endpoint":  "CN=KRA,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                         "RelatedCA":  "",
+                         "Sources":  [
+                                         "AD:KRA"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "KRA: present, 0 object(s).",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0009",
+                         "Timestamp":  "2026-11-20T09:30:18Z",
+                         "Stage":  "Discovery",
+                         "Category":  "ADContainer",
+                         "Role":  "ADContainer",
+                         "Target":  "NTAuthCertificates",
+                         "Endpoint":  "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test",
+                         "RelatedCA":  "",
+                         "Sources":  [
+                                         "AD:NTAuthCertificates"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "NTAuthCertificates: present, 1 object(s).",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0010",
+                         "Timestamp":  "2026-11-20T09:30:20Z",
+                         "Stage":  "Discovery",
+                         "Category":  "CA",
+                         "Role":  "EnterpriseSubordinate",
+                         "Target":  "Example Issuing CA 01",
+                         "Endpoint":  "ca01.corp.example.test\\Example Issuing CA 01",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "AD:EnrollmentServices",
+                                         "CA:GetCAProperty"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "Pass",
+                         "TcpStatus":  "Pass",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Pass",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "CA properties read from ca01.corp.example.test\\Example Issuing CA 01: EnterpriseSubordinate, 2 signing certificate(s).",
+                         "Evidence":  [
+                                          "CA type: EnterpriseSubordinate (1)",
+                                          "DNS name (CA): ca01.corp.example.test",
+                                          "CA signing certificates: 2",
+                                          "Templates offered (CA): 5"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0011",
+                         "Timestamp":  "2026-11-20T09:30:22Z",
+                         "Stage":  "Discovery",
+                         "Category":  "CA",
+                         "Role":  "EnterpriseSubordinate",
+                         "Target":  "Example Issuing CA 02",
+                         "Endpoint":  "ca02.corp.example.test\\Example Issuing CA 02",
+                         "RelatedCA":  "Example Issuing CA 02",
+                         "Sources":  [
+                                         "AD:EnrollmentServices",
+                                         "CA:GetCAProperty"
+                                     ],
+                         "Confidence":  "Unknown",
+                         "DiscoveryStatus":  "PermissionDenied",
+                         "DnsStatus":  "Pass",
+                         "TcpStatus":  "Pass",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Skipped",
+                         "Severity":  "None",
+                         "StatusCode":  "PERMISSION_DENIED",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Permission denied while reading CA properties over DCOM.",
+                         "Evidence":  [
+                                          "HResult: 0x80070005",
+                                          "Message: Access is denied."
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  "The account running the tool needs Read (or Request Certificates) permission on the CA."
+                     },
+                     {
+                         "Id":  "F0012",
+                         "Timestamp":  "2026-11-20T09:30:24Z",
+                         "Stage":  "Analysis",
+                         "Category":  "CA",
+                         "Role":  "StandaloneRoot",
+                         "Target":  "Example Root CA",
+                         "Endpoint":  "",
+                         "RelatedCA":  "1A2B3C4D5E6F708192A3B4C5D6E7F80910111213",
+                         "Sources":  [
+                                         "AD:AIA",
+                                         "AD:CertificationAuthorities",
+                                         "AD:NTAuthCertificates"
+                                     ],
+                         "Confidence":  "Inferred",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Pass",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Warning",
+                         "Severity":  "None",
+                         "StatusCode":  "OBJECT_EXPIRING",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "CA certificate of Example Root CA expires in 301 days (warning threshold 730).",
+                         "Evidence":  [
+                                          "Subject: CN=Example Root CA, DC=example, DC=test",
+                                          "Thumbprint (SHA-1): 1A2B3C4D5E6F708192A3B4C5D6E7F80910111213",
+                                          "Valid 2016-09-12T08:00:00Z to 2036-09-12T08:00:00Z",
+                                          "Days left: 301 (demo value)",
+                                          "Thresholds (root CA): warning 730 days, critical 365 days"
+                                      ],
+                         "Remediation":  "Plan the root CA renewal well before expiry: renewing a root takes the longest because every issued chain and trust store depends on it.",
+                         "Notes":  "Current/historical is inferred from certificate dates; the status assumes this is the certificate in use."
+                     },
+                     {
+                         "Id":  "F0013",
+                         "Timestamp":  "2026-11-20T09:30:26Z",
+                         "Stage":  "Analysis",
+                         "Category":  "Hierarchy",
+                         "Role":  "StandaloneRoot",
+                         "Target":  "Example Root CA",
+                         "Endpoint":  "",
+                         "RelatedCA":  "1A2B3C4D5E6F708192A3B4C5D6E7F80910111213",
+                         "Sources":  [
+                                         "AD:AIA",
+                                         "AD:CertificationAuthorities"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "Warning",
+                         "Status":  "Warning",
+                         "Severity":  "None",
+                         "StatusCode":  "CHAIN_UNTRUSTED_ROOT",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Chain of Example Root CA ends in a root that this computer does not trust.",
+                         "Evidence":  [
+                                          "Self-signed certificate; signature verifies with its own key.",
+                                          "The root is not in the Trusted Root store of this computer."
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  "This is local trust on this computer, not an endpoint failure. Domain members normally receive AD roots through Group Policy."
+                     },
+                     {
+                         "Id":  "F0014",
+                         "Timestamp":  "2026-11-20T09:30:28Z",
+                         "Stage":  "Analysis",
+                         "Category":  "CA",
+                         "Role":  "EnterpriseSubordinate",
+                         "Target":  "Example Issuing CA 01",
+                         "Endpoint":  "",
+                         "RelatedCA":  "Example Issuing CA 01 (3C4D5E6F708192A3B4C5D6E7F809101112131415)",
+                         "Sources":  [
+                                         "AD:EnrollmentServices",
+                                         "AD:AIA",
+                                         "CA:GetCAProperty"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Pass",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Pass",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "CA certificate V1.0 of Example Issuing CA 01 is valid for 912 more days.",
+                         "Evidence":  [
+                                          "Thumbprint (SHA-1): 3C4D5E6F708192A3B4C5D6E7F809101112131415",
+                                          "Valid 2024-05-02T10:00:00Z to 2029-05-02T10:00:00Z",
+                                          "Thresholds (subordinate CA): warning 180 days, critical 90 days"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0015",
+                         "Timestamp":  "2026-11-20T09:30:30Z",
+                         "Stage":  "Analysis",
+                         "Category":  "Hierarchy",
+                         "Role":  "EnterpriseSubordinate",
+                         "Target":  "Example Issuing CA 01",
+                         "Endpoint":  "",
+                         "RelatedCA":  "Example Issuing CA 01 (3C4D5E6F708192A3B4C5D6E7F809101112131415)",
+                         "Sources":  [
+                                         "AD:EnrollmentServices",
+                                         "AD:AIA",
+                                         "CA:GetCAProperty"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "Pass",
+                         "Status":  "Pass",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Chain of Example Issuing CA 01 is complete and every signature verifies.",
+                         "Evidence":  [
+                                          "Issuer found: Example Root CA",
+                                          "Signature verified with the issuer public key"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0016",
+                         "Timestamp":  "2026-11-20T09:30:32Z",
+                         "Stage":  "Analysis",
+                         "Category":  "CA",
+                         "Role":  "EnterpriseSubordinate",
+                         "Target":  "Example Issuing CA 01",
+                         "Endpoint":  "",
+                         "RelatedCA":  "Example Issuing CA 01 (2B3C4D5E6F708192A3B4C5D6E7F8091011121314)",
+                         "Sources":  [
+                                         "CA:GetCAProperty"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Historical CA certificate V0.0 of Example Issuing CA 01 expired on 2024-05-02 (kept for validating older certificates).",
+                         "Evidence":  [
+                                          "Thumbprint (SHA-1): 2B3C4D5E6F708192A3B4C5D6E7F8091011121314",
+                                          "Lifecycle: Historical [Confirmed] (CA reports state Invalid)"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  "An expired historical CA certificate may still be needed to validate older certificates and CRLs."
+                     },
+                     {
+                         "Id":  "F0017",
+                         "Timestamp":  "2026-11-20T09:30:34Z",
+                         "Stage":  "Analysis",
+                         "Category":  "CA",
+                         "Role":  "EnterpriseSubordinate",
+                         "Target":  "Example Issuing CA 02",
+                         "Endpoint":  "",
+                         "RelatedCA":  "Example Issuing CA 02",
+                         "Sources":  [
+                                         "AD:EnrollmentServices"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "NOT_DISCOVERED",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Example Issuing CA 02: certificate not read because the CA properties were not available.",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  "Only the CA itself can confirm which certificate is current."
+                     },
+                     {
+                         "Id":  "F0018",
+                         "Timestamp":  "2026-11-20T09:30:36Z",
+                         "Stage":  "Probe",
+                         "Category":  "AIA",
+                         "Role":  "AIAEndpoint",
+                         "Target":  "pki.corp.example.test",
+                         "Endpoint":  "http://pki.corp.example.test/aia/Example Root CA.crt",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:AIA",
+                                         "Cert:4D5E6F708192A3B4C5D6E7F80910111213141516:AIA"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "Pass",
+                         "TcpStatus":  "Pass",
+                         "HttpStatus":  "Pass",
+                         "RedirectStatus":  "Pass",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Pass",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Pass",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "The AIA location returns the CA certificate CN=Example Root CA, DC=example, DC=test.",
+                         "Evidence":  [
+                                          "Lead L0001 (AIA), depth 0",
+                                          "DNS: 192.0.2.10",
+                                          "Content-Type: application/pkix-cert; 1034 bytes",
+                                          "Certificate: CN=Example Root CA, DC=example, DC=test [1A2B3C4D5E6F708192A3B4C5D6E7F80910111213]"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0019",
+                         "Timestamp":  "2026-11-20T09:30:38Z",
+                         "Stage":  "Probe",
+                         "Category":  "AIA",
+                         "Role":  "AIAEndpoint",
+                         "Target":  "(serverless LDAP)",
+                         "Endpoint":  "ldap:///CN=Example Root CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test?cACertificate?base?objectClass=certificationAuthority",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:AIA"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotApplicable",
+                         "TcpStatus":  "NotApplicable",
+                         "HttpStatus":  "NotApplicable",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Pass",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Pass",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "The AIA location returns the CA certificate CN=Example Root CA, DC=example, DC=test.",
+                         "Evidence":  [
+                                          "Lead L0002 (AIA), depth 0",
+                                          "LDAP server: dc01.corp.example.test"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0020",
+                         "Timestamp":  "2026-11-20T09:30:40Z",
+                         "Stage":  "Probe",
+                         "Category":  "AIA",
+                         "Role":  "AIAEndpoint",
+                         "Target":  "old-pki.example.test",
+                         "Endpoint":  "http://old-pki.example.test/aia/Example Root CA.crt",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "Cert:2B3C4D5E6F708192A3B4C5D6E7F8091011121314:AIA"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "Fail",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Fail",
+                         "Severity":  "None",
+                         "StatusCode":  "DNS_FAIL",
+                         "Scope":  "External",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "old-pki.example.test does not resolve in DNS.",
+                         "Evidence":  [
+                                          "Lead L0003 (AIA), depth 0",
+                                          "Found in: CA certificate CN=Example Issuing CA 01 [2B3C4D5E6F708192A3B4C5D6E7F8091011121314]",
+                                          "DNS: Fail No such host is known."
+                                      ],
+                         "Remediation":  "Review whether this AIA location is still needed. If the historical certificate is still in use, republish the CA certificate to a location that exists, or remove the reference when the certificate is retired.",
+                         "Notes":  "A cross-environment reference goes to review; the host is outside this forest."
+                     },
+                     {
+                         "Id":  "F0021",
+                         "Timestamp":  "2026-11-20T09:30:42Z",
+                         "Stage":  "Analysis",
+                         "Category":  "CRL",
+                         "Role":  "CDPEndpoint",
+                         "Target":  "CN=Example Issuing CA 01, DC=corp, DC=example, DC=test",
+                         "Endpoint":  "http://pki.corp.example.test/cdp/Example Issuing CA 01.crl",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "Cert:4D5E6F708192A3B4C5D6E7F80910111213141516:CDP",
+                                         "CA:Example Issuing CA 01:GetCAProperty:BaseCRL"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Pass",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Pass",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "http://pki.corp.example.test/cdp/Example Issuing CA 01.crl serves the same base CRL number (42) as the CA: it was published correctly.",
+                         "Evidence":  [
+                                          "Location: http://pki.corp.example.test/cdp/Example Issuing CA 01.crl",
+                                          "CA\u0027s own CRL number: 42; this update 2026-11-18T22:00:00Z",
+                                          "Location serves CRL number: 42; this update 2026-11-18T22:00:00Z; next update 2026-11-25T10:00:00Z"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0022",
+                         "Timestamp":  "2026-11-20T09:30:44Z",
+                         "Stage":  "Analysis",
+                         "Category":  "CRL",
+                         "Role":  "CDPEndpoint",
+                         "Target":  "CN=Example Issuing CA 01, DC=corp, DC=example, DC=test",
+                         "Endpoint":  "http://pki2.corp.example.test/cdp/Example Issuing CA 01.crl",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "Cert:4D5E6F708192A3B4C5D6E7F80910111213141516:CDP",
+                                         "CA:Example Issuing CA 01:GetCAProperty:BaseCRL"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Warning",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Warning",
+                         "Severity":  "None",
+                         "StatusCode":  "PUBLICATION_FAIL",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "http://pki2.corp.example.test/cdp/Example Issuing CA 01.crl serves base CRL number 41 but the CA holds number 42: the CA created its newer CRL 1860 minutes ago, longer than the 60 minute grace period.",
+                         "Evidence":  [
+                                          "Location: http://pki2.corp.example.test/cdp/Example Issuing CA 01.crl",
+                                          "CA\u0027s own CRL number: 42; this update 2026-11-18T22:00:00Z",
+                                          "Location serves CRL number: 41; this update 2026-11-11T22:00:00Z; next update 2026-11-25T10:00:00Z",
+                                          "Reasoning: the CA created its newer CRL 1860 minutes ago, longer than the 60 minute grace period"
+                                      ],
+                         "Remediation":  "Check that the CA can publish to this location (permissions on the publication target, replication for LDAP, the web server folder) and publish the CRL again.",
+                         "Notes":  "Whether the CA is configured to publish to this location is not readable without CA registry access; the location is referenced by the CA\u0027s CDP extension."
+                     },
+                     {
+                         "Id":  "F0023",
+                         "Timestamp":  "2026-11-20T09:30:46Z",
+                         "Stage":  "Analysis",
+                         "Category":  "CRL",
+                         "Role":  "CDPEndpoint",
+                         "Target":  "CN=Example Issuing CA 01, DC=corp, DC=example, DC=test",
+                         "Endpoint":  "ldap:///CN=Example Issuing CA 01,CN=ca01,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test?certificateRevocationList?base?objectClass=cRLDistributionPoint",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "Cert:4D5E6F708192A3B4C5D6E7F80910111213141516:CDP",
+                                         "CA:Example Issuing CA 01:GetCAProperty:BaseCRL"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Pass",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Pass",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "ldap:///CN=Example Issuing CA 01,CN=ca01,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test?certificateRevocationList?base?objectClass=cRLDistributionPoint serves the same base CRL number (42) as the CA: it was published correctly.",
+                         "Evidence":  [
+                                          "CRL number 42 at the LDAP location equals the CA number."
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0024",
+                         "Timestamp":  "2026-11-20T09:30:48Z",
+                         "Stage":  "Analysis",
+                         "Category":  "CRL",
+                         "Role":  "CDPEndpoint",
+                         "Target":  "CN=Example Issuing CA 01, DC=corp, DC=example, DC=test",
+                         "Endpoint":  "http://pki.corp.example.test/cdp/Example Issuing CA 01+.crl",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "Cert:4D5E6F708192A3B4C5D6E7F80910111213141516:FreshestCRL",
+                                         "CA:Example Issuing CA 01:GetCAProperty:DeltaCRL"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Warning",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Warning",
+                         "Severity":  "None",
+                         "StatusCode":  "STALE_DATA",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "http://pki.corp.example.test/cdp/Example Issuing CA 01+.crl serves delta CRL number 43 but the CA holds number 44: the CA created its newer CRL only 20 minutes ago (within the 60 minute grace period), so publication may still be in progress.",
+                         "Evidence":  [
+                                          "Reasoning: within the grace period"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0025",
+                         "Timestamp":  "2026-11-20T09:30:50Z",
+                         "Stage":  "Analysis",
+                         "Category":  "CRL",
+                         "Role":  "CDPEndpoint",
+                         "Target":  "CN=Example Issuing CA 01, DC=corp, DC=example, DC=test",
+                         "Endpoint":  "CA property DeltaCRL[1] of ca01.corp.example.test\\Example Issuing CA 01",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "CA:Example Issuing CA 01:GetCAProperty:DeltaCRL"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Pass",
+                         "ChainStatus":  "Pass",
+                         "Status":  "Warning",
+                         "Severity":  "None",
+                         "StatusCode":  "OBJECT_EXPIRING",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "CA\u0027s own current delta CRL of CN=Example Issuing CA 01, DC=corp, DC=example, DC=test at CA property DeltaCRL[1]: 82.3% of its lifetime used, 4.4 h left.",
+                         "Evidence":  [
+                                          "Validity: 25 h; used 82.3%; 4.4 h left",
+                                          "Thresholds (subordinate CA): warning 75%, critical 95%",
+                                          "Signature: verified with CN=Example Issuing CA 01 [",
+                                          "4D5E6F708192A3B4C5D6E7F80910111213141516",
+                                          "]"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0026",
+                         "Timestamp":  "2026-11-20T09:30:52Z",
+                         "Stage":  "Analysis",
+                         "Category":  "CRL",
+                         "Role":  "CDPEndpoint",
+                         "Target":  "CN=Example Issuing CA 01, DC=corp, DC=example, DC=test",
+                         "Endpoint":  "CA property BaseCRL[1] of ca01.corp.example.test\\Example Issuing CA 01",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "CA:Example Issuing CA 01:GetCAProperty:BaseCRL"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "NotTested",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "Pass",
+                         "ChainStatus":  "Pass",
+                         "Status":  "Pass",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "CA\u0027s own current base CRL of CN=Example Issuing CA 01, DC=corp, DC=example, DC=test at CA property BaseCRL[1]: 18.4% of its lifetime used, 137 h left.",
+                         "Evidence":  [
+                                          "Validity: 168 h; used 18.4%; 137 h left"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0027",
+                         "Timestamp":  "2026-11-20T09:30:54Z",
+                         "Stage":  "Probe",
+                         "Category":  "CDP",
+                         "Role":  "CDPEndpoint",
+                         "Target":  "pki.corp.example.test",
+                         "Endpoint":  "https://pki.corp.example.test/cdp/Example Root CA.crl",
+                         "RelatedCA":  "Example Root CA",
+                         "Sources":  [
+                                         "Cert:1A2B3C4D5E6F708192A3B4C5D6E7F80910111213:CDP"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "Pass",
+                         "TcpStatus":  "Pass",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "Fail",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Warning",
+                         "Severity":  "None",
+                         "StatusCode":  "TLS_NAME_MISMATCH",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "TLS to pki.corp.example.test failed: TLS_NAME_MISMATCH. The CRL was not downloaded.",
+                         "Evidence":  [
+                                          "Lead L0009 (CDP), depth 0",
+                                          "TLS: TLS_NAME_MISMATCH Tls12; server certificate CN=web.corp.example.test; name match False"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  "A TLS name mismatch or an untrusted server certificate is not service unavailability; most PKI clients use http for AIA/CDP."
+                     },
+                     {
+                         "Id":  "F0028",
+                         "Timestamp":  "2026-11-20T09:30:56Z",
+                         "Stage":  "Probe",
+                         "Category":  "OCSP",
+                         "Role":  "OCSPEndpoint",
+                         "Target":  "ocsp.corp.example.test",
+                         "Endpoint":  "http://ocsp.corp.example.test/ocsp",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "Cert:4D5E6F708192A3B4C5D6E7F80910111213141516:OCSP"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "Pass",
+                         "TcpStatus":  "Pass",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "OCSP responder ocsp.corp.example.test accepts TCP connections. Reachability is not OCSP health; a full check needs -CertificateFile (later phase).",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0029",
+                         "Timestamp":  "2026-11-20T09:30:58Z",
+                         "Stage":  "Discovery",
+                         "Category":  "CES",
+                         "Role":  "CESEndpoint",
+                         "Target":  "ces.corp.example.test",
+                         "Endpoint":  "https://ces.corp.example.test/Example Issuing CA 01_CES_Kerberos/service.svc/CES",
+                         "RelatedCA":  "Example Issuing CA 01",
+                         "Sources":  [
+                                         "AD:EnrollmentServices:msPKI-Enrollment-Servers"
+                                     ],
+                         "Confidence":  "Referenced",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Enrollment web service referenced by the Enrollment Services object of Example Issuing CA 01 (not probed in this phase).",
+                         "Evidence":  [
+
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     },
+                     {
+                         "Id":  "F0030",
+                         "Timestamp":  "2026-11-20T09:31:00Z",
+                         "Stage":  "Discovery",
+                         "Category":  "Run",
+                         "Role":  "Run",
+                         "Target":  "Run",
+                         "Endpoint":  "",
+                         "RelatedCA":  "",
+                         "Sources":  [
+                                         "AD:EnrollmentServices",
+                                         "AD:AIA",
+                                         "AD:CertificationAuthorities",
+                                         "AD:NTAuthCertificates"
+                                     ],
+                         "Confidence":  "Confirmed",
+                         "DiscoveryStatus":  "Pass",
+                         "DnsStatus":  "NotTested",
+                         "TcpStatus":  "NotTested",
+                         "HttpStatus":  "NotTested",
+                         "RedirectStatus":  "NotTested",
+                         "TlsStatus":  "NotTested",
+                         "ContentStatus":  "NotTested",
+                         "ChainStatus":  "NotTested",
+                         "Status":  "Information",
+                         "Severity":  "None",
+                         "StatusCode":  "OK",
+                         "Scope":  "Local",
+                         "Forest":  "corp.example.test",
+                         "Domain":  "corp.example.test",
+                         "Message":  "Discovery: forest corp.example.test, 2 Enterprise CA(s) (1 answered), 3 CA certificate(s).",
+                         "Evidence":  [
+                                          "Enterprise CAs: Example Issuing CA 01, Example Issuing CA 02",
+                                          "CA certificates: 2 current, 1 historical, 0 unknown"
+                                      ],
+                         "Remediation":  "",
+                         "Notes":  ""
+                     }
+                 ]
+}

@@ -1,12 +1,12 @@
 function Start-MspkiHealthCheck {
     <#
     .SYNOPSIS
-    Runs the MSPKI Health Check and writes results.json and run.log to <OutputPath>\<yyyyMMdd-HHmmss>\.
+    Runs the MSPKI Health Check and writes results.json, findings.csv, report.html and run.log to <OutputPath>\<yyyyMMdd-HHmmss>\.
 
     .DESCRIPTION
     Read-only. Discovers the forest, domain controller, PKI containers, Enterprise CAs, every CA
     certificate generation and the CA properties (or records why they could not be read).
-    Returns an object with OutputFolder, ResultsPath, ExitCode, Findings, Inventory and RunInfo.
+    Returns an object with OutputFolder, ResultsPath, CsvPath, ReportPath, ExitCode, Findings, Inventory and RunInfo.
 
     .PARAMETER OutputPath
     Root folder for run output. A new timestamped sub-folder is created for each run.
@@ -60,6 +60,8 @@ function Start-MspkiHealthCheck {
     $completed = $false
     $resultsPath = Join-Path $folder 'results.json'
     $exitCode = 5
+    $csvPath = ''
+    $reportPath = ''
     try {
         if ($PSVersionTable.PSEdition -ne 'Desktop') {
             [void]$findings.Add((New-MspkiFinding -Category 'Run' -Role 'Run' -Target 'PowerShell' -Status 'Warning' `
@@ -115,17 +117,35 @@ function Start-MspkiHealthCheck {
     finally {
         # Also runs on Ctrl+C, so a partial results.json is still written.
         Complete-MspkiRun -Completed $completed
-        $exitCode = Get-MspkiExitCode -Findings @($findings)
-        try {
-            [void](Export-MspkiJson -Path $resultsPath -RunInfo ([pscustomobject]$runInfo) -Inventory $inventory `
-                -Findings @($findings) -ExitCode $exitCode)
-            Write-MspkiLog -Message ('Wrote {0} ({1} findings), exit code {2}.' -f $resultsPath, $findings.Count, $exitCode)
+        $exitCode = Get-MspkiExitCode -Findings @($findings) -Incomplete:(-not $completed)
+        $writeJson = {
+            try {
+                [void](Export-MspkiJson -Path $resultsPath -RunInfo ([pscustomobject]$runInfo) -Inventory $inventory `
+                    -Findings @($findings) -ExitCode $exitCode)
+                Write-MspkiLog -Message ('Wrote {0} ({1} findings), exit code {2}.' -f $resultsPath, $findings.Count, $exitCode)
+            }
+            catch { Write-MspkiLog -Level Error -Message ('Could not write results.json: {0}' -f $_.Exception.Message) }
         }
-        catch { Write-MspkiLog -Level Error -Message ('Could not write results.json: {0}' -f $_.Exception.Message) }
+        & $writeJson
+        # Reports are written after results.json so the data is safe even if a reporter fails; a reporter failure
+        # becomes a finding, which can change the exit code, so results.json is then written again.
+        $rep = $null
+        try { $rep = Write-MspkiRunReport -Folder $folder -RunInfo ([pscustomobject]$runInfo) -Inventory $inventory -Findings @($findings) -ExitCode $exitCode }
+        catch { Write-MspkiLog -Level Error -Message ('Reports stopped: {0}' -f $_.Exception.Message) }
+        if ($null -ne $rep) {
+            $csvPath = $rep.CsvPath; $reportPath = $rep.HtmlPath
+            if ($rep.Errors.Count -gt 0) {
+                foreach ($f in $rep.Errors) { [void]$findings.Add($f) }
+                $exitCode = Get-MspkiExitCode -Findings @($findings) -Incomplete:(-not $completed)
+                & $writeJson
+            }
+        }
     }
     return [pscustomobject][ordered]@{
         OutputFolder = $folder
         ResultsPath  = $resultsPath
+        CsvPath      = $csvPath
+        ReportPath   = $reportPath
         ExitCode     = $exitCode
         Findings     = @($findings)
         Inventory    = $inventory
