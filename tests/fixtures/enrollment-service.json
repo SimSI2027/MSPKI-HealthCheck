@@ -1,0 +1,14 @@
+{
+    "cn": [ "Example Issuing CA" ],
+    "displayName": [ "Example Issuing CA" ],
+    "dNSHostName": [ "CA01.Corp.Example.Test" ],
+    "certificateTemplates": [ "WebServer", "Machine", "User" ],
+    "msPKI-Enrollment-Servers": [
+        "1\n2\n0\nhttps://ces.corp.example.test/Example%20Issuing%20CA_CES_Kerberos/service.svc/CES",
+        "unparsed value https://ces2.corp.example.test/x/service.svc/CES"
+    ],
+    "flags": [ 10 ],
+    "distinguishedName": [ "CN=Example Issuing CA,CN=Enrollment Services,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test" ],
+    "whenCreated": [ "2024-01-01T00:00:00Z" ],
+    "whenChanged": [ "2025-06-01T00:00:00Z" ]
+}

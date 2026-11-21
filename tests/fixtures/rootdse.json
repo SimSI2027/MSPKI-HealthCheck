@@ -1,0 +1,10 @@
+{
+    "configurationNamingContext": "CN=Configuration,DC=corp,DC=example,DC=test",
+    "rootDomainNamingContext": "DC=corp,DC=example,DC=test",
+    "defaultNamingContext": "DC=corp,DC=example,DC=test",
+    "schemaNamingContext": "CN=Schema,CN=Configuration,DC=corp,DC=example,DC=test",
+    "dnsHostName": "DC01.corp.example.test",
+    "serverName": "CN=DC01,CN=Servers,CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=corp,DC=example,DC=test",
+    "currentTime": "2026-01-01T00:00:00Z",
+    "domainControllerFunctionality": "7"
+}
