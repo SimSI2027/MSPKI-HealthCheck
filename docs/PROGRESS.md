@@ -3,6 +3,12 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## Audit after Phase D (docs/AUDIT.md) — done, no code changed
+- Done: full audit of src/, tests/, docs/ and git history against CLAUDE.md and REQUIREMENTS: 3 High, 11 Medium, 11 Low.
+  572 tests pass under Windows PowerShell 5.1; no real names, e-mails or IPs; no forbidden AV/EDR pattern.
+- High: LDAP URLs naming a host get an authenticated bind (also from unvalidated downloads, also with -SkipNetwork);
+  CES/CEP HTTP 5xx reported as Pass/Confirmed; dead URLs in expired CA certificates graded Fail (exit 4).
+- Next: fix H1, M1, M2 (credentials, proxy/WPAD, NDES admin GET), then the false Pass/Fail/Confirmed items with tests.
 ## Phase D: templates, CEP/CES, NDES, Intune connector, stale references — done (572 tests)
 - Done: (1) AD container consistency + `CN=Certificate Templates` / `KRA` / `OID` read (SIDs named once per run, budgeted);
   `Test-MspkiAdContainerObject` (published name without object, unpublished templates, KRA missing/expired, OID group link
