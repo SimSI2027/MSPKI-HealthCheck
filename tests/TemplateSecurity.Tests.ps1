@@ -219,6 +219,8 @@ Describe 'Pattern ESC4: broad group controls the template object' {
     It 'fires for write, write-DACL, write-owner, generic-all and an owner that is a broad group' {
         foreach ($case in @(
             @{ Acl = @((& $script:ace $script:du 0x20)); What = 'WriteProperty' }
+            @{ Acl = @((& $script:ace $script:du 0x20 'bf967a0a-0de6-11d0-a285-00aa003049e2')); What = 'WriteProperty on one property of the template' }
+            @{ Acl = @((& $script:ace $script:du 0x40130 $script:enrollGuid)); What = 'WriteDacl in the same ACE as the Enroll right' }
             @{ Acl = @((& $script:ace $script:du 0x40000)); What = 'WriteDacl' }
             @{ Acl = @((& $script:ace 'S-1-5-11' 0x80000)); What = 'WriteOwner' }
             @{ Acl = @((& $script:ace $script:dc 0x10000000)); What = 'GenericAll' }
@@ -238,6 +240,8 @@ Describe 'Pattern ESC4: broad group controls the template object' {
         @{ Why = 'a non-broad group with full control'; Acl = @(@{ Sid = 'S-1-5-21-1111-2222-3333-519'; Type = 'Allow'; Mask = 0x10000000; ObjectType = ''; InheritOnly = $false }) }
         @{ Why = 'a broad group with read rights only'; Acl = @(@{ Sid = 'S-1-5-11'; Type = 'Allow'; Mask = 0x20094; ObjectType = ''; InheritOnly = $false }) }
         @{ Why = 'a broad group that can only enroll'; Acl = @(@{ Sid = 'S-1-5-21-1111-2222-3333-513'; Type = 'Allow'; Mask = 0x100; ObjectType = '0e10c968-78fb-11d2-90d4-00c04f79dc55'; InheritOnly = $false }) }
+        @{ Why = 'a broad group with the Enroll ACE the template console writes (mask 0x130, extended-right GUID)'; Acl = @(@{ Sid = 'S-1-5-21-1111-2222-3333-513'; Type = 'Allow'; Mask = 0x130; ObjectType = '0e10c968-78fb-11d2-90d4-00c04f79dc55'; InheritOnly = $false }) }
+        @{ Why = 'a broad group with the Autoenroll ACE the template console writes (mask 0x130, extended-right GUID)'; Acl = @(@{ Sid = 'S-1-5-21-1111-2222-3333-515'; Type = 'Allow'; Mask = 0x130; ObjectType = 'a05b8cc2-17bc-4802-a710-e7c15ab866a2'; InheritOnly = $false }) }
         @{ Why = 'a Deny ACE'; Acl = @(@{ Sid = 'S-1-1-0'; Type = 'Deny'; Mask = 0x10000000; ObjectType = ''; InheritOnly = $false }) }
         @{ Why = 'an inherit-only ACE'; Acl = @(@{ Sid = 'S-1-1-0'; Type = 'Allow'; Mask = 0x10000000; ObjectType = ''; InheritOnly = $true }) }
     ) {

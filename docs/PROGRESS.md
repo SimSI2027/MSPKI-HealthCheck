@@ -3,6 +3,25 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## First live run: RootDSE fix, two false positives, -NoOpen — done (687 tests)
+- Root cause of "RootDSE UNSUPPORTED, everything skipped": RootDSE was read with a `DirectorySearcher`, and the LDAP provider refuses searches on
+  RootDSE ("The provider does not support searching and cannot search LDAP://RootDSE"). `Get-MspkiRootDse` now reads a `DirectoryEntry` (RefreshCache);
+  a test checks that it never uses a searcher. `[ADSI]"LDAP://RootDSE"` worked on its own, so the bug was in the tool, not the lab.
+- Discovery is harder to break: `Find-MspkiRootDse` tries serverless, the DC locator, `LDAP://<domain>/RootDSE`, a Global Catalog and last builds the
+  Configuration NC from the forest root name (Warning / Inferred, DC unknown, later reads are serverless). Each attempt is logged as `AD:RootDSE:<name>`
+  and listed in the evidence. Error findings now show the error code and message in the Message itself.
+- False positives fixed: (1) ESC4 fired on every Enroll/Autoenroll ACE (mask 0x130 with the extended-right GUID looks like WriteProperty) for 11 templates;
+  (2) an empty KRA object (the normal state without key archival) was a Warning, now Information. Tests for both.
+- Live result on a normal user (lab, 1 enterprise root + 1 enterprise sub CA, 43 template objects, 3 and 22 published templates): AD side works (containers, CAs,
+  CA certificates, templates and their ACLs, AIA/CDP leads, LDAP CDP/AIA checks). Counts agree with `certutil -ADCA` and the Enrollment Services objects.
+- `-NoOpen` added; report.html now opens at the end of a run (`Invoke-Item` on the one report file; the suite passes -NoOpen).
+- Still broken / not verifiable from this computer: `GetCAProperty` fails with 0x800706BA (RPC server unavailable) on both CAs and `certutil -CAInfo/-ping`
+  fails the same way, although TCP 135 answers: a firewall or CertSvc problem outside the tool, correctly reported as Fail RETRIEVAL_FAIL. So the CR_PROP ids
+  (they match certcli.h), the `CertificateAuthority.View` columns and the live CA-database NDES read are still not exercised; the connection string
+  (host\name) is the one certutil uses. `msPKI-Enrollment-Servers` is not exercised either (no CES in this lab).
+- Next: run from a computer that can reach the CAs over RPC (or an administrator account) and fix what that log shows; then Phase E and the Low findings.
+  Dev note: Pester 5 is not installed on this lab computer; the suite was run with a Pester 5.7.1 copy unpacked in a temporary folder.
+
 ## Audit fixes (every High and Medium), first-live-run logging, docs/TESTING.md — done (675 tests; the new audit tests fail on the old code)
 - Done, High: H1 an LDAP URL naming a host is contacted only for the selected DC or a host of the forest's own domains (never with -SkipNetwork,
   except the DC), and links in a downloaded AIA certificate are followed only when its key is proven; H2 CES/CEP HTTP 5xx = `Failing` / Fail /

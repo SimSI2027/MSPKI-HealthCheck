@@ -81,7 +81,7 @@ Describe 'Invoke-MspkiHealthCheck.ps1 entry point' {
         $out = Join-Path $TestDrive 'entry'
         $entry = Join-Path $script:RepoRoot 'Invoke-MspkiHealthCheck.ps1'
         $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-        $null = & $ps -NoProfile -NonInteractive -File $entry -OutputPath $out -SkipNetwork -TimeoutSeconds 2
+        $null = & $ps -NoProfile -NonInteractive -File $entry -OutputPath $out -SkipNetwork -NoOpen -TimeoutSeconds 2
         $code = $LASTEXITCODE
         $json = @(Get-ChildItem -LiteralPath $out -Recurse -Filter 'results.json')
         $json.Count | Should -Be 1
@@ -90,5 +90,19 @@ Describe 'Invoke-MspkiHealthCheck.ps1 entry point' {
         $j = Get-Content -LiteralPath $json[0].FullName -Raw | ConvertFrom-Json
         $code | Should -Be $j.ExitCode
         $j.RunInfo.PSEdition | Should -Be 'Desktop'
+    }
+
+    It 'opens report.html at the end of a run unless -NoOpen is given, and opens nothing else' {
+        $entry = Join-Path $script:RepoRoot 'Invoke-MspkiHealthCheck.ps1'
+        (Get-Command $entry).Parameters['NoOpen'].SwitchParameter | Should -BeTrue
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($entry, [ref]$null, [ref]$null)
+        $calls = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Invoke-Item' }, $true))
+        $calls.Count | Should -Be 1
+        # The single call sits in an if that tests -not $NoOpen and opens the report path of this run.
+        $if = $calls[0].Parent
+        while ($null -ne $if -and $if -isnot [System.Management.Automation.Language.IfStatementAst]) { $if = $if.Parent }
+        $if | Should -Not -BeNullOrEmpty
+        $if.Clauses[0].Item1.Extent.Text | Should -Match '-not \$NoOpen'
+        $calls[0].Extent.Text | Should -Match '\$result\.ReportPath'
     }
 }

@@ -77,11 +77,12 @@ Describe 'Test-MspkiAdContainerObject: KRA' {
         $k[0].Status | Should -Be 'Pass'
     }
 
-    It 'warns when the KRA certificate is missing' {
+    It 'does not warn about an empty KRA object: AD CS creates one per CA and fills it only when a key recovery agent is added' {
+        # Regression: the first live run warned about every CA of a lab that does not use key archival.
         $f = & $script:run (& $script:inv @{ Kra = @([pscustomobject]@{ Name = 'Example Issuing CA'; DistinguishedName = 'CN=Example Issuing CA,CN=KRA'; Certificates = @(); CertificateErrors = @() }) })
         $k = @($f | Where-Object { $_.Message -like '*KRA object*' })
-        $k[0].Status | Should -Be 'Warning'
-        $k[0].StatusCode | Should -Be 'NOT_DISCOVERED'
+        $k[0].Status | Should -Be 'Information'
+        $k[0].StatusCode | Should -Be 'NOT_CONFIGURED'
     }
 
     It 'warns when every KRA certificate has expired' {

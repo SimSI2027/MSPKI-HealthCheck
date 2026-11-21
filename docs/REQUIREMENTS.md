@@ -10,6 +10,7 @@ The rules in `CLAUDE.md` apply everywhere and take priority over anything below.
 ## 2. Ways of running it
 - `.\Invoke-MspkiHealthCheck.ps1`: full run with defaults. Output goes to `out\<yyyyMMdd-HHmmss>\`.
 - Optional parameters: `-OutputPath`, `-TimeoutSeconds` (default 5), threshold overrides, `-SkipNetwork`,
+  `-NoOpen` (report.html opens in the default browser at the end of a run unless this is given),
   `-UseSystemProxy` (opt-in: the HTTP probes use the system proxy settings, without credentials; by default they connect
   directly), `-IncludeNdesAdminProbe` (opt-in: also send the one anonymous request to the NDES admin page),
   `-CertificateFile <path.cer>` (end-to-end validation), `-IncludeCertUtilVerify` (opt-in).

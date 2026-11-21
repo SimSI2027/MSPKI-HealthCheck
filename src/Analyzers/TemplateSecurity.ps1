@@ -46,6 +46,11 @@ function Test-MspkiAceGrant {
         return ($Ace.ObjectType -eq '' -or $Ace.ObjectType -eq $script:MspkiEnrollRightGuid)
     }
     $writeBits = $script:MspkiAdRightBit.GenericWrite -bor $script:MspkiAdRightBit.WriteOwner -bor $script:MspkiAdRightBit.WriteDacl -bor $script:MspkiAdRightBit.WriteProperty
+    # The Enroll and Autoenroll ACEs are written by the template console with the mask 0x130 (read, write, control access) and the
+    # extended-right GUID as object type. Their write bit does not apply to a property of the template: it is not a write right.
+    if ($Ace.ObjectType -eq $script:MspkiEnrollRightGuid -or $Ace.ObjectType -eq $script:MspkiAutoEnrollRightGuid) {
+        $writeBits = $writeBits -band (-bnot ($script:MspkiAdRightBit.GenericWrite -bor $script:MspkiAdRightBit.WriteProperty))
+    }
     return (($m -band $writeBits) -ne 0)
 }
 

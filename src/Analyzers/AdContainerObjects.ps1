@@ -97,10 +97,13 @@ function Test-MspkiAdContainerObject {
             foreach ($c in $certs) { $ev += ('Certificate {0} [{1}] valid until {2}{3}' -f $c.Subject, $c.Thumbprint, $c.NotAfter, $(if ($c.Expired) { ' (expired)' } else { '' })) }
             foreach ($e in @($k.CertificateErrors)) { $ev += ('Unreadable value: {0}' -f $e) }
             if ($certs.Count -eq 0) {
-                [void]$findings.Add((New-MspkiFinding @common -Category 'ADContainer' -Role 'ADContainer' -Target $k.Name -Endpoint $k.DistinguishedName -Status 'Warning' `
-                    -StatusCode 'NOT_DISCOVERED' -Confidence 'Confirmed' -Sources 'AD:KRA' -Layers @{ DiscoveryStatus = 'Pass'; ContentStatus = 'Fail' } `
-                    -Message ('The KRA object {0} has no readable certificate.' -f $k.Name) -Evidence $ev `
-                    -Notes 'Review only. A key recovery agent without a certificate cannot be used for key recovery.'))
+                # AD CS creates one KRA object per CA at install time; it holds a certificate only after a key recovery agent was added.
+                # An empty object is the normal state when key archival is not used. The CA-side check below (KraCertCount from the CA)
+                # is what shows a real problem.
+                [void]$findings.Add((New-MspkiFinding @common -Category 'ADContainer' -Role 'ADContainer' -Target $k.Name -Endpoint $k.DistinguishedName -Status 'Information' `
+                    -StatusCode 'NOT_CONFIGURED' -Confidence 'Confirmed' -Sources 'AD:KRA' -Layers @{ DiscoveryStatus = 'Pass' } `
+                    -Message ('The KRA object {0} holds no key recovery agent certificate (normal when key archival is not used).' -f $k.Name) -Evidence $ev `
+                    -Notes 'Information only. It matters only when the CA is configured to archive keys: the CA property KraCertCount is checked separately when the CA answers.'))
             }
             elseif ($live.Count -eq 0) {
                 [void]$findings.Add((New-MspkiFinding @common -Category 'ADContainer' -Role 'ADContainer' -Target $k.Name -Endpoint $k.DistinguishedName -Status 'Warning' `
