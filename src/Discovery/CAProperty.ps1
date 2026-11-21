@@ -272,6 +272,61 @@ function ConvertFrom-MspkiCAPropertyResult {
     }
 }
 
+function Get-MspkiFirstCallElapsedMs {
+    # The time of the first GetCAProperty call (the one that failed), or the whole attempt when no trace came back.
+    param($Raw, $Run)
+    if ($null -ne $Raw -and $null -ne $Raw.Trace) {
+        $first = @($Raw.Trace | Where-Object { $null -ne $_ }) | Select-Object -First 1
+        if ($null -ne $first -and $null -ne $first.ElapsedMs) { return [int64]$first.ElapsedMs }
+    }
+    if ($null -ne $Run -and $null -ne $Run.ElapsedMs) { return [int64]$Run.ElapsedMs }
+    return [int64]-1
+}
+
+function Get-MspkiCaRpcFailureDiagnosis {
+    <#
+    .SYNOPSIS
+    Explains an RPC_S_SERVER_UNAVAILABLE (0x800706BA) from a CA after TCP 135 answered, using how fast it came back.
+
+    .DESCRIPTION
+    DCOM reports 0x800706BA for two very different situations, and the client API hides which one happened:
+    - Quick (within FastLimitMs): the CA host's RPC endpoint mapper (TCP 135) took the activation request and answered it with an
+      RPC fault, then closed the connection; no dynamic-port connection was even tried. In the lab this was RPC fault 5 (access
+      denied) for one domain account while another account read the same CA: the host refused this account at the DCOM layer
+      (machine-wide DCOM limits / the "Certificate Service DCOM Access" group, or DCOM hardening). The CA service itself is not
+      the cause, and it is not a network failure. Reported as PERMISSION_DENIED with Inferred confidence, because the fault code
+      itself is not visible to the tool.
+    - Slow: no answer from the dynamic RPC port the endpoint mapper handed out: a firewall between this computer and the CA
+      (49152-65535 or the CA's fixed port) is the usual cause. Reported as RETRIEVAL_FAIL.
+    Returns $null for other HRESULTs.
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$HResult,
+        [int64]$ElapsedMs = -1,
+        [string]$HostName = '',
+        [int]$FastLimitMs = 5000
+    )
+    if (([string]$HResult).TrimStart('0x').ToUpperInvariant() -ne '800706BA') { return $null }
+    $timing = $(if ($ElapsedMs -ge 0) { ('The failing call came back after {0} ms.' -f $ElapsedMs) } else { 'The time of the failing call is unknown.' })
+    if ($ElapsedMs -ge 0 -and $ElapsedMs -le $FastLimitMs) {
+        return [pscustomobject]@{
+            Kind = 'RejectedQuickly'; Status = 'Skipped'; StatusCode = 'PERMISSION_DENIED'; Confidence = 'Inferred'; Layer = 'PermissionDenied'
+            Message = ('The CA host {0} turned down this account''s request to read the CA (DCOM reported "RPC server unavailable", error 0x800706BA, but it answered within {1} ms on TCP 135). The CA was not read; this is most likely a permission on the CA host for the account running the tool, not a network or CA outage.' -f $HostName, $ElapsedMs)
+            Evidence = @($timing, ('Answered within {0} ms after TCP 135 was reachable: a blocked dynamic RPC port would have taken many seconds (connection time-out).' -f $FastLimitMs))
+            Notes = 'Windows DCOM shows "RPC server unavailable" when the remote RPC endpoint mapper refuses the activation request itself. On a lab CA this was RPC fault 5 (access denied) for one ordinary domain account, while an administrator account read the same CA. Confidence is Inferred: the tool cannot see the fault code. Less likely causes with the same signature: the CA host''s DCOM hardening rejects the authentication level, or Certificate Services is being reinstalled.'
+            Remediation = 'On the CA host (owner): check that the account (normally through Authenticated Users or Domain Users) is in the local group "Certificate Service DCOM Access" and that the machine-wide DCOM limits (dcomcnfg > My Computer > COM Security) grant it Remote Access and Remote Activation; look for DCOM events 10027/10028 or 10036 in the CA host''s System log at the time of this run. Also check the CA''s Security tab grants Read or Request Certificates. Then run the tool again.'
+        }
+    }
+    return [pscustomobject]@{
+        Kind = 'NoAnswer'; Status = 'Fail'; StatusCode = 'RETRIEVAL_FAIL'; Confidence = 'Referenced'; Layer = 'Fail'
+        Message = ('The CA host {0} answered on TCP 135 but the CA could not be reached over its dynamic RPC port (error 0x800706BA, RPC server unavailable).' -f $HostName)
+        Evidence = @($timing)
+        Notes = 'A slow "RPC server unavailable" after TCP 135 answered usually means a firewall blocks the dynamic RPC ports (49152-65535, or the port the CA is fixed to) between this computer and the CA, or the Certificate Services service is hung.'
+        Remediation = 'Allow the CA''s RPC dynamic ports from client networks (or fix the CA to a known port and allow that), and check that Certificate Services is running on the CA host.'
+    }
+}
+
 function Get-MspkiCAProperty {
     <#
     .SYNOPSIS
@@ -390,6 +445,12 @@ function Get-MspkiCAProperty {
                 -Message 'The Certification Authority client COM class (CertificateAuthority.Request) is not registered on this computer, so no CA can be asked for its properties from here.' `
                 -Evidence ($triedEvidence + @('HResult: 0x80040154 (class not registered)', ('Message: {0}' -f $raw.Fatal.Message))) `
                 -Notes 'This is a limit of the computer running the tool, not a finding about the CA.'
+        }
+        elseif ($null -ne ($diag = Get-MspkiCaRpcFailureDiagnosis -HResult $hr -ElapsedMs (Get-MspkiFirstCallElapsedMs -Raw $raw -Run $run) -HostName $CA.DnsHostName)) {
+            $f = New-MspkiFinding @common -Status $diag.Status -StatusCode $diag.StatusCode -Confidence $diag.Confidence `
+                -Layers @{ DiscoveryStatus = 'Pass'; DnsStatus = 'Pass'; TcpStatus = 'Pass'; ContentStatus = $diag.Layer } `
+                -Message $diag.Message -Notes $diag.Notes -Remediation $diag.Remediation `
+                -Evidence ($triedEvidence + $diag.Evidence + @(('HResult: 0x{0}' -f $hr), ('Message: {0}' -f $raw.Fatal.Message)))
         }
         else {
             $notes = ''

@@ -261,16 +261,36 @@ Describe 'Invoke-MspkiDiscovery' {
         InModuleScope MspkiHealthCheck -Parameters @{ F = $d.Findings } { param($F) Get-MspkiExitCode -Findings $F | Should -Be 6 }
     }
 
-    It 'reports an RPC failure on the CA as RETRIEVAL_FAIL, not PERMISSION_DENIED' {
+    It 'reports a quick RPC failure after TCP 135 answered as an Inferred refusal of this account (PERMISSION_DENIED), with owner steps' {
         & $script:mockAd
         Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript {
-            [pscustomobject]@{ Completed = $true; TimedOut = $false; ElapsedMs = 5; Errors = @()
-                Output = @(@{ Values = @{}; Errors = @{}; Count = -1; Fatal = @{ HResult = '800706BA'; Message = 'The RPC server is unavailable.' } }) }
+            [pscustomobject]@{ Completed = $true; TimedOut = $false; ElapsedMs = 60; Errors = @()
+                Output = @(@{ Values = @{}; Errors = @{}; Count = -1; Fatal = @{ HResult = '800706BA'; Message = 'The RPC server is unavailable.' }
+                    Trace = @(@{ Name = 'CAType'; Id = 10; Index = 0; DataType = 1; ResultType = 'error'; Size = 0; ElapsedMs = 25; HResult = '800706BA' }) }) }
+        }
+        $d = & $script:discover
+        $p = $d.Findings | Where-Object { $_.Category -eq 'CA' -and $_.Endpoint -like '*\Example Issuing CA' -and $_.Message -notlike 'Enterprise CA*' }
+        $p.StatusCode | Should -Be 'PERMISSION_DENIED'
+        $p.Status | Should -Be 'Skipped'
+        $p.Confidence | Should -Be 'Inferred'
+        $p.TcpStatus | Should -Be 'Pass'
+        $p.Message | Should -Match 'turned down this account'
+        $p.Message | Should -Match '25 ms'
+        $p.Remediation | Should -Match 'Certificate Service DCOM Access'
+    }
+
+    It 'reports a slow RPC failure on the CA (dynamic port not answering) as RETRIEVAL_FAIL, not PERMISSION_DENIED' {
+        & $script:mockAd
+        Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript {
+            [pscustomobject]@{ Completed = $true; TimedOut = $false; ElapsedMs = 21000; Errors = @()
+                Output = @(@{ Values = @{}; Errors = @{}; Count = -1; Fatal = @{ HResult = '800706BA'; Message = 'The RPC server is unavailable.' }
+                    Trace = @(@{ Name = 'CAType'; Id = 10; Index = 0; DataType = 1; ResultType = 'error'; Size = 0; ElapsedMs = 21000; HResult = '800706BA' }) }) }
         }
         $d = & $script:discover
         $p = $d.Findings | Where-Object { $_.Category -eq 'CA' -and $_.Endpoint -like '*\Example Issuing CA' -and $_.Message -notlike 'Enterprise CA*' }
         $p.StatusCode | Should -Be 'RETRIEVAL_FAIL'
         $p.Status | Should -Be 'Fail'
+        $p.Notes | Should -Match 'firewall'
     }
 
     It 'stops at TCP 135 when the CA host does not answer' {

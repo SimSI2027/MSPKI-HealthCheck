@@ -10,10 +10,9 @@ capture, RSAT, PSPKI, Sysinternals) are for understanding on the lab machine; th
 - Audit High and Medium findings fixed (`docs/AUDIT.md`).
 
 ## BLOCKER
-- CA reads fail with 0x800706BA (RPC server unavailable) although the CA host is reachable on TCP 135.
-  STATUS (2026-11-21): not reproducible as an administrator after the CA hosts were rebuilt; CR_PROP ids and the connection string are now
-  verified live (23 of 24 reads succeed, the 24th is a normal "no parent"). Still open: the same run as the standard-user account, and the
-  CA database view, which is not in-box on clients. Details and the owner-side fix steps: `docs/RESEARCH.md`.
+- SOLVED (2026-11-21): the 0x800706BA CA read failure is a DCOM access-denied for the standard account on the Root CA host (RPC fault 5 seen
+  in a capture). The tool now reports it as an Inferred PERMISSION_DENIED with owner steps (`docs/RESEARCH.md`). The CA database view is still
+  not in-box on clients.
 - New from research (to schedule): a CDP LDAP URL without an attribute part is graded Fail (false positive); NDES is missed when the CA
   database view is unavailable (add the template-ACE / SPN route); the HTTPS reset on a CA host is reported without its meaning.
 

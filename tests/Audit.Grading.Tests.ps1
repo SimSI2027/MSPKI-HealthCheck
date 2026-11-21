@@ -340,7 +340,7 @@ Describe 'CA connection: connection strings, trace, and classification of the fi
     }
 
     It 'does not try another string after <Name>' -TestCases @(
-        @{ Name = 'an RPC failure'; Hr = '800706BA'; Code = 'RETRIEVAL_FAIL' }
+        @{ Name = 'a quick RPC failure'; Hr = '800706BA'; Code = 'PERMISSION_DENIED' }
         @{ Name = 'access denied'; Hr = '80070005'; Code = 'PERMISSION_DENIED' }
     ) {
         param($Name, $Hr, $Code)

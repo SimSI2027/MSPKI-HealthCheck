@@ -208,3 +208,10 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Tests: full suite 745 passed, 0 failed (Pester 5.7.1). New: count wording, running panel, pre-run facts, WindowChrome, icon font.
 - Final scores 9/8/8/9/8/8/8/9/8/8. Remaining gaps (themed dialogs, snap layouts, dark theme, saved layout) are in GUI-DESIGN.md.
 - Next: confirm on screen with the checklist (real mouse/keyboard: caption buttons, drag, resize, Alt+Space, Tab order).
+
+## Step 0 (2026-11-21 evening): the standard-user CA read failure is solved
+- Reproduced as the standard domain account (elevated and filtered token alike): the Root CA host answers the DCOM activation on TCP 135 with RPC
+  fault 5 (access denied) and closes; DCOM reports it as 0x800706BA. The Sub CA answers the same account. Details and owner steps: RESEARCH.md.
+- Product: a 0x800706BA within 5 s after TCP 135 answered is now `PERMISSION_DENIED` / Inferred with timing evidence, owner remediation, and the
+  names of other CAs that answered the same account; a slow one stays `RETRIEVAL_FAIL` (firewall). Tests updated (113 passed in the touched files).
+- Next: Step 1 entity graph (docs/DATA-MODEL.md), then Step 2 hierarchy health.

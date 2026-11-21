@@ -172,6 +172,14 @@ function Invoke-MspkiDiscovery {
                 -Action 'reading CA properties'))
         }
     }
+    # A CA that refused this account is easier to understand when another CA answered the same account in the same run: the
+    # client, the account and Kerberos then work, and the difference is on that CA host.
+    if ($props.Count -gt 0) {
+        $answered = @($props.Keys | Sort-Object) -join ', '
+        foreach ($f in @($propFindings | Where-Object { $_.StatusCode -eq 'PERMISSION_DENIED' -and $_.Confidence -eq 'Inferred' })) {
+            $f.Evidence = [string[]](@($f.Evidence) + ('Other CA(s) answered the same account from this computer in this run: {0}. So this computer, the account and Kerberos work; the refusal is specific to this CA host.' -f $answered))
+        }
+    }
     Add-MspkiStageTiming -Stage 'Discovery:CAProperties' -Stopwatch $sw
 
     $sw = Start-MspkiStageTimer -Stage 'Discovery:CACertificates'

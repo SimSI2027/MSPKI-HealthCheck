@@ -23,31 +23,35 @@ or on the remote host. Confidence: C = confirmed by direct observation, L = like
 | Reverse DNS is incomplete (one PTR missing, one short name, one full name); one certificate SAN names an alias with no DNS record | `Resolve-DnsName` on A/PTR, SAN of the served certificate | D2 not done yet: resolve A, PTR, CNAME chain and compare with the certificate names | No | C |
 | How this computer's certificates got here: one from a policy-driven machine enrollment (the RDS "certificate template" policy), one requested by an administrator in MMC | Certificate template extension (OID 1.3.6.1.4.1.311.21.7 / 20.2), `Microsoft-Windows-CertificateServicesClient-Lifecycle-*/Operational` events (template name+OID, thumbprint, process, account), `HKLM\...\Terminal Services\CertTemplateName`, `gpresult` | D3 not done yet. Public certificate data in `LocalMachine\My` and the template extension are readable by any user; the Lifecycle-User log is the user's own; whether the System lifecycle log is readable by a standard user is untested | Possibly (System log) | C / U |
 | Autoenrollment is not configured by registry policy here; no CEP policy servers | Registry (read-only) | Already done for CEP keys (`LocalPolicy`); add the autoenrollment keys | No | C |
-| Standard-user COM/RPC reads of the CA | See "RPC failure" | `CertificateAuthority.Request.GetCAProperty` (in-box) | No | see below |
+| Standard-user COM/RPC reads of the CA | `pktmon` capture, `certutil -ping` as each account | `GetCAProperty` (in-box); a quick 0x800706BA after TCP 135 is now reported as an Inferred refusal of this account | No | C |
 | CA database view (`CertificateAuthority.View`) is NOT registered on this computer | ProgID lookup fails with class-not-registered; `certadm.dll` absent | Not available on a clean client: it ships with the AD CS management tools. The product must report "CA database not read: management tools missing" instead of an opaque CLSID error, and rely on route (1) for NDES | n/a | C |
 
-## RPC failure (0x800706BA) - result
-- Not reproducible now. As an administrator both CAs answer `certutil -ping`, `-CAInfo` and 23 of 24 `GetCAProperty` calls (the 24th, `ParentCA`,
-  returns file-not-found: normal for a root). A packet capture (`pktmon`) shows the expected flow: TCP 135 answers, the endpoint mapper hands back
-  one dynamic port per CA, and both ports accept.
-- Earlier failures came from a standard-user account on the same computer: both CAs failed until mid-morning, then only the Root CA host failed.
-  Both CA hosts were rebuilt/upgraded after the last failing run (their event logs start at that boot), so the original cause cannot be read from them.
-- The dev computer and both CA hosts are on one subnet; the pfSense router is not on this path, so no router hop dropped it.
-- Evidence points to a host-side state (service not registered in the endpoint mapper, or a host firewall rule) rather than the tool: 135 open +
-  "RPC server unavailable" is the signature of a CertSvc/EPM or dynamic-port block. Other hosts in this lab show the same family today: the NDES host refuses
-  remote service control (`1722`) and the Sub CA host refuses remote event-log reads (`1722`) while their web/DCOM ports work.
-- **Open:** whether the standard-user account passes now. Run, as that account: `powershell -File <repo>\Invoke-MspkiHealthCheck.ps1 -OutputPath <repo>\out\std -NoOpen`
-  and send back `run.log` lines `CA connection string ... Answered|Failed`. If it fails while the admin passes, capture with `pktmon start --capture -f 10.x` on the dev
-  computer during the run and look for a SYN to the dynamic port with no answer (host firewall) versus an RST (service not listening).
-- **If it recurs, fix on the CA host (owner action, nothing was changed):** (1) `sc query certsvc` must be RUNNING; (2) `netsh advfirewall firewall show rule name=all dir=in`
-  must allow "DCOM-In" (TCP 135) and the CertSvc dynamic-port group ("Active Directory Certificate Services (RPC)") from the dev subnet; (3) any
-  host or network firewall must allow TCP 49152-65535 to the CA; (4) `certutil -config "<host>\<CA>" -ping` from the dev computer must return "alive".
-
+## RPC failure (0x800706BA) - result (SOLVED 2026-11-21 evening)
+- **Answer: the Root CA host refuses the ordinary domain account at the DCOM layer. It is a per-account permission on that host, not the network,
+  not the CA service and not this tool.** Reproduced as the standard domain account, both from an elevated and a `runas /trustlevel:0x20000` token
+  (same result: the remote side sees the same domain identity, so local elevation does not matter). The Sub CA answers the same account in the
+  same run; the domain administrator account reads both CAs. `certutil -ping` as the standard account gives the same 0x800706BA in 15 ms.
+- Packet capture (`pktmon`, dev computer, filtered to the Root CA host): the client connects to TCP 135 three times. The second connection does a Kerberos
+  bind and sends the DCOM activation request; the host answers with a 32-byte RPC **fault PDU, status 0x00000005 (access denied)**, and closes the
+  connection. The third connection (fallback authentication) gets the same fault. **No connection to a dynamic port is ever attempted.** The DCOM
+  client then reports this to the caller as `RPC_S_SERVER_UNAVAILABLE` (0x800706BA), which is why the message was misleading.
+- Kerberos tickets were fresh (`RPCSS/<host>` issued for both CA hosts); only the Sub CA host also got a `host/` ticket for the second hop.
+- Earlier morning failures (both CAs, then only the Root CA host) fit the same cause; the Sub CA host was rebuilt and now admits the account.
+- **What the product now says (in-box, no admin):** a 0x800706BA that comes back within 5 s after TCP 135 answered is reported as
+  `PERMISSION_DENIED`, confidence **Inferred** (the fault code itself is not visible to the COM API), with the measured time, a note that a blocked dynamic
+  port would take many seconds, and, when another CA answered the same account in the run, that fact as evidence. A slow 0x800706BA stays
+  `RETRIEVAL_FAIL` with the firewall explanation. (`Get-MspkiCaRpcFailureDiagnosis`, tests in Discovery and Audit.Grading.)
+- **Owner fix steps on the Root CA host (nothing was changed by us):** (1) `lusrmgr.msc` > Groups > "Certificate Service DCOM Access" must contain
+  Authenticated Users or Domain Users (CA setup adds it; a rebuild/upgrade can lose it); (2) `dcomcnfg` > Component Services > Computers > My Computer >
+  Properties > COM Security: "Edit Limits" for Access and for Launch and Activation must allow that group Remote Access / Remote Activation;
+  (3) System log on the CA host: DCOM events 10027/10028/10036 at the time of a failing run name the account and the reason; (4) CA console >
+  Properties > Security: Authenticated Users need Read or Request Certificates; (5) from the dev computer as the standard account:
+  `certutil -config "<host>\<CA>" -ping` must say "interface is alive".
 ## What a standard user and an administrator can see
 - The administrator account here is the domain's built-in administrator, which gets no filtered token: `runas /trustlevel:0x20000` still reports High
-  integrity and the same network identity, so it is NOT a standard-user test. A real standard domain account is needed.
+  integrity and the same network identity, so it is NOT a standard-user test. The evening runs used the standard domain account (see above).
 - Same engine, two runs: the admin run and the earlier standard-user run found identical AD-side facts (containers, 43 templates and ACLs, CA certificates,
-  leads, LDAP CDP/AIA reads). The only difference was the Root CA read (host-side failure at the time, not proven user-dependent).
+  leads, LDAP CDP/AIA reads). The only difference is the Root CA read: proven user-dependent (DCOM access denied for the standard account).
 - Needs admin (research only, the product never does it): remote service state, remote event logs, remote WMI/CIM, the CA registry.
 - Does not need admin: AD Configuration partition, template ACLs, anonymous web probes, certificates in the stores (public parts), `GetCAProperty`.
 
