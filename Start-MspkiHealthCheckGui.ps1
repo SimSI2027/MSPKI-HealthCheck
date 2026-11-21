@@ -31,6 +31,9 @@ With -Snapshot: window width in pixels (default 1360).
 .PARAMETER SnapshotHeight
 With -Snapshot: window height in pixels (default 860).
 
+.PARAMETER SnapshotMaximized
+With -Snapshot: render the window maximised on the primary screen (it is visible there for a few seconds) instead of off-screen.
+
 .PARAMETER SnapshotScale
 With -Snapshot: output scale (default 1; 2 renders at 192 DPI to check how it looks on a high-DPI screen).
 
@@ -45,7 +48,8 @@ param(
     [string]$ResultsFile = '',
     [ValidateRange(900, 4000)][int]$SnapshotWidth = 1360,
     [ValidateRange(560, 3000)][int]$SnapshotHeight = 860,
-    [ValidateRange(1, 4)][double]$SnapshotScale = 1
+    [ValidateRange(1, 4)][double]$SnapshotScale = 1,
+    [switch]$SnapshotMaximized
 )
 
 if (-not $OutputPath) { $OutputPath = Join-Path $PSScriptRoot 'out' }
@@ -86,7 +90,7 @@ if ($Snapshot) {
     }
     try {
         $window = Initialize-MspkiGuiApplication -ModulePath $modulePath -XamlPath (Join-Path $guiFolder 'MainWindow.xaml') -OutputPath $OutputPath
-        $files = Invoke-MspkiGuiSnapshot -Window $window -Folder $Snapshot -AllowedRoot (Join-Path $PSScriptRoot 'out') -ResultsFile $ResultsFile -Width $SnapshotWidth -Height $SnapshotHeight -Scale $SnapshotScale
+        $files = Invoke-MspkiGuiSnapshot -Window $window -Folder $Snapshot -AllowedRoot (Join-Path $PSScriptRoot 'out') -ResultsFile $ResultsFile -Width $SnapshotWidth -Height $SnapshotHeight -Scale $SnapshotScale -Maximized:$SnapshotMaximized
         foreach ($f in $files) { Write-Host $f }
     }
     catch {

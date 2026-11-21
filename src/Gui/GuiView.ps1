@@ -603,10 +603,10 @@ function Get-MspkiGuiContext {
         if ($dom) { $domain = $dom.ToLowerInvariant() }
     }
     $items = @(
-        [pscustomobject][ordered]@{ Label = 'FOREST'; Value = $(if ($forest) { $forest } else { $dash }) }
-        [pscustomobject][ordered]@{ Label = 'DOMAIN'; Value = $(if ($domain) { $domain } else { $dash }) }
-        [pscustomobject][ordered]@{ Label = 'DOMAIN CONTROLLER'; Value = $(if ($dc) { $dc } else { $dash }) }
-        [pscustomobject][ordered]@{ Label = 'RUN AS'; Value = $(if ($user) { $user } else { $dash }) }
+        [pscustomobject][ordered]@{ Label = 'Forest'; Value = $(if ($forest) { $forest } else { $dash }) }
+        [pscustomobject][ordered]@{ Label = 'Domain'; Value = $(if ($domain) { $domain } else { $dash }) }
+        [pscustomobject][ordered]@{ Label = 'Domain controller'; Value = $(if ($dc) { $dc } else { $dash }) }
+        [pscustomobject][ordered]@{ Label = 'Run as'; Value = $(if ($user) { $user } else { $dash }) }
     )
     if ($null -eq $badge) { $badge = New-MspkiGuiPill -Text 'Standard user' -Tone Neutral -Code 0xE77B }
     return [pscustomobject][ordered]@{ Items = $items; Badge = $badge }

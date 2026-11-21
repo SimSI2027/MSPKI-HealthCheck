@@ -184,3 +184,12 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Role/lifecycle without CA data: Enterprise CA from AD → `Referenced`; same-subject dating → `Inferred`; only the
   CA's own signing-certificate list gives `Confirmed`.
 - Dev only: Pester 6.2 installed for the current user (in-box Pester 3.4 is too old). The tool has no dependency.
+
+## GUI redesign (adversarial generator/discriminator loop): round 1 of 5 done
+- Done: reference standard + fixed rubric in docs/GUI-DESIGN.md; new Fluent-style Theme.xaml and MainWindow.xaml (WindowChrome
+  title bar, nav pane bound to the pages, command bar, options strip, cards, light grid header, details panes); caption buttons
+  and a "run ended without results" notice in GuiApp.ps1; snapshots now render running, error, partial, no-CA, no-match and
+  drill-in states and take -SnapshotMaximized. Engine untouched.
+- Round 1 scores: 7/7/7/8/6/8/8/6/6/6 (not a pass). Defects and the round 2 plan are in docs/GUI-DESIGN.md.
+- Open: Pester 5 was not on the module path in this session, so Gui.Tests.ps1 / Hygiene.Tests.ps1 were NOT run after this
+  change; run them first next session (the snapshot test still expects >= 8 files; the window loads and renders all 15).

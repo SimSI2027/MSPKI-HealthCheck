@@ -2,6 +2,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="MSPKI Health Check" Width="1360" Height="860" MinWidth="1080" MinHeight="700"
         WindowStartupLocation="CenterScreen" Style="{DynamicResource AppWindow}">
+  <!-- Custom title bar with the in-box WindowChrome (no compiled code, no window effects). -->
+  <WindowChrome.WindowChrome>
+    <WindowChrome CaptionHeight="40" ResizeBorderThickness="6" GlassFrameThickness="0,0,0,1" CornerRadius="0" UseAeroCaptionButtons="False"/>
+  </WindowChrome.WindowChrome>
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
@@ -13,72 +17,77 @@
       <!-- ===== Details pane: one finding ===== -->
       <DataTemplate x:Key="FindingPane">
         <DockPanel>
-          <Border DockPanel.Dock="Top" Padding="16,12,16,8" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1">
+          <Border DockPanel.Dock="Top" Padding="20,16,16,14" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
             <StackPanel>
-              <Button Tag="Back" Style="{StaticResource LinkButton}" Margin="0,0,0,8" HorizontalAlignment="Left" Visibility="{Binding CanGoBack, Converter={StaticResource BoolToVis}}">
+              <Button Tag="Back" Style="{StaticResource LinkButton}" Margin="0,0,0,10" HorizontalAlignment="Left" Visibility="{Binding CanGoBack, Converter={StaticResource BoolToVis}}" ToolTip="Return to the Discovery map item">
                 <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE72B;" FontSize="12" Margin="0,0,6,0"/><TextBlock Text="Back to the item"/></StackPanel>
               </Button>
               <DockPanel>
-                <Button DockPanel.Dock="Right" Tag="Copy" ToolTip="Copy every field of this finding to the clipboard" Padding="12,0" VerticalAlignment="Top" Margin="12,0,0,0">
-                  <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8C8;" Margin="0,0,8,0"/><TextBlock Text="Copy"/></StackPanel>
+                <Button DockPanel.Dock="Right" Tag="Copy" Style="{StaticResource SubtleButton}" ToolTip="Copy every field of this finding to the clipboard" VerticalAlignment="Top" Margin="8,-4,0,0">
+                  <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8C8;"/><TextBlock Text="Copy"/></StackPanel>
                 </Button>
-                <WrapPanel>
+                <WrapPanel VerticalAlignment="Top">
                   <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/>
                   <ContentPresenter Content="{Binding SeverityPill}" ContentTemplate="{StaticResource PillTemplate}"/>
                   <ContentPresenter Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}"/>
                 </WrapPanel>
               </DockPanel>
-              <TextBlock Text="{Binding Title}" Style="{StaticResource H2}" TextWrapping="Wrap" Margin="0,4,0,0"/>
-              <TextBlock Text="{Binding Id}" Style="{StaticResource Small}" Margin="0,2,0,0"/>
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,10,0,0"/>
+              <TextBlock Text="{Binding Id}" Style="{StaticResource Small}" FontFamily="{StaticResource F.Mono}" Margin="0,2,0,0"/>
             </StackPanel>
           </Border>
-          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="16,12,16,16">
-              <TextBlock Text="WHAT WAS FOUND" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <StackPanel Margin="20,16,20,20">
+              <TextBlock Text="What was found" Style="{StaticResource Label}" Margin="0,0,0,6"/>
               <TextBox Text="{Binding Message, Mode=OneWay}" Style="{StaticResource ValueText}" FontSize="14"/>
 
-              <StackPanel Visibility="{Binding HasRemediation, Converter={StaticResource BoolToVis}}" Margin="0,16,0,0">
-                <TextBlock Text="SUGGESTED ACTION" Style="{StaticResource Label}" Margin="0,0,0,4"/>
-                <Border Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoFore}" BorderThickness="3,0,0,0" Padding="12,8">
-                  <TextBox Text="{Binding Remediation, Mode=OneWay}" Style="{StaticResource ValueText}" Foreground="{StaticResource B.InfoFore}"/>
-                </Border>
-              </StackPanel>
+              <Border Visibility="{Binding HasRemediation, Converter={StaticResource BoolToVis}}" Margin="0,16,0,0" Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE82F;" Foreground="{StaticResource B.InfoFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
+                  <StackPanel>
+                    <TextBlock Text="Suggested action" FontWeight="SemiBold" Foreground="{StaticResource B.InfoFore}" Margin="0,0,0,2"/>
+                    <TextBox Text="{Binding Remediation, Mode=OneWay}" Style="{StaticResource ValueText}"/>
+                  </StackPanel>
+                </DockPanel>
+              </Border>
 
-              <TextBlock Text="CHECKED LAYERS" Style="{StaticResource Label}" Margin="0,16,0,4"/>
-              <ItemsControl ItemsSource="{Binding Layers}">
+              <TextBlock Text="Checked layers" Style="{StaticResource Label}" Margin="0,20,0,6"/>
+              <ItemsControl ItemsSource="{Binding Layers}" Focusable="False">
                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate><ContentPresenter Content="{Binding Pill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <TextBlock Text="DETAILS" Style="{StaticResource Label}" Margin="0,16,0,4"/>
-              <ItemsControl ItemsSource="{Binding Fields}">
+              <TextBlock Text="Details" Style="{StaticResource Label}" Margin="0,20,0,6"/>
+              <ItemsControl ItemsSource="{Binding Fields}" Focusable="False">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <Grid Margin="0,0,0,2">
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="104"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                      <TextBlock Text="{Binding Name}" Style="{StaticResource Muted}"/>
+                    <Grid Margin="0,0,0,6">
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="112"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                      <TextBlock Text="{Binding Name}" Style="{StaticResource Muted}" Margin="0,0,12,0"/>
                       <TextBox Grid.Column="1" Text="{Binding Value, Mode=OneWay}" Style="{StaticResource ValueText}"/>
                     </Grid>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <TextBlock Text="SOURCES" Style="{StaticResource Label}" Margin="0,16,0,4"/>
-              <ItemsControl ItemsSource="{Binding Sources}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate><TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="Consolas" FontSize="12" Margin="0,0,0,2"/></DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
+              <TextBlock Text="Sources" Style="{StaticResource Label}" Margin="0,14,0,6"/>
+              <Border Background="{StaticResource B.Hover}" CornerRadius="4" Padding="10,8">
+                <ItemsControl ItemsSource="{Binding Sources}" Focusable="False">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate><TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="{StaticResource F.Mono}" FontSize="12" Margin="0,1"/></DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Border>
 
-              <StackPanel Visibility="{Binding HasEvidence, Converter={StaticResource BoolToVis}}" Margin="0,16,0,0">
-                <TextBlock Text="EVIDENCE" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+              <StackPanel Visibility="{Binding HasEvidence, Converter={StaticResource BoolToVis}}" Margin="0,20,0,0">
+                <TextBlock Text="Evidence" Style="{StaticResource Label}" Margin="0,0,0,6"/>
                 <TextBox Text="{Binding Evidence, Mode=OneWay}" Style="{StaticResource ReadBox}" MaxHeight="320"/>
               </StackPanel>
 
-              <StackPanel Visibility="{Binding HasNotes, Converter={StaticResource BoolToVis}}" Margin="0,16,0,0">
-                <TextBlock Text="NOTES" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+              <StackPanel Visibility="{Binding HasNotes, Converter={StaticResource BoolToVis}}" Margin="0,20,0,0">
+                <TextBlock Text="Notes" Style="{StaticResource Label}" Margin="0,0,0,6"/>
                 <TextBox Text="{Binding Notes, Mode=OneWay}" Style="{StaticResource ValueText}"/>
               </StackPanel>
             </StackPanel>
@@ -86,54 +95,61 @@
         </DockPanel>
       </DataTemplate>
 
-      <!-- ===== Details pane: one Discovery Map item ===== -->
+      <!-- ===== Details pane: one Discovery map item ===== -->
       <DataTemplate x:Key="NodePane">
         <DockPanel>
-          <Border DockPanel.Dock="Top" Padding="16,12,16,8" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1">
+          <Border DockPanel.Dock="Top" Padding="20,16,16,14" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
             <StackPanel>
               <DockPanel>
-                <Button DockPanel.Dock="Right" Tag="Copy" ToolTip="Copy this item to the clipboard" Padding="12,0" VerticalAlignment="Top" Margin="12,0,0,0">
-                  <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8C8;" Margin="0,0,8,0"/><TextBlock Text="Copy"/></StackPanel>
+                <Button DockPanel.Dock="Right" Tag="Copy" Style="{StaticResource SubtleButton}" ToolTip="Copy this item to the clipboard" VerticalAlignment="Top" Margin="8,-4,0,0">
+                  <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8C8;"/><TextBlock Text="Copy"/></StackPanel>
                 </Button>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
-                  <TextBlock Style="{StaticResource Glyph}" Text="{Binding TypeGlyph}" FontSize="16" Foreground="{StaticResource B.Accent}" Margin="0,2,8,0"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <Border Width="28" Height="28" CornerRadius="4" Background="{StaticResource B.AccentSoft}" Margin="0,0,10,0">
+                    <TextBlock Style="{StaticResource Glyph}" Text="{Binding TypeGlyph}" FontSize="14" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+                  </Border>
                   <TextBlock Text="{Binding TypeText}" Style="{StaticResource Label}" VerticalAlignment="Center"/>
                 </StackPanel>
               </DockPanel>
-              <TextBlock Text="{Binding Title}" Style="{StaticResource H2}" TextWrapping="Wrap" Margin="0,6,0,6"/>
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,10,0,6"/>
               <WrapPanel>
                 <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/>
                 <ContentPresenter Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}"/>
               </WrapPanel>
-              <TextBlock Text="{Binding BelowText}" Visibility="{Binding HasBelow, Converter={StaticResource BoolToVis}}" Foreground="{StaticResource B.BadFore}" FontStyle="Italic" Margin="0,2,0,0"/>
+              <TextBlock Text="{Binding BelowText}" Visibility="{Binding HasBelow, Converter={StaticResource BoolToVis}}" Foreground="{StaticResource B.BadFore}" Margin="0,4,0,0" TextWrapping="Wrap"/>
             </StackPanel>
           </Border>
-          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="16,12,16,16">
-              <TextBlock Text="DETAILS" Style="{StaticResource Label}" Margin="0,0,0,4"/>
-              <ItemsControl ItemsSource="{Binding Details}">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <StackPanel Margin="20,16,20,20">
+              <TextBlock Text="Details" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+              <ItemsControl ItemsSource="{Binding Details}" Focusable="False">
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate><TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource ValueText}" Margin="0,0,0,4"/></DataTemplate>
+                  <DataTemplate><TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource ValueText}" Margin="0,0,0,6"/></DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
               <TextBlock Text="{Binding NoDetailText}" Style="{StaticResource Muted}"/>
 
-              <TextBlock Text="SOURCES" Style="{StaticResource Label}" Margin="0,16,0,4"/>
-              <ItemsControl ItemsSource="{Binding Sources}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate><TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="Consolas" FontSize="12" Margin="0,0,0,2"/></DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
+              <TextBlock Text="Sources" Style="{StaticResource Label}" Margin="0,14,0,6"/>
+              <Border Background="{StaticResource B.Hover}" CornerRadius="4" Padding="10,8">
+                <ItemsControl ItemsSource="{Binding Sources}" Focusable="False">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate><TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="{StaticResource F.Mono}" FontSize="12" Margin="0,1"/></DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Border>
 
-              <TextBlock Margin="0,16,0,4" Style="{StaticResource Label}"><Run Text="FINDINGS FOR THIS ITEM ("/><Run Text="{Binding FindingCount, Mode=OneWay}"/><Run Text=")"/></TextBlock>
-              <ItemsControl ItemsSource="{Binding Findings}">
+              <TextBlock Margin="0,20,0,4" Style="{StaticResource Label}"><Run Text="Findings for this item ("/><Run Text="{Binding FindingCount, Mode=OneWay}"/><Run Text=")"/></TextBlock>
+              <ItemsControl ItemsSource="{Binding Findings}" Focusable="False">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <Button Style="{StaticResource RowButton}" Tag="{Binding Id}" ToolTip="Show the full finding">
-                      <StackPanel>
-                        <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/>
-                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" MaxHeight="60" TextTrimming="CharacterEllipsis"/>
-                      </StackPanel>
+                    <Button Style="{StaticResource RowButton}" Tag="{Binding Id}" ToolTip="Show the full finding" Padding="4,10">
+                      <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="8,0,0,0"/>
+                        <StackPanel>
+                          <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/>
+                          <TextBlock Text="{Binding Message}" TextWrapping="Wrap" MaxHeight="54" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
+                        </StackPanel>
+                      </DockPanel>
                     </Button>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -145,8 +161,11 @@
       </DataTemplate>
 
       <DataTemplate x:Key="EmptyPane">
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="32" MaxWidth="320">
-          <TextBlock Style="{StaticResource Glyph}" Text="&#xE8A5;" FontSize="36" Foreground="{StaticResource B.BorderStrong}" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="32" MaxWidth="300">
+          <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
+            <TextBlock Style="{StaticResource Glyph}" Text="&#xE8A5;" FontSize="24" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+          </Border>
+          <TextBlock Text="Nothing selected" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,4"/>
           <TextBlock Text="{Binding Text}" Style="{StaticResource Muted}" TextAlignment="Center"/>
         </StackPanel>
       </DataTemplate>
@@ -161,94 +180,117 @@
         </Style.Triggers>
       </Style>
 
-      <!-- ===== Summary templates ===== -->
+      <!-- ===== Overview templates ===== -->
       <DataTemplate x:Key="KpiTile">
-        <Border Style="{StaticResource Card}" Margin="0,0,16,16" Padding="16,14">
+        <Border Style="{StaticResource Card}" Margin="0,0,16,0" Padding="20,16">
           <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-            <Border Width="44" Height="44" Background="{StaticResource B.AccentSoft}" VerticalAlignment="Top" Margin="0,0,14,0">
-              <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="20" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
-            </Border>
-            <StackPanel Grid.Column="1">
-              <TextBlock Text="{Binding Value}" FontSize="26" FontFamily="Segoe UI Semibold" Foreground="{StaticResource B.Header}"/>
-              <TextBlock Text="{Binding Label}" FontFamily="Segoe UI Semibold" Foreground="{StaticResource B.Header}" TextWrapping="Wrap"/>
-              <TextBlock Text="{Binding Sub}" Style="{StaticResource Small}" Margin="0,2,0,0"/>
-            </StackPanel>
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Width="32" Height="32" CornerRadius="6" Background="{StaticResource B.AccentSoft}" VerticalAlignment="Top">
+                <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="16" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+              </Border>
+              <TextBlock Text="{Binding Label}" FontWeight="SemiBold" Foreground="{StaticResource B.Muted}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip="{Binding Label}"/>
+            </DockPanel>
+            <TextBlock Grid.Row="1" Text="{Binding Value}" FontSize="28" FontWeight="SemiBold" Margin="0,2,0,0"/>
+            <TextBlock Grid.Row="2" Text="{Binding Sub}" Style="{StaticResource Small}" TextWrapping="Wrap"/>
           </Grid>
         </Border>
       </DataTemplate>
 
       <DataTemplate x:Key="CountTile">
-        <Button Style="{StaticResource TileButton}" Tag="{Binding Tag}" Margin="0,0,12,12" MinWidth="136"
-                ToolTip="Show these findings in the Findings tab" AutomationProperties.Name="{Binding Label}">
-          <StackPanel>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="13" Margin="0,0,6,0"/>
-              <TextBlock Text="{Binding Label}" FontFamily="Segoe UI Semibold" FontSize="12"/>
+        <Button Style="{StaticResource TileButton}" Tag="{Binding Tag}" Margin="0,0,12,12" Height="64"
+                ToolTip="Show these findings on the Findings page" AutomationProperties.Name="{Binding Label}">
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="4"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Border Style="{StaticResource ToneStripe}"/>
+            <StackPanel Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Style="{StaticResource ToneGlyph}" Text="{Binding Glyph}" FontSize="12" Margin="0,0,6,0"/>
+                <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource B.Muted}" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+              <TextBlock Text="{Binding Count}" FontSize="20" FontWeight="SemiBold"/>
             </StackPanel>
-            <TextBlock Text="{Binding Count}" FontSize="24" FontFamily="Segoe UI Semibold" Margin="0,2,0,0"/>
-          </StackPanel>
+          </Grid>
         </Button>
       </DataTemplate>
 
       <DataTemplate x:Key="CaCard">
-        <Border Style="{StaticResource Card}" Margin="0,0,16,16" MinWidth="440" MaxWidth="620">
+        <Border Style="{StaticResource Card}" Margin="0,0,16,16" Padding="20,16">
           <StackPanel>
             <DockPanel>
-              <ContentPresenter DockPanel.Dock="Right" Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top" Margin="12,0,0,0"/>
-              <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="24" Foreground="{StaticResource B.Accent}" Margin="0,0,12,0" VerticalAlignment="Top"/>
-              <StackPanel>
-                <TextBlock Text="{Binding Name}" Style="{StaticResource H2}" TextWrapping="Wrap"/>
-                <TextBlock Text="{Binding Host}" Style="{StaticResource Muted}" FontFamily="Consolas" FontSize="12"/>
+              <ContentPresenter DockPanel.Dock="Right" Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top" Margin="12,0,-6,0"/>
+              <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="6" Background="{StaticResource B.AccentSoft}" Margin="0,0,12,0" VerticalAlignment="Top">
+                <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="18" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+              </Border>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" Style="{StaticResource H2}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
+                <TextBlock Text="{Binding Host}" Style="{StaticResource Small}" FontFamily="{StaticResource F.Mono}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Host}"/>
               </StackPanel>
             </DockPanel>
-            <TextBlock Text="{Binding Role}" FontFamily="Segoe UI Semibold" Margin="0,10,0,0"/>
-            <WrapPanel Margin="0,6,0,0">
+            <Border Style="{StaticResource Divider}" Margin="0,14,0,12"/>
+            <TextBlock Text="{Binding Role}" FontWeight="SemiBold"/>
+            <WrapPanel Margin="0,8,0,4">
               <ContentPresenter Content="{Binding ExpiryPill}" ContentTemplate="{StaticResource PillTemplate}"/>
               <ContentPresenter Content="{Binding CrlPill}" ContentTemplate="{StaticResource PillTemplate}"/>
             </WrapPanel>
             <TextBlock Text="{Binding Certificate}" Style="{StaticResource Small}" Margin="0,2,0,0"/>
-            <TextBlock Text="{Binding Facts}" Style="{StaticResource Small}" Margin="0,6,0,0"/>
+            <TextBlock Text="{Binding Facts}" Style="{StaticResource Small}" Margin="0,4,0,0"/>
           </StackPanel>
         </Border>
       </DataTemplate>
 
       <DataTemplate x:Key="TopIssue">
-        <Button Style="{StaticResource RowButton}" Tag="{Binding Id}" ToolTip="Open this finding in the Findings tab">
+        <Button Style="{StaticResource RowButton}" Tag="{Binding Id}" ToolTip="Open this finding on the Findings page">
           <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="104"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="116"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top"/>
             <StackPanel Grid.Column="1">
-              <TextBlock Text="{Binding Title}" FontFamily="Segoe UI Semibold" TextTrimming="CharacterEllipsis"/>
-              <TextBlock Text="{Binding Message}" TextWrapping="Wrap" MaxHeight="54" TextTrimming="CharacterEllipsis"/>
-              <TextBlock Text="{Binding Meta}" Style="{StaticResource Small}" Margin="0,2,0,0"/>
+              <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+              <TextBlock Text="{Binding Message}" TextWrapping="Wrap" MaxHeight="36" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+              <TextBlock Text="{Binding Meta}" Style="{StaticResource Small}" Margin="0,4,0,0"/>
             </StackPanel>
-            <TextBlock Grid.Column="2" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="11" Foreground="{StaticResource B.Muted}" Margin="8,4,0,0" VerticalAlignment="Top"/>
+            <TextBlock Grid.Column="2" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="12,0,0,0" VerticalAlignment="Center"/>
           </Grid>
         </Button>
       </DataTemplate>
 
       <DataTemplate x:Key="CoverageRow">
-        <Grid Margin="0,0,0,8">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <Grid Margin="0,0,0,10">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="156"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <ContentPresenter Content="{Binding Pill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top"/>
-          <StackPanel Grid.Column="1">
-            <TextBlock Text="{Binding Method}" FontFamily="Segoe UI Semibold"/>
+          <StackPanel Grid.Column="1" Margin="0,2,0,0">
+            <TextBlock Text="{Binding Method}" FontWeight="SemiBold" TextWrapping="Wrap"/>
             <TextBlock Text="{Binding Reason}" Style="{StaticResource Small}"/>
           </StackPanel>
         </Grid>
       </DataTemplate>
 
+      <!-- Environment facts in the navigation pane. -->
       <DataTemplate x:Key="HeaderFact">
-        <StackPanel Margin="0,0,28,0">
-          <TextBlock Text="{Binding Label}" FontSize="10" FontFamily="Segoe UI Semibold" Foreground="{StaticResource B.HeaderSub}"/>
-          <TextBlock Text="{Binding Value}" Foreground="{StaticResource B.White}" FontFamily="Segoe UI Semibold" TextTrimming="CharacterEllipsis" MaxWidth="260" ToolTip="{Binding Value}"/>
+        <StackPanel Margin="0,0,0,10">
+          <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{StaticResource B.Muted}"/>
+          <TextBlock Text="{Binding Value}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Value}"/>
         </StackPanel>
       </DataTemplate>
 
-      <!-- Run Log row: a level tag in text plus a colour. -->
+      <!-- The user badge in the title bar (icon + word; purple tint for Administrator). -->
+      <DataTemplate x:Key="HeaderBadge">
+        <Border x:Name="Bd" CornerRadius="4" BorderThickness="1" BorderBrush="#4A5160" Padding="8,0" Height="24" ToolTip="Rights of the account this window runs as">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock x:Name="G" Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="12" Foreground="{StaticResource B.HeaderSub}" Margin="0,0,6,0"/>
+            <TextBlock x:Name="T" Text="{Binding Text}" FontSize="12" Foreground="#E6E9EE" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Border>
+        <DataTemplate.Triggers>
+          <DataTrigger Binding="{Binding Tone}" Value="Admin">
+            <Setter TargetName="Bd" Property="BorderBrush" Value="#8F6CC9"/><Setter TargetName="Bd" Property="Background" Value="#3A2D57"/><Setter TargetName="G" Property="Foreground" Value="#D9C8F5"/>
+          </DataTrigger>
+        </DataTemplate.Triggers>
+      </DataTemplate>
+
+      <!-- Run log row: the level is in the text; colour and weight only add to it. -->
       <DataTemplate x:Key="LogRow">
-        <TextBlock FontFamily="Consolas" FontSize="12" TextWrapping="NoWrap">
+        <TextBlock FontFamily="{StaticResource F.Mono}" FontSize="12" TextWrapping="NoWrap" Margin="0,1">
           <TextBlock.Style>
             <Style TargetType="TextBlock">
               <Setter Property="Foreground" Value="{StaticResource B.Text}"/>
@@ -264,432 +306,592 @@
       </DataTemplate>
 
       <HierarchicalDataTemplate x:Key="MapNode" ItemsSource="{Binding Children}">
-        <StackPanel Orientation="Horizontal" Margin="0,1">
+        <StackPanel Orientation="Horizontal">
           <TextBlock Style="{StaticResource Glyph}" Text="{Binding TypeGlyph}" FontSize="14" Foreground="{StaticResource B.Accent}" Margin="0,0,8,0" ToolTip="{Binding TypeText}"/>
-          <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}" Margin="0,0,0,0"/>
-          <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="560" ToolTip="{Binding Label}" Margin="0,0,8,0"/>
+          <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/>
+          <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="560" ToolTip="{Binding Label}" Margin="2,0,8,0"/>
           <ContentPresenter Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}"/>
-          <TextBlock Text="{Binding BelowText}" Foreground="{StaticResource B.BadFore}" FontStyle="Italic" VerticalAlignment="Center" FontSize="12"/>
+          <TextBlock Text="{Binding BelowText}" Foreground="{StaticResource B.BadFore}" VerticalAlignment="Center" FontSize="12"/>
         </StackPanel>
       </HierarchicalDataTemplate>
+
+      <!-- Maximised: WindowChrome lets the window overhang the screen by its frame, so pad the content back in. -->
+      <Style x:Key="RootFrame" TargetType="Border">
+        <Setter Property="BorderBrush" Value="#C7C7C7"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Style.Triggers>
+          <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Margin" Value="8"/>
+          </DataTrigger>
+        </Style.Triggers>
+      </Style>
+      <Style x:Key="MaxButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
+        <Setter Property="Content" Value="&#xE922;"/>
+        <Setter Property="ToolTip" Value="Maximise"/>
+        <Style.Triggers>
+          <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+            <Setter Property="Content" Value="&#xE923;"/><Setter Property="ToolTip" Value="Restore"/>
+          </DataTrigger>
+        </Style.Triggers>
+      </Style>
     </ResourceDictionary>
   </Window.Resources>
 
-  <Grid>
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="*"/>
-      <RowDefinition Height="Auto"/>
-    </Grid.RowDefinitions>
+  <Border x:Name="RootBorder" Style="{StaticResource RootFrame}" Background="{StaticResource B.Window}">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="40"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="232"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
 
-    <!-- ===== Header ===== -->
-    <Border Grid.Row="0" Background="{StaticResource B.Header}" Padding="24,12,24,8">
-      <DockPanel>
-        <Border DockPanel.Dock="Bottom" BorderBrush="#2C3E60" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,6,0,0">
-          <ItemsControl x:Name="HdrContext" ItemTemplate="{StaticResource HeaderFact}" IsTabStop="False">
-            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-          </ItemsControl>
-        </Border>
-        <ContentPresenter x:Name="HdrBadge" DockPanel.Dock="Right" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top" Margin="16,0,0,0"/>
-        <StackPanel Orientation="Horizontal">
-          <Border Width="44" Height="44" Background="{StaticResource B.Accent}" Margin="0,0,14,0">
-            <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="24" Foreground="{StaticResource B.White}" HorizontalAlignment="Center"/>
-          </Border>
-          <StackPanel VerticalAlignment="Center">
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="MSPKI Health Check" Style="{StaticResource H1}" Foreground="{StaticResource B.White}"/>
-              <TextBlock x:Name="HdrVersion" Foreground="{StaticResource B.HeaderSub}" VerticalAlignment="Bottom" Margin="10,0,0,3"/>
-            </StackPanel>
-            <TextBlock Foreground="{StaticResource B.HeaderSub}" Text="Read-only health check of Active Directory Certificate Services. Nothing is changed."/>
+      <!-- ===== Title bar ===== -->
+      <Border Grid.Row="0" Grid.ColumnSpan="2" Background="{StaticResource B.Header}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+            <Border Width="24" Height="24" CornerRadius="4" Background="{StaticResource B.Accent}" Margin="0,0,12,0">
+              <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="14" Foreground="{StaticResource B.White}" HorizontalAlignment="Center"/>
+            </Border>
+            <TextBlock Text="MSPKI Health Check" FontWeight="SemiBold" Foreground="{StaticResource B.White}" VerticalAlignment="Center"/>
+            <TextBlock x:Name="HdrVersion" FontSize="12" Foreground="{StaticResource B.HeaderSub}" VerticalAlignment="Center" Margin="8,1,0,0"/>
+            <Border CornerRadius="4" BorderThickness="1" BorderBrush="#4A5160" Padding="6,0,8,0" Height="22" Margin="16,0,0,0" ToolTip="This tool only reads. It never changes Active Directory, a CA or any server.">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource Glyph}" Text="&#xE72E;" FontSize="11" Foreground="{StaticResource B.HeaderSub}" Margin="0,0,6,0"/>
+                <TextBlock Text="Read-only" FontSize="12" Foreground="#E6E9EE" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Border>
           </StackPanel>
-        </StackPanel>
-      </DockPanel>
-    </Border>
-
-    <!-- ===== Toolbar ===== -->
-    <Border Grid.Row="1" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1" Padding="24,6">
-      <WrapPanel>
-        <Button x:Name="BtnRun" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" MinWidth="104" ToolTip="Start a new health check (F5). It only reads; nothing is changed.">
-          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" Margin="0,0,8,0"/><TextBlock Text="Run"/></StackPanel>
-        </Button>
-        <Button x:Name="BtnCancel" Margin="0,0,24,0" IsEnabled="False" ToolTip="Stop the run at the next step (Esc). Partial results are still saved.">
-          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE711;" Margin="0,0,8,0"/><TextBlock Text="Cancel"/></StackPanel>
-        </Button>
-        <Button x:Name="BtnOpenResults" Margin="0,0,8,0" ToolTip="Look at an earlier run without scanning anything (Ctrl+O).">
-          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8E5;" Margin="0,0,8,0"/><TextBlock Text="Open results"/></StackPanel>
-        </Button>
-        <Button x:Name="BtnOpenReport" Margin="0,0,8,0" IsEnabled="False" ToolTip="Open the HTML report of this run in the browser.">
-          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE774;" Margin="0,0,8,0"/><TextBlock Text="Open report"/></StackPanel>
-        </Button>
-        <Button x:Name="BtnOpenFolder" Margin="0,0,8,0" ToolTip="Open the folder that holds the results of this run.">
-          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE838;" Margin="0,0,8,0"/><TextBlock Text="Open folder"/></StackPanel>
-        </Button>
-      </WrapPanel>
-    </Border>
-
-    <!-- ===== Options ===== -->
-    <Border Grid.Row="2" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1" Padding="24,0">
-      <Expander x:Name="ExpOptions" IsExpanded="False">
-        <Expander.Header>
-          <StackPanel Orientation="Horizontal">
-            <TextBlock Text="Options"/>
-            <TextBlock x:Name="TxtOptionsSummary" Style="{StaticResource Small}" Margin="12,1,0,0" VerticalAlignment="Center"/>
+          <ContentPresenter x:Name="HdrBadge" Grid.Column="2" ContentTemplate="{StaticResource HeaderBadge}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+          <StackPanel Grid.Column="3" Orientation="Horizontal">
+            <Button x:Name="BtnMin" Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="Minimise" WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Minimise"/>
+            <Button x:Name="BtnMax" Style="{StaticResource MaxButton}" WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Maximise or restore"/>
+            <Button x:Name="BtnClose" Style="{StaticResource CloseButton}" Content="&#xE8BB;" ToolTip="Close" WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Close"/>
           </StackPanel>
-        </Expander.Header>
-        <Grid Margin="20,4,0,16">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-          </Grid.RowDefinitions>
-          <TextBlock Grid.Row="0" Text="Timeout per probe (seconds)" VerticalAlignment="Center" Margin="0,0,0,12"/>
-          <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,12">
-            <TextBox x:Name="TxtTimeout" Width="64" Text="5" ToolTip="Whole number from 1 to 120."/>
-            <TextBlock Text="1 to 120. Every network call stops after this time." Style="{StaticResource Small}" Margin="12,0,0,0" VerticalAlignment="Center"/>
-          </StackPanel>
-          <TextBlock Grid.Row="1" Text="Network" VerticalAlignment="Top" Margin="0,0,0,12"/>
-          <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,12">
-            <CheckBox x:Name="ChkSkipNetwork" Content="Skip network (read Active Directory only)" ToolTip="Do not contact any CA or web server. Only Active Directory is read."/>
-            <TextBlock Text="No CA, web server or other host is contacted." Style="{StaticResource Small}" Margin="26,2,0,0"/>
-          </StackPanel>
-          <TextBlock Grid.Row="2" Text="Proxy" VerticalAlignment="Top" Margin="0,0,0,12"/>
-          <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,12">
-            <CheckBox x:Name="ChkProxy" Content="Use the system proxy for web probes" ToolTip="Off by default: web probes connect directly, without credentials."/>
-            <TextBlock Text="Off by default: web probes connect directly and never send credentials." Style="{StaticResource Small}" Margin="26,2,0,0"/>
-          </StackPanel>
-          <TextBlock Grid.Row="3" Text="NDES" VerticalAlignment="Top" Margin="0,0,0,12"/>
-          <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,12">
-            <CheckBox x:Name="ChkNdesAdmin" Content="Also probe the NDES admin page (opt-in)" ToolTip="Sends one anonymous request to the NDES admin page."/>
-            <TextBlock Text="One anonymous request. If that page is wrongly open it creates a challenge password on the server, so this is off by default." Style="{StaticResource Small}" Margin="26,2,0,0"/>
-          </StackPanel>
-          <TextBlock Grid.Row="4" Text="Output folder" VerticalAlignment="Center"/>
-          <TextBox x:Name="TxtOutput" Grid.Row="4" Grid.Column="1" IsReadOnly="True" Background="{StaticResource B.Window}" MaxWidth="720" HorizontalAlignment="Left" Width="720"/>
         </Grid>
-      </Expander>
-    </Border>
+      </Border>
 
-    <ProgressBar x:Name="Progress" Grid.Row="3" Minimum="0" Maximum="100" Value="0" Visibility="Hidden"/>
-
-    <!-- ===== Tabs ===== -->
-    <TabControl x:Name="Tabs" Grid.Row="4">
-      <!-- Summary -->
-      <TabItem x:Name="TabSummary" ToolTip="Ctrl+1">
-        <TabItem.Header>
-          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE80F;" Margin="0,0,8,0"/><TextBlock Text="Summary"/></StackPanel>
-        </TabItem.Header>
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-          <Grid>
-            <!-- Welcome state: before the first run -->
-            <StackPanel x:Name="PanelWelcome" Margin="24" MaxWidth="820" HorizontalAlignment="Center">
-              <Border Style="{StaticResource Card}" Padding="32">
-                <StackPanel>
-                  <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="40" Foreground="{StaticResource B.Accent}" Margin="0,0,0,12"/>
-                  <TextBlock Text="Welcome to the MSPKI Health Check" Style="{StaticResource H1}" Foreground="{StaticResource B.Header}"/>
-                  <TextBlock Style="{StaticResource Muted}" FontSize="14" Margin="0,8,0,20" Text="A read-only check of Microsoft Active Directory Certificate Services. It finds your CAs, templates and endpoints by itself: there is nothing to configure."/>
-                  <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="40"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="1" FontSize="18" FontFamily="Segoe UI Semibold" Foreground="{StaticResource B.Accent}"/>
-                    <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,2,0,12" TextWrapping="Wrap"><Run FontFamily="Segoe UI Semibold" Text="Discovery."/><Run Text=" Reads the Public Key Services in Active Directory, then asks each CA about itself."/></TextBlock>
-                    <TextBlock Grid.Row="1" Text="2" FontSize="18" FontFamily="Segoe UI Semibold" Foreground="{StaticResource B.Accent}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,2,0,12" TextWrapping="Wrap"><Run FontFamily="Segoe UI Semibold" Text="Checks."/><Run Text=" Tests only the CRL, AIA, OCSP and enrollment addresses that the CAs and certificates themselves name (anonymous requests, no scanning)."/></TextBlock>
-                    <TextBlock Grid.Row="2" Text="3" FontSize="18" FontFamily="Segoe UI Semibold" Foreground="{StaticResource B.Accent}"/>
-                    <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,2,0,0" TextWrapping="Wrap"><Run FontFamily="Segoe UI Semibold" Text="Report."/><Run Text=" Every finding shows its sources, its evidence and how sure the tool is. Files are written to the output folder only."/></TextBlock>
-                  </Grid>
-                  <Border Background="{StaticResource B.Window}" Padding="12,8" Margin="0,16,0,0">
-                    <TextBlock x:Name="TxtWelcomeContext" TextWrapping="Wrap" Style="{StaticResource Muted}"/>
-                  </Border>
-                  <StackPanel Orientation="Horizontal" Margin="0,24,0,0">
-                    <Button x:Name="BtnWelcomeRun" Style="{StaticResource PrimaryButton}" MinWidth="148" Margin="0,0,8,0">
-                      <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" Margin="0,0,8,0"/><TextBlock Text="Run health check"/></StackPanel>
-                    </Button>
-                    <Button x:Name="BtnWelcomeOpen">
-                      <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8E5;" Margin="0,0,8,0"/><TextBlock Text="Open an earlier results.json"/></StackPanel>
-                    </Button>
-                  </StackPanel>
-                </StackPanel>
-              </Border>
+      <!-- ===== Navigation pane ===== -->
+      <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource B.Nav}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,1,0">
+        <DockPanel>
+          <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource B.Border}" BorderThickness="0,1,0,0" Padding="20,14,16,6">
+            <StackPanel>
+              <TextBlock Text="Environment" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+              <ItemsControl x:Name="HdrContext" ItemTemplate="{StaticResource HeaderFact}" IsTabStop="False" Focusable="False"/>
             </StackPanel>
-
-            <!-- Results -->
-            <StackPanel x:Name="PanelResults" Margin="24" Visibility="Collapsed">
-              <Border x:Name="Banner" Style="{StaticResource ToneBlock}" Padding="20,16" Margin="0,0,0,16">
+          </Border>
+          <StackPanel Margin="0,12,0,0">
+            <ListBox x:Name="NavList" Style="{StaticResource NavList}" SelectedIndex="{Binding SelectedIndex, ElementName=Tabs, Mode=TwoWay}" AutomationProperties.Name="Pages">
+              <ListBoxItem ToolTip="Overview (Ctrl+1)" AutomationProperties.Name="Overview">
+                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE80F;" Margin="0,0,12,0"/><TextBlock Text="Overview" VerticalAlignment="Center"/></StackPanel>
+              </ListBoxItem>
+              <ListBoxItem ToolTip="Findings (Ctrl+2)" AutomationProperties.Name="Findings">
                 <DockPanel>
-                  <StackPanel DockPanel.Dock="Right" Margin="24,0,0,0" MinWidth="200" VerticalAlignment="Center">
-                    <TextBlock x:Name="BannerMeta1" FontSize="12" TextAlignment="Right"/>
-                    <TextBlock x:Name="BannerMeta2" FontSize="12" TextAlignment="Right"/>
-                    <TextBlock x:Name="BannerMeta3" FontSize="12" TextAlignment="Right"/>
-                  </StackPanel>
-                  <TextBlock x:Name="BannerGlyph" DockPanel.Dock="Left" Style="{StaticResource Glyph}" FontSize="34" Margin="0,0,16,0" VerticalAlignment="Center"/>
-                  <StackPanel VerticalAlignment="Center">
-                    <TextBlock x:Name="BannerTitle" FontSize="20" FontFamily="Segoe UI Semibold"/>
-                    <TextBlock x:Name="BannerText" TextWrapping="Wrap" Margin="0,2,0,0"/>
-                  </StackPanel>
+                  <Border DockPanel.Dock="Right" CornerRadius="9" Background="#E0E0E0" Padding="7,0" Height="18" VerticalAlignment="Center">
+                    <Border.Style>
+                      <Style TargetType="Border">
+                        <Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=TxtTabFindings}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers>
+                      </Style>
+                    </Border.Style>
+                    <TextBlock x:Name="TxtTabFindings" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  </Border>
+                  <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8FD;" Margin="0,0,12,0"/><TextBlock Text="Findings" VerticalAlignment="Center"/></StackPanel>
                 </DockPanel>
-              </Border>
-              <TextBlock x:Name="TxtNote" Visibility="Collapsed" TextWrapping="Wrap" Margin="0,0,0,16" Style="{StaticResource Muted}"/>
+              </ListBoxItem>
+              <ListBoxItem ToolTip="Discovery map (Ctrl+3)" AutomationProperties.Name="Discovery map">
+                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE81E;" Margin="0,0,12,0"/><TextBlock Text="Discovery map" VerticalAlignment="Center"/></StackPanel>
+              </ListBoxItem>
+              <ListBoxItem ToolTip="Run log (Ctrl+4)" AutomationProperties.Name="Run log">
+                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE9D5;" Margin="0,0,12,0"/><TextBlock Text="Run log" VerticalAlignment="Center"/></StackPanel>
+              </ListBoxItem>
+            </ListBox>
+          </StackPanel>
+        </DockPanel>
+      </Border>
 
-              <ItemsControl x:Name="KpiList" ItemTemplate="{StaticResource KpiTile}" Margin="0,0,-16,0" IsTabStop="False">
-                <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" Columns="4"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-              </ItemsControl>
+      <!-- ===== Content column ===== -->
+      <DockPanel Grid.Row="1" Grid.Column="1">
+        <!-- Command bar -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1" Height="48" Padding="16,0">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Button x:Name="BtnRun" Style="{StaticResource SubtleButton}" ToolTip="Start a new health check (F5). It only reads; nothing is changed.">
+              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE768;"/><TextBlock Text="Run health check"/></StackPanel>
+            </Button>
+            <Button x:Name="BtnCancel" Style="{StaticResource SubtleButton}" IsEnabled="False" Margin="4,0,0,0" ToolTip="Stop the run at the next step (Esc). Partial results are still saved.">
+              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE711;"/><TextBlock Text="Cancel"/></StackPanel>
+            </Button>
+            <Border Style="{StaticResource VDivider}"/>
+            <Button x:Name="BtnOpenResults" Style="{StaticResource SubtleButton}" ToolTip="Look at an earlier run without scanning anything (Ctrl+O).">
+              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8E5;"/><TextBlock Text="Open results"/></StackPanel>
+            </Button>
+            <Button x:Name="BtnOpenReport" Style="{StaticResource SubtleButton}" Margin="4,0,0,0" IsEnabled="False" ToolTip="Open the HTML report of this run in the browser.">
+              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE774;"/><TextBlock Text="Open report"/></StackPanel>
+            </Button>
+            <Button x:Name="BtnOpenFolder" Style="{StaticResource SubtleButton}" Margin="4,0,0,0" ToolTip="Open the folder that holds the results of this run.">
+              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE838;"/><TextBlock Text="Open folder"/></StackPanel>
+            </Button>
+          </StackPanel>
+        </Border>
 
-              <Border Style="{StaticResource Card}" Margin="0,0,0,16">
-                <StackPanel>
-                  <TextBlock x:Name="TxtTotal" Style="{StaticResource H2}" Text="Findings"/>
-                  <TextBlock Text="Select a tile to see those findings." Style="{StaticResource Small}" Margin="0,2,0,12"/>
-                  <TextBlock Text="BY STATUS" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                  <ItemsControl x:Name="TileList" ItemTemplate="{StaticResource CountTile}" IsTabStop="False">
-                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                  </ItemsControl>
-                  <TextBlock Text="BY SEVERITY" Style="{StaticResource Label}" Margin="0,4,0,6"/>
-                  <ItemsControl x:Name="SevTileList" ItemTemplate="{StaticResource CountTile}" IsTabStop="False">
-                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                  </ItemsControl>
-                  <TextBlock x:Name="TxtNoSeverity" Visibility="Collapsed" Style="{StaticResource Small}" Text="No finding in this run carries a severity rating. Severity is only set for the findings that name a risk (for example template permissions or an open NDES admin page)."/>
+        <!-- Run options -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1" Padding="16,4">
+          <Expander x:Name="ExpOptions" IsExpanded="False">
+            <Expander.Header>
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Style="{StaticResource Glyph}" Text="&#xE713;" FontSize="14" Foreground="{StaticResource B.Muted}" Margin="0,0,8,0"/>
+                <TextBlock Text="Run options" FontWeight="SemiBold"/>
+                <TextBlock x:Name="TxtOptionsSummary" FontWeight="Normal" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="16,1,0,0" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Expander.Header>
+            <Grid Margin="28,8,0,12" MaxWidth="900" HorizontalAlignment="Left">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="200"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Text="Timeout per probe" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,7,0,12"/>
+              <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBox x:Name="TxtTimeout" Width="72" Text="5" ToolTip="Whole number from 1 to 120." AutomationProperties.Name="Timeout per probe in seconds"/>
+                <TextBlock Text="seconds (1 to 120). Every network call stops after this time." Style="{StaticResource Small}" Margin="12,0,0,0" VerticalAlignment="Center"/>
+              </StackPanel>
+              <TextBlock Grid.Row="1" Text="Network" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,5,0,12"/>
+              <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,12">
+                <CheckBox x:Name="ChkSkipNetwork" Style="{StaticResource Switch}" Content="Skip network (read Active Directory only)" ToolTip="Do not contact any CA or web server. Only Active Directory is read."/>
+                <TextBlock Text="No CA, web server or other host is contacted." Style="{StaticResource Small}" Margin="52,0,0,0"/>
+              </StackPanel>
+              <TextBlock Grid.Row="2" Text="Proxy" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,5,0,12"/>
+              <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,12">
+                <CheckBox x:Name="ChkProxy" Style="{StaticResource Switch}" Content="Use the system proxy for web probes" ToolTip="Off by default: web probes connect directly, without credentials."/>
+                <TextBlock Text="Off by default: web probes connect directly and never send credentials." Style="{StaticResource Small}" Margin="52,0,0,0"/>
+              </StackPanel>
+              <TextBlock Grid.Row="3" Text="NDES" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,5,0,12"/>
+              <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,12">
+                <CheckBox x:Name="ChkNdesAdmin" Style="{StaticResource Switch}" Content="Also probe the NDES admin page (opt-in)" ToolTip="Sends one anonymous request to the NDES admin page."/>
+                <TextBlock Text="One anonymous request. If that page is wrongly open it creates a challenge password on the server, so this is off by default." Style="{StaticResource Small}" Margin="52,0,0,0"/>
+              </StackPanel>
+              <TextBlock Grid.Row="4" Text="Output folder" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,7,0,0"/>
+              <TextBox x:Name="TxtOutput" Grid.Row="4" Grid.Column="1" IsReadOnly="True" AutomationProperties.Name="Output folder"/>
+            </Grid>
+          </Expander>
+        </Border>
+
+        <ProgressBar x:Name="Progress" DockPanel.Dock="Top" Minimum="0" Maximum="100" Value="0" Visibility="Hidden" AutomationProperties.Name="Run progress"/>
+
+        <!-- ===== Pages ===== -->
+        <TabControl x:Name="Tabs">
+          <!-- Overview -->
+          <TabItem x:Name="TabSummary" Header="Overview">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+              <Grid>
+                <!-- Welcome state: before the first run, and after a run that ended without results -->
+                <StackPanel x:Name="PanelWelcome" Margin="24,32,24,24" MaxWidth="880" HorizontalAlignment="Center">
+                  <Border Style="{StaticResource Card}" Padding="32,28">
+                    <StackPanel>
+                      <Border Width="48" Height="48" CornerRadius="8" Background="{StaticResource B.AccentSoft}" HorizontalAlignment="Left" Margin="0,0,0,16">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="24" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+                      </Border>
+                      <TextBlock Text="Check the health of your certificate services" FontSize="24" FontWeight="SemiBold"/>
+                      <TextBlock Style="{StaticResource Muted}" FontSize="14" Margin="0,6,0,24" Text="A read-only check of Microsoft Active Directory Certificate Services. It finds your CAs, templates and endpoints by itself: there is nothing to configure."/>
+                      <UniformGrid Columns="3" Margin="0,0,-16,0">
+                        <Border Background="{StaticResource B.Hover}" CornerRadius="6" Padding="16,14" Margin="0,0,16,0">
+                          <StackPanel>
+                            <Border Width="24" Height="24" CornerRadius="12" Background="{StaticResource B.Accent}" HorizontalAlignment="Left" Margin="0,0,0,10"><TextBlock Text="1" Foreground="{StaticResource B.White}" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <TextBlock Text="Discover" FontWeight="SemiBold"/>
+                            <TextBlock Style="{StaticResource Small}" Margin="0,2,0,0" Text="Reads the Public Key Services in Active Directory, then asks each CA about itself."/>
+                          </StackPanel>
+                        </Border>
+                        <Border Background="{StaticResource B.Hover}" CornerRadius="6" Padding="16,14" Margin="0,0,16,0">
+                          <StackPanel>
+                            <Border Width="24" Height="24" CornerRadius="12" Background="{StaticResource B.Accent}" HorizontalAlignment="Left" Margin="0,0,0,10"><TextBlock Text="2" Foreground="{StaticResource B.White}" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <TextBlock Text="Check" FontWeight="SemiBold"/>
+                            <TextBlock Style="{StaticResource Small}" Margin="0,2,0,0" Text="Tests only the CRL, AIA, OCSP and enrollment addresses the CAs and certificates name. Anonymous requests, no scanning."/>
+                          </StackPanel>
+                        </Border>
+                        <Border Background="{StaticResource B.Hover}" CornerRadius="6" Padding="16,14" Margin="0,0,16,0">
+                          <StackPanel>
+                            <Border Width="24" Height="24" CornerRadius="12" Background="{StaticResource B.Accent}" HorizontalAlignment="Left" Margin="0,0,0,10"><TextBlock Text="3" Foreground="{StaticResource B.White}" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <TextBlock Text="Report" FontWeight="SemiBold"/>
+                            <TextBlock Style="{StaticResource Small}" Margin="0,2,0,0" Text="Every finding shows its sources, its evidence and how sure the tool is. Files go to the output folder only."/>
+                          </StackPanel>
+                        </Border>
+                      </UniformGrid>
+                      <Border x:Name="WelcomeError" Visibility="Collapsed" Background="{StaticResource B.BadBack}" BorderBrush="{StaticResource B.BadLine}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,20,0,0">
+                        <DockPanel>
+                          <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xEA39;" Foreground="{StaticResource B.BadFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
+                          <StackPanel>
+                            <TextBlock Text="The last run ended without results" FontWeight="SemiBold" Foreground="{StaticResource B.BadFore}"/>
+                            <TextBlock x:Name="TxtWelcomeError" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                          </StackPanel>
+                        </DockPanel>
+                      </Border>
+                      <Border Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,20,0,0">
+                        <DockPanel>
+                          <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{StaticResource B.InfoFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
+                          <TextBlock x:Name="TxtWelcomeContext" TextWrapping="Wrap"/>
+                        </DockPanel>
+                      </Border>
+                      <StackPanel Orientation="Horizontal" Margin="0,24,0,0">
+                        <Button x:Name="BtnWelcomeRun" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Padding="16,0">
+                          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Run health check"/></StackPanel>
+                        </Button>
+                        <Button x:Name="BtnWelcomeOpen" Padding="16,0">
+                          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8E5;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Open an earlier results.json"/></StackPanel>
+                        </Button>
+                      </StackPanel>
+                    </StackPanel>
+                  </Border>
                 </StackPanel>
-              </Border>
 
-              <TextBlock Text="Certification authorities" Style="{StaticResource H2}" Margin="0,0,0,8"/>
-              <ItemsControl x:Name="CaList" ItemTemplate="{StaticResource CaCard}" IsTabStop="False">
-                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-              </ItemsControl>
-              <TextBlock x:Name="TxtNoCa" Visibility="Collapsed" Style="{StaticResource Muted}" Margin="0,0,0,16" Text="No Enterprise CA was found in this run."/>
+                <!-- Results -->
+                <StackPanel x:Name="PanelResults" Margin="24,20,24,24" Visibility="Collapsed">
+                  <DockPanel Margin="0,0,0,16">
+                    <TextBlock Text="Overview" Style="{StaticResource PageTitle}" DockPanel.Dock="Top"/>
+                    <TextBlock Text="Health of Active Directory Certificate Services as seen by this run." Style="{StaticResource Muted}" Margin="0,2,0,0"/>
+                  </DockPanel>
+                  <Border x:Name="Banner" Style="{StaticResource ToneBlock}" Padding="16,14" Margin="0,0,0,16">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                      <TextBlock x:Name="BannerGlyph" Style="{StaticResource ToneGlyph}" FontSize="24" Margin="4,0,16,0" VerticalAlignment="Center"/>
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock x:Name="BannerTitle" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="BannerText" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                      </StackPanel>
+                      <Border Grid.Column="2" BorderBrush="#26000000" BorderThickness="1,0,0,0" Margin="24,0,0,0" Padding="16,0,4,0" VerticalAlignment="Center">
+                        <StackPanel MinWidth="190">
+                          <TextBlock x:Name="BannerMeta1" FontSize="12"/>
+                          <TextBlock x:Name="BannerMeta2" FontSize="12" Margin="0,2,0,0"/>
+                          <TextBlock x:Name="BannerMeta3" FontSize="12" Margin="0,2,0,0"/>
+                        </StackPanel>
+                      </Border>
+                    </Grid>
+                  </Border>
+                  <Border Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,16" Visibility="{Binding Visibility, ElementName=TxtNote}">
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{StaticResource B.InfoFore}" VerticalAlignment="Top" Margin="4,1,10,0"/>
+                      <TextBlock x:Name="TxtNote" Visibility="Collapsed" TextWrapping="Wrap"/>
+                    </DockPanel>
+                  </Border>
 
-              <Grid Margin="0,0,0,0">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                <Border Style="{StaticResource Card}" Padding="16,16,16,8" VerticalAlignment="Top">
-                  <StackPanel>
-                    <TextBlock Text="Top issues" Style="{StaticResource H2}"/>
-                    <TextBlock Text="The ten most serious findings. Select one to open it." Style="{StaticResource Small}" Margin="0,2,0,8"/>
-                    <ItemsControl x:Name="TopList" ItemTemplate="{StaticResource TopIssue}" IsTabStop="False"/>
-                    <TextBlock x:Name="TxtNoTop" Visibility="Collapsed" Style="{StaticResource Muted}" Margin="0,0,0,8" Text="No failing or warning findings."/>
-                  </StackPanel>
+                  <ItemsControl x:Name="KpiList" ItemTemplate="{StaticResource KpiTile}" Margin="0,0,-16,16" IsTabStop="False" Focusable="False">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" Columns="4"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                  </ItemsControl>
+
+                  <Border Style="{StaticResource Card}" Margin="0,0,0,16" Padding="20,16,8,4">
+                    <StackPanel>
+                      <DockPanel Margin="0,0,12,12">
+                        <TextBlock DockPanel.Dock="Right" Text="Select a tile to filter the Findings page." Style="{StaticResource Small}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtTotal" Style="{StaticResource H2}" Text="Findings"/>
+                      </DockPanel>
+                      <TextBlock Text="By status" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                      <ItemsControl x:Name="TileList" ItemTemplate="{StaticResource CountTile}" IsTabStop="False" Focusable="False">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="4"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                      </ItemsControl>
+                      <TextBlock Text="By severity" Style="{StaticResource Label}" Margin="0,4,0,8"/>
+                      <ItemsControl x:Name="SevTileList" ItemTemplate="{StaticResource CountTile}" IsTabStop="False" Focusable="False">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="5"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                      </ItemsControl>
+                      <TextBlock x:Name="TxtNoSeverity" Visibility="Collapsed" Style="{StaticResource Small}" Margin="0,0,12,12" Text="No finding in this run carries a severity rating. Severity is only set for findings that name a risk (for example template permissions or an open NDES admin page)."/>
+                    </StackPanel>
+                  </Border>
+
+                  <TextBlock Text="Certification authorities" Style="{StaticResource H2}" Margin="0,4,0,10"/>
+                  <ItemsControl x:Name="CaList" ItemTemplate="{StaticResource CaCard}" IsTabStop="False" Focusable="False" Margin="0,0,-16,0">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2" VerticalAlignment="Top"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                  </ItemsControl>
+                  <Border Style="{StaticResource Card}" Margin="0,0,0,16" Visibility="{Binding Visibility, ElementName=TxtNoCa}">
+                    <DockPanel>
+                      <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="18" Background="{StaticResource B.Hover}" Margin="0,0,14,0" VerticalAlignment="Top">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="16" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+                      </Border>
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtNoCa" Visibility="Collapsed" FontWeight="SemiBold" Text="No Enterprise CA was found in this run."/>
+                        <TextBlock Style="{StaticResource Small}" Margin="0,2,0,0" Text="Check Discovery coverage below: the Enrollment Services container may be empty, unreadable, or this computer may not see the forest's Configuration partition."/>
+                      </StackPanel>
+                    </DockPanel>
+                  </Border>
+
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource Card}" Padding="20,16,20,8" VerticalAlignment="Top">
+                      <StackPanel>
+                        <TextBlock Text="Top issues" Style="{StaticResource H2}"/>
+                        <TextBlock Text="The ten most serious findings. Select one to open it." Style="{StaticResource Small}" Margin="0,2,0,8"/>
+                        <Border Style="{StaticResource Divider}"/>
+                        <ItemsControl x:Name="TopList" ItemTemplate="{StaticResource TopIssue}" IsTabStop="False" Focusable="False" Margin="-8,0"/>
+                        <StackPanel Visibility="{Binding Visibility, ElementName=TxtNoTop}" Orientation="Horizontal" Margin="0,12,0,8">
+                          <TextBlock Style="{StaticResource Glyph}" Text="&#xE73E;" FontSize="14" Foreground="{StaticResource B.GoodFore}" Margin="0,0,8,0"/>
+                          <TextBlock x:Name="TxtNoTop" Visibility="Collapsed" Text="No failing or warning findings."/>
+                        </StackPanel>
+                      </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource Card}" VerticalAlignment="Top">
+                      <StackPanel>
+                        <TextBlock Text="Discovery coverage" Style="{StaticResource H2}"/>
+                        <TextBlock x:Name="TxtCoverage" Style="{StaticResource Small}" Margin="0,2,0,8"/>
+                        <Border Style="{StaticResource Divider}" Margin="0,0,0,12"/>
+                        <ItemsControl x:Name="CoverageList" ItemTemplate="{StaticResource CoverageRow}" IsTabStop="False" Focusable="False"/>
+                        <Expander x:Name="ExpCoverageOk" IsExpanded="False" Margin="-4,0,0,0">
+                          <Expander.Header><TextBlock x:Name="TxtCoverageOk"/></Expander.Header>
+                          <ItemsControl x:Name="CoverageOkList" ItemTemplate="{StaticResource CoverageRow}" IsTabStop="False" Focusable="False" Margin="4,8,0,0"/>
+                        </Expander>
+                        <TextBlock x:Name="TxtLimits" Style="{StaticResource Small}" Margin="0,8,0,0" Visibility="Collapsed"/>
+                      </StackPanel>
+                    </Border>
+                  </Grid>
+                </StackPanel>
+              </Grid>
+            </ScrollViewer>
+          </TabItem>
+
+          <!-- Findings -->
+          <TabItem x:Name="TabFindings" Header="Findings">
+            <DockPanel Margin="24,20,24,24">
+              <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+                <TextBlock Text="Findings" Style="{StaticResource PageTitle}"/>
+                <TextBlock Text="Every check result with its sources and evidence. Select a row to see the details." Style="{StaticResource Muted}" Margin="0,2,0,0"/>
+              </StackPanel>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="5*" MinWidth="420"/>
+                  <ColumnDefinition Width="16"/>
+                  <ColumnDefinition Width="3*" MinWidth="300"/>
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource Panel}" ClipToBounds="True">
+                  <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="16,14,16,10" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
+                      <StackPanel>
+                        <TextBox x:Name="FltText" Style="{StaticResource SearchBox}" Tag="Search target, message, source or evidence (Ctrl+F)" Margin="0,0,0,10" ToolTip="Type words; a finding must contain every word somewhere." AutomationProperties.Name="Search findings"/>
+                        <WrapPanel>
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
+                            <TextBlock Text="Severity" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="FltSeverity" Width="128" AutomationProperties.Name="Severity filter"/>
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
+                            <TextBlock Text="Category" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="FltCategory" Width="128" AutomationProperties.Name="Category filter"/>
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
+                            <TextBlock Text="Confidence" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="FltConfidence" Width="128" AutomationProperties.Name="Confidence filter"/>
+                          </StackPanel>
+                          <CheckBox x:Name="ChkGroup" Content="Group by category" Margin="0,0,16,8" VerticalAlignment="Center"/>
+                          <Button x:Name="BtnClearFilters" Style="{StaticResource SubtleButton}" Margin="0,0,0,8" ToolTip="Remove every filter">
+                            <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE894;" FontSize="14"/><TextBlock Text="Clear filters"/></StackPanel>
+                          </Button>
+                        </WrapPanel>
+                        <ItemsControl x:Name="ChipList" IsTabStop="False" Focusable="False">
+                          <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="Margin" Value="0,0,0,6"/></Style></ItemsControl.ItemContainerStyle>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Border>
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,1,0,0" Padding="16,0,8,0" Height="44">
+                      <DockPanel>
+                        <Button x:Name="BtnExport" DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" VerticalAlignment="Center" ToolTip="Write the findings that match the filters to a CSV file in this run's output folder.">
+                          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE896;" FontSize="14"/><TextBlock Text="Export filtered view"/></StackPanel>
+                        </Button>
+                        <TextBlock x:Name="TxtShowing" Style="{StaticResource Small}" VerticalAlignment="Center"/>
+                      </DockPanel>
+                    </Border>
+                    <Grid>
+                      <DataGrid x:Name="FindingsGrid" EnableRowVirtualization="True" CanUserSortColumns="True" AutomationProperties.Name="Findings">
+                        <DataGrid.ContextMenu>
+                          <ContextMenu x:Name="GridMenu">
+                            <MenuItem x:Name="MenuCopyRows" Header="Copy selected rows" InputGestureText="Ctrl+C" Icon="&#xE8C8;"/>
+                            <MenuItem x:Name="MenuCopyMessage" Header="Copy message" Icon="&#xE8A5;"/>
+                            <MenuItem x:Name="MenuCopyTarget" Header="Copy target" Icon="&#xE71B;"/>
+                            <MenuItem x:Name="MenuCopyDetails" Header="Copy all details of this finding" Icon="&#xE8FD;"/>
+                          </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.GroupStyle>
+                          <GroupStyle>
+                            <GroupStyle.ContainerStyle>
+                              <Style TargetType="GroupItem">
+                                <Setter Property="Template">
+                                  <Setter.Value>
+                                    <ControlTemplate TargetType="GroupItem">
+                                      <Expander IsExpanded="True">
+                                        <Expander.Header>
+                                          <StackPanel Orientation="Horizontal" Margin="0,2">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                            <Border CornerRadius="9" Background="#E0E0E0" Padding="7,0" Height="18" Margin="8,0,0,0" VerticalAlignment="Center">
+                                              <TextBlock Text="{Binding ItemCount}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            </Border>
+                                          </StackPanel>
+                                        </Expander.Header>
+                                        <ItemsPresenter/>
+                                      </Expander>
+                                    </ControlTemplate>
+                                  </Setter.Value>
+                                </Setter>
+                              </Style>
+                            </GroupStyle.ContainerStyle>
+                          </GroupStyle>
+                        </DataGrid.GroupStyle>
+                        <DataGrid.Columns>
+                          <DataGridTemplateColumn Header="Status" SortMemberPath="StatusRank" Width="132" MinWidth="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                              <DataTemplate><ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                          </DataGridTemplateColumn>
+                          <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" SortMemberPath="SeverityRank" Width="88" MinWidth="80"/>
+                          <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="116" MinWidth="90">
+                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/></Style></DataGridTextColumn.ElementStyle>
+                          </DataGridTextColumn>
+                          <DataGridTextColumn Header="Target" Binding="{Binding Target}" Width="160" MinWidth="110">
+                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/><Setter Property="ToolTip" Value="{Binding Target}"/></Style></DataGridTextColumn.ElementStyle>
+                          </DataGridTextColumn>
+                          <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" MinWidth="180">
+                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/></Style></DataGridTextColumn.ElementStyle>
+                          </DataGridTextColumn>
+                          <DataGridTemplateColumn Header="Confidence" SortMemberPath="ConfidenceRank" Width="132" MinWidth="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                              <DataTemplate><ContentPresenter Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                          </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                      </DataGrid>
+                      <StackPanel Visibility="{Binding Visibility, ElementName=TxtGridEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380" Margin="24">
+                        <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
+                          <TextBlock Style="{StaticResource Glyph}" Text="&#xE721;" FontSize="24" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+                        </Border>
+                        <TextBlock x:Name="TxtGridEmpty" Visibility="Collapsed" Style="{StaticResource Muted}" TextAlignment="Center"/>
+                      </StackPanel>
+                    </Grid>
+                  </DockPanel>
                 </Border>
-                <Border Grid.Column="2" Style="{StaticResource Card}" VerticalAlignment="Top">
-                  <StackPanel>
-                    <TextBlock Text="Discovery coverage" Style="{StaticResource H2}"/>
-                    <TextBlock x:Name="TxtCoverage" Style="{StaticResource Small}" Margin="0,2,0,12"/>
-                    <ItemsControl x:Name="CoverageList" ItemTemplate="{StaticResource CoverageRow}" IsTabStop="False"/>
-                    <Expander x:Name="ExpCoverageOk" IsExpanded="False" Margin="0,4,0,0">
-                      <Expander.Header><TextBlock x:Name="TxtCoverageOk"/></Expander.Header>
-                      <ItemsControl x:Name="CoverageOkList" ItemTemplate="{StaticResource CoverageRow}" IsTabStop="False" Margin="22,8,0,0"/>
-                    </Expander>
-                    <TextBlock x:Name="TxtLimits" Style="{StaticResource Small}" Margin="0,4,0,0" Visibility="Collapsed"/>
-                  </StackPanel>
+                <GridSplitter Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Focusable="False"/>
+                <Border Grid.Column="2" Style="{StaticResource Panel}" ClipToBounds="True">
+                  <ContentControl x:Name="FindingHost" Style="{StaticResource PaneHost}"/>
                 </Border>
               </Grid>
-            </StackPanel>
-          </Grid>
-        </ScrollViewer>
-      </TabItem>
+            </DockPanel>
+          </TabItem>
 
-      <!-- Findings -->
-      <TabItem x:Name="TabFindings" ToolTip="Ctrl+2">
-        <TabItem.Header>
-          <StackPanel Orientation="Horizontal">
-            <TextBlock Style="{StaticResource Glyph}" Text="&#xE7BA;" Margin="0,0,8,0"/><TextBlock Text="Findings"/>
-            <TextBlock x:Name="TxtTabFindings" Style="{StaticResource Small}" Margin="8,1,0,0" VerticalAlignment="Center"/>
+          <!-- Discovery map -->
+          <TabItem x:Name="TabMap" Header="Discovery map">
+            <DockPanel Margin="24,20,24,24">
+              <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+                <TextBlock Text="Discovery map" Style="{StaticResource PageTitle}"/>
+                <TextBlock Text="Everything the run found, where it came from and what was checked on it." Style="{StaticResource Muted}" Margin="0,2,0,0"/>
+              </StackPanel>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="5*" MinWidth="420"/>
+                  <ColumnDefinition Width="16"/>
+                  <ColumnDefinition Width="3*" MinWidth="300"/>
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource Panel}" ClipToBounds="True">
+                  <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="12,0,16,0" Height="48" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
+                      <DockPanel>
+                        <TextBlock x:Name="TxtMapCount" DockPanel.Dock="Right" Style="{StaticResource Small}" VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                          <Button x:Name="BtnExpandAll" Style="{StaticResource SubtleButton}" ToolTip="Open every branch of the tree">
+                            <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8A9;" FontSize="14"/><TextBlock Text="Expand all"/></StackPanel>
+                          </Button>
+                          <Button x:Name="BtnCollapseAll" Style="{StaticResource SubtleButton}" Margin="4,0,0,0" ToolTip="Close every branch except the first level">
+                            <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8AA;" FontSize="14"/><TextBlock Text="Collapse all"/></StackPanel>
+                          </Button>
+                        </StackPanel>
+                      </DockPanel>
+                    </Border>
+                    <TreeView x:Name="MapTree" ItemTemplate="{StaticResource MapNode}" AutomationProperties.Name="Discovery map">
+                      <TreeView.ItemContainerStyle>
+                        <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+                          <Setter Property="IsExpanded" Value="{Binding Expanded, Mode=OneTime}"/>
+                        </Style>
+                      </TreeView.ItemContainerStyle>
+                    </TreeView>
+                  </DockPanel>
+                </Border>
+                <GridSplitter Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Focusable="False"/>
+                <Border Grid.Column="2" Style="{StaticResource Panel}" ClipToBounds="True">
+                  <ContentControl x:Name="MapHost" Style="{StaticResource PaneHost}"/>
+                </Border>
+              </Grid>
+            </DockPanel>
+          </TabItem>
+
+          <!-- Run log -->
+          <TabItem x:Name="TabLog" Header="Run log">
+            <DockPanel Margin="24,20,24,24">
+              <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+                <TextBlock Text="Run log" Style="{StaticResource PageTitle}"/>
+                <TextBlock Text="What the run did, step by step. It fills in live while a run is in progress." Style="{StaticResource Muted}" Margin="0,2,0,0"/>
+              </StackPanel>
+              <Border Style="{StaticResource Panel}" ClipToBounds="True">
+                <DockPanel>
+                  <Border DockPanel.Dock="Top" Padding="16,8" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
+                    <DockPanel>
+                      <TextBlock x:Name="TxtLogCount" DockPanel.Dock="Right" Style="{StaticResource Small}" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                      <WrapPanel>
+                        <TextBox x:Name="FltLog" Style="{StaticResource SearchBox}" Width="300" Tag="Filter the log (Ctrl+F)" Margin="0,4,16,4" AutomationProperties.Name="Filter the log"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,16,4">
+                          <TextBlock Text="Level" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                          <ComboBox x:Name="FltLogLevel" Width="168" AutomationProperties.Name="Log level filter"/>
+                        </StackPanel>
+                        <CheckBox x:Name="ChkFollow" Content="Auto-scroll to the newest line" IsChecked="True" VerticalAlignment="Center" Margin="0,4,16,4"/>
+                        <Button x:Name="BtnCopyLog" Style="{StaticResource SubtleButton}" Margin="0,4,0,4" ToolTip="Copy the lines that are shown to the clipboard">
+                          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8C8;" FontSize="14"/><TextBlock Text="Copy shown lines"/></StackPanel>
+                        </Button>
+                      </WrapPanel>
+                    </DockPanel>
+                  </Border>
+                  <Grid>
+                    <ListBox x:Name="LogList" ItemTemplate="{StaticResource LogRow}" ScrollViewer.HorizontalScrollBarVisibility="Auto" VirtualizingStackPanel.IsVirtualizing="True" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Run log"/>
+                    <StackPanel Visibility="{Binding Visibility, ElementName=TxtLogEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380" Margin="24">
+                      <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE9D5;" FontSize="24" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+                      </Border>
+                      <TextBlock x:Name="TxtLogEmpty" Style="{StaticResource Muted}" TextAlignment="Center" Text="The log fills in while a run is in progress."/>
+                    </StackPanel>
+                  </Grid>
+                </DockPanel>
+              </Border>
+            </DockPanel>
+          </TabItem>
+        </TabControl>
+      </DockPanel>
+
+      <!-- ===== Status bar ===== -->
+      <Border Grid.Row="2" Grid.ColumnSpan="2" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,1,0,0" Height="30" Padding="16,0">
+        <Grid VerticalAlignment="Center">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,16,0">
+            <TextBlock x:Name="StatusIcon" Style="{StaticResource Glyph}" FontSize="12" Margin="0,0,8,0"/>
+            <TextBlock x:Name="TxtStage" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
           </StackPanel>
-        </TabItem.Header>
-        <Grid Margin="16">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" MinWidth="380"/>
-            <ColumnDefinition Width="8"/>
-            <ColumnDefinition Width="400" MinWidth="300"/>
-          </Grid.ColumnDefinitions>
-          <DockPanel Grid.Column="0">
-            <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="12,12,12,4" Margin="0,0,0,8">
-              <StackPanel>
-                <TextBox x:Name="FltText" Tag="Search target, message, source, evidence... (Ctrl+F)" Margin="0,0,0,8" ToolTip="Type words; a finding must contain every word somewhere."/>
-                <ItemsControl x:Name="ChipList" IsTabStop="False">
-                  <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                </ItemsControl>
-                <WrapPanel Margin="0,0,0,8">
-                  <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
-                    <TextBlock Text="Severity" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <ComboBox x:Name="FltSeverity" Width="112"/>
-                  </StackPanel>
-                  <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
-                    <TextBlock Text="Category" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <ComboBox x:Name="FltCategory" Width="112"/>
-                  </StackPanel>
-                  <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
-                    <TextBlock Text="Confidence" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <ComboBox x:Name="FltConfidence" Width="112"/>
-                  </StackPanel>
-                  <CheckBox x:Name="ChkGroup" Content="Group by category" Margin="0,0,16,0" VerticalAlignment="Center"/>
-                  <Button x:Name="BtnClearFilters" Margin="0,0,8,0" Padding="12,0" ToolTip="Remove every filter">
-                    <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE894;" Margin="0,0,8,0"/><TextBlock Text="Clear filters"/></StackPanel>
-                  </Button>
-                  <Button x:Name="BtnExport" Padding="12,0" ToolTip="Write the findings that match the filters to a CSV file in this run's output folder.">
-                    <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE896;" Margin="0,0,8,0"/><TextBlock Text="Export filtered view"/></StackPanel>
-                  </Button>
-                </WrapPanel>
-              </StackPanel>
-            </Border>
-            <TextBlock x:Name="TxtShowing" DockPanel.Dock="Bottom" Style="{StaticResource Small}" Margin="0,8,0,0"/>
-            <Grid>
-              <DataGrid x:Name="FindingsGrid" EnableRowVirtualization="True" CanUserSortColumns="True" AutomationProperties.Name="Findings">
-                <DataGrid.ContextMenu>
-                  <ContextMenu x:Name="GridMenu">
-                    <MenuItem x:Name="MenuCopyRows" Header="Copy selected rows" InputGestureText="Ctrl+C"/>
-                    <MenuItem x:Name="MenuCopyMessage" Header="Copy message"/>
-                    <MenuItem x:Name="MenuCopyTarget" Header="Copy target"/>
-                    <MenuItem x:Name="MenuCopyDetails" Header="Copy all details of this finding"/>
-                  </ContextMenu>
-                </DataGrid.ContextMenu>
-                <DataGrid.GroupStyle>
-                  <GroupStyle>
-                    <GroupStyle.ContainerStyle>
-                      <Style TargetType="GroupItem">
-                        <Setter Property="Template">
-                          <Setter.Value>
-                            <ControlTemplate TargetType="GroupItem">
-                              <Expander IsExpanded="True" Background="{StaticResource B.AccentSoft}">
-                                <Expander.Header>
-                                  <StackPanel Orientation="Horizontal" Margin="4,0">
-                                    <TextBlock Text="{Binding Name}" FontFamily="Segoe UI Semibold"/>
-                                    <TextBlock Text="{Binding ItemCount, StringFormat=' ({0})'}" Foreground="{StaticResource B.Muted}"/>
-                                  </StackPanel>
-                                </Expander.Header>
-                                <ItemsPresenter/>
-                              </Expander>
-                            </ControlTemplate>
-                          </Setter.Value>
-                        </Setter>
-                      </Style>
-                    </GroupStyle.ContainerStyle>
-                  </GroupStyle>
-                </DataGrid.GroupStyle>
-                <DataGrid.Columns>
-                  <DataGridTemplateColumn Header="Status" SortMemberPath="StatusRank" Width="128" MinWidth="116">
-                    <DataGridTemplateColumn.CellTemplate>
-                      <DataTemplate><ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                  </DataGridTemplateColumn>
-                  <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" SortMemberPath="SeverityRank" Width="88" MinWidth="80"/>
-                  <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="116" MinWidth="90"/>
-                  <DataGridTextColumn Header="Target" Binding="{Binding Target}" Width="150" MinWidth="110">
-                    <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/></Style></DataGridTextColumn.ElementStyle>
-                  </DataGridTextColumn>
-                  <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" MinWidth="170">
-                    <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/></Style></DataGridTextColumn.ElementStyle>
-                  </DataGridTextColumn>
-                  <DataGridTemplateColumn Header="Confidence" SortMemberPath="ConfidenceRank" Width="128" MinWidth="116">
-                    <DataGridTemplateColumn.CellTemplate>
-                      <DataTemplate><ContentPresenter Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                  </DataGridTemplateColumn>
-                </DataGrid.Columns>
-              </DataGrid>
-              <TextBlock x:Name="TxtGridEmpty" Visibility="Collapsed" Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" MaxWidth="360"/>
-            </Grid>
-          </DockPanel>
-          <GridSplitter Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Focusable="False"/>
-          <Border Grid.Column="2" Style="{StaticResource Card}" Padding="0">
-            <ContentControl x:Name="FindingHost" Style="{StaticResource PaneHost}"/>
-          </Border>
+          <TextBlock x:Name="TxtTarget" Grid.Column="1" Style="{StaticResource Small}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,16,0"/>
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,20,0">
+            <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="0,0,6,0"/>
+            <TextBlock x:Name="TxtElapsed" Style="{StaticResource Small}" VerticalAlignment="Center" Text="Elapsed 0:00"/>
+          </StackPanel>
+          <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,20,0">
+            <TextBlock Style="{StaticResource Glyph}" Text="&#xE8FD;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="0,0,6,0"/>
+            <TextBlock x:Name="TxtCount" Style="{StaticResource Small}" VerticalAlignment="Center" Text="0 findings"/>
+          </StackPanel>
+          <StackPanel Grid.Column="4" Orientation="Horizontal">
+            <TextBlock Style="{StaticResource Glyph}" Text="&#xE838;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="0,0,6,0"/>
+            <TextBlock x:Name="TxtOutputPath" Style="{StaticResource Small}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxWidth="420" VerticalAlignment="Center"/>
+          </StackPanel>
         </Grid>
-      </TabItem>
-
-      <!-- Discovery Map -->
-      <TabItem x:Name="TabMap" ToolTip="Ctrl+3">
-        <TabItem.Header>
-          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE9D9;" Margin="0,0,8,0"/><TextBlock Text="Discovery Map"/></StackPanel>
-        </TabItem.Header>
-        <Grid Margin="16">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" MinWidth="380"/>
-            <ColumnDefinition Width="8"/>
-            <ColumnDefinition Width="400" MinWidth="300"/>
-          </Grid.ColumnDefinitions>
-          <DockPanel Grid.Column="0">
-            <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="12,8" Margin="0,0,0,8">
-              <DockPanel>
-                <TextBlock x:Name="TxtMapCount" DockPanel.Dock="Right" Style="{StaticResource Small}" VerticalAlignment="Center"/>
-                <WrapPanel>
-                  <Button x:Name="BtnExpandAll" Margin="0,0,8,0" Padding="12,0" ToolTip="Open every branch of the tree">
-                    <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE70D;" FontSize="11" Margin="0,0,8,0"/><TextBlock Text="Expand all"/></StackPanel>
-                  </Button>
-                  <Button x:Name="BtnCollapseAll" Padding="12,0" ToolTip="Close every branch except the first level">
-                    <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE70E;" FontSize="11" Margin="0,0,8,0"/><TextBlock Text="Collapse all"/></StackPanel>
-                  </Button>
-                </WrapPanel>
-              </DockPanel>
-            </Border>
-            <TreeView x:Name="MapTree" ItemTemplate="{StaticResource MapNode}" AutomationProperties.Name="Discovery map">
-              <TreeView.ItemContainerStyle>
-                <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
-                  <Setter Property="IsExpanded" Value="{Binding Expanded, Mode=OneTime}"/>
-                </Style>
-              </TreeView.ItemContainerStyle>
-            </TreeView>
-          </DockPanel>
-          <GridSplitter Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Focusable="False"/>
-          <Border Grid.Column="2" Style="{StaticResource Card}" Padding="0">
-            <ContentControl x:Name="MapHost" Style="{StaticResource PaneHost}"/>
-          </Border>
-        </Grid>
-      </TabItem>
-
-      <!-- Run Log -->
-      <TabItem x:Name="TabLog" ToolTip="Ctrl+4">
-        <TabItem.Header>
-          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE9D5;" Margin="0,0,8,0"/><TextBlock Text="Run Log"/></StackPanel>
-        </TabItem.Header>
-        <DockPanel Margin="16">
-          <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="12,8,12,0" Margin="0,0,0,8">
-            <WrapPanel>
-              <TextBox x:Name="FltLog" Width="320" Tag="Filter the log (Ctrl+F)" Margin="0,0,16,8"/>
-              <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
-                <TextBlock Text="Level" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <ComboBox x:Name="FltLogLevel" Width="150"/>
-              </StackPanel>
-              <CheckBox x:Name="ChkFollow" Content="Auto-scroll to the newest line" IsChecked="True" VerticalAlignment="Top" Margin="0,6,16,8"/>
-              <Button x:Name="BtnCopyLog" Margin="0,0,16,8" Padding="12,0" ToolTip="Copy the lines that are shown to the clipboard">
-                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8C8;" Margin="0,0,8,0"/><TextBlock Text="Copy shown lines"/></StackPanel>
-              </Button>
-              <TextBlock x:Name="TxtLogCount" Style="{StaticResource Small}" VerticalAlignment="Top" Margin="0,8,0,0"/>
-            </WrapPanel>
-          </Border>
-          <Grid>
-            <ListBox x:Name="LogList" ItemTemplate="{StaticResource LogRow}" ScrollViewer.HorizontalScrollBarVisibility="Auto" VirtualizingStackPanel.IsVirtualizing="True" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Run log"/>
-            <TextBlock x:Name="TxtLogEmpty" Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" Text="The log fills in while a run is in progress."/>
-          </Grid>
-        </DockPanel>
-      </TabItem>
-    </TabControl>
-
-    <!-- ===== Status bar ===== -->
-    <Border Grid.Row="5" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,1,0,0" Padding="24,6">
-      <Grid>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,16,0">
-          <TextBlock x:Name="StatusIcon" Style="{StaticResource Glyph}" Margin="0,0,8,0"/>
-          <TextBlock x:Name="TxtStage" VerticalAlignment="Center" FontFamily="Segoe UI Semibold"/>
-        </StackPanel>
-        <TextBlock x:Name="TxtTarget" Grid.Column="1" Style="{StaticResource Small}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,16,0"/>
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,16,0">
-          <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="0,0,6,0"/>
-          <TextBlock x:Name="TxtElapsed" Style="{StaticResource Small}" VerticalAlignment="Center" Text="Elapsed 0:00"/>
-        </StackPanel>
-        <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,16,0">
-          <TextBlock Style="{StaticResource Glyph}" Text="&#xE7BA;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="0,0,6,0"/>
-          <TextBlock x:Name="TxtCount" Style="{StaticResource Small}" VerticalAlignment="Center" Text="0 findings"/>
-        </StackPanel>
-        <StackPanel Grid.Column="4" Orientation="Horizontal">
-          <TextBlock Style="{StaticResource Glyph}" Text="&#xE838;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="0,0,6,0"/>
-          <TextBlock x:Name="TxtOutputPath" Style="{StaticResource Small}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxWidth="360" VerticalAlignment="Center"/>
-        </StackPanel>
-      </Grid>
-    </Border>
-  </Grid>
+      </Border>
+    </Grid>
+  </Border>
 </Window>

@@ -293,6 +293,7 @@ function Clear-MspkiGuiResult {
     $ui.ExpCoverageOk.Visibility = 'Collapsed'
     $ui.PanelResults.Visibility = 'Collapsed'
     $ui.PanelWelcome.Visibility = 'Visible'
+    $ui.WelcomeError.Visibility = 'Collapsed'
     $ui.TxtNote.Visibility = 'Collapsed'
     $ui.TxtShowing.Text = ''
     $ui.TxtTabFindings.Text = ''
@@ -548,7 +549,7 @@ function Start-MspkiGuiRun {
     Set-MspkiGuiState -Text 'Starting...' -State Running
     $ui.TxtTarget.Text = ''
     $ui.TxtElapsed.Text = 'Elapsed 0:00'
-    $ui.TxtWelcomeContext.Text = 'A run is in progress. Findings appear here when it finishes; the Run Log tab shows the run live.'
+    $ui.TxtWelcomeContext.Text = 'A run is in progress. Findings appear here when it finishes; the Run log page shows the run live.'
     $ui.Tabs.SelectedItem = $ui.TabLog
     $control = New-MspkiRunControl
     try {
@@ -656,8 +657,13 @@ function Complete-MspkiGuiRun {
     }
     else {
         Clear-MspkiGuiResult
-        Set-MspkiGuiState -Text 'The run ended without results. See the Run Log tab.' -State Bad
-        $ui.TxtWelcomeContext.Text = 'The last run ended without results. See the Run Log tab for the reason, then try again.'
+        Set-MspkiGuiState -Text 'The run ended without results. See the Run log page.' -State Bad
+        $why = 'See the Run log page for the reason, then try again.'
+        if ($problem) { $why = '{0} See the Run log page for details, then try again.' -f $problem }
+        if ($cancelled) { $why = 'The run was cancelled before it produced results. Start it again when you are ready.' }
+        $ui.TxtWelcomeError.Text = $why
+        $ui.WelcomeError.Visibility = 'Visible'
+        $ui.TxtWelcomeContext.Text = 'The last run ended without results. See the Run log page for the reason, then try again.'
         if ($problem -and -not $g.CloseRequested) { Show-MspkiGuiMessage -Text ('The run stopped with an error: {0}' -f $problem) -Icon 'Error' }
     }
     if ($g.CloseRequested) { $g.Window.Close() }
@@ -856,6 +862,14 @@ function Initialize-MspkiGuiApplication {
     $g.Timer = New-Object System.Windows.Threading.DispatcherTimer
     $g.Timer.Interval = [TimeSpan]::FromMilliseconds(200)
     $g.Timer.Add_Tick({ Receive-MspkiGuiProgress })
+
+    # Title bar caption buttons (in-box SystemCommands; the title bar itself is the WindowChrome caption area)
+    $ui.BtnMin.Add_Click({ [System.Windows.SystemCommands]::MinimizeWindow($script:MspkiGui.Window) })
+    $ui.BtnMax.Add_Click({
+        $w = $script:MspkiGui.Window
+        if ($w.WindowState -eq [System.Windows.WindowState]::Maximized) { [System.Windows.SystemCommands]::RestoreWindow($w) } else { [System.Windows.SystemCommands]::MaximizeWindow($w) }
+    })
+    $ui.BtnClose.Add_Click({ $script:MspkiGui.Window.Close() })
 
     # Toolbar and welcome buttons
 
