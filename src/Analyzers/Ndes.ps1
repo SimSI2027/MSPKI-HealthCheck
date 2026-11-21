@@ -288,7 +288,7 @@ function Invoke-MspkiNdesAnalysis {
                 -Confidence 'Inferred' -Sources $src -Scope 'Unknown' -Layers @{ DiscoveryStatus = 'Pass'; DnsStatus = $dns.Status } `
                 -Message ('NDES host candidate {0} (UnconfirmedCandidate): the CA issued NDES-template certificates to it, but the name does not resolve. Nothing was sent.' -f $c.Fqdn) `
                 -Evidence (@('Classification: UnconfirmedCandidate') + $lines) `
-                -Notes 'The server may have been retired or renamed. This is a candidate only; see the stale-reference review.'))
+                -Notes 'The server may have been retired or renamed. This is a candidate only.'))
             [void]$hosts.Add([pscustomobject]@{ Host = $c.Fqdn; Classification = 'UnconfirmedCandidate'; Confirmed = $false })
             continue
         }

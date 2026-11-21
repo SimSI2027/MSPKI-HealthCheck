@@ -187,6 +187,16 @@ function Start-MspkiHealthCheck {
                     -Target 'Intune Certificate Connector' -Sources 'Local:Win32_Service' -Action 'checking this computer for the Intune Certificate Connector' -Scope 'Local'))
             }
             Add-MspkiStageTiming -Stage 'Discovery:IntuneConnector' -Stopwatch $sw
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                foreach ($f in (Invoke-MspkiStaleReferenceAnalysis -Discovery $d -Findings @($findings))) { [void]$findings.Add($f) }
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('Stale-reference review stopped: {0}' -f $_.Exception.Message)
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Run' -Role 'Run' `
+                    -Target 'StaleReferences' -Sources 'Run' -Action 'reviewing historical and stale references' -Stage 'Run'))
+            }
+            Add-MspkiStageTiming -Stage 'Analysis:StaleReferences' -Stopwatch $sw
             $inventory | Add-Member -NotePropertyName 'Leads'-NotePropertyValue @(Get-MspkiLead | ForEach-Object { ConvertTo-MspkiLeadExport -Lead $_ }) -Force
             $inventory | Add-Member -NotePropertyName 'LeadStatistics' -NotePropertyValue (Get-MspkiLeadStatistic) -Force
         }
