@@ -93,6 +93,7 @@ Describe 'Get-MspkiErrorInfo and New-MspkiErrorFinding' {
         InModuleScope MspkiHealthCheck {
             (Get-MspkiErrorInfo (New-Object System.UnauthorizedAccessException('x'))).Class | Should -Be 'PermissionDenied'
             (Get-MspkiErrorInfo (New-Object System.TimeoutException('x'))).Class | Should -Be 'Timeout'
+            (Get-MspkiErrorInfo (New-Object System.Security.SecurityException('x'))).Class | Should -Be 'PermissionDenied'
             try { throw 'plain failure' } catch { (Get-MspkiErrorInfo $_).Class | Should -Be 'Error' }
         }
     }

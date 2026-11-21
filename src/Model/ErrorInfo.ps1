@@ -51,7 +51,7 @@ function Get-MspkiErrorInfo {
     }
     if ($class -eq 'Error') {
         foreach ($c in $chain) {
-            if ($c -is [System.UnauthorizedAccessException]) { $class = 'PermissionDenied'; break }
+            if ($c -is [System.UnauthorizedAccessException] -or $c -is [System.Security.SecurityException]) { $class = 'PermissionDenied'; break }
             if ($c -is [System.TimeoutException]) { $class = 'Timeout'; break }
             if ($c -is [System.NotSupportedException] -or $c -is [System.PlatformNotSupportedException]) {
                 $class = 'Unsupported'; break

@@ -58,6 +58,19 @@ Describe 'Local CEP policy entries' {
         $r.PSObject.Properties.Name | Should -Contain 'Data'
         @($r.Findings | Where-Object { $_.Status -eq 'Error' }).Count | Should -Be 0
     }
+
+    It 'classifies a policy-key read failure by exception type, not by (localised) message text' {
+        $r = InModuleScope MspkiHealthCheck {
+            Mock Read-MspkiPolicyServerKey {
+                [pscustomobject]@{ Exists = $true; Entries = @(); Error = 'Zugriff verweigert (not English)'
+                    ErrorInfo = (Get-MspkiErrorInfo (New-Object System.Security.SecurityException('Zugriff verweigert (not English)'))) }
+            }
+            Get-MspkiLocalCepPolicy
+        }
+        $f = @($r.Findings)
+        $f.Count | Should -BeGreaterThan 0
+        @($f | Where-Object { $_.StatusCode -eq 'PERMISSION_DENIED' }).Count | Should -Be $f.Count
+    }
 }
 
 Describe 'Registering CEP and CES leads' {

@@ -66,11 +66,11 @@ function Read-MspkiPolicyServerKey {
     <#
     .SYNOPSIS
     Reads every sub-key of one PolicyServers key into hashtables of values (read-only). Returns
-    { Exists, Entries, Error }.
+    { Exists, Entries, Error, ErrorInfo }.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][hashtable]$Location)
-    $out = [pscustomobject]@{ Exists = $false; Entries = @(); Error = '' }
+    $out = [pscustomobject]@{ Exists = $false; Entries = @(); Error = ''; ErrorInfo = $null }
     $root = [Microsoft.Win32.Registry]::LocalMachine
     if ($Location.Hive -eq 'CurrentUser') { $root = [Microsoft.Win32.Registry]::CurrentUser }
     $entries = New-Object System.Collections.ArrayList
@@ -93,7 +93,7 @@ function Read-MspkiPolicyServerKey {
             finally { if ($null -ne $sub) { $sub.Close() } }
         }
     }
-    catch { $out.Error = (Get-MspkiErrorInfo $_).Message; $out.Exists = $true }
+    catch { $out.ErrorInfo = Get-MspkiErrorInfo $_; $out.Error = $out.ErrorInfo.Message; $out.Exists = $true }
     finally { if ($null -ne $base) { $base.Close() } }
     $out.Entries = @($entries)
     return $out
@@ -116,8 +116,8 @@ function Get-MspkiLocalCepPolicy {
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         $r = Read-MspkiPolicyServerKey -Location $loc
         if ($r.Error) {
-            $ei = New-MspkiErrorInfo -Class 'Error' -Message $r.Error
-            if ($r.Error -match '(?i)denied|unauthorized') { $ei = New-MspkiErrorInfo -Class 'PermissionDenied' -Message $r.Error }
+            $ei = $r.ErrorInfo
+            if ($null -eq $ei) { $ei = New-MspkiErrorInfo -Class 'Error' -Message $r.Error }
             Add-MspkiMethodOutcome -Method $loc.Source -Outcome $ei.Class -Detail $r.Error -ElapsedMs $sw.ElapsedMilliseconds
             [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo $ei -Category 'CEP' -Role 'Computer' -Target $loc.Source -Sources $loc.Source `
                 -Action ('reading the enrollment policy servers ({0})' -f $loc.Managed) -Scope 'Local'))

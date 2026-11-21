@@ -3,6 +3,16 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## Second live run on the lab computer + audit L5 — done (688 tests)
+- Re-ran the tool (normal user): same result as the first live run, 47 findings, exit 4. The only Fail items are the two `RETRIEVAL_FAIL` (0x800706BA) from
+  `GetCAProperty`; the finding already says "TCP 135 answered but the CA did not: the Certificate Services service may be stopped, or dynamic RPC ports are
+  blocked". Nothing else is wrong in the log (all stages 10-760 ms except CES/CEP probing, 5 s). Not a tool bug; a firewall/CertSvc issue to fix on the lab side.
+- Fixed audit L5: local-policy read errors were classified by English message text (`denied|unauthorized`); the exception is now kept and classified by type
+  / HRESULT (`SecurityException` added to the permission types). Tests: type classification and a non-English message.
+- Dev note: Pester 5.7.1 unpacked from the gallery package into `C:\ClaudeCode\tools\pester571` (outside the repo).
+- Next: a run from a computer that reaches the CAs over RPC (or fix the lab RPC path), then fix what the CA-property/CA-database log shows; then the other Low
+  findings (L4 timeouts on forest/domain/trust/bind/SID calls is the most relevant live) and Phase E.
+
 ## First live run: RootDSE fix, two false positives, -NoOpen — done (687 tests)
 - Root cause of "RootDSE UNSUPPORTED, everything skipped": RootDSE was read with a `DirectorySearcher`, and the LDAP provider refuses searches on
   RootDSE ("The provider does not support searching and cannot search LDAP://RootDSE"). `Get-MspkiRootDse` now reads a `DirectoryEntry` (RefreshCache);

@@ -250,7 +250,7 @@ supports. And a few behaviours that the current tests lock in will give false re
 - SID translation (`src/Model/SecurityDescriptor.ps1:99-100`).
 - CLAUDE.md says that every network call takes a timeout.
 
-### L5 Local policy errors are classified by localised message text
+### L5 Local policy errors are classified by localised message text (FIXED: exception type, tests added)
 - `src/Discovery/LocalPolicy.ps1:96` and `:119-120` match `denied|unauthorized` in the exception message. The rest of the
   tool classifies by HRESULT and exception type (`src/Model/ErrorInfo.ps1:1-3`). On a Windows installed in another
   language, a permission error becomes `Error`/`RETRIEVAL_FAIL`.
