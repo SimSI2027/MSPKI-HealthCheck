@@ -48,6 +48,12 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
 8. **Honest results.** Every finding carries its sources, evidence and confidence. Never present an Inferred
    result as Confirmed, and never claim a remote file exists without evidence.
 
+## Lab dev machine
+On the lab dev machine, admin rights and research tools (Wireshark/Npcap, RSAT, PSPKI, Sysinternals and so on) are allowed for
+investigation only. The product must never depend on them: a normal user on a clean machine with Windows PowerShell 5.1 only.
+Never change anything on other lab servers; if a lab fix is needed, write exact steps for the owner. Captures, logs, `out\` and
+`C:\ClaudeCode\private\LAB-FACTS.md` hold real names: keep them outside the repo and never commit them.
+
 ## The `ref/` folder
 - `ref/` holds the previous toolkit (v2.5.0). Use it for **ideas only**.
 - Never edit, move, rename, run or dot-source anything in `ref/`. Do not copy code blocks from it.
