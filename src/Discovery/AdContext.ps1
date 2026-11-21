@@ -15,19 +15,155 @@ function Get-MspkiComputerSystemInfo {
 function Get-MspkiRootDse {
     <#
     .SYNOPSIS
-    Reads RootDSE through a serverless bind (the DC locator picks the domain controller).
+    Reads RootDSE from one LDAP path ('LDAP://RootDSE' is the serverless bind: the DC locator picks the domain controller).
+
+    .DESCRIPTION
+    RootDSE is read as a directory entry with RefreshCache. It is never read with a DirectorySearcher: the LDAP provider answers a
+    search on RootDSE with "The provider does not support searching and cannot search LDAP://RootDSE".
     #>
     [CmdletBinding()]
-    param([int]$TimeoutSeconds = 30)
+    param([string]$Path = 'LDAP://RootDSE')
     $props = @('configurationNamingContext', 'rootDomainNamingContext', 'defaultNamingContext',
         'schemaNamingContext', 'dnsHostName', 'serverName', 'currentTime', 'domainControllerFunctionality')
-    $r = @(Get-MspkiLdapObject -BaseDN 'RootDSE' -Scope Base -Properties $props -TimeoutSeconds $TimeoutSeconds)
-    if ($r.Count -eq 0) { throw 'RootDSE returned no data.' }
-    $rec = $r[0]
-    $out = [ordered]@{}
-    foreach ($p in $props) { $out[$p] = [string](Get-MspkiLdapValue -Record $rec -Name $p) }
+    $entry = New-Object System.DirectoryServices.DirectoryEntry($Path)
+    try {
+        $entry.RefreshCache([string[]]$props)
+        $out = [ordered]@{}
+        foreach ($p in $props) {
+            $v = $null
+            if ($entry.Properties.Contains($p)) { $v = $entry.Properties[$p].Value }
+            if ($null -eq $v) { $out[$p] = '' } else { $out[$p] = [string]$v }
+        }
+    }
+    finally { $entry.Dispose() }
     if (-not $out['configurationNamingContext']) { throw 'RootDSE has no configurationNamingContext.' }
     return [pscustomobject]$out
+}
+
+function Get-MspkiDomainControllerName {
+    <#
+    .SYNOPSIS
+    DNS name of a domain controller of this computer's domain, chosen by the DC locator (System.DirectoryServices.ActiveDirectory).
+    #>
+    [CmdletBinding()]
+    param()
+    $ctx = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext([System.DirectoryServices.ActiveDirectory.DirectoryContextType]::Domain)
+    $dc = [System.DirectoryServices.ActiveDirectory.DomainController]::FindOne($ctx)
+    try { return [string]$dc.Name } finally { $dc.Dispose() }
+}
+
+function Get-MspkiGlobalCatalogName {
+    <#
+    .SYNOPSIS
+    DNS name of a Global Catalog server of the current forest (System.DirectoryServices.ActiveDirectory).
+    #>
+    [CmdletBinding()]
+    param()
+    $forest = [System.DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest()
+    try {
+        $gc = $forest.FindGlobalCatalog()
+        try { return [string]$gc.Name } finally { $gc.Dispose() }
+    }
+    finally { $forest.Dispose() }
+}
+
+function Get-MspkiForestRootName {
+    <#
+    .SYNOPSIS
+    DNS name of the forest root domain (System.DirectoryServices.ActiveDirectory).
+    #>
+    [CmdletBinding()]
+    param()
+    $forest = [System.DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest()
+    try { return [string]$forest.RootDomain.Name } finally { $forest.Dispose() }
+}
+
+function ConvertTo-MspkiDomainDistinguishedName {
+    <#
+    .SYNOPSIS
+    Converts corp.example.test to DC=corp,DC=example,DC=test ('' when the name is empty or not a dotted DNS name).
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$DnsName)
+    $n = ([string]$DnsName).Trim().TrimEnd('.')
+    if ($n -notmatch '^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$') { return '' }
+    return (($n.Split('.') | ForEach-Object { 'DC=' + $_ }) -join ',')
+}
+
+function Find-MspkiRootDse {
+    <#
+    .SYNOPSIS
+    Finds the naming contexts, trying several ways in turn and recording each attempt.
+
+    .DESCRIPTION
+    Order: serverless LDAP://RootDSE, a domain controller from the DC locator, LDAP://<domain DNS name>/RootDSE, a Global Catalog,
+    and last the Configuration naming context built from the forest root domain name (Inferred). Stops at the first success. One
+    failed attempt never ends the search. Returns Root (or $null), Attempts (name, outcome, detail, HResult, path), Method
+    (the attempt that worked) and Constructed.
+    #>
+    [CmdletBinding()]
+    param([string]$ComputerDomain = '')
+    $attempts = New-Object System.Collections.ArrayList
+    $try = {
+        param([string]$Name, [scriptblock]$Body)
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        try {
+            $r = & $Body
+            [void]$attempts.Add([pscustomobject]@{ Name = $Name; Outcome = 'Success'; Detail = ''; HResult = ''; Path = $r.Path })
+            Add-MspkiMethodOutcome -Method ('AD:RootDSE:{0}' -f $Name) -Outcome 'Success' -Detail $r.Path -ElapsedMs $sw.ElapsedMilliseconds
+            return $r
+        }
+        catch {
+            $ei = Get-MspkiErrorInfo $_
+            $detail = '{0} {1}: {2}' -f $ei.ExceptionType, $ei.HResult, $ei.Message
+            [void]$attempts.Add([pscustomobject]@{ Name = $Name; Outcome = $ei.Class; Detail = $detail; HResult = $ei.HResult; Path = '' })
+            Add-MspkiMethodOutcome -Method ('AD:RootDSE:{0}' -f $Name) -Outcome $ei.Class -Detail $detail -ElapsedMs $sw.ElapsedMilliseconds
+            return $null
+        }
+    }
+    $steps = @(
+        @{ Name = 'Serverless'; Body = { $p = 'LDAP://RootDSE'; [pscustomobject]@{ Path = $p; Root = (Get-MspkiRootDse -Path $p) } } },
+        @{ Name = 'DomainController'; Body = {
+            $dc = Get-MspkiDomainControllerName
+            if (-not $dc) { throw 'The DC locator returned no domain controller.' }
+            $p = 'LDAP://{0}/RootDSE' -f $dc
+            [pscustomobject]@{ Path = $p; Root = (Get-MspkiRootDse -Path $p) } } },
+        @{ Name = 'DomainDnsName'; Body = {
+            if (-not $ComputerDomain) { throw 'The domain DNS name of this computer is not known.' }
+            $p = 'LDAP://{0}/RootDSE' -f $ComputerDomain
+            [pscustomobject]@{ Path = $p; Root = (Get-MspkiRootDse -Path $p) } } },
+        @{ Name = 'GlobalCatalog'; Body = {
+            $gc = Get-MspkiGlobalCatalogName
+            if (-not $gc) { throw 'No Global Catalog was found.' }
+            $p = 'GC://{0}/RootDSE' -f $gc
+            [pscustomobject]@{ Path = $p; Root = (Get-MspkiRootDse -Path $p) } } })
+    foreach ($s in $steps) {
+        $r = & $try $s.Name $s.Body
+        if ($null -ne $r) {
+            return [pscustomobject]@{ Root = $r.Root; Attempts = @($attempts); Method = $s.Name; Constructed = $false }
+        }
+    }
+    # Last resort: no directory answered. Build the Configuration NC from the forest root domain name (or, when even that is
+    # unknown, the domain of this computer). The result is a guess: the next stages show whether a domain controller serves it.
+    $r = & $try 'ConstructedFromName' {
+        $name = ''
+        $source = 'forest root domain'
+        try { $name = Get-MspkiForestRootName } catch { $name = '' }
+        if (-not $name) { $name = $ComputerDomain; $source = 'domain of this computer' }
+        $nc = ConvertTo-MspkiDomainDistinguishedName $name
+        if (-not $nc) { throw 'No forest or domain DNS name is known, so no naming context can be built.' }
+        $cfg = 'CN=Configuration,{0}' -f $nc
+        $def = ConvertTo-MspkiDomainDistinguishedName $ComputerDomain
+        if (-not $def) { $def = $nc }
+        [pscustomobject]@{ Path = ('built from the {0}' -f $source); Root = [pscustomobject][ordered]@{
+            configurationNamingContext = $cfg; rootDomainNamingContext = $nc; defaultNamingContext = $def
+            schemaNamingContext = ('CN=Schema,{0}' -f $cfg); dnsHostName = ''; serverName = ''; currentTime = ''
+            domainControllerFunctionality = '' } }
+    }
+    if ($null -ne $r) {
+        return [pscustomobject]@{ Root = $r.Root; Attempts = @($attempts); Method = 'ConstructedFromName'; Constructed = $true }
+    }
+    return [pscustomobject]@{ Root = $null; Attempts = @($attempts); Method = ''; Constructed = $false }
 }
 
 function Get-MspkiForestInfo {
@@ -139,45 +275,61 @@ function Get-MspkiAdContext {
         $ctx.IsDomainJoined = $true
     }
 
-    # 2. RootDSE: domain controller and naming contexts.
+    # 2. RootDSE: domain controller and naming contexts. Several ways are tried in turn (see Find-MspkiRootDse); every attempt is
+    # logged and listed in the evidence.
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    try {
-        $root = Get-MspkiRootDse -TimeoutSeconds $ldapTimeout
-        Add-MspkiMethodOutcome -Method 'AD:RootDSE' -Outcome 'Success' -Detail $root.dnsHostName -ElapsedMs $sw.ElapsedMilliseconds
-        $ctx.DomainController = ConvertTo-MspkiHostName $root.dnsHostName
-        $ctx.ConfigNC = $root.configurationNamingContext
-        $ctx.RootDomainNC = $root.rootDomainNamingContext
-        $ctx.DefaultNC = $root.defaultNamingContext
-        $ctx.SchemaNC = $root.schemaNamingContext
-        $ctx.PksDN = 'CN=Public Key Services,CN=Services,{0}' -f $root.configurationNamingContext
-        $ctx.Domain = ConvertFrom-MspkiDistinguishedName $root.defaultNamingContext
-        $ctx.Forest = ConvertFrom-MspkiDistinguishedName $root.rootDomainNamingContext
-        $ctx.ForestSource = 'AD:RootDSE'
-        $ctx.DcTimeUtc = ConvertTo-MspkiIsoTime $root.currentTime
-        if (-not $ctx.ComputerDomain) { $ctx.ComputerDomain = $ctx.Domain }
-        $ctx.Ready = $true
-        Set-MspkiRunValue -Name 'DomainController' -Value $ctx.DomainController
-        Set-MspkiRunValue -Name 'Domain' -Value $ctx.Domain
-        Set-MspkiRunValue -Name 'Forest' -Value $ctx.Forest
+    $found = Find-MspkiRootDse -ComputerDomain $ctx.ComputerDomain
+    $attemptEvidence = @($found.Attempts | ForEach-Object {
+        if ($_.Outcome -eq 'Success') { 'RootDSE attempt {0}: succeeded ({1})' -f $_.Name, $_.Path }
+        else { 'RootDSE attempt {0}: {1}; {2}' -f $_.Name, $_.Outcome, $_.Detail }
+    })
+    if ($null -eq $found.Root) {
+        $first = @($found.Attempts)[0]
+        $ei = New-MspkiErrorInfo -Class $first.Outcome -Message $first.Detail -HResult $first.HResult
+        [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo $ei -Category 'ADDependency' -Role 'DomainController' `
+            -Target $(if ($ctx.ComputerDomain) { $ctx.ComputerDomain } else { 'RootDSE' }) -Sources 'AD:RootDSE' `
+            -Action 'reading RootDSE from a domain controller (every method failed)' -UnreachableStatus 'Fail' -Scope 'Local' `
+            -Evidence $attemptEvidence))
+        Add-MspkiRunLimit -Text 'RootDSE could not be read and no naming context could be built: AD and CA discovery did not run.'
+        return [pscustomobject]@{ Data = [pscustomobject]$ctx; Findings = @($findings) }
+    }
+    $root = $found.Root
+    $ctx.DomainController = ConvertTo-MspkiHostName $root.dnsHostName
+    $ctx.ConfigNC = $root.configurationNamingContext
+    $ctx.RootDomainNC = $root.rootDomainNamingContext
+    $ctx.DefaultNC = $root.defaultNamingContext
+    $ctx.SchemaNC = $root.schemaNamingContext
+    $ctx.PksDN = 'CN=Public Key Services,CN=Services,{0}' -f $root.configurationNamingContext
+    $ctx.Domain = ConvertFrom-MspkiDistinguishedName $root.defaultNamingContext
+    $ctx.Forest = ConvertFrom-MspkiDistinguishedName $root.rootDomainNamingContext
+    $ctx.ForestSource = 'AD:RootDSE'
+    $ctx.DcTimeUtc = ConvertTo-MspkiIsoTime $root.currentTime
+    if (-not $ctx.ComputerDomain) { $ctx.ComputerDomain = $ctx.Domain }
+    $ctx.Ready = $true
+    Set-MspkiRunValue -Name 'DomainController' -Value $ctx.DomainController
+    Set-MspkiRunValue -Name 'Domain' -Value $ctx.Domain
+    Set-MspkiRunValue -Name 'Forest' -Value $ctx.Forest
+    if ($found.Constructed) {
+        $ctx.ForestSource = 'Constructed'
+        [void]$findings.Add((New-MspkiFinding -Category 'ADDependency' -Role 'DomainController' -Target $ctx.Domain `
+            -Status 'Warning' -StatusCode 'RETRIEVAL_FAIL' -Confidence 'Inferred' -Sources 'AD:RootDSE' -Scope 'Local' `
+            -Message 'No domain controller answered for RootDSE. The Configuration naming context was built from the domain name; the next stages show whether a domain controller serves it.' `
+            -Layers @{ DiscoveryStatus = 'Warning' } -Evidence (@($attemptEvidence) + @(
+                ('configurationNamingContext (built, not read): {0}' -f $root.configurationNamingContext),
+                'The domain controller is not known: later reads use a serverless bind.'))))
+    }
+    else {
+        Add-MspkiMethodOutcome -Method 'AD:RootDSE' -Outcome 'Success' -Detail ('{0} via {1}' -f $root.dnsHostName, $found.Method) -ElapsedMs $sw.ElapsedMilliseconds
         [void]$findings.Add((New-MspkiFinding -Category 'ADDependency' -Role 'DomainController' -Target $ctx.DomainController `
             -Status 'Information' -StatusCode 'OK' -Confidence 'Confirmed' -Sources 'AD:RootDSE' -Scope 'Local' `
             -Message ('Using domain controller {0} for domain {1}.' -f $ctx.DomainController, $ctx.Domain) `
-            -Layers @{ DiscoveryStatus = 'Pass' } -Evidence @(
+            -Layers @{ DiscoveryStatus = 'Pass' } -Evidence (@(
                 ('dnsHostName: {0}' -f $root.dnsHostName),
                 ('defaultNamingContext: {0}' -f $root.defaultNamingContext),
                 ('rootDomainNamingContext: {0}' -f $root.rootDomainNamingContext),
                 ('configurationNamingContext: {0}' -f $root.configurationNamingContext),
                 ('domainControllerFunctionality: {0}' -f $root.domainControllerFunctionality),
-                ('Bind: serverless (DC locator), time limit {0} s' -f $ldapTimeout))))
-    }
-    catch {
-        $ei = Get-MspkiErrorInfo $_
-        Add-MspkiMethodOutcome -Method 'AD:RootDSE' -Outcome $ei.Class -Detail $ei.Message -ElapsedMs $sw.ElapsedMilliseconds
-        [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo $ei -Category 'ADDependency' -Role 'DomainController' `
-            -Target $(if ($ctx.ComputerDomain) { $ctx.ComputerDomain } else { 'RootDSE' }) -Sources 'AD:RootDSE' `
-            -Action 'reading RootDSE from a domain controller' -UnreachableStatus 'Fail' -Scope 'Local'))
-        Add-MspkiRunLimit -Text 'RootDSE could not be read: AD and CA discovery did not run.'
-        return [pscustomobject]@{ Data = [pscustomobject]$ctx; Findings = @($findings) }
+                ('Bind: {0}' -f $found.Method)) + @($attemptEvidence))))
     }
 
     # 3. Forest, domains and trusts.

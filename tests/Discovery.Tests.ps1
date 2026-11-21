@@ -152,14 +152,43 @@ Describe 'Invoke-MspkiDiscovery' {
         Should -Invoke -ModuleName MspkiHealthCheck Get-MspkiLdapObject -Times 0 -Exactly
     }
 
-    It 'reports an unreachable domain controller as a failure, not a permission problem' {
-        Mock -ModuleName MspkiHealthCheck Get-MspkiComputerSystemInfo { [pscustomobject]@{ PartOfDomain = $true; Domain = 'corp.example.test' } }
+    It 'reports an unreachable domain controller as a failure, not a permission problem, when no name is known either' {
+        Mock -ModuleName MspkiHealthCheck Get-MspkiComputerSystemInfo { [pscustomobject]@{ PartOfDomain = $true; Domain = '' } }
         Mock -ModuleName MspkiHealthCheck Get-MspkiRootDse { throw (New-Object System.Runtime.InteropServices.COMException('The server is not operational.', [int]0x8007203A)) }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiDomainControllerName { throw 'no DC locator' }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiGlobalCatalogName { throw 'no GC' }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiForestRootName { throw 'no forest' }
         $d = & $script:discover
         $f = $d.Findings | Where-Object { $_.Role -eq 'DomainController' }
         $f.Status | Should -Be 'Fail'
         $f.StatusCode | Should -Be 'RETRIEVAL_FAIL'
+        $f.Message | Should -Match '0x8007203A'
+        $f.Message | Should -Match 'The server is not operational'
+        ($f.Evidence -join "`n") | Should -Match 'attempt GlobalCatalog'
         $d.Inventory.AdContext.Ready | Should -BeFalse
+    }
+
+    It 'builds the Configuration NC from the domain name when no directory answers, and says it is a guess' {
+        Mock -ModuleName MspkiHealthCheck Get-MspkiComputerSystemInfo { [pscustomobject]@{ PartOfDomain = $true; Domain = 'corp.example.test' } }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiRootDse { throw (New-Object System.Runtime.InteropServices.COMException('The server is not operational.', [int]0x8007203A)) }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiDomainControllerName { throw 'no DC locator' }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiGlobalCatalogName { throw 'no GC' }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiForestRootName { 'corp.example.test' }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiForestInfo { throw 'no forest' }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiComputerSiteName { throw 'no site' }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiLdapObject { throw (New-Object System.Runtime.InteropServices.COMException('The server is not operational.', [int]0x8007203A)) }
+        $d = & $script:discover
+        $ctx = $d.Inventory.AdContext
+        $ctx.Ready | Should -BeTrue
+        $ctx.ConfigNC | Should -Be 'CN=Configuration,DC=corp,DC=example,DC=test'
+        $ctx.DomainController | Should -Be ''
+        $f = $d.Findings | Where-Object { $_.Role -eq 'DomainController' }
+        $f.Status | Should -Be 'Warning'
+        $f.Confidence | Should -Be 'Inferred'
+        ($f.Evidence -join "`n") | Should -Match 'attempt Serverless: Unreachable'
+        ($f.Evidence -join "`n") | Should -Match 'built, not read'
+        # The next stage still runs and reports the real failure.
+        $d.Inventory.PksExists | Should -Not -BeTrue
     }
 
     It 'reports a missing Public Key Services container as NOT_CONFIGURED' {
@@ -292,5 +321,104 @@ Describe 'Invoke-MspkiDiscovery' {
         Should -Invoke -ModuleName MspkiHealthCheck Resolve-MspkiDnsName -Times 0 -Exactly
         Should -Invoke -ModuleName MspkiHealthCheck Test-MspkiTcpPort -Times 0 -Exactly
         Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript -Times 0 -Exactly
+    }
+}
+
+Describe 'RootDSE discovery' {
+    It 'reads RootDSE as a directory entry and never with a DirectorySearcher (the provider refuses searches on RootDSE)' {
+        # Regression: the first live run failed with "The provider does not support searching and cannot search LDAP://RootDSE".
+        $body = InModuleScope MspkiHealthCheck { (Get-Command Get-MspkiRootDse).ScriptBlock.ToString() }
+        $body = $body.Substring($body.IndexOf('[CmdletBinding()]'))   # the help text may name the class it warns about
+        $body | Should -Match 'DirectoryEntry'
+        $body | Should -Match 'RefreshCache'
+        $body | Should -Not -Match 'DirectorySearcher'
+        $body | Should -Not -Match 'Get-MspkiLdapObject'
+    }
+
+    It 'tries serverless, domain controller, domain DNS name and Global Catalog in that order and stops at the first success' {
+        InModuleScope MspkiHealthCheck {
+            $script:paths = New-Object System.Collections.ArrayList
+            Mock Get-MspkiDomainControllerName { 'dc01.corp.example.test' }
+            Mock Get-MspkiGlobalCatalogName { 'gc01.corp.example.test' }
+            Mock Get-MspkiRootDse {
+                [void]$script:paths.Add($Path)
+                if ($Path -notlike 'GC://*') { throw (New-Object System.Runtime.InteropServices.COMException('The server is not operational.', [int]0x8007203A)) }
+                [pscustomobject]@{ configurationNamingContext = 'CN=Configuration,DC=corp,DC=example,DC=test'; dnsHostName = 'gc01.corp.example.test' }
+            }
+            $r = Find-MspkiRootDse -ComputerDomain 'corp.example.test'
+            @($script:paths) | Should -Be @('LDAP://RootDSE', 'LDAP://dc01.corp.example.test/RootDSE', 'LDAP://corp.example.test/RootDSE', 'GC://gc01.corp.example.test/RootDSE')
+            $r.Method | Should -Be 'GlobalCatalog'
+            $r.Constructed | Should -BeFalse
+            @($r.Attempts | ForEach-Object { $_.Outcome }) | Should -Be @('Unreachable', 'Unreachable', 'Unreachable', 'Success')
+            $r.Attempts[0].HResult | Should -Be '0x8007203A'
+        }
+    }
+
+    It 'continues after a failing helper: a failed DC locator does not skip the later attempts' {
+        InModuleScope MspkiHealthCheck {
+            Mock Get-MspkiDomainControllerName { throw 'The specified domain does not exist or cannot be contacted.' }
+            Mock Get-MspkiGlobalCatalogName { throw 'no GC' }
+            Mock Get-MspkiRootDse {
+                if ($Path -ne 'LDAP://corp.example.test/RootDSE') { throw 'refused' }
+                [pscustomobject]@{ configurationNamingContext = 'CN=Configuration,DC=corp,DC=example,DC=test'; dnsHostName = 'dc01.corp.example.test' }
+            }
+            $r = Find-MspkiRootDse -ComputerDomain 'corp.example.test'
+            $r.Method | Should -Be 'DomainDnsName'
+            $r.Attempts.Count | Should -Be 3
+        }
+    }
+
+    It 'builds the naming contexts from the forest root name as the last resort, and prefers it over the domain of the computer' {
+        InModuleScope MspkiHealthCheck {
+            Mock Get-MspkiRootDse { throw 'refused' }
+            Mock Get-MspkiDomainControllerName { throw 'refused' }
+            Mock Get-MspkiGlobalCatalogName { throw 'refused' }
+            Mock Get-MspkiForestRootName { 'example.test' }
+            $r = Find-MspkiRootDse -ComputerDomain 'child.example.test'
+            $r.Constructed | Should -BeTrue
+            $r.Root.configurationNamingContext | Should -Be 'CN=Configuration,DC=example,DC=test'
+            $r.Root.defaultNamingContext | Should -Be 'DC=child,DC=example,DC=test'
+            $r.Root.schemaNamingContext | Should -Be 'CN=Schema,CN=Configuration,DC=example,DC=test'
+            $r.Attempts[-1].Name | Should -Be 'ConstructedFromName'
+            $r.Attempts.Count | Should -Be 5
+        }
+    }
+
+    It 'returns no result when nothing answers and no name is known' {
+        InModuleScope MspkiHealthCheck {
+            Mock Get-MspkiRootDse { throw 'refused' }
+            Mock Get-MspkiDomainControllerName { throw 'refused' }
+            Mock Get-MspkiGlobalCatalogName { throw 'refused' }
+            Mock Get-MspkiForestRootName { throw 'refused' }
+            $r = Find-MspkiRootDse -ComputerDomain ''
+            $r.Root | Should -BeNullOrEmpty
+            $r.Attempts.Count | Should -Be 5
+        }
+    }
+
+    It 'converts DNS names to domain distinguished names and rejects anything else' {
+        InModuleScope MspkiHealthCheck {
+            ConvertTo-MspkiDomainDistinguishedName 'corp.example.test.' | Should -Be 'DC=corp,DC=example,DC=test'
+            ConvertTo-MspkiDomainDistinguishedName 'WORKGROUP' | Should -Be ''
+            ConvertTo-MspkiDomainDistinguishedName '' | Should -Be ''
+            ConvertTo-MspkiDomainDistinguishedName 'a,b=c.example.test' | Should -Be ''
+        }
+    }
+}
+
+Describe 'Error findings show the real error' {
+    It 'puts the error code and message in the message of an Unsupported finding, not only in the evidence' {
+        InModuleScope MspkiHealthCheck {
+            $ei = New-MspkiErrorInfo -Class 'Unsupported' -HResult '0x80131515' -Message 'The provider does not support searching and cannot search LDAP://RootDSE.'
+            $f = New-MspkiErrorFinding -ErrorInfo $ei -Category 'ADDependency' -Target 'corp.example.test' -Sources 'AD:RootDSE' -Action 'reading RootDSE'
+            $f.Message | Should -Be 'Not supported while reading RootDSE. (error 0x80131515: The provider does not support searching and cannot search LDAP://RootDSE)'
+        }
+    }
+
+    It 'leaves the message alone when there is no error text' {
+        InModuleScope MspkiHealthCheck {
+            $f = New-MspkiErrorFinding -ErrorInfo (New-MspkiErrorInfo -Class 'Timeout') -Category 'ADDependency' -Target 'x.example.test' -Sources 'AD:RootDSE' -Action 'reading RootDSE'
+            $f.Message | Should -Be 'Timed out while reading RootDSE.'
+        }
     }
 }

@@ -136,6 +136,11 @@ function New-MspkiErrorFinding {
         default            { $st = 'Error'; $code = 'INTERNAL_ERROR'
                              $msg = ('Unexpected error while {0}.' -f $Action) }
     }
+    # The real error is part of the message, not only of the evidence: "Unsupported" alone does not say what failed.
+    $detail = @()
+    if ($ErrorInfo.HResult) { $detail += ('error {0}' -f $ErrorInfo.HResult) }
+    if ($ErrorInfo.Message) { $detail += $ErrorInfo.Message.TrimEnd('.') }
+    if ($detail.Count -gt 0) { $msg = '{0} ({1})' -f $msg, ($detail -join ': ') }
     $ev = @($Evidence)
     if ($ErrorInfo.HResult) { $ev += ('HResult: {0}' -f $ErrorInfo.HResult) }
     if ($ErrorInfo.ExceptionType) { $ev += ('Exception: {0}' -f $ErrorInfo.ExceptionType) }
