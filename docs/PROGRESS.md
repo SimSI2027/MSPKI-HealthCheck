@@ -3,6 +3,16 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## Phase D, part 1: AD container consistency (REQUIREMENTS 5.4) â€” started
+- Done: `Test-MspkiAdContainerConsistency` (pure, over the inventory, review only, never says "delete"): per Enterprise
+  CA, current certificate in AIA / NTAuthCertificates and chain root in Certification Authorities; no clear
+  current/historical split; AD template list vs the CA's own list and Enrollment Services certificates vs the CA's valid
+  signing certificates (`STALE_DATA`). Missing publication is `NOT_DISCOVERED`. Wired into the run with its own
+  try/catch and stage timing. 337 tests.
+- Next (Phase D): read the Certificate Templates / KRA / OID containers (template object missing, template published by
+  no CA, KRA certificate missing or expired, OID group link that does not resolve), then the template review (ESC rules
+  with positive and negative fixtures, SIDs resolved once per run), CEP/CES, NDES, Intune local, stale references.
+- Open: whether the CA publish-status flags can be interpreted is unverified (shown raw). Not yet run against a live AD CS.
 ## Phase C: HTML report, CSV, exit codes, demo — done
 - Done: `report.html` (one offline file, CSP blocks all network; summary, exit-code card, Discovery Map tree
   forest > CAs > certificates > endpoints/templates/CES with confidence + sources, filterable findings with
@@ -11,7 +21,7 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   builds `out\demo\report.html` from `tests\fixtures\demo-results.json` (example.test only). 319 tests.
 - Fixed on the way: `$PSScriptRoot` is empty in the entry script's parameter defaults (default `-OutputPath` would
   have failed); the default is now set in the script body.
-- Next: Phase D (template/CA security review, CEP/CES, NDES, Intune local, stale references).
+- Next: Phase D (started, see above).
 - Open: report regeneration from a results.json above ~2 MB is limited by Windows PowerShell 5.1 `ConvertFrom-Json`
   (live runs are not affected). Not yet run against a live AD CS.
 

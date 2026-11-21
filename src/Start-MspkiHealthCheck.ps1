@@ -99,6 +99,16 @@ function Start-MspkiHealthCheck {
             Add-MspkiStageTiming -Stage 'Analysis:CACertificates' -Stopwatch $sw
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             try {
+                foreach ($f in (Test-MspkiAdContainerConsistency -Inventory $d.Inventory)) { [void]$findings.Add($f) }
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('AD container review stopped: {0}' -f $_.Exception.Message)
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Run' -Role 'Run' `
+                    -Target 'ADContainers' -Sources 'Run' -Action 'reviewing the AD PKI containers' -Stage 'Run'))
+            }
+            Add-MspkiStageTiming -Stage 'Analysis:ADContainers' -Stopwatch $sw
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
                 foreach ($f in (Invoke-MspkiEndpointAnalysis -Discovery $d -Thresholds $thresholds -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)) {
                     [void]$findings.Add($f)
                 }
