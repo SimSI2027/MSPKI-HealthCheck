@@ -454,14 +454,14 @@
     <Setter Property="BorderBrush" Value="{StaticResource B.Control}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="Padding" Value="10,0,12,0"/>
-    <Setter Property="Height" Value="28"/>
+    <Setter Property="Height" Value="32"/>
     <Setter Property="Margin" Value="0,0,8,0"/>
     <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ToggleButton">
-          <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="14" SnapsToDevicePixels="True">
+          <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="16" SnapsToDevicePixels="True">
             <StackPanel Orientation="Horizontal">
               <TextBlock x:Name="Tick" Style="{StaticResource Glyph}" Text="&#xE73E;" FontSize="12" Margin="0,0,6,0" Foreground="{StaticResource B.Accent}" Visibility="Collapsed"/>
               <ContentPresenter VerticalAlignment="Center"/>
@@ -790,6 +790,32 @@
           <Grid>
             <ToggleButton x:Name="Tg" Style="{StaticResource ComboToggle}" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press"/>
             <ContentPresenter x:Name="Cp" IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Margin="11,0,30,0" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+            <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" VerticalOffset="2" AllowsTransparency="True" Focusable="False" PopupAnimation="None">
+              <Border MinWidth="{Binding ActualWidth, ElementName=Tg}" MaxHeight="{TemplateBinding MaxDropDownHeight}" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Control}" BorderThickness="1" CornerRadius="6" Margin="0,0,12,12" Padding="0,4" Effect="{StaticResource PopupShadow}">
+                <ScrollViewer><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/></ScrollViewer>
+              </Border>
+            </Popup>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{StaticResource B.Disabled}"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Filter drop-down that names itself: "Severity: All". Tag = the label. -->
+  <Style x:Key="FilterCombo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ComboBox">
+          <Grid>
+            <ToggleButton x:Name="Tg" Style="{StaticResource ComboToggle}" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press"/>
+            <StackPanel Orientation="Horizontal" IsHitTestVisible="False" Margin="11,0,30,0" VerticalAlignment="Center" HorizontalAlignment="Left">
+              <TextBlock Text="{TemplateBinding Tag}" Foreground="{StaticResource B.Muted}"/>
+              <TextBlock Text=": " Foreground="{StaticResource B.Muted}"/>
+              <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" TextElement.FontWeight="SemiBold"/>
+            </StackPanel>
             <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" VerticalOffset="2" AllowsTransparency="True" Focusable="False" PopupAnimation="None">
               <Border MinWidth="{Binding ActualWidth, ElementName=Tg}" MaxHeight="{TemplateBinding MaxDropDownHeight}" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Control}" BorderThickness="1" CornerRadius="6" Margin="0,0,12,12" Padding="0,4" Effect="{StaticResource PopupShadow}">
                 <ScrollViewer><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/></ScrollViewer>

@@ -186,7 +186,7 @@ Describe 'GUI model helpers' {
     It 'filters by status, category, confidence and free text (every word must match)' {
         $all = $script:rows.ToArray()
         (Get-MspkiGuiFilteredRow -Rows $all).Count | Should -Be 30
-        (Get-MspkiGuiFilteredRow -Rows $all -Status '(all)' -Category '(all)' -Confidence '(all)').Count | Should -Be 30
+        (Get-MspkiGuiFilteredRow -Rows $all -Status 'All' -Category 'All' -Confidence 'All').Count | Should -Be 30
         $warn = @(Get-MspkiGuiFilteredRow -Rows $all -Status 'Warning')
         $warn.Count | Should -Be 6
         @($warn | Where-Object { $_.Status -ne 'Warning' }).Count | Should -Be 0
@@ -204,12 +204,12 @@ Describe 'GUI model helpers' {
 
     It 'offers "(all)" and only the values present, statuses in severity order' {
         $s = @(Get-MspkiGuiFilterChoice -Rows $script:rows -Field Status)
-        $s[0] | Should -Be '(all)'
+        $s[0] | Should -Be 'All'
         $s | Should -Contain 'Fail'
         $s | Should -Not -Contain 'Critical'
         $s.IndexOf('Fail') | Should -BeLessThan $s.IndexOf('Pass')
         $cats = @(Get-MspkiGuiFilterChoice -Rows $script:rows -Field Category)
-        $cats[0] | Should -Be '(all)'
+        $cats[0] | Should -Be 'All'
         @($cats[1..($cats.Count - 1)]) | Should -Be @(@($cats[1..($cats.Count - 1)]) | Sort-Object)
     }
 
@@ -285,7 +285,7 @@ Describe 'GUI model helpers' {
         $two.Count | Should -Be 7
         @($two | Where-Object { $_.Status -notin @('Warning', 'Fail') }).Count | Should -Be 0
         @(Get-MspkiGuiFilteredRow -Rows $all -Severity 'High').Count | Should -Be @($all | Where-Object { $_.Severity -eq 'High' }).Count
-        (Get-MspkiGuiFilterChoice -Rows $all -Field Severity)[0] | Should -Be '(all)'
+        (Get-MspkiGuiFilterChoice -Rows $all -Field Severity)[0] | Should -Be 'All'
     }
 
     It 'gives every status, severity and confidence an icon, a tone and text (never colour alone)' {
@@ -352,10 +352,10 @@ Describe 'GUI model helpers' {
         $s.Coverage.Items[0].Bucket | Should -Be 'Permission denied'
         $s.Coverage.Items[-1].Bucket | Should -Be 'Succeeded'
         foreach ($i in $s.Coverage.Items) { $i.Reason | Should -Not -BeNullOrEmpty; $i.Pill.Glyph | Should -Not -BeNullOrEmpty }
-        $s.Coverage.Text | Should -BeLike '*4 method(s) tried*'
+        $s.Coverage.Text | Should -BeLike '*4 methods tried*'
         $s.Coverage.Attention.Count | Should -Be 1
         $s.Coverage.Succeeded.Count | Should -Be 3
-        $s.Coverage.SucceededText | Should -Be 'Show the 3 method(s) that succeeded'
+        $s.Coverage.SucceededText | Should -Be 'Show the 3 methods that succeeded'
         (Get-MspkiGuiCoverage -RunInfo ([pscustomobject]@{ Methods = @([pscustomobject]@{ Method = 'a'; Outcome = 'Success'; Detail = 'x'; ElapsedMs = 1 }) })).Text | Should -BeLike '*every one succeeded*'
         $s.Duration | Should -Be '1:26'
     }
@@ -425,6 +425,16 @@ Describe 'GUI model helpers' {
         Test-MspkiGuiTimeout -Text 'abc' | Should -BeNullOrEmpty
         Test-MspkiGuiTimeout -Text '' | Should -BeNullOrEmpty
     }
+
+    It 'writes counts with the right word form, never "(s)"' {
+        Format-MspkiGuiCount -Count 1 -Singular 'finding' | Should -Be '1 finding'
+        Format-MspkiGuiCount -Count 0 -Singular 'finding' | Should -Be '0 findings'
+        Format-MspkiGuiCount -Count 3 -Singular 'entry' -Plural 'entries' | Should -Be '3 entries'
+        $h = Get-MspkiGuiHealth -Findings @() -CoverageProblems 1
+        $h.Title | Should -Be 'Needs review'
+        $h.Text | Should -Be '1 discovery method could not read its source (see Discovery coverage).'
+        $h.Text | Should -Not -BeLike '*(s)*'
+    }
 }
 
 Describe 'GUI window (single-threaded runspace)' {
@@ -436,7 +446,8 @@ Describe 'GUI window (single-threaded runspace)' {
             Add-Type -AssemblyName WindowsBase
             $xaml = [System.IO.File]::ReadAllText((Join-Path $folder 'Theme.xaml'), [System.Text.Encoding]::UTF8)
             $d = [System.Windows.Markup.XamlReader]::Parse($xaml)
-            $keys = @('B.Accent', 'B.Header', 'PrimaryButton', 'PillTemplate', 'ChipToggle', 'Card', 'AppWindow', 'RowButton', 'TileButton', 'ReadBox', 'F.Icons')
+            $keys = @('B.Accent', 'B.Header', 'PrimaryButton', 'PillTemplate', 'ChipToggle', 'Card', 'AppWindow', 'RowButton', 'TileButton', 'ReadBox', 'F.Icons',
+                'SubtleButton', 'CaptionButton', 'CloseButton', 'SearchBox', 'FilterCombo', 'Switch', 'NavItem', 'NavList', 'ToneGlyph', 'ToneStripe', 'FocusRing')
             [pscustomobject]@{ Type = $d.GetType().Name; Missing = (@($keys | Where-Object { -not $d.Contains($_) }) -join ','); Count = $d.Count }
         }
         $out[0].Type | Should -Be 'ResourceDictionary'
@@ -461,6 +472,9 @@ Describe 'GUI window (single-threaded runspace)' {
                 Title = $w.Window.Title; Controls = $w.Ui.Count; Missing = ($missing -join ',')
                 ThemeLoaded = [bool]$w.Window.FindResource('B.Accent'); MinWidth = $w.Window.MinWidth; MinHeight = $w.Window.MinHeight
                 FontFamily = $w.Window.FontFamily.Source
+                Chrome = ($null -ne [System.Windows.Shell.WindowChrome]::GetWindowChrome($w.Window))
+                Icons = $w.Window.FindResource('F.Icons').Source
+                NavItems = $w.Ui.NavList.Items.Count; Pages = $w.Ui.Tabs.Items.Count
             }
         }
         $out[0].Title | Should -Be 'MSPKI Health Check'
@@ -470,6 +484,10 @@ Describe 'GUI window (single-threaded runspace)' {
         $out[0].MinWidth | Should -BeGreaterOrEqual 900
         $out[0].MinHeight | Should -BeGreaterOrEqual 560
         $out[0].FontFamily | Should -Be 'Segoe UI'
+        # Custom title bar through the in-box WindowChrome; Fluent icons with the MDL2 font as the fallback; one nav item per page.
+        $out[0].Chrome | Should -BeTrue
+        $out[0].Icons | Should -Be 'Segoe Fluent Icons, Segoe MDL2 Assets'
+        $out[0].NavItems | Should -Be $out[0].Pages
     }
 
     It 'starts on the welcome state, not on blank labels' {
@@ -485,9 +503,21 @@ Describe 'GUI window (single-threaded runspace)' {
                 Context = $ui.TxtWelcomeContext.Text; Header = @($ui.HdrContext.ItemsSource).Count; Badge = $ui.HdrBadge.Content.Text
                 Version = $ui.HdrVersion.Text; Stage = $ui.TxtStage.Text; Options = $ui.TxtOptionsSummary.Text; Output = $ui.TxtOutputPath.Text
                 RunEnabled = [bool]$ui.BtnRun.IsEnabled; CancelEnabled = [bool]$ui.BtnCancel.IsEnabled; Count = $ui.TxtCount.Text
+                Forest = @($ui.HdrContext.ItemsSource)[0].Value; Error = [string]$ui.WelcomeError.Visibility
+                Running = [string]$ui.PanelRunning.Visibility
+                BusyRunning = $(Set-MspkiGuiBusy -Busy $true; [string]$ui.PanelRunning.Visibility); BusyWelcome = [string]$ui.PanelWelcome.Visibility
+                IdleRunning = $(Set-MspkiGuiBusy -Busy $false; [string]$ui.PanelRunning.Visibility)
             }
         }
         $r = $out[0]
+        # Before the first run: no dash for facts that are not known yet, no error notice, no running panel.
+        $r.Forest | Should -Be 'Known after a run'
+        $r.Error | Should -Be 'Collapsed'
+        $r.Running | Should -Be 'Collapsed'
+        # While busy the Overview shows the running panel instead of the welcome card.
+        $r.BusyRunning | Should -Be 'Visible'
+        $r.BusyWelcome | Should -Be 'Collapsed'
+        $r.IdleRunning | Should -Be 'Collapsed'
         $r.Welcome | Should -Be 'Visible'
         $r.Results | Should -Be 'Collapsed'
         $r.Context | Should -BeLike '*Administrator rights are not required*'
@@ -604,14 +634,14 @@ Describe 'GUI window (single-threaded runspace)' {
         $r.Chips | Should -Be 5
         $r.TabCount | Should -Be '30'
         $r.StatusCount | Should -Be '30 findings'
-        $r.MapCount | Should -BeLike '* item(s)'
+        $r.MapCount | Should -BeLike '* items'
         $r.RunEnabled | Should -BeTrue
         $r.CancelEnabled | Should -BeFalse
         $r.AfterTextFilter | Should -Be 0
         $r.EmptyShown | Should -Be 'Visible'
         $r.AfterClear | Should -Be 30
         $r.AfterChip | Should -Be 6
-        $r.ShowingText | Should -Be 'Showing 6 of 30 finding(s)'
+        $r.ShowingText | Should -Be 'Showing 6 of 30 findings'
         $r.AfterTwoChips | Should -Be 7
         $r.SortFirst | Should -Be 'Fail'
         $r.SortLast | Should -Be 'Pass'

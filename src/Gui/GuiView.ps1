@@ -57,6 +57,7 @@ function ConvertTo-MspkiGuiTreeNode {
         ConfidenceText = $confText
         ConfidencePill = (Get-MspkiGuiStatusPill -Value $conf -Kind Confidence)
         BelowText      = $belowText
+        HasBelow       = [bool]$belowText
         Expanded       = ($Depth -lt 2)
         Detail         = [string[]]@($Node.Detail)
         Sources        = [string[]]@($Node.Sources)
@@ -165,7 +166,7 @@ function Get-MspkiGuiFindingDetail {
     })
     $sources = [string[]]@($f.Sources | Where-Object { $_ })
     $evidence = ((@($f.Evidence) | Where-Object { $null -ne $_ }) -join "`r`n")
-    $title = ('{0}  {1}' -f $f.Category, $f.Target).Trim()
+    $title = (@($f.Category, $f.Target) | Where-Object { $_ }) -join $script:MspkiGuiDot
     $copy = New-Object 'System.Collections.Generic.List[string]'
     $copy.Add(('{0} [{1}] {2}' -f $f.Id, $f.Status, $title))
     $copy.Add([string]$f.Message)
@@ -343,7 +344,11 @@ function Get-MspkiGuiCaCard {
         Templates    = $tplCount
         Findings     = $mine.Count
         Ces          = $cesCount
-        Facts        = ('{0} published template(s)  |  {1} CA certificate(s)  |  {2} enrollment web service(s)  |  {3} finding(s)' -f $tplCount, $certs.Count, $cesCount, $mine.Count)
+        Facts        = (@(
+                (Format-MspkiGuiCount -Count $tplCount -Singular 'published template'),
+                (Format-MspkiGuiCount -Count $certs.Count -Singular 'CA certificate'),
+                (Format-MspkiGuiCount -Count $cesCount -Singular 'enrollment web service'),
+                (Format-MspkiGuiCount -Count $mine.Count -Singular 'finding')) -join $script:MspkiGuiDot)
     }
 }
 
@@ -377,13 +382,13 @@ function Get-MspkiGuiCoverage {
     foreach ($i in $items) { $counts[$i.Bucket] = 1 + [int]$counts[$i.Bucket] }
     $parts = @(foreach ($b in @('Succeeded', 'Permission denied', 'Failed', 'Skipped', 'Not found')) { if ($counts.ContainsKey($b)) { '{0} {1}' -f $counts[$b], $b.ToLowerInvariant() } })
     $text = 'No discovery method details were recorded for this run.'
-    if ($items.Count -gt 0) { $text = '{0} method(s) tried: {1}' -f $items.Count, ($parts -join ', ') }
+    if ($items.Count -gt 0) { $text = '{0} tried: {1}' -f (Format-MspkiGuiCount -Count $items.Count -Singular 'method'), ($parts -join ', ') }
     $problems = @($items | Where-Object { $_.Bucket -in @('Permission denied', 'Failed') }).Count
     $attention = @($sorted | Where-Object { $_.Bucket -ne 'Succeeded' })
     $ok = @($sorted | Where-Object { $_.Bucket -eq 'Succeeded' })
     $okText = ''
-    if ($ok.Count -gt 0) { $okText = 'Show the {0} method(s) that succeeded' -f $ok.Count }
-    if ($items.Count -gt 0 -and $attention.Count -eq 0) { $text = '{0} method(s) tried: every one succeeded.' -f $items.Count }
+    if ($ok.Count -gt 0) { $okText = 'Show the {0} that succeeded' -f (Format-MspkiGuiCount -Count $ok.Count -Singular 'method') }
+    if ($items.Count -gt 0 -and $attention.Count -eq 0) { $text = '{0} tried: every one succeeded.' -f (Format-MspkiGuiCount -Count $items.Count -Singular 'method') }
     return [pscustomobject][ordered]@{
         Items = [object[]]$sorted; Attention = [object[]]$attention; Succeeded = [object[]]$ok; SucceededText = $okText
         Text = $text; Total = $items.Count; Problems = $problems
@@ -413,21 +418,29 @@ function Get-MspkiGuiHealth {
     if ($crit -gt 0) { $bits.Add(('{0} critical' -f $crit)) }
     if ($fail -gt 0) { $bits.Add(('{0} failed' -f $fail)) }
     if ($err -gt 0) { $bits.Add(('{0} could not be checked (error)' -f $err)) }
-    if ($warn -gt 0) { $bits.Add(('{0} warning(s)' -f $warn)) }
+    if ($warn -gt 0) { $bits.Add((Format-MspkiGuiCount -Count $warn -Singular 'warning')) }
     $extra = ''
-    if ($CoverageProblems -gt 0) { $extra += (' {0} discovery method(s) could not read their source (see Discovery coverage).' -f $CoverageProblems) }
+    if ($CoverageProblems -gt 0) {
+        $verb = 'could not read its source'
+        if ($CoverageProblems -ne 1) { $verb = 'could not read their source' }
+        $extra += (' {0} {1} (see Discovery coverage).' -f (Format-MspkiGuiCount -Count $CoverageProblems -Singular 'discovery method'), $verb)
+    }
     if ($partial) { $extra += ' The run did not finish, so these results are partial.' }
     if ($crit + $fail + $high -gt 0) {
         return [pscustomobject][ordered]@{ Tone = 'Bad'; Glyph = [string][char]0xE7BA; Title = 'Action needed'; Text = ('{0}.{1}' -f ($bits -join ', '), $extra).Trim(); Level = 'Red' }
     }
     if ($err + $warn + $review -gt 0 -or $CoverageProblems -gt 0 -or $partial) {
         $t = ($bits -join ', ')
-        if (-not $t) { $t = '{0} item(s) need a review' -f $review }
-        return [pscustomobject][ordered]@{ Tone = 'Warn'; Glyph = [string][char]0xE7BA; Title = 'Needs review'; Text = ('{0}.{1}' -f $t, $extra).Trim(); Level = 'Amber' }
+        if (-not $t -and $review -gt 0) {
+            $t = '{0} {1}' -f (Format-MspkiGuiCount -Count $review -Singular 'finding'), $(if ($review -eq 1) { 'needs a review' } else { 'need a review' })
+        }
+        $text = $extra.Trim()
+        if ($t) { $text = ('{0}.{1}' -f $t, $extra).Trim() }
+        return [pscustomobject][ordered]@{ Tone = 'Warn'; Glyph = [string][char]0xE7BA; Title = 'Needs review'; Text = $text; Level = 'Amber' }
     }
     $msg = 'No problems found.'
     if ($all.Count -eq 0) { $msg = 'No findings were recorded.' }
-    elseif ($pass -gt 0) { $msg = 'No problems found. {0} check(s) passed.' -f $pass }
+    elseif ($pass -gt 0) { $msg = 'No problems found. {0} passed.' -f (Format-MspkiGuiCount -Count $pass -Singular 'check') }
     return [pscustomobject][ordered]@{ Tone = 'Good'; Glyph = [string][char]0xE73E; Title = 'Healthy'; Text = $msg; Level = 'Green' }
 }
 
@@ -526,10 +539,10 @@ function Get-MspkiGuiSummary {
         Select-Object -First 10 | ForEach-Object {
             $msg = ([string]$_.Message) -replace '\s*[\r\n]+\s*', ' '
             if ($msg.Length -gt 200) { $msg = $msg.Substring(0, 197) + '...' }
-            $title = ('{0}  {1}' -f $_.Category, $_.Target).Trim()
+            $title = (@($_.Category, $_.Target) | Where-Object { $_ }) -join $script:MspkiGuiDot
             [pscustomobject][ordered]@{
                 Id = [string]$_.Id; StatusPill = (Get-MspkiGuiStatusPill -Value ([string]$_.Status)); Title = $title; Message = $msg
-                Meta = ('{0}  |  severity {1}  |  confidence {2}' -f $_.Id, $_.Severity, $_.Confidence)
+                Meta = (@([string]$_.Id, ('Severity {0}' -f $_.Severity), ('Confidence {0}' -f $_.Confidence)) -join $script:MspkiGuiDot)
             }
         })
 
@@ -602,6 +615,8 @@ function Get-MspkiGuiContext {
         $dom = [string][System.Environment]::GetEnvironmentVariable('USERDNSDOMAIN')
         if ($dom) { $domain = $dom.ToLowerInvariant() }
     }
+    # Before the first run the forest and domain controller are not known yet: say so instead of showing a dash.
+    if ($null -eq $Summary) { $dash = 'Known after a run' }
     $items = @(
         [pscustomobject][ordered]@{ Label = 'Forest'; Value = $(if ($forest) { $forest } else { $dash }) }
         [pscustomobject][ordered]@{ Label = 'Domain'; Value = $(if ($domain) { $domain } else { $dash }) }

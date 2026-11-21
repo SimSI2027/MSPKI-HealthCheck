@@ -5,7 +5,7 @@ $script:MspkiGuiStatusOrder = @('Critical', 'Fail', 'Error', 'Warning', 'Skipped
 $script:MspkiGuiStatusRank = @{ Critical = 7; Fail = 6; Error = 5; Warning = 4; Skipped = 3; Information = 2; Pass = 1; NotApplicable = 0 }
 $script:MspkiGuiSeverityRank = @{ High = 5; Medium = 4; Low = 3; ReviewRequired = 2; Information = 1; None = 0 }
 $script:MspkiGuiConfidenceRank = @{ Confirmed = 3; Referenced = 2; Inferred = 1; Unknown = 0 }
-$script:MspkiGuiAllChoice = '(all)'
+$script:MspkiGuiAllChoice = 'All'
 
 # Engine stages in the order they run, with the label shown in the window. Used for the progress bar.
 $script:MspkiGuiStages = @(
@@ -225,7 +225,7 @@ function Test-MspkiGuiRowFilter {
     .SYNOPSIS
     True when a grid row passes the filters. Text: every word must appear somewhere in the row (case-insensitive).
     Status: one or several values (a row passes when it matches any of them). Severity, Category and Confidence: an exact
-    match. An empty value or "(all)" means no filter.
+    match. An empty value or "All" means no filter.
     #>
     [CmdletBinding()]
     param(
@@ -266,7 +266,7 @@ function Get-MspkiGuiFilteredRow {
 function Get-MspkiGuiFilterChoice {
     <#
     .SYNOPSIS
-    The values for a filter drop-down: "(all)" and then the distinct values present in the rows
+    The values for a filter drop-down: "All" and then the distinct values present in the rows
     (statuses, severity and confidence by rank, categories alphabetically).
     #>
     [CmdletBinding()]
@@ -331,3 +331,18 @@ function Test-MspkiGuiTimeout {
     if ([int]::TryParse($Text.Trim(), [ref]$n) -and $n -ge 1 -and $n -le 120) { return $n }
     return $null
 }
+
+function Format-MspkiGuiCount {
+    <#
+    .SYNOPSIS
+    A count with the right word form: "1 finding", "2 findings" (the plural is the singular plus "s" unless given).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][int]$Count, [Parameter(Mandatory = $true)][string]$Singular, [string]$Plural = '')
+    if (-not $Plural) { $Plural = $Singular + 's' }
+    if ($Count -eq 1) { return ('1 {0}' -f $Singular) }
+    return ('{0} {1}' -f $Count, $Plural)
+}
+
+# Separator between facts on one line (a middle dot with spaces).
+$script:MspkiGuiDot = ' ' + [string][char]0x00B7 + ' '

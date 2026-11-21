@@ -146,7 +146,6 @@ function Invoke-MspkiGuiSnapshot {
         Clear-MspkiGuiResult
         $ui.TxtWelcomeError.Text = 'The domain controller could not be reached (LDAP bind timed out after 5 s). See the Run log page for details, then try again.'
         $ui.WelcomeError.Visibility = 'Visible'
-        $ui.TxtWelcomeContext.Text = 'The last run ended without results. See the Run log page for the reason, then try again.'
         Set-MspkiGuiState -Text 'The run ended without results. See the Run log page.' -State Bad
         & $shot '04-error'
         Clear-MspkiGuiResult
@@ -218,8 +217,12 @@ function Invoke-MspkiGuiSnapshot {
             $none.Inventory = $inv
             $none.Findings = @($data.Findings | Where-Object { $_ -and [string]$_.Category -ne 'CA' })
             Show-MspkiGuiResult -Data $none
+            Set-MspkiGuiState -Text ('Loaded {0} from an earlier run' -f (Format-MspkiGuiCount -Count @($none.Findings).Count -Singular 'finding')) -State Warn
             & $page $ui.TabSummary
             & $shot '60-no-ca'
+            $ui.TxtNoCa.BringIntoView()
+            Wait-MspkiGuiIdle -Rounds 3
+            & $shot '61-no-ca-section'
         }
         else {
             & $page $ui.TabLog

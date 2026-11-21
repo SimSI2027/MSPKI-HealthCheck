@@ -193,3 +193,11 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Round 1 scores: 7/7/7/8/6/8/8/6/6/6 (not a pass). Defects and the round 2 plan are in docs/GUI-DESIGN.md.
 - Open: Pester 5 was not on the module path in this session, so Gui.Tests.ps1 / Hygiene.Tests.ps1 were NOT run after this
   change; run them first next session (the snapshot test still expects >= 8 files; the window loads and renders all 15).
+
+## GUI redesign: rounds 2-5 done (rubric PASS in round 5)
+- Done: compact navigation under 1280 px, running panel on the Overview, self-labelled filters, icon-only tree status, proper
+  plurals (`Format-MspkiGuiCount`) and separators, responsive status tiles, capped details pane, single error/partial notices.
+  Filter choice "(all)" is now "All". Engine untouched. Snapshots: `-SnapshotMaximized`; states rendered under out\ only.
+- Tests: full suite 745 passed, 0 failed (Pester 5.7.1). New: count wording, running panel, pre-run facts, WindowChrome, icon font.
+- Final scores 9/8/8/9/8/8/8/9/8/8. Remaining gaps (themed dialogs, snap layouts, dark theme, saved layout) are in GUI-DESIGN.md.
+- Next: confirm on screen with the checklist (real mouse/keyboard: caption buttons, drag, resize, Alt+Space, Tab order).

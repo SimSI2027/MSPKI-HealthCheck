@@ -135,3 +135,36 @@ Fixed in round 1: maximised padding measured at 8 px (overhang = (3856 - 3840) /
 Next (round 2): value-first KPI tiles; compact nav under 1280 px; grid columns Status, Target, Message first; self-labelled
 filter combos on one wrap row; icon-only status in the tree; a running panel on Overview bound to the status bar; single error
 notice; proper plurals and separators; pill + title on one line in top issues and coverage; icon-only Copy.
+
+### Round 2
+Generator: value-first KPI tiles; compact navigation (icons only, environment in a tooltip) under 1280 px; grid columns
+Status, Target, Message first; self-labelled filter drop-downs ("Severity: All"); icon-only status in the tree with confidence
+as quiet text and "worst below" as a small badge; running panel on the Overview bound to the status bar; one error notice;
+proper plurals (`Format-MspkiGuiCount`) and middle-dot separators; badge + title on one line in top issues and coverage;
+icon-only Copy; "Known after a run" instead of dashes; "Needs review" no longer says "0 items need a review".
+Scores: 8/7/8/8/7/8/7/8/7/7. Top defects: status chips overflow the panel at minimum size; "Information" badge clipped in the
+grid; status tiles 380 px wide with little in them at 1920; expand/collapse icons do not match; "CA  name" double space.
+
+### Round 3
+Generator: chips on their own wrapping row; wider Status column; status tiles in one row of eight from 1600 px; chevron icons
+for expand/collapse; "Category · Target" titles.
+Scores: 8/8/8/8/7/8/8/7/7/8. Top defects: partial run said "partial" three times (banner, note, meta); on an ultra-wide maximised
+screen the details pane and search box stretch to 200-character lines; Findings shows only ~4 rows at minimum size.
+
+### Round 4
+Generator: partial note removed (the banner says it); details pane capped at 640 px and search box at 640 px; page subtitles
+hidden in compact navigation. Also rendered at 200 % DPI (crisp, no blur).
+Scores: 9/8/8/9/8/8/8/9/8/8. Remaining defect: long URL rows in the tree pushed their confidence text past the panel edge.
+
+### Round 5 (final)
+Generator: tree labels capped so the confidence text stays visible; the stopwatch in the status bar hides when no time is shown.
+Discriminator (PNGs at 1080x700, 1920x1080, maximised on a 3840 px screen, 200 % DPI): **PASS** on the rubric.
+Scores: hierarchy 9, alignment 8, typography 8, colour 9, density 8, controls 8, icons 8, states 9, data readability 8, polish 8.
+
+What still separates it from a top-tier product (known, not fixable within the constraints or out of scope):
+- Message boxes (export done, open errors) are the standard Windows dialog, not themed content dialogs.
+- No Windows 11 snap-layout flyout on the maximise button and no Mica backdrop (both need P/Invoke, which is banned).
+- Light theme only: no dark theme and no tailored high-contrast theme (system high contrast falls back to these colours).
+- At the minimum size the Findings grid shows about five rows; Category, Severity and Confidence scroll horizontally.
+- No column chooser or remembered layout (column widths, splitter position, last page) between sessions.
+- No motion (page transitions, progress shimmer); the container icon in the tree is a generic library glyph.

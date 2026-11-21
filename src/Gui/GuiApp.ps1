@@ -126,6 +126,34 @@ function Set-MspkiGuiBusy {
     $ui.BtnCancel.IsEnabled = $Busy
     $ui.BtnOpenResults.IsEnabled = -not $Busy
     foreach ($n in @('TxtTimeout', 'ChkSkipNetwork', 'ChkProxy', 'ChkNdesAdmin')) { $ui[$n].IsEnabled = -not $Busy }
+    # The Overview shows the running panel while busy; when the run ends, the results or the welcome state take over.
+    if ($Busy) { $ui.PanelWelcome.Visibility = 'Collapsed'; $ui.PanelResults.Visibility = 'Collapsed'; $ui.PanelRunning.Visibility = 'Visible' }
+    else { $ui.PanelRunning.Visibility = 'Collapsed' }
+}
+
+function Update-MspkiGuiNavMode {
+    <#
+    .SYNOPSIS
+    Compact navigation (icons only) when the window is narrower than 1280 px, so the pages keep their room.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    if ($null -eq $g) { return }
+    $ui = $g.Ui
+    $compact = ($g.Window.ActualWidth -gt 0 -and $g.Window.ActualWidth -lt 1280)
+    if ($compact) {
+        $ui.NavColumn.Width = New-Object System.Windows.GridLength(56)
+        $ui.NavList.Tag = 'Compact'; $ui.NavEnv.Visibility = 'Collapsed'; $ui.NavEnvCompact.Visibility = 'Visible'
+    }
+    else {
+        $ui.NavColumn.Width = New-Object System.Windows.GridLength(232)
+        $ui.NavList.Tag = ''; $ui.NavEnv.Visibility = 'Visible'; $ui.NavEnvCompact.Visibility = 'Collapsed'
+    }
+    # Status tiles: one row of eight on a wide window, two rows of four otherwise.
+    $cols = 4
+    if ($g.Window.ActualWidth -ge 1600) { $cols = 8 }
+    $ui.TileList.Tag = $cols
 }
 
 function Update-MspkiGuiOptionsSummary {
@@ -142,7 +170,7 @@ function Update-MspkiGuiOptionsSummary {
     if ([bool]$ui.ChkSkipNetwork.IsChecked) { $parts.Add('Active Directory only') } else { $parts.Add('network checks on') }
     if ([bool]$ui.ChkProxy.IsChecked) { $parts.Add('system proxy') } else { $parts.Add('direct web access') }
     if ([bool]$ui.ChkNdesAdmin.IsChecked) { $parts.Add('NDES admin probe on') } else { $parts.Add('NDES admin probe off') }
-    $ui.TxtOptionsSummary.Text = ($parts -join '  |  ')
+    $ui.TxtOptionsSummary.Text = ($parts -join $script:MspkiGuiDot)
 }
 
 function Update-MspkiGuiHeader {
@@ -156,6 +184,7 @@ function Update-MspkiGuiHeader {
     $c = Get-MspkiGuiContext -Summary $Summary
     $ui.HdrContext.ItemsSource = @($c.Items)
     $ui.HdrBadge.Content = $c.Badge
+    $ui.NavEnvCompact.ToolTip = (@('Environment') + @($c.Items | ForEach-Object { '{0}: {1}' -f $_.Label, $_.Value })) -join [Environment]::NewLine
     return $c
 }
 
@@ -180,7 +209,7 @@ function Update-MspkiGuiLogView {
     $g.LogFilter.Level = [string]$ui.FltLogLevel.SelectedItem
     $g.LogView.Refresh()
     $shown = @($ui.LogList.Items).Count
-    $ui.TxtLogCount.Text = '{0} of {1} line(s) shown' -f $shown, $g.LogRows.Count
+    $ui.TxtLogCount.Text = '{0} of {1} shown' -f $shown, (Format-MspkiGuiCount -Count $g.LogRows.Count -Singular 'line')
     $ui.TxtLogEmpty.Visibility = 'Collapsed'
     if ($g.LogRows.Count -eq 0) { $ui.TxtLogEmpty.Text = 'The log fills in while a run is in progress.'; $ui.TxtLogEmpty.Visibility = 'Visible' }
     elseif ($shown -eq 0) { $ui.TxtLogEmpty.Text = 'No log line matches the filter.'; $ui.TxtLogEmpty.Visibility = 'Visible' }
@@ -204,7 +233,7 @@ function Update-MspkiGuiFilter {
     $g.Filter.Severity = [string]$ui.FltSeverity.SelectedItem
     $g.View.Refresh()
     $shown = @($ui.FindingsGrid.Items).Count
-    $ui.TxtShowing.Text = 'Showing {0} of {1} finding(s)' -f $shown, $g.Rows.Count
+    $ui.TxtShowing.Text = 'Showing {0} of {1}' -f $shown, (Format-MspkiGuiCount -Count $g.Rows.Count -Singular 'finding')
     $ui.TxtGridEmpty.Visibility = 'Collapsed'
     if ($g.Rows.Count -gt 0 -and $shown -eq 0) {
         $ui.TxtGridEmpty.Text = 'No finding matches the current filters. Use "Clear filters" to see all of them.'
@@ -301,7 +330,7 @@ function Clear-MspkiGuiResult {
     $ui.TxtGridEmpty.Text = 'There are no findings yet. Run a health check, or open an earlier results.json.'
     $ui.TxtGridEmpty.Visibility = 'Visible'
     $ui.FltText.Text = ''
-    foreach ($n in @('FltSeverity', 'FltCategory', 'FltConfidence')) { $ui[$n].ItemsSource = @('(all)'); $ui[$n].SelectedIndex = 0 }
+    foreach ($n in @('FltSeverity', 'FltCategory', 'FltConfidence')) { $ui[$n].ItemsSource = @('All'); $ui[$n].SelectedIndex = 0 }
     $ui.ChkGroup.IsChecked = $false
     $g.Filter.Text = ''; $g.Filter.Status = @(); $g.Filter.Category = ''; $g.Filter.Confidence = ''; $g.Filter.Severity = ''
     $ui.BtnOpenReport.IsEnabled = $false
@@ -397,7 +426,7 @@ function Show-MspkiGuiResult {
     $tree = Get-MspkiDiscoveryTree -Inventory $Data.Inventory -Findings $findings -RunInfo $Data.RunInfo
     $root = ConvertTo-MspkiGuiTreeNode -Node $tree
     $ui.MapTree.ItemsSource = @($root)
-    $ui.TxtMapCount.Text = '{0} item(s)' -f (Get-MspkiGuiNodeCount -Node $root)
+    $ui.TxtMapCount.Text = Format-MspkiGuiCount -Count (Get-MspkiGuiNodeCount -Node $root) -Singular 'item'
     $g.MapPane = Get-MspkiGuiNodePane -Node $root -RowById $g.RowById
     $ui.MapHost.Content = $g.MapPane
     $ui.MapTree.UpdateLayout()
@@ -412,9 +441,7 @@ function Show-MspkiGuiResult {
     $ui.TxtOutputPath.ToolTip = $where
     $notes = New-Object 'System.Collections.Generic.List[string]'
     if ($Banner) { $notes.Add($Banner) }
-    if ($null -ne $Data.RunInfo -and $null -ne $Data.RunInfo.Completed -and -not [bool]$Data.RunInfo.Completed) {
-        $notes.Add('This run did not finish (it was cancelled or stopped by an error), so the results are partial.')
-    }
+    # A partial run is already called out in the health banner (text and state), so it gets no second note here.
     if ($notes.Count -gt 0) { $ui.TxtNote.Text = ($notes -join ' '); $ui.TxtNote.Visibility = 'Visible' }
     if ($s.Duration) { $ui.TxtElapsed.Text = 'Took {0}' -f $s.Duration } else { $ui.TxtElapsed.Text = '' }
 }
@@ -453,7 +480,7 @@ function Open-MspkiGuiResultsFile {
         $g.Ui.TxtTarget.Text = ''
         $state = 'Done'
         if ($g.Summary.Health.Level -ne 'Green') { $state = 'Warn' }
-        Set-MspkiGuiState -Text ('Loaded {0} finding(s) from an earlier run' -f @($data.Findings).Count) -State $state
+        Set-MspkiGuiState -Text ('Loaded {0} from an earlier run' -f (Format-MspkiGuiCount -Count @($data.Findings).Count -Singular 'finding')) -State $state
         $g.Ui.Tabs.SelectedItem = $g.Ui.TabSummary
     }
     catch {
@@ -663,7 +690,6 @@ function Complete-MspkiGuiRun {
         if ($cancelled) { $why = 'The run was cancelled before it produced results. Start it again when you are ready.' }
         $ui.TxtWelcomeError.Text = $why
         $ui.WelcomeError.Visibility = 'Visible'
-        $ui.TxtWelcomeContext.Text = 'The last run ended without results. See the Run log page for the reason, then try again.'
         if ($problem -and -not $g.CloseRequested) { Show-MspkiGuiMessage -Text ('The run stopped with an error: {0}' -f $problem) -Icon 'Error' }
     }
     if ($g.CloseRequested) { $g.Window.Close() }
@@ -765,8 +791,8 @@ function Export-MspkiGuiFilteredView {
             Write-MspkiOutputFile -Path $p -Content $text -Bom
         } $path $items
         $g.LastExport = $path
-        Set-MspkiGuiState -Text ('Exported {0} finding(s) to {1}' -f $items.Count, (Split-Path -Leaf $path)) -State Done
-        Show-MspkiGuiMessage -Text ('Exported {0} finding(s) to:{1}{2}' -f $items.Count, [Environment]::NewLine, $path) -Title 'Export finished'
+        Set-MspkiGuiState -Text ('Exported {0} to {1}' -f (Format-MspkiGuiCount -Count $items.Count -Singular 'finding'), (Split-Path -Leaf $path)) -State Done
+        Show-MspkiGuiMessage -Text ('Exported {0} to:{1}{2}' -f (Format-MspkiGuiCount -Count $items.Count -Singular 'finding'), [Environment]::NewLine, $path) -Title 'Export finished'
     }
     catch { Show-MspkiGuiMessage -Text ('The export failed: {0}' -f $_.Exception.Message) -Title 'Export' -Icon 'Warning' }
 }
@@ -870,6 +896,11 @@ function Initialize-MspkiGuiApplication {
         if ($w.WindowState -eq [System.Windows.WindowState]::Maximized) { [System.Windows.SystemCommands]::RestoreWindow($w) } else { [System.Windows.SystemCommands]::MaximizeWindow($w) }
     })
     $ui.BtnClose.Add_Click({ $script:MspkiGui.Window.Close() })
+    $g.Window.Add_SizeChanged({ Update-MspkiGuiNavMode })
+
+    # Running panel on the Overview
+    $ui.BtnRunningLog.Add_Click({ Select-MspkiGuiTab -Index 3 })
+    $ui.BtnRunningCancel.Add_Click({ Request-MspkiGuiCancel })
 
     # Toolbar and welcome buttons
 
