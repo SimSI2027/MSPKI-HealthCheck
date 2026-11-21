@@ -24,6 +24,7 @@ function New-MspkiEndpointFinding {
     if (-not $target) { $target = '(serverless LDAP)' }
     $ev = @(('Lead {0} ({1}), depth {2}' -f $Lead.Id, $Lead.Kind, $Lead.Depth))
     $ev += @($Lead.Origins | ForEach-Object { 'Found in: {0}' -f $_ })
+    $ev += @($Lead.Aliases | ForEach-Object { 'Also referenced as: {0}' -f $_ })
     $ev += $Evidence
     $l = @{ DiscoveryStatus = 'Pass' }
     foreach ($k in $Layers.Keys) { $l[$k] = $Layers[$k] }
@@ -356,6 +357,7 @@ function Invoke-MspkiEndpointAnalysis {
     $done = @{}
     $round = 0
     do {
+        $null = @(Merge-MspkiShortNameLead -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)
         $pending = @(Get-MspkiLead | Where-Object { $kinds -contains $_.Kind -and -not $done.ContainsKey($_.Key) })
         foreach ($lead in $pending) {
             $done[$lead.Key] = $true
@@ -384,7 +386,13 @@ function Invoke-MspkiEndpointAnalysis {
         }
         $round++
     } while ($pending.Count -gt 0 -and $round -lt 10)
+    $left = @(Get-MspkiLead | Where-Object { $kinds -contains $_.Kind -and -not $done.ContainsKey($_.Key) })
+    if ($left.Count -gt 0) {
+        Write-MspkiLog -Level Warning -Message ('Stopped after {0} rounds of link following; {1} lead(s) were not probed.' -f $round, $left.Count)
+        Add-MspkiRunLimit -Text ('Link following stopped after {0} rounds: {1} URL(s) were not probed.' -f $round, $left.Count)
+    }
 
+    Write-MspkiLeadLimitSummary
     $allCerts = @($certMap.Values)
     foreach ($rec in $records) { [void]$findings.Add((Test-MspkiCrlHealth -Record $rec -Certificates $allCerts -Thresholds $Thresholds)) }
     $ownCrls = @(Get-MspkiCaOwnCrl -EnterpriseCAs @($Discovery.Inventory.EnterpriseCAs))

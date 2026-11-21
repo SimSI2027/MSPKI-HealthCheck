@@ -66,9 +66,10 @@ Rules:
 - A lead is a host or URL taken from a seed, certificate (AIA caIssuers, OCSP, CDP), CRL (Freshest CRL,
   IDP), AD object or policy. Each lead records **which object it came from**.
 - Probing a lead may add new leads only by parsing objects it downloads (e.g. an issuer certificate's CDP).
-  Maximum depth 3. Cap of 300 leads per run, logged if reached.
+  Maximum depth 5. Cap of 1000 leads per run. Both limits are logged and shown under Run details if reached.
 - **Normalise before deduplicating:** host-name case; scheme (keep http and https as variants of one
-  endpoint); `%20` and spaces; trailing slash; short name → FQDN where DNS proves they match. When duplicates
+  endpoint); `%20` and spaces; trailing slash; short name → FQDN only where DNS proves the same host (the short name resolves to
+  that FQDN, or both resolve to one canonical name; a shared IP alone is not proof; the short URL stays as an alias). When duplicates
   merge, combine `Sources`; never drop any.
 - **Scope:** compare the DNS suffix with the current forest's domains → `Local`, with trusted forests →
   `OtherForest`, anything else → `External`. A cross-environment reference goes to review; it is never a

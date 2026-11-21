@@ -2,7 +2,7 @@
 # leads are ever probed. URLs are normalised before de-duplication and duplicates merge their sources.
 
 $script:MspkiLeads = [ordered]@{}
-$script:MspkiLeadSettings = @{ MaxLeads = 300; MaxDepth = 3; LocalDomains = @(); TrustedDomains = @(); Dropped = 0 }
+$script:MspkiLeadSettings = @{ MaxLeads = 1000; MaxDepth = 5; LocalDomains = @(); TrustedDomains = @(); Dropped = 0; DepthDropped = 0; Seq = 0 }
 $script:MspkiLeadKinds = @('AIA', 'CDP', 'FreshestCRL', 'OCSP', 'CES', 'CEP', 'NDES')
 
 function Reset-MspkiLeadRegistry {
@@ -10,12 +10,12 @@ function Reset-MspkiLeadRegistry {
     param(
         [string[]]$LocalDomains = @(),
         [string[]]$TrustedDomains = @(),
-        [ValidateRange(1, 10000)][int]$MaxLeads = 300,
-        [ValidateRange(0, 10)][int]$MaxDepth = 3
+        [ValidateRange(1, 10000)][int]$MaxLeads = 1000,
+        [ValidateRange(0, 10)][int]$MaxDepth = 5
     )
     $script:MspkiLeads = [ordered]@{}
     $script:MspkiLeadSettings = @{
-        MaxLeads = $MaxLeads; MaxDepth = $MaxDepth; Dropped = 0
+        MaxLeads = $MaxLeads; MaxDepth = $MaxDepth; Dropped = 0; DepthDropped = 0; Seq = 0
         LocalDomains = @($LocalDomains | Where-Object { $_ }); TrustedDomains = @($TrustedDomains | Where-Object { $_ })
     }
 }
@@ -93,7 +93,12 @@ function Add-MspkiLead {
     }
     $s = $script:MspkiLeadSettings
     if ($Depth -gt $s.MaxDepth) {
+        $s.DepthDropped++
         Write-MspkiLog -Message ('Lead ignored (depth {0} > {1}): {2}' -f $Depth, $s.MaxDepth, $Url)
+        if ($s.DepthDropped -eq 1) {
+            Write-MspkiLog -Level Warning -Message ('Link depth limit of {0} reached; links found deeper are not followed.' -f $s.MaxDepth)
+            Add-MspkiRunLimit -Text ('Link depth limit of {0} reached: some links found in downloaded certificates or CRLs were not followed.' -f $s.MaxDepth)
+        }
         return $null
     }
     $key = '{0}|{1}' -f $Kind, $n.Key
@@ -118,7 +123,7 @@ function Add-MspkiLead {
     if ($n.Host) { $scope = Get-MspkiHostScope -HostName $n.Host -LocalDomains $s.LocalDomains -TrustedDomains $s.TrustedDomains }
     elseif ($n.UrlType -ne 'Ldap') { $scope = 'Unknown' }
     $lead = [pscustomobject][ordered]@{
-        Id         = ('L{0:D4}' -f ($script:MspkiLeads.Count + 1))
+        Id         = ('L{0:D4}' -f (++$s.Seq))
         Key        = $key
         Kind       = $Kind
         UrlType    = $n.UrlType
@@ -131,6 +136,7 @@ function Add-MspkiLead {
         Sources    = (New-Object System.Collections.ArrayList)
         Origins    = (New-Object System.Collections.ArrayList)
         RelatedCAs = (New-Object System.Collections.ArrayList)
+        Aliases    = (New-Object System.Collections.ArrayList)
     }
     [void]$lead.Variants.Add($n.Url)
     [void]$lead.Sources.Add($Source)
@@ -138,6 +144,120 @@ function Add-MspkiLead {
     if ($RelatedCA) { [void]$lead.RelatedCAs.Add($RelatedCA) }
     $script:MspkiLeads[$key] = $lead
     return $lead
+}
+
+function Write-MspkiLeadLimitSummary {
+    <#
+    .SYNOPSIS
+    Logs the final count of leads dropped by the lead cap or the depth limit (nothing is logged when no limit was hit).
+    #>
+    [CmdletBinding()]
+    param()
+    $s = $script:MspkiLeadSettings
+    if ($s.Dropped -gt 0) {
+        Write-MspkiLog -Level Warning -Message ('Lead cap of {0} was hit: {1} further lead(s) were not probed.' -f $s.MaxLeads, $s.Dropped)
+    }
+    if ($s.DepthDropped -gt 0) {
+        Write-MspkiLog -Level Warning -Message ('Link depth limit of {0} was hit: {1} link(s) were not followed.' -f $s.MaxDepth, $s.DepthDropped)
+    }
+}
+
+function Test-MspkiShortNameHost {
+    <#
+    .SYNOPSIS
+    True for a single-label host name (not an IP address, not empty): a short name such as "pki".
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$HostName)
+    $h = ConvertTo-MspkiHostName $HostName
+    if (-not $h -or $h.Contains('.') -or $h.Contains(':')) { return $false }
+    if ($h -match '^\d+$') { return $false }
+    return $true
+}
+
+function Test-MspkiSameHostByDns {
+    <#
+    .SYNOPSIS
+    Decides whether a short host name and an FQDN are the same host, using DNS only.
+
+    .DESCRIPTION
+    Proof 1: the short name resolves (suffix search) to a canonical name equal to the FQDN.
+    Proof 2: both names resolve to the same canonical name (for example CNAME to one server).
+    The same IP address alone is not proof (two web sites can share an address). Both names must resolve.
+    Returns { Same; Proof; Evidence }.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$ShortName,
+        [Parameter(Mandatory = $true)][string]$Fqdn,
+        [int]$TimeoutMs = 5000
+    )
+    $s = Resolve-MspkiDnsEntry -HostName $ShortName -TimeoutMs $TimeoutMs
+    $f = Resolve-MspkiDnsEntry -HostName $Fqdn -TimeoutMs $TimeoutMs
+    $ev = @(('DNS {0}: {1} canonical {2} [{3}]' -f $ShortName, $s.Status, $s.CanonicalName, ($s.Addresses -join ', ')),
+            ('DNS {0}: {1} canonical {2} [{3}]' -f $Fqdn, $f.Status, $f.CanonicalName, ($f.Addresses -join ', ')))
+    $fq = ConvertTo-MspkiHostName $Fqdn
+    if ($s.Status -ne 'Pass' -or $f.Status -ne 'Pass') {
+        return [pscustomobject]@{ Same = $false; Proof = 'NotResolved'; Evidence = $ev }
+    }
+    if ($s.CanonicalName -and $s.CanonicalName -eq $fq) {
+        return [pscustomobject]@{ Same = $true; Proof = 'ShortNameResolvesToFqdn'; Evidence = $ev }
+    }
+    if ($s.CanonicalName -and $s.CanonicalName -eq $f.CanonicalName) {
+        return [pscustomobject]@{ Same = $true; Proof = 'SameCanonicalName'; Evidence = $ev }
+    }
+    return [pscustomobject]@{ Same = $false; Proof = 'NotProven'; Evidence = $ev }
+}
+
+function Merge-MspkiShortNameLead {
+    <#
+    .SYNOPSIS
+    Merges a lead whose host is a short name into the lead for the same object on the matching FQDN, but only
+    when DNS proves that both names are the same host. Sources, origins and related CAs are combined (nothing is
+    dropped) and the short-name URL is kept as an alias. Does nothing with -SkipNetwork (no DNS, no proof).
+
+    .OUTPUTS
+    One record per merge: { Kept; Merged; Proof }.
+    #>
+    [CmdletBinding()]
+    param([int]$TimeoutSeconds = 5, [switch]$SkipNetwork)
+    if ($SkipNetwork) { return }
+    $groups = @{}
+    foreach ($l in @($script:MspkiLeads.Values)) {
+        if (-not $l.Host -or $l.UrlType -eq 'File') { continue }
+        $at = $l.Key.IndexOf('//')
+        if ($at -lt 0) { continue }
+        $rest = $l.Key.Substring($at + 2 + $l.Host.Length)
+        $gk = '{0}|{1}|{2}' -f $l.Kind, $l.UrlType, $rest
+        if (-not $groups.ContainsKey($gk)) { $groups[$gk] = New-Object System.Collections.ArrayList }
+        [void]$groups[$gk].Add($l)
+    }
+    foreach ($gk in @($groups.Keys)) {
+        $g = @($groups[$gk])
+        if ($g.Count -lt 2) { continue }
+        foreach ($short in @($g | Where-Object { Test-MspkiShortNameHost $_.Host })) {
+            if (-not $script:MspkiLeads.Contains($short.Key)) { continue }
+            foreach ($fq in @($g | Where-Object { $_.Host.StartsWith($short.Host + '.') })) {
+                $proof = Test-MspkiSameHostByDns -ShortName $short.Host -Fqdn $fq.Host -TimeoutMs ($TimeoutSeconds * 1000)
+                if (-not $proof.Same) {
+                    Write-MspkiLog -Message ('Short name {0} not merged with {1}: {2}' -f $short.Host, $fq.Host, $proof.Proof)
+                    continue
+                }
+                foreach ($x in $short.Sources) { if (-not $fq.Sources.Contains($x)) { [void]$fq.Sources.Add($x) } }
+                foreach ($x in $short.Origins) { if (-not $fq.Origins.Contains($x)) { [void]$fq.Origins.Add($x) } }
+                foreach ($x in $short.RelatedCAs) { if (-not $fq.RelatedCAs.Contains($x)) { [void]$fq.RelatedCAs.Add($x) } }
+                if ($short.Depth -lt $fq.Depth) { $fq.Depth = $short.Depth }
+                foreach ($u in $short.Variants) {
+                    $a = '{0} (same host as {1}: {2})' -f $u, $fq.Host, $proof.Proof
+                    if (-not $fq.Aliases.Contains($a)) { [void]$fq.Aliases.Add($a) }
+                }
+                $script:MspkiLeads.Remove($short.Key)
+                Write-MspkiLog -Message ('Merged short name {0} into {1} ({2}).' -f $short.Host, $fq.Host, $proof.Proof)
+                [pscustomobject]@{ Kept = $fq.Url; Merged = $short.Url; Proof = $proof.Proof; Evidence = $proof.Evidence }
+                break
+            }
+        }
+    }
 }
 
 function Get-MspkiLead {
@@ -149,7 +269,7 @@ function Get-MspkiLead {
 function Get-MspkiLeadStatistic {
     [CmdletBinding()]
     param()
-    return [pscustomobject]@{ Count = $script:MspkiLeads.Count; Dropped = $script:MspkiLeadSettings.Dropped
+    return [pscustomobject]@{ Count = $script:MspkiLeads.Count; Dropped = $script:MspkiLeadSettings.Dropped; DepthDropped = $script:MspkiLeadSettings.DepthDropped
         MaxLeads = $script:MspkiLeadSettings.MaxLeads; MaxDepth = $script:MspkiLeadSettings.MaxDepth }
 }
 
@@ -160,6 +280,7 @@ function ConvertTo-MspkiLeadExport {
         Id = $Lead.Id; Kind = $Lead.Kind; UrlType = $Lead.UrlType; Url = $Lead.Url; Host = $Lead.Host; Scope = $Lead.Scope
         Depth = $Lead.Depth; Confidence = $Lead.Confidence; Variants = [string[]]@($Lead.Variants)
         Sources = [string[]]@($Lead.Sources); Origins = [string[]]@($Lead.Origins); RelatedCAs = [string[]]@($Lead.RelatedCAs)
+        Aliases = [string[]]@($Lead.Aliases)
     }
 }
 

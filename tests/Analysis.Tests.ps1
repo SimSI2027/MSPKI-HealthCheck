@@ -119,6 +119,84 @@ Describe 'Lead registry' {
         }
     }
 
+    It 'follows links to depth 5 and 1000 leads by default and logs each limit when it is hit' {
+        InModuleScope MspkiHealthCheck {
+            Initialize-MspkiRun | Out-Null
+            Reset-MspkiLeadRegistry
+            $s = Get-MspkiLeadStatistic
+            $s.MaxDepth | Should -Be 5
+            $s.MaxLeads | Should -Be 1000
+            Add-MspkiLead -Url 'http://a.corp.example.test/d5.crl' -Kind CDP -Source s -Depth 5 | Should -Not -BeNullOrEmpty
+            Add-MspkiLead -Url 'http://a.corp.example.test/d6.crl' -Kind CDP -Source s -Depth 6 | Should -BeNullOrEmpty
+            Add-MspkiLead -Url 'http://a.corp.example.test/d7.crl' -Kind CDP -Source s -Depth 7 | Should -BeNullOrEmpty
+            (Get-MspkiLeadStatistic).DepthDropped | Should -Be 2
+            @((Get-MspkiRunValue -Name 'Limits') | Where-Object { $_ -like 'Link depth limit of 5*' }).Count | Should -Be 1
+            for ($i = 1; $i -le 1000; $i++) { $null = Add-MspkiLead -Url ('http://a.corp.example.test/{0}.crl' -f $i) -Kind CDP -Source s }
+            (Get-MspkiLeadStatistic).Count | Should -Be 1000
+            (Get-MspkiLeadStatistic).Dropped | Should -Be 1
+            @((Get-MspkiRunValue -Name 'Limits') | Where-Object { $_ -like 'Lead cap of 1000*' }).Count | Should -Be 1
+        }
+    }
+
+    It 'merges a short host name into its FQDN only when DNS proves they are the same host' {
+        Mock -ModuleName MspkiHealthCheck Resolve-MspkiDnsEntry {
+            switch ($HostName) {
+                'pki' { [pscustomobject]@{ Status = 'Pass'; CanonicalName = 'pki.corp.example.test'; Addresses = @('192.0.2.10'); Error = '' } }
+                'pki.corp.example.test' { [pscustomobject]@{ Status = 'Pass'; CanonicalName = 'pki.corp.example.test'; Addresses = @('192.0.2.10'); Error = '' } }
+                'web' { [pscustomobject]@{ Status = 'Pass'; CanonicalName = 'web.other.example.test'; Addresses = @('192.0.2.20'); Error = '' } }
+                'web.corp.example.test' { [pscustomobject]@{ Status = 'Pass'; CanonicalName = 'web.corp.example.test'; Addresses = @('192.0.2.20'); Error = '' } }
+                'crl' { [pscustomobject]@{ Status = 'Pass'; CanonicalName = 'host1.corp.example.test'; Addresses = @('192.0.2.30'); Error = '' } }
+                'crl.corp.example.test' { [pscustomobject]@{ Status = 'Pass'; CanonicalName = 'host1.corp.example.test'; Addresses = @('192.0.2.30'); Error = '' } }
+                'gone' { [pscustomobject]@{ Status = 'Fail'; CanonicalName = ''; Addresses = @(); Error = 'DNS name does not exist' } }
+                default { [pscustomobject]@{ Status = 'Pass'; CanonicalName = $HostName; Addresses = @('192.0.2.99'); Error = '' } }
+            }
+        }
+        InModuleScope MspkiHealthCheck {
+            Reset-MspkiLeadRegistry -LocalDomains @('corp.example.test')
+            $a = Add-MspkiLead -Url 'http://pki/CertEnroll/a.crl' -Kind CDP -Source 'Cert:AA:CDP' -Origin 'cert A'
+            $b = Add-MspkiLead -Url 'http://pki.corp.example.test/CertEnroll/a.crl' -Kind CDP -Source 'Cert:BB:CDP' -Origin 'cert B' -RelatedCA 'Example CA'
+            # same name pattern, but the short name resolves to a different domain: must NOT merge
+            $null = Add-MspkiLead -Url 'http://web/x.crl' -Kind CDP -Source 's1'
+            $null = Add-MspkiLead -Url 'http://web.corp.example.test/x.crl' -Kind CDP -Source 's2'
+            # CNAME: both names resolve to the same canonical name: merge
+            $null = Add-MspkiLead -Url 'http://crl/y.crl' -Kind CDP -Source 's3'
+            $null = Add-MspkiLead -Url 'http://crl.corp.example.test/y.crl' -Kind CDP -Source 's4'
+            # the short name does not resolve: must NOT merge
+            $null = Add-MspkiLead -Url 'http://gone/z.crl' -Kind CDP -Source 's5'
+            $null = Add-MspkiLead -Url 'http://gone.corp.example.test/z.crl' -Kind CDP -Source 's6'
+            # another kind of lead for the same path is a different lead
+            $null = Add-MspkiLead -Url 'http://pki/CertEnroll/a.crl' -Kind AIA -Source 's7'
+            (Get-MspkiLeadStatistic).Count | Should -Be 9
+
+            $m = @(Merge-MspkiShortNameLead -TimeoutSeconds 1)
+            $m.Count | Should -Be 2
+            @($m | ForEach-Object { $_.Proof } | Sort-Object) | Should -Be @('SameCanonicalName', 'ShortNameResolvesToFqdn')
+
+            $pki = @(Get-MspkiLead -Kind CDP | Where-Object { $_.Host -eq 'pki.corp.example.test' })[0]
+            @($pki.Sources) | Should -Be @('Cert:BB:CDP', 'Cert:AA:CDP')
+            @($pki.Origins) | Should -Be @('cert B', 'cert A')
+            @($pki.RelatedCAs) | Should -Be @('Example CA')
+            @($pki.Aliases)[0] | Should -Match '^http://pki/CertEnroll/a.crl \(same host as pki.corp.example.test: ShortNameResolvesToFqdn\)$'
+            @(Get-MspkiLead | Where-Object { $_.Host -eq 'pki' -and $_.Kind -eq 'CDP' }).Count | Should -Be 0
+            @(Get-MspkiLead | Where-Object { $_.Host -eq 'web' }).Count | Should -Be 1
+            @(Get-MspkiLead | Where-Object { $_.Host -eq 'gone' }).Count | Should -Be 1
+            @(Get-MspkiLead | Where-Object { $_.Host -eq 'pki' -and $_.Kind -eq 'AIA' }).Count | Should -Be 1
+            $ids = @(Get-MspkiLead | ForEach-Object { $_.Id })
+            @($ids | Select-Object -Unique).Count | Should -Be $ids.Count
+            (Add-MspkiLead -Url 'http://new.corp.example.test/n.crl' -Kind CDP -Source s).Id | Should -Not -BeIn $ids
+        }
+    }
+
+    It 'does not merge anything with -SkipNetwork (no DNS, no proof)' {
+        InModuleScope MspkiHealthCheck {
+            Reset-MspkiLeadRegistry
+            $null = Add-MspkiLead -Url 'http://pki/a.crl' -Kind CDP -Source s1
+            $null = Add-MspkiLead -Url 'http://pki.corp.example.test/a.crl' -Kind CDP -Source s2
+            @(Merge-MspkiShortNameLead -SkipNetwork).Count | Should -Be 0
+            (Get-MspkiLeadStatistic).Count | Should -Be 2
+        }
+    }
+
     It 'registers leads from CA certificates, CA properties and Enrollment Services with merged sources' {
         $disc = [pscustomobject]@{
             Certificates = @{ $script:sub.Public.Thumbprint = $script:sub.Public }

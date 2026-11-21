@@ -10,6 +10,7 @@ function New-MspkiProbeResult {
         Status     = 'NotTested'
         StatusCode = 'NOT_APPLICABLE'
         Addresses  = @()
+        CanonicalName = ''
         Error      = ''
         ElapsedMs  = 0
         FromCache  = $false
@@ -51,6 +52,46 @@ function Resolve-MspkiDnsName {
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     Set-MspkiProbeCacheEntry -Key $key -Value $r
     Write-MspkiLog -Message ('DNS {0}: {1} {2} ms {3}' -f $h, $r.Status, $r.ElapsedMs, $r.Error).Trim()
+    return $r
+}
+
+function Resolve-MspkiDnsEntry {
+    <#
+    .SYNOPSIS
+    Resolves a host name to its canonical name and addresses (Dns.GetHostEntry) with a timeout, cached for the run.
+    Used only to prove that a short host name and an FQDN are the same host.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$HostName,
+        [ValidateRange(100, 600000)][int]$TimeoutMs = 5000
+    )
+    $h = ConvertTo-MspkiHostName $HostName
+    $key = 'dnsentry|' + $h
+    $cached = Get-MspkiProbeCacheEntry -Key $key
+    if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
+
+    $r = New-MspkiProbeResult -Probe 'DNS' -Target $h
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $ar = [System.Net.Dns]::BeginGetHostEntry($h, $null, $null)
+        if ($ar.AsyncWaitHandle.WaitOne($TimeoutMs)) {
+            $entry = [System.Net.Dns]::EndGetHostEntry($ar)
+            $r.Addresses = @($entry.AddressList | ForEach-Object { $_.IPAddressToString })
+            $r.CanonicalName = ConvertTo-MspkiHostName $entry.HostName
+            if ($r.Addresses.Count -gt 0) { $r.Status = 'Pass'; $r.StatusCode = 'OK' }
+            else { $r.Status = 'Fail'; $r.StatusCode = 'DNS_FAIL'; $r.Error = 'No addresses returned.' }
+        }
+        else {
+            $r.Status = 'Timeout'; $r.StatusCode = 'TIMEOUT'; $r.Error = ('No DNS answer within {0} ms.' -f $TimeoutMs)
+        }
+    }
+    catch {
+        $r.Status = 'Fail'; $r.StatusCode = 'DNS_FAIL'; $r.Error = (Get-MspkiErrorInfo $_).Message
+    }
+    $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
+    Set-MspkiProbeCacheEntry -Key $key -Value $r
+    Write-MspkiLog -Message ('DNS entry {0}: {1} canonical {2} {3} ms {4}' -f $h, $r.Status, $r.CanonicalName, $r.ElapsedMs, $r.Error).Trim()
     return $r
 }
 
