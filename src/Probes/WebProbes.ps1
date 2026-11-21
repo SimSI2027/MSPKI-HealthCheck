@@ -370,14 +370,16 @@ function Get-MspkiLdapUrlContent {
         [string]$DefaultServer = '',
         [int]$TimeoutSeconds = 15,
         [string[]]$LocalDomains = @(),
-        [switch]$SkipNetwork
+        [switch]$SkipNetwork,
+        # Used when the URL names no attribute (valid: Windows then reads the attribute that holds the object type it wants).
+        [string]$DefaultAttribute = ''
     )
-    $key = 'ldapurl|' + $Url
+    $key = 'ldapurl|' + $Url + '|' + $DefaultAttribute
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { return $cached }
     Assert-MspkiNotCancelled
     Send-MspkiProgress -Kind 'Target' -Text ('LDAP {0}' -f $Url)
-    $r = [pscustomobject][ordered]@{ Url = $Url; Server = ''; Code = 'RETRIEVAL_FAIL'; Bytes = $null; ValueCount = 0; Error = ''; ElapsedMs = 0; Contacted = $true }
+    $r = [pscustomobject][ordered]@{ Url = $Url; Server = ''; Code = 'RETRIEVAL_FAIL'; Bytes = $null; ValueCount = 0; Error = ''; ElapsedMs = 0; Contacted = $true; Attribute = ''; AttributeDefaulted = $false }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $p = ConvertFrom-MspkiLdapUrl -Url $Url
@@ -390,7 +392,9 @@ function Get-MspkiLdapUrlContent {
             return $r
         }
         if (-not $r.Server) { $r.Server = $DefaultServer }
-        if (-not $p.Attribute) { throw 'The LDAP URL names no attribute.' }
+        if (-not $p.Attribute -and $DefaultAttribute) { $p.Attribute = $DefaultAttribute; $r.AttributeDefaulted = $true }
+        $r.Attribute = $p.Attribute
+        if (-not $p.Attribute) { throw 'The LDAP URL names no attribute and no default is known for this kind of object.' }
         $recs = @(Get-MspkiLdapObject -Server $r.Server -BaseDN $p.DN -Scope Base -Filter $p.Filter -Properties @($p.Attribute) -TimeoutSeconds $TimeoutSeconds)
         if ($recs.Count -eq 0) { $r.Code = 'PUBLICATION_FAIL'; $r.Error = 'The object does not match the URL filter.' }
         else {

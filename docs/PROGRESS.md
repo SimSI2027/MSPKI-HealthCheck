@@ -215,3 +215,12 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Product: a 0x800706BA within 5 s after TCP 135 answered is now `PERMISSION_DENIED` / Inferred with timing evidence, owner remediation, and the
   names of other CAs that answered the same account; a slow one stays `RETRIEVAL_FAIL` (firewall). Tests updated (113 passed in the touched files).
 - Next: Step 1 entity graph (docs/DATA-MODEL.md), then Step 2 hierarchy health.
+
+## Step 1 (2026-11-21): entity graph (results.json format 2)
+- Done: `docs/DATA-MODEL.md`; `src/Model/EntityGraph.ps1` (deterministic ids, observations Seen/Referenced/ExpectedMissing, relations,
+  export, `ConvertFrom-MspkiResultsDocument` adapter) and `EntityGraphBuilder.ps1` (from inventory, probe hooks, CA own CRLs, finding
+  linker: every finding has `EntityIds`). Schema `mspki-healthcheck/2`; the GUI and report re-export read format 1 through the adapter.
+- Lab run: 86 entities, 119 observations, 91 relations, 1.4 MB JSON (PS 5.1 limit ~2 MB). Expected-but-missing found: the older Sub CA
+  generation (NTAuth, not AIA). LocalCertificate is defined but filled only by D3; WebEnrollment service entities come with Step 2/D2.
+- Also: an LDAP AIA/CDP URL without an attribute now reads the default attribute (cACertificate / certificateRevocationList /
+  deltaRevocationList) instead of failing (false positive in the lab); tests added. Full suite 770 passed before this; touched areas pass.

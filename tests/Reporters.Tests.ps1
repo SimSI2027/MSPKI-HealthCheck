@@ -39,7 +39,9 @@ Describe 'Export-MspkiJson' {
             $bytes = [System.IO.File]::ReadAllBytes($p)
             ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB) | Should -BeFalse
             $j = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
-            $j.Schema | Should -Be 'mspki-healthcheck/1'
+            $j.Schema | Should -Be 'mspki-healthcheck/2'
+            $j.SchemaVersion | Should -Be 2
+            $j.PSObject.Properties.Name | Should -Contain 'Graph'
             $j.ExitCode | Should -Be 3
             $j.Summary.Total | Should -Be 2
             $j.Summary.ByStatus.Warning | Should -Be 1

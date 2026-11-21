@@ -110,6 +110,22 @@ function Get-MspkiExpectedIssuerName {
     return , $names.ToArray()
 }
 
+function Get-MspkiLdapDefaultAttribute {
+    <#
+    .SYNOPSIS
+    The attribute read from an LDAP AIA/CDP URL that names none (RFC 4516 allows it; Windows then returns the object's certificate or
+    CRL attribute): cACertificate for AIA, certificateRevocationList for CDP, deltaRevocationList for a Freshest CRL URL.
+    #>
+    [CmdletBinding()]
+    param([string]$Kind)
+    switch ($Kind) {
+        'AIA' { return 'cACertificate' }
+        'CDP' { return 'certificateRevocationList' }
+        'FreshestCRL' { return 'deltaRevocationList' }
+    }
+    return ''
+}
+
 function Test-MspkiLeadEndpoint {
     <#
     .SYNOPSIS
@@ -144,8 +160,9 @@ function Test-MspkiLeadEndpoint {
         # The bind uses the running user's Windows credentials, so only the selected domain controller and hosts in this
         # forest's own domains are contacted, and with -SkipNetwork only the selected domain controller.
         $r = Get-MspkiLdapUrlContent -Url $Url -DefaultServer $DomainController -TimeoutSeconds ([math]::Max(10, $TimeoutSeconds * 3)) `
-            -LocalDomains @(Get-MspkiLeadLocalDomain) -SkipNetwork:$SkipNetwork
+            -LocalDomains @(Get-MspkiLeadLocalDomain) -SkipNetwork:$SkipNetwork -DefaultAttribute (Get-MspkiLdapDefaultAttribute -Kind $Lead.Kind)
         [void]$ev.Add(('LDAP server: {0}' -f $(if ($r.Server) { $r.Server } else { '(default)' })))
+        if ($r.AttributeDefaulted) { [void]$ev.Add(('The URL names no attribute; read {0}, the attribute Windows clients use for this kind of object. A URL without an attribute is valid.' -f $r.Attribute)) }
         if (-not $r.Contacted) {
             $layers['ContentStatus'] = 'Skipped'
             [void]$ev.Add('No bind and no request was sent to this host.')
@@ -478,6 +495,10 @@ function Invoke-MspkiEndpointAnalysis {
                     if ($grade.ReviewOnly) { $f = ConvertTo-MspkiReviewFinding -Finding $f -Reason $grade.Reason }
                     [void]$findings.Add($f)
                 }
+                # Where this object was seen, or expected and missing (entity graph). "Tested" = at least one layer really ran.
+                $tested = @($r.Findings | Where-Object { $_.Status -notin @('Skipped', 'NotApplicable') }).Count -gt 0
+                try { Register-MspkiProbeResult -Lead $lead -Url $url -Result $r -KnownCertificates $certMap -Tested:$tested }
+                catch { Write-MspkiLog -Level Warning -Message ('Entity graph: could not record {0}: {1}' -f $url, $_.Exception.Message) }
                 # A downloaded certificate is used (to verify signatures, and for the links inside it) only when it is the expected
                 # issuer AND its key is proven: otherwise a changed or planted file could steer where this tool connects next.
                 if ($null -ne $r.Certificate -and $r.Validated) {
@@ -515,6 +536,8 @@ function Invoke-MspkiEndpointAnalysis {
     $live = @{}
     if ($null -ne $Discovery.PSObject.Properties['CAProperties'] -and $Discovery.CAProperties -is [hashtable]) { $live = $Discovery.CAProperties }
     $ownCrls = @(Get-MspkiCaOwnCrl -EnterpriseCAs @($Discovery.Inventory.EnterpriseCAs) -LiveProperties $live)
+    try { Register-MspkiCaOwnCrl -OwnCrls $ownCrls }
+    catch { Write-MspkiLog -Level Warning -Message ('Entity graph: could not record the CAs'' own CRLs: {0}' -f $_.Exception.Message) }
     $judgedUrls = @()
     if ($ownCrls.Count -gt 0) {
         $pub = Test-MspkiCaCrlPublication -CaCrls $ownCrls -Records @($records) -Certificates $allCerts -Thresholds $Thresholds

@@ -9,4 +9,4 @@ foreach ($folder in @('Model', 'Probes', 'Discovery', 'Analyzers', 'Reporters'))
 }
 . (Join-Path $PSScriptRoot 'Start-MspkiHealthCheck.ps1')
 
-Export-ModuleMember -Function @('Start-MspkiHealthCheck', 'New-MspkiFinding', 'Get-MspkiSchema', 'Export-MspkiReportFromResults', 'New-MspkiRunControl', 'Get-MspkiDiscoveryTree', 'Get-MspkiFindingSummary', 'Get-MspkiExitCodeInfo')
+Export-ModuleMember -Function @('Start-MspkiHealthCheck', 'New-MspkiFinding', 'Get-MspkiSchema', 'Export-MspkiReportFromResults', 'New-MspkiRunControl', 'Get-MspkiDiscoveryTree', 'Get-MspkiFindingSummary', 'Get-MspkiExitCodeInfo', 'ConvertFrom-MspkiResultsDocument')

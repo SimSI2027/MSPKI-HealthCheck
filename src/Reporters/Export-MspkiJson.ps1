@@ -38,15 +38,18 @@ function Export-MspkiJson {
         [Parameter(Mandatory = $true)]$RunInfo,
         [AllowNull()]$Inventory = $null,
         [AllowEmptyCollection()][object[]]$Findings = @(),
-        [int]$ExitCode = 0
+        [int]$ExitCode = 0,
+        [AllowNull()]$Graph = $null
     )
     $doc = [ordered]@{
-        Schema    = $script:MspkiJsonSchema
-        RunInfo   = $RunInfo
-        ExitCode  = $ExitCode
-        Summary   = (Get-MspkiFindingSummary -Findings $Findings)
-        Inventory = $Inventory
-        Findings  = @($Findings)
+        Schema        = $script:MspkiJsonSchema
+        SchemaVersion = $script:MspkiGraphSchemaVersion
+        RunInfo       = $RunInfo
+        ExitCode      = $ExitCode
+        Summary       = (Get-MspkiFindingSummary -Findings $Findings)
+        Inventory     = $Inventory
+        Graph         = $Graph
+        Findings      = @($Findings)
     }
     $json = ConvertTo-Json -InputObject $doc -Depth 12
     Write-MspkiOutputFile -Path $Path -Content $json

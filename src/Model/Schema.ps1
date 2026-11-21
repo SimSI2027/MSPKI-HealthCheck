@@ -4,7 +4,7 @@
 
 $script:MspkiToolName    = 'MSPKI Health Check'
 $script:MspkiToolVersion = '0.1.0'
-$script:MspkiJsonSchema  = 'mspki-healthcheck/1'
+$script:MspkiJsonSchema  = 'mspki-healthcheck/2'   # 2 = entity graph (Graph) and EntityIds on findings; see docs/DATA-MODEL.md
 
 $script:MspkiSchema = @{
     Category    = @('CA', 'Hierarchy', 'CRL', 'AIA', 'CDP', 'OCSP', 'ADContainer', 'Template', 'CEP', 'CES',

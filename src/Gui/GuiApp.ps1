@@ -474,7 +474,9 @@ function Open-MspkiGuiResultsFile {
     $g = $script:MspkiGui
     try {
         $data = Read-MspkiGuiResults -Path $Path
-        Show-MspkiGuiResult -Data $data -Banner ('Showing an earlier run loaded from {0}. Nothing was scanned.' -f $data.ResultsPath)
+        $banner = 'Showing an earlier run loaded from {0}. Nothing was scanned.' -f $data.ResultsPath
+        if ($data.Notice) { $banner = '{0} {1}' -f $banner, $data.Notice }
+        Show-MspkiGuiResult -Data $data -Banner $banner
         Show-MspkiGuiLogFile -Path $data.LogPath
         $g.Ui.Progress.Value = 0
         $g.Ui.TxtTarget.Text = ''

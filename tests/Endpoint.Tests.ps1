@@ -156,6 +156,30 @@ Describe 'LDAP URLs' {
         $denied.Findings[0].StatusCode | Should -Be 'PERMISSION_DENIED'
         $denied.Findings[0].Status | Should -Be 'Skipped'
     }
+
+    It 'reads the default attribute from a CDP LDAP URL that names no attribute (valid, as a CA writes it): Pass, not Fail' {
+        $script:ldapCrl2 = New-TestCrl -Issuer $script:root
+        $url = 'ldap:///CN=Example Issuing CA,CN=ca02,CN=CDP,CN=Public%20Key%20Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test'
+        InModuleScope MspkiHealthCheck { [void](Initialize-MspkiRun) }
+        $lead = & $script:newLead $url
+        Mock -ModuleName MspkiHealthCheck Get-MspkiLdapObject { @{ certificaterevocationlist = @(, $script:ldapCrl2) } }
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ L = $lead } { param($L) Test-MspkiLeadEndpoint -Lead $L -Url $L.Url -DomainController 'dc01.corp.example.test' -SkipNetwork }
+        $r.Findings[0].Status | Should -Be 'Pass'
+        $r.Crl | Should -Not -BeNullOrEmpty
+        ($r.Findings[0].Evidence -join "`n") | Should -Match 'names no attribute; read certificateRevocationList'
+        Should -Invoke -ModuleName MspkiHealthCheck Get-MspkiLdapObject -Times 1 -Exactly -ParameterFilter { @($Properties) -contains 'certificateRevocationList' }
+    }
+
+    It 'still fails an LDAP URL without an attribute when the object has no CRL (negative case)' {
+        $url = 'ldap:///CN=Example Issuing CA,CN=ca02,CN=CDP,CN=Public%20Key%20Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test'
+        InModuleScope MspkiHealthCheck { [void](Initialize-MspkiRun) }
+        $lead = & $script:newLead $url
+        Mock -ModuleName MspkiHealthCheck Get-MspkiLdapObject { @{ cn = @('x') } }
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ L = $lead } { param($L) Test-MspkiLeadEndpoint -Lead $L -Url $L.Url -DomainController 'dc01.corp.example.test' -SkipNetwork }
+        $r.Findings[0].StatusCode | Should -Be 'PUBLICATION_FAIL'
+        InModuleScope MspkiHealthCheck { Get-MspkiLdapDefaultAttribute -Kind 'AIA' } | Should -Be 'cACertificate'
+        InModuleScope MspkiHealthCheck { Get-MspkiLdapDefaultAttribute -Kind 'FreshestCRL' } | Should -Be 'deltaRevocationList'
+    }
 }
 
 Describe 'HTTP probes against a loopback test server' {

@@ -112,6 +112,9 @@ function Start-MspkiHealthCheck {
         Add-MspkiStageTiming -Stage 'Discovery' -Stopwatch $sw
 
         if ($null -ne $d) {
+            # The CA certificate entities must exist before the probes record where each one was seen.
+            try { Add-MspkiInventoryToEntityGraph -Inventory $d.Inventory }
+            catch { Write-MspkiLog -Level Warning -Message ('Entity graph (discovery part) stopped: {0}' -f $_.Exception.Message) }
             $sw = Start-MspkiStageTimer -Stage 'Analysis:CACertificates'
             try {
                 $ctx = $d.Inventory.AdContext
@@ -243,10 +246,18 @@ function Start-MspkiHealthCheck {
         Restore-MspkiClientTlsProtocol -State $tlsState
         Complete-MspkiRun -Completed $completed
         $exitCode = Get-MspkiExitCode -Findings @($findings) -Incomplete:(-not $completed)
+        $graph = $null
+        try {
+            if ($null -ne $inventory) { Add-MspkiInventoryToEntityGraph -Inventory $inventory }
+            Add-MspkiFindingEntityLink -Findings @($findings)
+            $graph = Get-MspkiEntityGraphExport
+            Write-MspkiLog -Message ('Entity graph: {0} entities, {1} observations ({2} expected but missing), {3} relations.' -f $graph.Counts.Entities, $graph.Counts.Observations, $graph.Counts.ExpectedMissing, $graph.Counts.Relations)
+        }
+        catch { Write-MspkiLog -Level Error -Message ('Entity graph stopped: {0} | {1}' -f $_.Exception.Message, (($_.ScriptStackTrace -split "`r?`n" | Select-Object -First 4) -join ' <- ')) }
         $writeJson = {
             try {
                 [void](Export-MspkiJson -Path $resultsPath -RunInfo ([pscustomobject]$runInfo) -Inventory $inventory `
-                    -Findings @($findings) -ExitCode $exitCode)
+                    -Findings @($findings) -ExitCode $exitCode -Graph $graph)
                 Write-MspkiLog -Message ('Wrote {0} ({1} findings), exit code {2}.' -f $resultsPath, $findings.Count, $exitCode)
             }
             catch { Write-MspkiLog -Level Error -Message ('Could not write results.json: {0}' -f $_.Exception.Message) }

@@ -14,6 +14,7 @@ function Initialize-MspkiRun {
     )
     Reset-MspkiFindingSequence
     Reset-MspkiProbeCache
+    Reset-MspkiEntityGraph
     Reset-MspkiLog
     Reset-MspkiLeadRegistry
 

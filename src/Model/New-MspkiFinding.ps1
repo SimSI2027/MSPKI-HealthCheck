@@ -45,7 +45,8 @@ function New-MspkiFinding {
         [string]$Scope = 'Unknown',
         [string]$Forest = $null,
         [string]$Domain = $null,
-        [hashtable]$Layers = @{}
+        [hashtable]$Layers = @{},
+        [string[]]$EntityIds = @()
     )
 
     $srcList = @($Sources | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() } |
@@ -87,6 +88,7 @@ function New-MspkiFinding {
     $f['Evidence']    = [string[]]@($Evidence | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ })
     $f['Remediation'] = $Remediation
     $f['Notes']       = $Notes
+    $f['EntityIds']   = [string[]]@($EntityIds | Where-Object { $_ })
     return [pscustomobject]$f
 }
 

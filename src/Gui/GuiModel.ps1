@@ -302,6 +302,8 @@ function Read-MspkiGuiResults {
     if ($null -eq $j -or -not $j.Schema -or ([string]$j.Schema) -notlike 'mspki-healthcheck/*') {
         throw 'This is not a results.json written by the MSPKI Health Check.'
     }
+    # Adapter for every format version this tool has written (format 1 has no graph); a newer format throws a plain message.
+    $j = ConvertFrom-MspkiResultsDocument -Document $j
     $folder = Split-Path -Parent $full
     $html = Join-Path $folder 'report.html'
     $log = Join-Path $folder 'run.log'
@@ -313,6 +315,9 @@ function Read-MspkiGuiResults {
         Inventory    = $j.Inventory
         Findings     = @($j.Findings)
         ExitCode     = $j.ExitCode
+        Graph        = $j.Graph
+        SchemaVersion = $j.SchemaVersion
+        Notice       = $j.Notice
         OutputFolder = $folder
         ResultsPath  = $full
         ReportPath   = $htmlPath
