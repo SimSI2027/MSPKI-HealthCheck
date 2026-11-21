@@ -17,6 +17,14 @@ function Start-MspkiHealthCheck {
     .PARAMETER SkipNetwork
     Reads AD only; does not contact CAs or other hosts.
 
+    .PARAMETER UseSystemProxy
+    Lets the HTTP probes use the system proxy settings (without credentials). By default they connect directly, so that no
+    proxy and no automatic proxy detection is involved.
+
+    .PARAMETER IncludeNdesAdminProbe
+    Also sends the one anonymous request to the NDES admin page. Off by default: an admin page that is wrongly open to
+    anonymous users creates a challenge password on the server when it is requested.
+
     .EXAMPLE
     Start-MspkiHealthCheck -OutputPath .\out
     #>
@@ -25,6 +33,8 @@ function Start-MspkiHealthCheck {
         [Parameter(Mandatory = $true)][string]$OutputPath,
         [ValidateRange(1, 120)][int]$TimeoutSeconds = 5,
         [switch]$SkipNetwork,
+        [switch]$UseSystemProxy,
+        [switch]$IncludeNdesAdminProbe,
         [ValidateRange(1, 36500)][int]$RootCaWarningDays = 730,
         [ValidateRange(1, 36500)][int]$RootCaCriticalDays = 365,
         [ValidateRange(1, 36500)][int]$IssuingCaWarningDays = 180,
@@ -42,8 +52,10 @@ function Start-MspkiHealthCheck {
         IssuingCrlWarningPercent = $IssuingCrlWarningPercent; IssuingCrlCriticalPercent = $IssuingCrlCriticalPercent
         CrlPublicationGraceMinutes = $CrlPublicationGraceMinutes
     }
+    Set-MspkiWebProbeOption -UseSystemProxy:$UseSystemProxy
     $runInfo = Initialize-MspkiRun -Parameters @{
         OutputPath = $OutputPath; TimeoutSeconds = $TimeoutSeconds; SkipNetwork = [bool]$SkipNetwork
+        UseSystemProxy = [bool]$UseSystemProxy; IncludeNdesAdminProbe = [bool]$IncludeNdesAdminProbe
         RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays
         IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
         RootCrlWarningPercent = $RootCrlWarningPercent; RootCrlCriticalPercent = $RootCrlCriticalPercent
@@ -53,7 +65,11 @@ function Start-MspkiHealthCheck {
     $folder = New-MspkiOutputFolder -Root $OutputPath
     Start-MspkiLogFile -Path (Join-Path $folder 'run.log')
     Write-MspkiLog -Message ('{0} {1} started. Run id {2}.' -f $script:MspkiToolName, $script:MspkiToolVersion, $runInfo.RunId)
-    Write-MspkiLog -Message ('PowerShell {0} ({1}), CLR {2}, admin: {3}' -f $runInfo.PSVersion, $runInfo.PSEdition, $runInfo.ClrVersion, $runInfo.IsAdmin)
+    Write-MspkiLog -Message ('PowerShell {0} ({1}), CLR {2}, .NET Framework {3} (release {4}), OS {5}, admin: {6}' -f $runInfo.PSVersion, $runInfo.PSEdition, $runInfo.ClrVersion, $runInfo.DotNetVersion, $runInfo.DotNetRelease, $runInfo.OSVersion, $runInfo.IsAdmin)
+    Write-MspkiLog -Message ('Options: timeout {0} s, SkipNetwork {1}, HTTP proxy: {2}, NDES admin request: {3}; signature APIs available: {4}; TLS setting of this process: {5}' -f `
+        $TimeoutSeconds, [bool]$SkipNetwork, $runInfo.HttpProxy, $(if ($IncludeNdesAdminProbe) { 'sent (opt-in)' } else { 'not sent (default)' }), $runInfo.SignatureApisAvailable, $runInfo.TlsSecurityProtocol)
+    $tlsState = Enable-MspkiClientTlsProtocol
+    if ($tlsState.Changed) { Write-MspkiLog -Message ('TLS setting of this process raised for the run: {0} -> {1} (restored at the end)' -f $tlsState.Previous, $tlsState.Current) }
 
     $findings = New-Object System.Collections.ArrayList
     $inventory = $null
@@ -63,12 +79,18 @@ function Start-MspkiHealthCheck {
     $csvPath = ''
     $reportPath = ''
     try {
+        if (-not $runInfo.SignatureApisAvailable) {
+            [void]$findings.Add((New-MspkiFinding -Category 'Run' -Role 'Run' -Target '.NET Framework' -Status 'Warning' `
+                -StatusCode 'UNSUPPORTED' -Confidence 'Confirmed' -Sources 'Local:DotNetFramework' -Stage 'Run' -Scope 'Local' `
+                -Message ('Signatures of certificates and CRLs cannot be checked on this computer: .NET Framework {0} (release {1}) lacks the public-key signature APIs (4.6.2 or later is needed).' -f $runInfo.DotNetVersion, $runInfo.DotNetRelease) `
+                -Notes 'Every signature check is reported as "could not be checked", never as an invalid signature.'))
+        }
         if ($PSVersionTable.PSEdition -ne 'Desktop') {
             [void]$findings.Add((New-MspkiFinding -Category 'Run' -Role 'Run' -Target 'PowerShell' -Status 'Warning' `
                 -StatusCode 'UNSUPPORTED' -Confidence 'Confirmed' -Sources 'Local:PSVersionTable' -Stage 'Run' -Scope 'Local' `
                 -Message ('This tool targets Windows PowerShell 5.1; running on {0} {1} is not supported.' -f $PSVersionTable.PSEdition, $runInfo.PSVersion)))
         }
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $sw = Start-MspkiStageTimer -Stage 'Discovery'
         $d = $null
         try {
             $d = Invoke-MspkiDiscovery -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork
@@ -83,7 +105,7 @@ function Start-MspkiHealthCheck {
         Add-MspkiStageTiming -Stage 'Discovery' -Stopwatch $sw
 
         if ($null -ne $d) {
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $sw = Start-MspkiStageTimer -Stage 'Analysis:CACertificates'
             try {
                 $ctx = $d.Inventory.AdContext
                 Reset-MspkiLeadRegistry -LocalDomains @($ctx.ForestDomains) -TrustedDomains @($ctx.TrustedDomains)
@@ -97,7 +119,7 @@ function Start-MspkiHealthCheck {
                     -Target 'Analysis' -Sources 'Run' -Action 'analysing CA certificates' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Analysis:CACertificates' -Stopwatch $sw
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $sw = Start-MspkiStageTimer -Stage 'Analysis:ADContainers'
             try {
                 foreach ($f in (Test-MspkiAdContainerConsistency -Inventory $d.Inventory)) { [void]$findings.Add($f) }
             }
@@ -107,7 +129,7 @@ function Start-MspkiHealthCheck {
                     -Target 'ADContainers' -Sources 'Run' -Action 'reviewing the AD PKI containers' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Analysis:ADContainers' -Stopwatch $sw
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $sw = Start-MspkiStageTimer -Stage 'Analysis:ADContainerObjects'
             try {
                 foreach ($f in (Test-MspkiAdContainerObject -Inventory $d.Inventory)) { [void]$findings.Add($f) }
             }
@@ -117,7 +139,7 @@ function Start-MspkiHealthCheck {
                     -Target 'ADContainerObjects' -Sources 'Run' -Action 'reviewing the template, KRA and OID containers' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Analysis:ADContainerObjects' -Stopwatch $sw
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $sw = Start-MspkiStageTimer -Stage 'Analysis:Templates'
             try {
                 foreach ($f in (Test-MspkiTemplateEnrollmentRisk -Inventory $d.Inventory)) { [void]$findings.Add($f) }
             }
@@ -127,7 +149,7 @@ function Start-MspkiHealthCheck {
                     -Target 'Templates' -Sources 'Run' -Action 'reviewing certificate templates' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Analysis:Templates' -Stopwatch $sw
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $sw = Start-MspkiStageTimer -Stage 'Probe:Endpoints'
             try {
                 foreach ($f in (Invoke-MspkiEndpointAnalysis -Discovery $d -Thresholds $thresholds -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)) {
                     [void]$findings.Add($f)
@@ -139,7 +161,7 @@ function Start-MspkiHealthCheck {
                     -Target 'Endpoints' -Sources 'Run' -Action 'checking AIA/CDP/OCSP endpoints' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Probe:Endpoints' -Stopwatch $sw
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $sw = Start-MspkiStageTimer -Stage 'Discovery:LocalPolicy'
             try {
                 $cep = Get-MspkiLocalCepPolicy
                 foreach ($f in $cep.Findings) { [void]$findings.Add($f) }
@@ -151,7 +173,7 @@ function Start-MspkiHealthCheck {
                     -Target 'Enrollment policy servers' -Sources 'Policy:CEP:HKLM' -Action 'reading the enrollment policy servers' -Scope 'Local'))
             }
             Add-MspkiStageTiming -Stage 'Discovery:LocalPolicy' -Stopwatch $sw
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $sw = Start-MspkiStageTimer -Stage 'Probe:EnrollmentServices'
             try {
                 foreach ($f in (Invoke-MspkiEnrollmentServiceAnalysis -Discovery $d -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)) { [void]$findings.Add($f) }
             }
@@ -161,10 +183,10 @@ function Start-MspkiHealthCheck {
                     -Target 'EnrollmentServices' -Sources 'Run' -Action 'checking CEP and CES endpoints' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Probe:EnrollmentServices' -Stopwatch $sw
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $sw = Start-MspkiStageTimer -Stage 'Probe:NDES'
             $ndesHosts = @()
             try {
-                $ndes = Invoke-MspkiNdesAnalysis -Discovery $d -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork
+                $ndes = Invoke-MspkiNdesAnalysis -Discovery $d -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork -IncludeAdminProbe:$IncludeNdesAdminProbe
                 foreach ($f in $ndes.Findings) { [void]$findings.Add($f) }
                 $ndesHosts = @($ndes.Hosts)
             }
@@ -175,7 +197,7 @@ function Start-MspkiHealthCheck {
             }
             $inventory | Add-Member -NotePropertyName 'NdesHosts' -NotePropertyValue $ndesHosts -Force
             Add-MspkiStageTiming -Stage 'Probe:NDES' -Stopwatch $sw
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $sw = Start-MspkiStageTimer -Stage 'Discovery:IntuneConnector'
             try {
                 $intune = Invoke-MspkiIntuneConnectorAnalysis -NdesHosts $ndesHosts
                 foreach ($f in $intune.Findings) { [void]$findings.Add($f) }
@@ -187,7 +209,7 @@ function Start-MspkiHealthCheck {
                     -Target 'Intune Certificate Connector' -Sources 'Local:Win32_Service' -Action 'checking this computer for the Intune Certificate Connector' -Scope 'Local'))
             }
             Add-MspkiStageTiming -Stage 'Discovery:IntuneConnector' -Stopwatch $sw
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $sw = Start-MspkiStageTimer -Stage 'Analysis:StaleReferences'
             try {
                 foreach ($f in (Invoke-MspkiStaleReferenceAnalysis -Discovery $d -Findings @($findings))) { [void]$findings.Add($f) }
             }
@@ -204,6 +226,7 @@ function Start-MspkiHealthCheck {
     }
     finally {
         # Also runs on Ctrl+C, so a partial results.json is still written.
+        Restore-MspkiClientTlsProtocol -State $tlsState
         Complete-MspkiRun -Completed $completed
         $exitCode = Get-MspkiExitCode -Findings @($findings) -Incomplete:(-not $completed)
         $writeJson = {

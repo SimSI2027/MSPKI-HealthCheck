@@ -27,12 +27,21 @@ BeforeAll {
     $script:subEntry = { param([hashtable]$o = @{}) $h = @{ CAName = 'Example Issuing CA' }; foreach ($k in $o.Keys) { $h[$k] = $o[$k] }; & $script:entry $h }
 
     $script:inv = {
-        param($Entries, $Props = $null, $AdTemplates = @('Machine', 'User'), $AdThumbs = @('AA00'))
+        param($Entries, $Props = $null, $AdTemplates = @('Machine', 'User'), $AdThumbs = @('AA00'), $Templates = $null)
         [pscustomobject]@{
             CACertificates = @($Entries)
             EnterpriseCAs = @([pscustomobject]@{ Name = 'Example Issuing CA'; Templates = $AdTemplates; CertificateThumbprints = $AdThumbs; Properties = $Props })
+            TemplatesRead = ($null -ne $Templates)
+            Templates = @($Templates)
         }
     }
+    # A template object with the fields the review reads; Eku decides whether it can be used to sign in.
+    $script:tpl = {
+        param([string]$Name, [string[]]$Eku)
+        [pscustomobject]@{ Name = $Name; ApplicationPolicies = @(); Eku = @($Eku); NameFlag = 0; EnrollmentFlag = 0; RaSignature = 0; RaApplicationPolicies = @(); Acl = @(); OwnerSid = ''; Owner = '' }
+    }
+    $script:clientAuth = '1.3.6.1.5.5.7.3.2'
+    $script:serverAuth = '1.3.6.1.5.5.7.3.1'
     $script:props = {
         param($Templates = @('Machine', 'User'), $Signing = @(@{ Thumbprint = 'AA00'; State = 'Valid'; CAVersion = 'V0.0' }))
         [pscustomobject]@{
@@ -54,18 +63,45 @@ Describe 'Test-MspkiAdContainerConsistency: publication in the AD PKI containers
         ($pub[0].Evidence -join "`n") | Should -Match 'Certification Authorities container: root .* published'
     }
 
-    It 'warns (NOT_DISCOVERED, review only) when the CA is missing from NTAuthCertificates' {
-        $f = & $script:run (& $script:inv @((& $script:rootEntry), (& $script:subEntry @{ InNTAuth = $false })))
+    It 'warns (NOT_DISCOVERED, review only) when a CA that publishes a template for signing in is missing from NTAuthCertificates' {
+        $tpls = @((& $script:tpl 'Machine' $script:serverAuth), (& $script:tpl 'User' $script:clientAuth))
+        $f = & $script:run (& $script:inv -Entries @((& $script:rootEntry), (& $script:subEntry @{ InNTAuth = $false })) -Templates $tpls)
         $w = @($f | Where-Object { $_.Status -eq 'Warning' })
         $w.Count | Should -Be 1
         $w[0].StatusCode | Should -Be 'NOT_DISCOVERED'
         $w[0].Message | Should -Match 'NTAuthCertificates'
         $w[0].Message | Should -Not -Match 'AIA container'
         $w[0].Notes | Should -Match 'sign in to AD'
+        ($w[0].Evidence -join "`n") | Should -Match 'publishes 1 template\(s\) that can be used to sign in: User'
+    }
+
+    It 'only informs (no warning) when the CA is missing from NTAuthCertificates but publishes no template for signing in' {
+        $tpls = @((& $script:tpl 'Machine' $script:serverAuth), (& $script:tpl 'User' $script:serverAuth))
+        $f = & $script:run (& $script:inv -Entries @((& $script:rootEntry), (& $script:subEntry @{ InNTAuth = $false })) -Templates $tpls)
+        @($f | Where-Object { $_.Status -eq 'Warning' }).Count | Should -Be 0
+        $i = @($f | Where-Object { $_.Message -like '*is not in NTAuthCertificates*' })
+        $i.Count | Should -Be 1
+        $i[0].Status | Should -Be 'Information'
+        $i[0].StatusCode | Should -Be 'NOT_DISCOVERED'
+        ($i[0].Evidence -join "`n") | Should -Match 'none of the 2 template\(s\) this CA publishes can be used to sign in'
+    }
+
+    It 'only informs, and says why, when the templates were not read so nothing can be said about signing in' {
+        $f = & $script:run (& $script:inv -Entries @((& $script:rootEntry), (& $script:subEntry @{ InNTAuth = $false })))
+        @($f | Where-Object { $_.Status -eq 'Warning' }).Count | Should -Be 0
+        $i = @($f | Where-Object { $_.Message -like '*is not in NTAuthCertificates*' })
+        $i.Count | Should -Be 1
+        ($i[0].Evidence -join "`n") | Should -Match 'could not be determined \(the template objects were not read\)'
+    }
+
+    It 'treats a template without an EKU as one that can be used to sign in' {
+        $f = & $script:run (& $script:inv -Entries @((& $script:rootEntry), (& $script:subEntry @{ InNTAuth = $false })) -Templates @((& $script:tpl 'Machine' @()), (& $script:tpl 'User' $script:serverAuth)))
+        @($f | Where-Object { $_.Status -eq 'Warning' -and $_.Message -match 'NTAuthCertificates' }).Count | Should -Be 1
     }
 
     It 'names every missing place: AIA, NTAuth and the root in Certification Authorities' {
-        $f = & $script:run (& $script:inv @((& $script:rootEntry @{ InCertificationAuthorities = $false }), (& $script:subEntry @{ InAIA = $false; InNTAuth = $false })))
+        $tpls = @((& $script:tpl 'Machine' $script:serverAuth), (& $script:tpl 'User' $script:clientAuth))
+        $f = & $script:run (& $script:inv -Entries @((& $script:rootEntry @{ InCertificationAuthorities = $false }), (& $script:subEntry @{ InAIA = $false; InNTAuth = $false })) -Templates $tpls)
         $w = @($f | Where-Object { $_.Status -eq 'Warning' })[0]
         $w.Message | Should -Match 'the AIA container'
         $w.Message | Should -Match 'NTAuthCertificates'
@@ -119,12 +155,12 @@ Describe 'Test-MspkiAdContainerConsistency: AD publication versus the CA propert
         @($f | Where-Object { $_.Message -like '*carries every certificate*' })[0].Status | Should -Be 'Pass'
     }
 
-    It 'reports templates that exist only in AD or only on the CA as STALE_DATA with both lists' {
+    It 'reports templates that exist only in AD or only on the CA as CONFIG_MISMATCH with both lists' {
         $f = & $script:run (& $script:inv @((& $script:rootEntry), (& $script:subEntry)) (& $script:props @('Machine', 'WebServer')))
         $t = @($f | Where-Object { $_.Message -like '*differ from the templates the CA reports*' })
         $t.Count | Should -Be 1
         $t[0].Status | Should -Be 'Warning'
-        $t[0].StatusCode | Should -Be 'STALE_DATA'
+        $t[0].StatusCode | Should -Be 'CONFIG_MISMATCH'
         $t[0].Confidence | Should -Be 'Confirmed'
         ($t[0].Evidence -join "`n") | Should -Match 'In AD only: user'
         ($t[0].Evidence -join "`n") | Should -Match 'On the CA only: webserver'
@@ -134,7 +170,7 @@ Describe 'Test-MspkiAdContainerConsistency: AD publication versus the CA propert
         $f = & $script:run (& $script:inv @((& $script:rootEntry), (& $script:subEntry)) (& $script:props -Signing @(@{ Thumbprint = 'AA00'; State = 'Valid'; CAVersion = 'V0.0' }, @{ Thumbprint = 'BB11'; State = 'Valid'; CAVersion = 'V1.0' })))
         $c = @($f | Where-Object { $_.Message -like '*does not carry*' })
         $c.Count | Should -Be 1
-        $c[0].StatusCode | Should -Be 'STALE_DATA'
+        $c[0].StatusCode | Should -Be 'CONFIG_MISMATCH'
         ($c[0].Evidence -join "`n") | Should -Match 'BB11'
     }
 

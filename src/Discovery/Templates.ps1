@@ -39,6 +39,7 @@ function ConvertFrom-MspkiTemplateRecord {
     $ownerSid = ''
     $acl = @()
     $aclError = ''
+    $aclErrorClass = ''
     $sdBytes = & $g 'nTSecurityDescriptor'
     if ($null -ne $sdBytes) {
         try {
@@ -46,9 +47,9 @@ function ConvertFrom-MspkiTemplateRecord {
             $ownerSid = $sd.OwnerSid
             $acl = @($sd.Aces)
         }
-        catch { $aclError = (Get-MspkiErrorInfo $_).Message }
+        catch { $aclError = (Get-MspkiErrorInfo $_).Message; $aclErrorClass = 'ParseError' }
     }
-    else { $aclError = 'The security descriptor was not returned.' }
+    else { $aclError = 'The security descriptor was not returned (the account may lack the right to read it).'; $aclErrorClass = 'NotReturned' }
     $name = $cn
     return [pscustomobject][ordered]@{
         Name                  = $name
@@ -68,6 +69,7 @@ function ConvertFrom-MspkiTemplateRecord {
         Owner                 = ''
         Acl                   = $acl
         AclError              = $aclError
+        AclErrorClass         = $aclErrorClass
         WhenChanged           = ConvertTo-MspkiIsoTime (& $g 'whenChanged')
     }
 }

@@ -38,42 +38,95 @@ $script:MspkiCATypeNames = @{ 0 = 'EnterpriseRoot'; 1 = 'EnterpriseSubordinate';
 $script:MspkiCADispNames = @{ 0 = 'Incomplete'; 1 = 'Error'; 2 = 'Revoked'; 3 = 'Valid'; 4 = 'Invalid'; 5 = 'UnderSubmission' }
 
 # Runs inside a separate runspace (Invoke-MspkiTimeLimitedScript), so it must be self-contained.
-# Binary values are requested as Base64 text (CR_OUT_BASE64 = 1).
+# Binary values are requested as Base64 text (CR_OUT_BASE64 = 1). Every call is traced for the log (property name and id,
+# index, requested data type, the type of the raw result, its size, the time it took and the error code). The VALUES are
+# never traced: the trace holds no certificate, CRL or other content.
 $script:MspkiCAPropertyReader = {
     param([string]$Config, [hashtable]$Props, [string[]]$Plain, [string[]]$Indexed, [int]$MaxIndex)
-    $result = @{ Values = @{}; Errors = @{}; Fatal = $null; Count = -1 }
+    $result = @{ Values = @{}; Errors = @{}; Fatal = $null; Count = -1; Trace = (New-Object System.Collections.ArrayList); Config = $Config }
     function Get-MspkiReaderError($err) {
         $e = $err.Exception
         while ($null -ne $e.InnerException) { $e = $e.InnerException }
         return @{ HResult = ('{0:X8}' -f $e.HResult); Message = ([string]$e.Message).Trim() }
     }
+    function Invoke-MspkiReaderCall($ca, $name, $index) {
+        $p = $Props[$name]
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        try {
+            $v = $ca.GetCAProperty($Config, $p.Id, $index, $p.Type, 1)
+            $rt = 'null'; $size = 0
+            if ($null -ne $v) {
+                $rt = $v.GetType().Name
+                if ($v -is [string]) { $size = $v.Length } elseif ($v -is [byte[]]) { $size = $v.Length }
+            }
+            [void]$result.Trace.Add(@{ Name = $name; Id = $p.Id; Index = $index; DataType = $p.Type; ResultType = $rt; Size = $size; ElapsedMs = [int64]$sw.ElapsedMilliseconds; HResult = '' })
+            return $v
+        }
+        catch {
+            $er = Get-MspkiReaderError $_
+            [void]$result.Trace.Add(@{ Name = $name; Id = $p.Id; Index = $index; DataType = $p.Type; ResultType = 'error'; Size = 0; ElapsedMs = [int64]$sw.ElapsedMilliseconds; HResult = $er.HResult })
+            throw
+        }
+    }
     try { $ca = New-Object -ComObject CertificateAuthority.Request }
     catch { $result.Fatal = Get-MspkiReaderError $_; return $result }
-    try {
-        $p = $Props['CAType']
-        $result.Values['CAType'] = $ca.GetCAProperty($Config, $p.Id, 0, $p.Type, 1)
-    }
+    try { $result.Values['CAType'] = Invoke-MspkiReaderCall $ca 'CAType' 0 }
     catch { $result.Fatal = Get-MspkiReaderError $_; return $result }
     foreach ($n in $Plain) {
-        $p = $Props[$n]
-        try { $result.Values[$n] = $ca.GetCAProperty($Config, $p.Id, 0, $p.Type, 1) }
+        try { $result.Values[$n] = Invoke-MspkiReaderCall $ca $n 0 }
         catch { $result.Errors[$n] = Get-MspkiReaderError $_ }
     }
-    try {
-        $p = $Props['CASigCertCount']
-        $result.Count = [int]$ca.GetCAProperty($Config, $p.Id, 0, $p.Type, 1)
-    }
+    try { $result.Count = [int](Invoke-MspkiReaderCall $ca 'CASigCertCount' 0) }
     catch { $result.Errors['CASigCertCount'] = Get-MspkiReaderError $_ }
     $n = [math]::Min($result.Count, $MaxIndex)
     for ($i = 0; $i -lt $n; $i++) {
         foreach ($name in $Indexed) {
-            $p = $Props[$name]
             $key = '{0}[{1}]' -f $name, $i
-            try { $result.Values[$key] = $ca.GetCAProperty($Config, $p.Id, $i, $p.Type, 1) }
+            try { $result.Values[$key] = Invoke-MspkiReaderCall $ca $name $i }
             catch { $result.Errors[$key] = Get-MspkiReaderError $_ }
         }
     }
     return $result
+}
+# HRESULTs that mean "no CA with this name on that host" when they are the answer to the first call of a CA connection:
+# ERROR_FILE_NOT_FOUND and E_INVALIDARG. Only then is another connection string (the CA's common name instead of its
+# display name) worth a try.
+$script:MspkiCaNameMismatchHResult = @('80070002', '80070057')
+
+function Get-MspkiCaConfigCandidate {
+    <#
+    .SYNOPSIS
+    The CA connection strings to try, in order: the one built from the display name (host\name), then, when AD has a different
+    common name, host\commonName. Each is tried only until one answers.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$CA)
+    $list = New-Object System.Collections.ArrayList
+    if ($CA.Config) { [void]$list.Add([string]$CA.Config) }
+    $h = [string]$CA.DnsHostName
+    if ($h -and $CA.PSObject.Properties['CommonName'] -and $CA.CommonName) {
+        $alt = '{0}\{1}' -f $h, $CA.CommonName
+        if (-not ($list | Where-Object { $_ -ieq $alt })) { [void]$list.Add($alt) }
+    }
+    return $list.ToArray()
+}
+
+function Write-MspkiCaPropertyTrace {
+    <#
+    .SYNOPSIS
+    Writes the trace of one CA connection to the log: for every GetCAProperty call the property name and id, the index, the
+    requested data type, the type and size of the raw result, the time it took and the error code. Never any value.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyCollection()][object[]]$Trace = @(), [string]$Config = '')
+    foreach ($t in $Trace) {
+        if ($t.ResultType -eq 'error') {
+            Write-MspkiLog -Message ('GetCAProperty {0} (property id {1}, index {2}, requested data type {3}) on {4}: error 0x{5} after {6} ms' -f $t.Name, $t.Id, $t.Index, $t.DataType, $Config, $t.HResult, $t.ElapsedMs)
+        }
+        else {
+            Write-MspkiLog -Message ('GetCAProperty {0} (property id {1}, index {2}, requested data type {3}) on {4}: result type {5}, size {6} after {7} ms' -f $t.Name, $t.Id, $t.Index, $t.DataType, $Config, $t.ResultType, $t.Size, $t.ElapsedMs)
+        }
+    }
 }
 
 function Split-MspkiCAPropertyText {
@@ -261,60 +314,102 @@ function Get-MspkiCAProperty {
     $dns = Resolve-MspkiDnsName -HostName $CA.DnsHostName -TimeoutMs ($TimeoutSeconds * 1000)
     if ($dns.Status -ne 'Pass') {
         Add-MspkiMethodOutcome -Method $method -Outcome 'Unreachable' -Detail ('{0}: DNS {1}' -f $CA.Config, $dns.Status)
-        [void]$findings.Add((New-MspkiFinding @common -Status 'Fail' -StatusCode $dns.StatusCode -Confidence 'Referenced' `
+        [void]$findings.Add((Set-MspkiScopeCap -Finding (New-MspkiFinding @common -Status 'Fail' -StatusCode $dns.StatusCode -Confidence 'Referenced' `
             -Message ('The CA host {0} does not resolve in DNS from this computer.' -f $CA.DnsHostName) `
-            -Layers @{ DiscoveryStatus = 'Pass'; DnsStatus = $dns.Status } -Evidence @(('DNS: {0} after {1} ms. {2}' -f $dns.Status, $dns.ElapsedMs, $dns.Error))))
+            -Layers @{ DiscoveryStatus = 'Pass'; DnsStatus = $dns.Status } -Evidence @(('DNS: {0} after {1} ms. {2}' -f $dns.Status, $dns.ElapsedMs, $dns.Error)))))
         return [pscustomobject]@{ Data = $null; Findings = @($findings) }
     }
     $tcp = Test-MspkiTcpPort -HostName $CA.DnsHostName -Port 135 -TimeoutMs ($TimeoutSeconds * 1000)
     if ($tcp.Status -ne 'Pass') {
         Add-MspkiMethodOutcome -Method $method -Outcome 'Unreachable' -Detail ('{0}: TCP 135 {1}' -f $CA.Config, $tcp.Status)
-        [void]$findings.Add((New-MspkiFinding @common -Status 'Fail' -StatusCode $tcp.StatusCode -Confidence 'Referenced' `
+        [void]$findings.Add((Set-MspkiScopeCap -Finding (New-MspkiFinding @common -Status 'Fail' -StatusCode $tcp.StatusCode -Confidence 'Referenced' `
             -Message ('The CA host {0} does not accept RPC connections (TCP 135) from this computer.' -f $CA.DnsHostName) `
             -Layers @{ DiscoveryStatus = 'Pass'; DnsStatus = 'Pass'; TcpStatus = $tcp.Status } `
-            -Evidence @(('DNS: {0}' -f ($dns.Addresses -join ', ')), ('TCP 135: {0} after {1} ms. {2}' -f $tcp.Status, $tcp.ElapsedMs, $tcp.Error))))
+            -Evidence @(('DNS: {0}' -f ($dns.Addresses -join ', ')), ('TCP 135: {0} after {1} ms. {2}' -f $tcp.Status, $tcp.ElapsedMs, $tcp.Error)))))
         return [pscustomobject]@{ Data = $null; Findings = @($findings) }
     }
 
     $limit = [math]::Max(15, $TimeoutSeconds * 4)
-    $run = Invoke-MspkiTimeLimitedScript -ScriptBlock $script:MspkiCAPropertyReader -TimeoutSeconds $limit -ArgumentList @(
-        $CA.Config, $script:MspkiCAProp, $script:MspkiCAPlainProps, $script:MspkiCAIndexedProps, $MaxCertIndex)
+    $configs = @(Get-MspkiCaConfigCandidate -CA $CA)
+    $tried = New-Object System.Collections.ArrayList
+    $raw = $null
+    $run = $null
+    $usedConfig = ''
+    foreach ($cfg in $configs) {
+        Write-MspkiLog -Message ('CA connection string tried ({0} of {1}): {2} (time limit {3} s)' -f ($tried.Count + 1), $configs.Count, $cfg, $limit)
+        $run = Invoke-MspkiTimeLimitedScript -ScriptBlock $script:MspkiCAPropertyReader -TimeoutSeconds $limit -ArgumentList @(
+            $cfg, $script:MspkiCAProp, $script:MspkiCAPlainProps, $script:MspkiCAIndexedProps, $MaxCertIndex)
+        $raw = $null
+        if ($run.Completed) { $raw = @($run.Output | Where-Object { $_ -is [hashtable] }) | Select-Object -First 1 }
+        $outcome = 'Error'; $detail = ''
+        if ($run.TimedOut) { $outcome = 'Timeout'; $detail = ('no answer within {0} s' -f $limit) }
+        elseif ($null -eq $raw) { $detail = ($run.Errors -join '; ') }
+        elseif ($null -ne $raw.Fatal) { $outcome = ('Failed 0x{0}' -f $raw.Fatal.HResult); $detail = $raw.Fatal.Message }
+        else { $outcome = 'Answered' }
+        [void]$tried.Add(('{0} -> {1} in {2} ms{3}' -f $cfg, $outcome, $run.ElapsedMs, $(if ($detail) { ' (' + $detail + ')' } else { '' })))
+        Write-MspkiLog -Message ('CA connection string {0}: {1} after {2} ms {3}' -f $cfg, $outcome, $run.ElapsedMs, $detail).Trim()
+        if ($null -ne $raw -and $null -ne $raw.Trace) { Write-MspkiCaPropertyTrace -Trace @($raw.Trace) -Config $cfg }
+        if ($outcome -eq 'Answered') { $usedConfig = $cfg; break }
+        # Only an answer that says "no CA of that name here" is worth another connection string; anything else (timeout, access
+        # denied, RPC unavailable) would give the same result with a different name.
+        if ($null -eq $raw -or $null -eq $raw.Fatal -or $script:MspkiCaNameMismatchHResult -notcontains [string]$raw.Fatal.HResult) { break }
+    }
     $layers = @{ DiscoveryStatus = 'Pass'; DnsStatus = 'Pass'; TcpStatus = 'Pass' }
+    $triedEvidence = @(('Connection string(s) tried: {0}' -f ($configs -join ' | '))) + @($tried | ForEach-Object { 'Attempt: {0}' -f $_ })
     if ($run.TimedOut) {
-        Add-MspkiMethodOutcome -Method $method -Outcome 'Timeout' -Detail $CA.Config -ElapsedMs $run.ElapsedMs
-        [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (New-MspkiErrorInfo -Class 'Timeout' -Message ('No answer within {0} s.' -f $limit)) `
-            -Category 'CA' -Target $CA.Name -Endpoint $CA.Config -RelatedCA $CA.Name -Sources $src -Scope $scope `
+        Add-MspkiMethodOutcome -Method $method -Outcome 'Timeout' -Detail ($tried -join '; ') -ElapsedMs $run.ElapsedMs
+        $f = New-MspkiErrorFinding -ErrorInfo (New-MspkiErrorInfo -Class 'Timeout' -Message ('No answer within {0} s.' -f $limit)) `
+            -Category 'CA' -Target $CA.Name -Endpoint $CA.Config -RelatedCA $CA.Name -Sources $src -Scope $scope -Evidence $triedEvidence `
             -Action 'reading CA properties over DCOM' -UnreachableStatus 'Fail' `
-            -Notes 'TCP 135 answered, so dynamic RPC ports may be blocked between this computer and the CA, or the CA service is hung.'))
+            -Notes 'TCP 135 answered, so dynamic RPC ports may be blocked between this computer and the CA, or the CA service is hung.'
+        [void]$findings.Add((Set-MspkiScopeCap -Finding $f))
         return [pscustomobject]@{ Data = $null; Findings = @($findings) }
     }
-    $raw = $null
-    if ($run.Completed) { $raw = @($run.Output | Where-Object { $_ -is [hashtable] }) | Select-Object -First 1 }
     if ($null -eq $raw) {
         Add-MspkiMethodOutcome -Method $method -Outcome 'Error' -Detail (($run.Errors -join '; ')) -ElapsedMs $run.ElapsedMs
         [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (New-MspkiErrorInfo -Class 'Error' -Message ($run.Errors -join '; ')) `
-            -Category 'CA' -Target $CA.Name -Endpoint $CA.Config -RelatedCA $CA.Name -Sources $src -Scope $scope `
+            -Category 'CA' -Target $CA.Name -Endpoint $CA.Config -RelatedCA $CA.Name -Sources $src -Scope $scope -Evidence $triedEvidence `
             -Action 'reading CA properties over DCOM'))
         return [pscustomobject]@{ Data = $null; Findings = @($findings) }
     }
     if ($null -ne $raw.Fatal) {
+        # The first call decides the CA-wide result, so it is classified here and not by the generic table: the codes for "file not
+        # found", "invalid argument" and "class not registered" mean different things for different calls.
+        $hr = [string]$raw.Fatal.HResult
         $class = 'Error'
-        if ($script:MspkiHResultClass.ContainsKey([string]$raw.Fatal.HResult)) { $class = $script:MspkiHResultClass[[string]$raw.Fatal.HResult] }
-        Add-MspkiMethodOutcome -Method $method -Outcome $class -Detail ('{0}: 0x{1}' -f $CA.Config, $raw.Fatal.HResult) -ElapsedMs $run.ElapsedMs
-        $notes = ''
-        if ($class -eq 'PermissionDenied') { $notes = 'The account running the tool needs Read (or Request Certificates) permission on the CA.' }
-        if ($class -eq 'Unreachable') { $notes = 'TCP 135 answered but the CA did not: the Certificate Services service may be stopped, or dynamic RPC ports are blocked.' }
-        [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (New-MspkiErrorInfo -Class $class -HResult ('0x' + $raw.Fatal.HResult) -Message $raw.Fatal.Message) `
-            -Category 'CA' -Target $CA.Name -Endpoint $CA.Config -RelatedCA $CA.Name -Sources $src -Scope $scope `
-            -Action 'reading CA properties over DCOM' -UnreachableStatus 'Fail' -Notes $notes))
+        if ($script:MspkiHResultClass.ContainsKey($hr)) { $class = $script:MspkiHResultClass[$hr] }
+        Add-MspkiMethodOutcome -Method $method -Outcome $class -Detail ('{0}: 0x{1}' -f ($tried -join '; '), $hr) -ElapsedMs $run.ElapsedMs
+        if ($script:MspkiCaNameMismatchHResult -contains $hr) {
+            $f = New-MspkiFinding @common -Status 'Fail' -StatusCode 'RETRIEVAL_FAIL' -Confidence 'Referenced' -Layers @{ DiscoveryStatus = 'Pass'; DnsStatus = 'Pass'; TcpStatus = 'Pass'; ContentStatus = 'Fail' } `
+                -Message ('The host {0} answered, but no Certification Authority named {1} was found there (HRESULT 0x{2}).' -f $CA.DnsHostName, $CA.Name, $hr) `
+                -Evidence ($triedEvidence + @(('HResult: 0x{0}' -f $hr), ('Message: {0}' -f $raw.Fatal.Message))) `
+                -Notes 'The Enrollment Services object in AD names a CA that this host does not answer for. The Certificate Services service may be stopped or uninstalled, the CA may have been renamed or moved, or the AD object may be left over. If other CAs on the same kind of host answer, compare the CA name with the one shown by the CA itself.'
+        }
+        elseif ($hr -eq '80040154') {
+            $f = New-MspkiFinding @common -Status 'Skipped' -StatusCode 'UNSUPPORTED' -Confidence 'Referenced' -Layers @{ DiscoveryStatus = 'Skipped' } `
+                -Message 'The Certification Authority client COM class (CertificateAuthority.Request) is not registered on this computer, so no CA can be asked for its properties from here.' `
+                -Evidence ($triedEvidence + @('HResult: 0x80040154 (class not registered)', ('Message: {0}' -f $raw.Fatal.Message))) `
+                -Notes 'This is a limit of the computer running the tool, not a finding about the CA.'
+        }
+        else {
+            $notes = ''
+            if ($class -eq 'PermissionDenied') { $notes = 'The account running the tool needs Read (or Request Certificates) permission on the CA.' }
+            if ($class -eq 'Unreachable') { $notes = 'TCP 135 answered but the CA did not: the Certificate Services service may be stopped, or dynamic RPC ports are blocked.' }
+            $f = New-MspkiErrorFinding -ErrorInfo (New-MspkiErrorInfo -Class $class -HResult ('0x' + $hr) -Message $raw.Fatal.Message) `
+                -Category 'CA' -Target $CA.Name -Endpoint $CA.Config -RelatedCA $CA.Name -Sources $src -Scope $scope -Evidence $triedEvidence `
+                -Action 'reading CA properties over DCOM' -UnreachableStatus 'Fail' -Notes $notes
+        }
+        [void]$findings.Add((Set-MspkiScopeCap -Finding $f))
         return [pscustomobject]@{ Data = $null; Findings = @($findings) }
     }
-
     $props = ConvertFrom-MspkiCAPropertyResult -Raw $raw
+    $props | Add-Member -NotePropertyName 'ConfigUsed' -NotePropertyValue $usedConfig -Force
     Add-MspkiMethodOutcome -Method $method -Outcome 'Success' `
-        -Detail ('{0}: {1} signing certificate(s), {2} property error(s)' -f $CA.Config, $props.SigningCertCount, $props.PropertyErrors.Count) `
+        -Detail ('{0}: {1} signing certificate(s), {2} property error(s); {3} call(s) traced in the log' -f $usedConfig, $props.SigningCertCount, $props.PropertyErrors.Count, @($raw.Trace | Where-Object { $_ }).Count) `
         -ElapsedMs $run.ElapsedMs
     $ev = @(
+        ('Connection string that answered: {0}' -f $usedConfig),
+        ('Connection string(s) tried: {0}' -f ($tried -join ' | ')),
         ('CA type: {0} ({1})' -f $props.CATypeName, $props.CAType),
         ('CA name (CA): {0}' -f $props.CAName),
         ('DNS name (CA): {0}' -f $props.DnsName),

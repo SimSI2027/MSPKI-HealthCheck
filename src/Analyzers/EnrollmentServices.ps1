@@ -3,10 +3,11 @@
 # (Configured); URLs built from the host name of an Enterprise CA with the standard Microsoft paths
 # (ConstructedCandidate, Inferred: only CA hosts, which are already proven to be PKI). Every probe is an anonymous
 # GET on a URL that is in the lead registry. Reachability, authentication, TLS trust, TLS name match and content
-# are reported as separate facts. An HTTP 400, 401 or 405 answer proves that the service is reachable.
+# are reported as separate facts. An HTTP 400, 401 or 405 answer proves that the service is reachable. An HTTP 5xx answer
+# proves only that a web server is there: the service behind it is failing (state Failing, Fail, HTTP_500), never Pass.
 
 $script:MspkiEnrollmentAuthVariant = @('Kerberos', 'UsernamePassword', 'Certificate')
-$script:MspkiRespondingStatus = @(200, 400, 401, 403, 405, 500, 501, 503)
+$script:MspkiRespondingStatus = @(200, 400, 401, 403, 405)
 
 function Get-MspkiEnrollmentOrigin {
     <#
@@ -128,8 +129,11 @@ function Test-MspkiEnrollmentEndpoint {
     $mk = {
         param($st, $cd, $msg, $extra)
         $e = @($ev) + @($extra)
+        # A reference to another environment goes to review and is never graded as a failure (REQUIREMENTS 4.2).
+        $sc = Resolve-MspkiScopeStatus -Status $st -Scope $Lead.Scope
+        if ($sc.Capped) { $st = $sc.Status; $e += $sc.Evidence }
         New-MspkiFinding -Stage 'Probe' -Category $category -Role $role -Target $(if ($n.Host) { $n.Host } else { $Url }) -Endpoint $Url -RelatedCA $related `
-            -Status $st -StatusCode $cd -Confidence $conf -Sources @($Lead.Sources) -Scope $Lead.Scope -Message $msg -Evidence $e -Layers $layers -Notes $notes
+            -Status $st -StatusCode $cd -Confidence $conf -Sources @($Lead.Sources) -Scope $Lead.Scope -Message $msg -Evidence $e -Layers $layers -Notes $notes -Severity $sc.Severity
     }
     $label = '{0} {1}' -f $origin, $kind
 
@@ -187,6 +191,7 @@ function Test-MspkiEnrollmentEndpoint {
     else { [void]$ev.Add('TLS trust: not applicable (http)'); [void]$ev.Add('TLS name match: not applicable (http)') }
 
     $http = Invoke-MspkiHttpGet -Url $Url -TimeoutMs $ms
+    [void]$ev.Add(('HTTP proxy: {0}' -f $http.ProxyMode))
     foreach ($h in $http.Hops) { [void]$ev.Add(('HTTP hop: {0} -> {1} {2} {3}' -f $h.Url, $h.HttpStatus, $h.Location, $h.Error).Trim()) }
     if ($http.Redirected) { $layers['RedirectStatus'] = 'Warning' } else { $layers['RedirectStatus'] = 'Pass' }
     $status = [int]$http.HttpStatus
@@ -197,6 +202,17 @@ function Test-MspkiEnrollmentEndpoint {
         if (-not $constructed) {
             $code = $http.Code; if ($status -eq 410) { $code = 'HTTP_404' }
             [void]$out.Findings.Add((& $mk 'Fail' $code ('{0} endpoint {1} does not answer as an enrollment service: {2} {3} (Unreachable).' -f $label, $n.Host, $(if ($status -gt 0) { 'HTTP ' + $status } else { $http.Code }), $http.Error).Trim() @()))
+        }
+        return $out
+    }
+    if ($status -ge 500) {
+        # The web server answered, so the host and the port are fine, but the service behind it is failing (for example a stopped
+        # application pool answers 503). That is not "responding": it is reported as a failure, and the answer stays in the Evidence.
+        $out.State = 'Failing'; $out.Summary = ('HTTP {0}' -f $status)
+        $layers['HttpStatus'] = 'Fail'
+        [void]$ev.Add(('Reachability (HTTP): the host answered with HTTP {0}. A web server is there, but the service behind it is failing.' -f $status))
+        if (-not $constructed) {
+            [void]$out.Findings.Add((& $mk 'Fail' 'HTTP_500' ('{0} endpoint {1} is reachable but failing: HTTP {2} (Failing). The application pool or the service behind this URL may be stopped.' -f $label, $n.Host, $status) @()))
         }
         return $out
     }
@@ -243,6 +259,8 @@ function Test-MspkiEnrollmentEndpoint {
         if ($authName -match 'UserName') { $sev = 'High'; $st = 'Fail' }
         $pev = @(('Classification: {0}' -f $origin), ('URL: {0}' -f $Url), ('Authentication type: {0}' -f $(if ($authName) { $authName } else { 'unknown' })),
             ('The service answered over plain HTTP (HTTP {0}).' -f $status))
+        $rs = Resolve-MspkiScopeStatus -Status $st -Scope $Lead.Scope
+        if ($rs.Capped) { $st = $rs.Status; $sev = $rs.Severity; $pev += $rs.Evidence }
         $risk = New-MspkiFinding -Stage 'Probe' -Category $category -Role $role -Target $n.Host -Endpoint $Url -RelatedCA $related -Status $st -StatusCode 'CONFIG_RISK' `
             -Severity $sev -Confidence $conf -Sources @($Lead.Sources) -Scope $Lead.Scope -Layers @{ DiscoveryStatus = 'Pass'; TlsStatus = 'NotApplicable'; HttpStatus = 'Pass' } `
             -Message ('The {0} endpoint {1} is served over HTTP, not HTTPS, so requests and responses are not protected by TLS.' -f $kind, $n.Host) -Evidence $pev `
@@ -284,7 +302,7 @@ function Invoke-MspkiEnrollmentServiceAnalysis {
     if ($silent.Count -gt 0) {
         [void]$findings.Add((New-MspkiFinding -Stage 'Probe' -Category 'CES' -Role 'CESEndpoint' -Target 'Constructed candidates' -Status 'NotApplicable' -StatusCode 'NOT_DISCOVERED' `
             -Confidence 'Inferred' -Sources 'Constructed:CAHost' -Scope 'Local' -Layers @{ DiscoveryStatus = 'Pass' } `
-            -Message ('{0} constructed CEP/CES candidate URL(s) on Enterprise CA hosts did not answer; {1} answered.' -f $silent.Count, $responding) `
+            -Message ('{0} constructed CEP/CES candidate URL(s) on Enterprise CA hosts did not answer as a working service; {1} answered.' -f $silent.Count, $responding) `
             -Evidence (@('Classification: ConstructedCandidate', 'Standard Microsoft paths were tried only on hosts of Enterprise CAs found in AD (anonymous GET).') + @($silent)) `
             -Notes 'A CES or CEP on another host, or with another name, cannot be found this way. CES URLs normally come from Active Directory and CEP URLs from policy on this computer.'))
     }

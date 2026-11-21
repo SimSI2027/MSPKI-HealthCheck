@@ -5,6 +5,7 @@ $script:MspkiOid = @{
     BasicConstraints   = '2.5.29.19'
     KeyUsage           = '2.5.29.15'
     SubjectKeyId       = '2.5.29.14'
+    AuthorityKeyId     = '2.5.29.35'
     CAVersion          = '1.3.6.1.4.1.311.21.1'
     PreviousCAHash     = '1.3.6.1.4.1.311.21.2'
 }
@@ -47,6 +48,50 @@ function Get-MspkiCertificateExtension {
     )
     foreach ($e in $Certificate.Extensions) { if ($e.Oid.Value -eq $Oid) { return $e } }
     return $null
+}
+
+function Get-MspkiAuthorityKeyIdHex {
+    <#
+    .SYNOPSIS
+    The keyIdentifier of an Authority Key Identifier extension value (DER SEQUENCE { [0] keyIdentifier, ... }) as upper-case
+    hex; '' when the value has none.
+    #>
+    [CmdletBinding()]
+    param([AllowNull()][byte[]]$Value)
+    if ($null -eq $Value -or $Value.Length -lt 4 -or $Value[0] -ne 0x30) { return '' }
+    try {
+        $top = Read-MspkiDerElement -Bytes $Value -Offset 0
+        foreach ($k in (Get-MspkiDerChild -Bytes $Value -Element $top)) {
+            if ($k.Tag -eq 0x80) { return (ConvertTo-MspkiHex (Get-MspkiDerBytes -Bytes $Value -Element $k)) }
+        }
+    }
+    catch { }
+    return ''
+}
+
+function Get-MspkiCertificateSubjectKeyId {
+    <#
+    .SYNOPSIS
+    The Subject Key Identifier of a certificate as upper-case hex ('' when the certificate has none).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate)
+    $ski = Get-MspkiCertificateExtension -Certificate $Certificate -Oid $script:MspkiOid.SubjectKeyId
+    if ($null -eq $ski) { return '' }
+    try { return ([string](New-Object System.Security.Cryptography.X509Certificates.X509SubjectKeyIdentifierExtension($ski, $ski.Critical)).SubjectKeyIdentifier).ToUpperInvariant() }
+    catch { return '' }
+}
+
+function Get-MspkiCertificateAuthorityKeyId {
+    <#
+    .SYNOPSIS
+    The Authority Key Identifier (keyIdentifier) of a certificate as upper-case hex ('' when absent): the key that signed it.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate)
+    $aki = Get-MspkiCertificateExtension -Certificate $Certificate -Oid $script:MspkiOid.AuthorityKeyId
+    if ($null -eq $aki) { return '' }
+    return (Get-MspkiAuthorityKeyIdHex -Value $aki.RawData)
 }
 
 function ConvertFrom-MspkiCAVersionExtension {
@@ -166,6 +211,7 @@ function Get-MspkiCertificateInfo {
         KeySize            = $key.KeySize
         SignatureAlgorithm = [string]$c.SignatureAlgorithm.FriendlyName
         SubjectKeyId       = $skiText
+        AuthorityKeyId     = (Get-MspkiCertificateAuthorityKeyId -Certificate $c)
         CAVersion          = $verLabel
         CertIndex          = $certIdx
         KeyIndex           = $keyIdx

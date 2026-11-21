@@ -79,6 +79,22 @@ function ConvertTo-MspkiP1363Signature {
     return , $out
 }
 
+function Test-MspkiSignatureApiAvailable {
+    <#
+    .SYNOPSIS
+    True when this .NET Framework has the public-key signature APIs that Test-MspkiSignature uses (HashAlgorithmName, the RSA and
+    ECDsa certificate extensions): .NET Framework 4.6.2 or later. Without them nothing can be verified, and that is reported
+    as "could not be checked", never as an invalid signature.
+    #>
+    [CmdletBinding()]
+    param()
+    foreach ($n in @('System.Security.Cryptography.HashAlgorithmName', 'System.Security.Cryptography.RSASignaturePadding',
+            'System.Security.Cryptography.X509Certificates.RSACertificateExtensions', 'System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions')) {
+        if (-not ($n -as [type])) { return $false }
+    }
+    return $true
+}
+
 function Test-MspkiSignature {
     <#
     .SYNOPSIS
@@ -96,12 +112,16 @@ function Test-MspkiSignature {
     try { $sd = Split-MspkiSignedData -Bytes $SignedBytes }
     catch { $r.Reason = (Get-MspkiErrorInfo $_).Message; return $r }
     $r.Algorithm = $sd.AlgorithmOid
+    if (-not (Test-MspkiSignatureApiAvailable)) {
+        $r.Reason = 'This .NET Framework lacks the public-key signature APIs (4.6.2 or later is needed), so signatures cannot be checked.'
+        return $r
+    }
     if (-not $script:MspkiSignatureAlgorithms.ContainsKey($sd.AlgorithmOid)) { $r.Reason = 'Unsupported signature algorithm.'; return $r }
     $alg = $script:MspkiSignatureAlgorithms[$sd.AlgorithmOid]
     $hashName = $alg.Hash
     if ($alg.Key -eq 'RSAPSS') { $hashName = $sd.PssHash }
-    $hash = New-Object System.Security.Cryptography.HashAlgorithmName($hashName)
     try {
+        $hash = New-Object System.Security.Cryptography.HashAlgorithmName($hashName)
         if ($alg.Key -eq 'RSA' -or $alg.Key -eq 'RSAPSS') {
             $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($Issuer)
             if ($null -eq $rsa) { $r.Reason = 'The issuer key is not RSA.'; $r.Valid = $false; return $r }

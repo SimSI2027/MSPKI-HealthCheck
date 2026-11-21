@@ -115,7 +115,8 @@ function Get-MspkiLeadProbeOutcome {
     $real = @($mine | Where-Object { $_.Status -ne 'Skipped' -and $_.Status -ne 'NotApplicable' })
     if ($real.Count -eq 0) { return $out }
     $pass = @($real | Where-Object { $_.Status -eq 'Pass' -or ($_.Status -eq 'Information' -and $_.StatusCode -eq 'OK') })
-    $bad = @($real | Where-Object { @('Fail', 'Warning', 'Critical', 'Error') -contains $_.Status })
+    # A result that was turned into a review item (a lead carried only by historical or expired certificates) keeps its status code.
+    $bad = @($real | Where-Object { @('Fail', 'Warning', 'Critical', 'Error') -contains $_.Status -or ($_.Severity -eq 'ReviewRequired' -and @('OK', 'NOT_APPLICABLE') -notcontains $_.StatusCode) })
     $nonHost = @($bad | Where-Object { $script:MspkiHostFailureCode -notcontains $_.StatusCode })
     if ($pass.Count -gt 0 -and $nonHost.Count -eq 0) { $out.State = 'Responding'; return $out }
     if ($pass.Count -gt 0) { $out.State = 'Partial'; $out.Code = $nonHost[0].StatusCode; return $out }
@@ -209,7 +210,7 @@ function Test-MspkiStaleReference {
                     -Notes 'Review only. Unreachable is a fact about now; whether the reference is still needed depends on the certificates that carry it.'))
             }
             'StaleReferenceCandidate' {
-                [void]$out.Add((New-MspkiFinding @common @lcommon -Status 'Information' -StatusCode 'STALE_DATA' -Severity 'ReviewRequired' -Confidence 'Inferred' -Layers @{ DiscoveryStatus = 'Pass' } `
+                [void]$out.Add((New-MspkiFinding @common @lcommon -Status 'Information' -StatusCode 'STALE_REFERENCE' -Severity 'ReviewRequired' -Confidence 'Inferred' -Layers @{ DiscoveryStatus = 'Pass' } `
                     -Message ('{0} is a stale-reference candidate: only expired CA certificates carry it and its host does not answer ({1}).' -f $lead.Url, $probe.Layer) `
                     -Evidence (@($ev) + $script:MspkiStaleCaveat + 'A candidate is not a conclusion: it combines three facts (expired carriers only, no current reference, host does not answer), none of which is enough alone.') `
                     -Notes 'Review only. Nothing here is a recommendation to change anything.'))
@@ -241,7 +242,7 @@ function Test-MspkiStaleReference {
         $tgt = @{ Role = 'Unknown'; Target = $ca.Name; Endpoint = $ca.Config; RelatedCA = $ca.Name; Scope = 'Local'; Sources = @('AD:EnrollmentServices', 'CA:GetCAProperty') }
         if ($hostGone -and $expiredAll) {
             $counts['StaleReferenceCandidate']++
-            [void]$out.Add((New-MspkiFinding @common @tgt -Status 'Information' -StatusCode 'STALE_DATA' -Severity 'ReviewRequired' -Confidence 'Inferred' -Layers @{ DiscoveryStatus = 'Pass' } `
+            [void]$out.Add((New-MspkiFinding @common @tgt -Status 'Information' -StatusCode 'STALE_REFERENCE' -Severity 'ReviewRequired' -Confidence 'Inferred' -Layers @{ DiscoveryStatus = 'Pass' } `
                 -Message ('The Enterprise CA object {0} is a stale-reference candidate: every CA certificate for it has expired and its host does not answer ({1}).' -f $ca.Name, $layer) `
                 -Evidence (@('Classification: StaleReferenceCandidate', 'Rule: every CA certificate for the object has expired, and the CA host does not answer; neither fact alone is enough') + $lines + 'The object is still registered in Active Directory; this tool does not change it.') `
                 -Notes 'Review only. A CA that is offline on purpose can look like this; confirm with the owners of the PKI.'))

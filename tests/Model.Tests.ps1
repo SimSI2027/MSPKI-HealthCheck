@@ -59,9 +59,10 @@ Describe 'New-MspkiFinding' {
     It 'keeps the status code list from REQUIREMENTS separate (no merged codes)' {
         InModuleScope MspkiHealthCheck {
             $codes = (Get-MspkiSchema).StatusCode
-            $codes.Count | Should -Be 30
+            $codes.Count | Should -Be 35
             foreach ($c in @('CONFIG_RISK', 'DNS_FAIL', 'TCP_FAIL', 'TIMEOUT', 'HTTP_REDIRECT', 'HTTP_401_403', 'TLS_NAME_MISMATCH',
-                    'TLS_UNTRUSTED_ROOT', 'PERMISSION_DENIED', 'NOT_CONFIGURED', 'NOT_DISCOVERED', 'NOT_APPLICABLE', 'UNSUPPORTED')) {
+                    'TLS_UNTRUSTED_ROOT', 'PERMISSION_DENIED', 'NOT_CONFIGURED', 'NOT_DISCOVERED', 'NOT_APPLICABLE', 'UNSUPPORTED',
+                    'INTERNAL_ERROR', 'HTTP_OTHER', 'CLOCK_SKEW', 'CONFIG_MISMATCH', 'STALE_REFERENCE')) {
                 $codes | Should -Contain $c
             }
         }
@@ -103,7 +104,7 @@ Describe 'Get-MspkiErrorInfo and New-MspkiErrorFinding' {
         @{ Class = 'NotFound'; Status = 'Information'; Code = 'NOT_DISCOVERED'; Layer = 'Fail' }
         @{ Class = 'Timeout'; Status = 'Error'; Code = 'TIMEOUT'; Layer = 'Timeout' }
         @{ Class = 'Unreachable'; Status = 'Error'; Code = 'RETRIEVAL_FAIL'; Layer = 'Fail' }
-        @{ Class = 'Error'; Status = 'Error'; Code = 'RETRIEVAL_FAIL'; Layer = 'Error' }
+        @{ Class = 'Error'; Status = 'Error'; Code = 'INTERNAL_ERROR'; Layer = 'Error' }
     ) {
         param($Class, $Status, $Code, $Layer)
         InModuleScope MspkiHealthCheck -Parameters @{ Class = $Class; Status = $Status; Code = $Code; Layer = $Layer } {

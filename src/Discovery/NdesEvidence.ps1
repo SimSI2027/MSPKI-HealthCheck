@@ -13,7 +13,7 @@ $script:MspkiNdesTemplateNames = @(
 # per template key: issued certificates (Disposition 20) of that template; columns are plain text and dates.
 $script:MspkiNdesDbReader = {
     param([string]$Config, [string[]]$TemplateKeys, [int]$MaxRows)
-    $result = @{ Rows = (New-Object System.Collections.ArrayList); Errors = (New-Object System.Collections.ArrayList); Fatal = $null }
+    $result = @{ Rows = (New-Object System.Collections.ArrayList); Errors = (New-Object System.Collections.ArrayList); Fatal = $null; Trace = (New-Object System.Collections.ArrayList) }
     function Get-MspkiReaderError($err) {
         $e = $err.Exception
         while ($null -ne $e.InnerException) { $e = $e.InnerException }
@@ -22,6 +22,7 @@ $script:MspkiNdesDbReader = {
     $columns = @('Request.RequestID', 'Request.RequesterName', 'CommonName', 'CertificateTemplate', 'NotBefore', 'NotAfter')
     $first = $true
     foreach ($key in $TemplateKeys) {
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
         try {
             $view = New-Object -ComObject CertificateAuthority.View
             $view.OpenConnection($Config)
@@ -44,10 +45,12 @@ $script:MspkiNdesDbReader = {
                 }
                 [void]$result.Rows.Add($rec)
             }
+            [void]$result.Trace.Add(@{ Key = $key; Columns = ($columns -join ', '); Rows = $n; ElapsedMs = [int64]$sw.ElapsedMilliseconds; HResult = '' })
             $first = $false
         }
         catch {
             $err = Get-MspkiReaderError $_
+            [void]$result.Trace.Add(@{ Key = $key; Columns = ($columns -join ', '); Rows = 0; ElapsedMs = [int64]$sw.ElapsedMilliseconds; HResult = $err.HResult })
             # Access denied, an unreachable CA or a missing COM class applies to every key: stop at the first one.
             if ($first) { $result.Fatal = $err; return $result }
             [void]$result.Errors.Add(@{ Key = $key; HResult = $err.HResult; Message = $err.Message })
@@ -217,7 +220,11 @@ function Get-MspkiNdesCaEvidence {
     }
     $keys = Get-MspkiNdesTemplateKey -Inventory $Inventory
     $limit = [math]::Max(30, $TimeoutSeconds * 6)
-    $run = Invoke-MspkiTimeLimitedScript -ScriptBlock $script:MspkiNdesDbReader -TimeoutSeconds $limit -ArgumentList @($CA.Config, [string[]]$keys, $MaxRows)
+    # The connection string that answered for the CA properties is used when there is one.
+    $cfg = [string]$CA.Config
+    if ($CA.Properties.PSObject.Properties['ConfigUsed'] -and $CA.Properties.ConfigUsed) { $cfg = [string]$CA.Properties.ConfigUsed }
+    Write-MspkiLog -Message ('CA database (CertificateAuthority.View) read for NDES evidence: connection string {0}, {1} template value(s) to query, time limit {2} s' -f $cfg, @($keys).Count, $limit)
+    $run = Invoke-MspkiTimeLimitedScript -ScriptBlock $script:MspkiNdesDbReader -TimeoutSeconds $limit -ArgumentList @($cfg, [string[]]$keys, $MaxRows)
     if ($run.TimedOut) {
         Add-MspkiMethodOutcome -Method 'CA:CertificateAuthority.View' -Outcome 'Timeout' -Detail $CA.Config -ElapsedMs $run.ElapsedMs
         [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (New-MspkiErrorInfo -Class 'Timeout' -Message ('No answer within {0} s.' -f $limit)) -Category 'NDES' -Target $CA.Name `
@@ -232,10 +239,14 @@ function Get-MspkiNdesCaEvidence {
             -Endpoint $CA.Config -RelatedCA $CA.Name -Sources $src -Scope 'Local' -Action 'reading the CA database for NDES evidence'))
         $out.Findings = @($findings); return $out
     }
+    foreach ($t in @($raw.Trace | Where-Object { $_ })) {
+        Write-MspkiLog -Message ('CertificateAuthority.View query for template value {0} (columns: {1}; restrictions: Request.Disposition = 20, CertificateTemplate = value): {2} row(s) after {3} ms{4}' -f `
+            $t.Key, $t.Columns, $t.Rows, $t.ElapsedMs, $(if ($t.HResult) { ', error 0x' + $t.HResult } else { '' }))
+    }
     if ($null -ne $raw.Fatal) {
         $class = 'Error'
         if ($script:MspkiHResultClass.ContainsKey([string]$raw.Fatal.HResult)) { $class = $script:MspkiHResultClass[[string]$raw.Fatal.HResult] }
-        Add-MspkiMethodOutcome -Method 'CA:CertificateAuthority.View' -Outcome $class -Detail ('{0}: 0x{1}' -f $CA.Config, $raw.Fatal.HResult) -ElapsedMs $run.ElapsedMs
+        Add-MspkiMethodOutcome -Method 'CA:CertificateAuthority.View' -Outcome $class -Detail ('{0}: 0x{1}' -f $cfg, $raw.Fatal.HResult) -ElapsedMs $run.ElapsedMs
         $notes = ''
         if ($class -eq 'PermissionDenied') { $notes = 'Reading the CA database needs Read permission on the CA (certificate managers and CA administrators see all requests). Without it, NDES hosts can only be found from references.' }
         [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (New-MspkiErrorInfo -Class $class -HResult ('0x' + $raw.Fatal.HResult) -Message $raw.Fatal.Message) -Category 'NDES' -Target $CA.Name `
@@ -245,7 +256,7 @@ function Get-MspkiNdesCaEvidence {
     $rows = @($raw.Rows | ForEach-Object { ConvertTo-MspkiNdesRow -Row $_ })
     $out.Rows = $rows
     $out.Read = $true
-    Add-MspkiMethodOutcome -Method 'CA:CertificateAuthority.View' -Outcome 'Success' -Detail ('{0}: {1} issued certificate(s) from NDES templates, {2} query error(s)' -f $CA.Config, $rows.Count, @($raw.Errors).Count) -ElapsedMs $run.ElapsedMs
+    Add-MspkiMethodOutcome -Method 'CA:CertificateAuthority.View' -Outcome 'Success' -Detail ('{0}: {1} issued certificate(s) from NDES templates, {2} query error(s)' -f $cfg, $rows.Count, @($raw.Errors).Count) -ElapsedMs $run.ElapsedMs
     $ev = @(('Template values queried (names and OIDs): {0}' -f ($keys -join ', ')), ('Issued certificates found: {0}' -f $rows.Count))
     foreach ($e in @($raw.Errors)) { $ev += ('Query for {0} failed: 0x{1} {2}' -f $e.Key, $e.HResult, $e.Message) }
     [void]$findings.Add((New-MspkiFinding @common -Status 'Information' -StatusCode 'OK' -Confidence 'Confirmed' -Layers @{ DiscoveryStatus = 'Pass' } -Evidence $ev `

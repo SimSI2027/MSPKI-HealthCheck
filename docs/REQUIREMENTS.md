@@ -10,6 +10,8 @@ The rules in `CLAUDE.md` apply everywhere and take priority over anything below.
 ## 2. Ways of running it
 - `.\Invoke-MspkiHealthCheck.ps1`: full run with defaults. Output goes to `out\<yyyyMMdd-HHmmss>\`.
 - Optional parameters: `-OutputPath`, `-TimeoutSeconds` (default 5), threshold overrides, `-SkipNetwork`,
+  `-UseSystemProxy` (opt-in: the HTTP probes use the system proxy settings, without credentials; by default they connect
+  directly), `-IncludeNdesAdminProbe` (opt-in: also send the one anonymous request to the NDES admin page),
   `-CertificateFile <path.cer>` (end-to-end validation), `-IncludeCertUtilVerify` (opt-in).
 - No administrative rights needed. Checks that need extra rights record `PermissionDenied` and the run continues.
 - Exit codes: `0` passed or not applicable, `2` informational, `3` warnings, `4` failures or critical,
@@ -42,6 +44,16 @@ Every result is one object created by `New-MspkiFinding`:
 `NOT_APPLICABLE`, `UNSUPPORTED`, `OK`.
 Added in build phase B for CA chains (local trust, not TLS): `CHAIN_UNTRUSTED_ROOT`, `CHAIN_PARTIAL`, `CHAIN_INVALID`.
 Added in build phase D for the template review: `CONFIG_RISK` (a configuration that matches a reviewed risk pattern; the Evidence lists every condition). Absence of a pattern is reported as `OK`.
+Added after the audit (docs/AUDIT.md M10) so that different failures are not reported under one code:
+`INTERNAL_ERROR` (an unexpected exception or an unclassified failure, which can be a fault in this tool; never an unreachable server),
+`HTTP_OTHER` (an HTTP answer with no code of its own: 1xx, 2xx other than 200, 3xx without Location, 405, 407, 410),
+`CLOCK_SKEW` (an object dated in the future, for example a CRL whose thisUpdate is ahead of this computer's clock),
+`CONFIG_MISMATCH` (AD and the CA disagree: template lists, Enrollment Services certificates) and
+`STALE_REFERENCE` (a stale-reference candidate, review only). `STALE_DATA` is now only "an older CRL number" and
+`RETRIEVAL_FAIL` only "the server could not be reached or the answer could not be retrieved". An HTTP response that is too large and an HTTP
+200 that is not a SCEP capability list are `CONTENT_WRONG_TYPE`. A TLS trust failure of an HTTP request is named by a separate handshake to
+the host of the failing hop (`TLS_UNTRUSTED_ROOT`, `TLS_NAME_MISMATCH`, `TLS_PARTIAL_CHAIN`, `OBJECT_EXPIRED` or `TLS_HANDSHAKE_FAIL`). A signature that
+could not be checked (unsupported algorithm, or a .NET Framework without the APIs) is `UNSUPPORTED`, never `SIGNATURE_INVALID`.
 
 Rules:
 - An endpoint failure is not the same thing as local trust failure.
@@ -74,11 +86,24 @@ Rules:
   merge, combine `Sources`; never drop any.
 - **Scope:** compare the DNS suffix with the current forest's domains → `Local`, with trusted forests →
   `OtherForest`, anything else → `External`. A cross-environment reference goes to review; it is never a
-  failure by default.
+  failure by default: for `External` and `OtherForest` a Fail or Critical result is capped at `Warning` with severity
+  `ReviewRequired`, and the Evidence says so and what the uncapped status would have been. (A PKI that publishes its
+  CDP/AIA/OCSP under a DNS name outside the forest's domains therefore gets review items for those hosts, not failures.)
+- **LDAP locations:** an LDAP bind sends the Windows credentials of the user running the tool, so a host named in an LDAP
+  URL is contacted only when it is the selected domain controller or in one of the forest's own DNS domains, and with
+  `-SkipNetwork` only when it is the selected domain controller. A serverless URL goes to the selected domain controller.
+  Any other LDAP URL is reported as `Skipped` / `NOT_APPLICABLE` ("not contacted") with the reason.
+- **Following links:** a certificate downloaded from an AIA location contributes its own links, and counts as an issuer for
+  signature checks, only when it is the expected issuer AND its key is proven (the signature of a referencing certificate
+  verifies with it, or it is identical to a CA certificate already known from AD or the CA). Otherwise nothing in it is followed.
 
 ### 4.3 Probes (shared, cached for the run)
 - DNS (`[System.Net.Dns]`), TCP connect, HTTP(S) via `HttpWebRequest` with `AllowAutoRedirect = $false`
   (follow redirects manually and record each hop), TLS server certificate, chain and name check, LDAP/LDAPS bind and latency.
+  HTTP probes connect directly (no proxy, no WPAD) unless `-UseSystemProxy` is given; the proxy mode is recorded in RunInfo and
+  in the Evidence of every HTTP result. TLS protocol versions are passed explicitly (1.2, 1.1, 1.0, plus 1.3 where the
+  .NET Framework has it), and the process-wide setting used by `HttpWebRequest` is raised for the run and restored afterwards.
+  RunInfo records the .NET Framework release, whether the signature APIs exist and the TLS setting found.
 - Cache results by normalised key. Every probe has a timeout. Check for cancellation (Ctrl+C) between probes.
 
 ## 5. Checks by area
@@ -90,6 +115,13 @@ Rules:
   expires after its parent.
 - Thresholds (parameters): root CA certificate warning 730 days / critical 365 days. Issuing CA certificate
   warning 180 / critical 90.
+- A CA certificate is graded as being in use (Critical when expired or inside the critical period) only when its lifecycle is
+  `Current` with `Confirmed` or `Referenced` confidence. An expired certificate whose lifecycle is only inferred or unknown (an old
+  root left in a container, an AD copy that is not among the CA's own signing certificates) is a review item (`Information` /
+  `ReviewRequired`), and within the critical period it is capped at `Warning`.
+- The issuer of a certificate or CRL is found by name AND key: when the object names the key that signed it (Authority Key
+  Identifier), only a certificate with that Subject Key Identifier can be the issuer. Certificates with the same name but another
+  key are another key generation: "issuer not found" (`CHAIN_PARTIAL`), not a bad signature.
 - An offline root with a valid certificate and CRL is `EXPECTED_OFFLINE`, not a failure.
 
 ### 5.2 CRLs (base and delta)
@@ -107,11 +139,17 @@ Rules:
 
 ### 5.3 AIA / CDP / OCSP endpoints
 - Check every lead's layers separately (§3). Validate downloaded content (is it a certificate or CRL, and the right one?).
+  "The right one" means the expected name AND the right key: an AIA certificate is `Confirmed` only when its key is proven (§4.2);
+  a name match alone is `Referenced`, and a certificate with the right name but another key is a warning.
+- A lead that only expired or historical CA certificates (or only an older signing-certificate index of a CA) carry is a review item
+  when its probe fails (`Information` / `ReviewRequired`, with the original status code), never a failure; the stale-reference
+  review (§5.9) still sees the failure.
 - OCSP: find the URL from AIA. Reachability is not health. Do a full validation only with `-CertificateFile`.
 
 ### 5.4 AD PKI container consistency (review only, never recommend deletion)
 - An Enterprise CA without matching AIA or Certification Authorities data
-- An authentication CA missing from NTAuth
+- An authentication CA missing from NTAuth (a CA that publishes no template that can be used to sign in, or whose template objects
+  were not read, is reported as `Information` only)
 - A template published by no active CA, or a published template name with no template object
 - Several CA certificates with no clear current/historical split
 - KRA configured but its certificate is missing or expired
@@ -140,7 +178,9 @@ Rules:
 - CEP: from local policy → `Referenced`. A URL built from a CA's host name is `Inferred` and labelled "constructed candidate".
 - A response such as HTTP 400, 401 or 405 proves the service is reachable. Report reachability, authentication required,
   TLS trust, TLS name match and content as separate fields.
-- Classifications: Configured (policy) · Discovered (AD) · ConstructedCandidate · ConfirmedResponding · Unreachable.
+  An HTTP 5xx answer proves only that a web server is there while the service behind it fails (for example a stopped application
+  pool answers 503): the endpoint is `Failing` and the result is `Fail` / `HTTP_500`, never Pass and never Confirmed.
+- Classifications: Configured (policy) · Discovered (AD) · ConstructedCandidate · ConfirmedResponding · Failing · Unreachable.
 
 ### 5.7 NDES / SCEP
 - Evidence for a candidate host:
@@ -150,9 +190,14 @@ Rules:
   3. Enrollment URLs in policy or certificates.
 - Probe only candidate hosts, and only these requests:
   - `GET /certsrv/mscep/mscep.dll?operation=GetCACaps` and `GetCACert`. These are standard read-only SCEP operations.
-  - `/certsrv/mscep_admin/` **anonymously only** (`UseDefaultCredentials = $false`, no credentials). A 401 proves the
-    admin endpoint exists. **Never send credentials there**: an authenticated request generates a challenge password.
+  - `/certsrv/mscep_admin/` **only with `-IncludeNdesAdminProbe`**, and then **anonymously only** (`UseDefaultCredentials = $false`,
+    no credentials, body never read). An admin page that is wrongly open to anonymous users creates a one-time challenge password when
+    it is requested, which would be a write to a remote system, so by default this request is not sent. A 401 or 403 never
+    confirms an endpoint (IIS answers 401 for every path below a site that requires Windows authentication, and a WAF or an IP
+    restriction answers 403 for every path). **Never send credentials there**: an authenticated request generates a challenge password.
 - Classifications: ConfirmedEndpoint · ReferencedEndpoint · ProbableCandidate · UnconfirmedCandidate · NotDiscovered.
+  `ConfirmedEndpoint` needs a SCEP capability list from GetCACaps or a certificate from GetCACert. `NotDiscovered` is `Inferred` when a CA
+  database was read and `Unknown` when none could be read; it is never `Confirmed`.
 
 ### 5.8 Intune Certificate Connector
 - Check only the local machine: services (name, status, start type, executable path), installed products, certificate stores
@@ -232,3 +277,12 @@ The work is tracked as five build phases. Each one groups the detailed steps in 
   found" is not proof that none exists.
 - A stale-reference candidate is never a conclusion: this tool cannot see the certificates a CA issued, so an old URL may
   still be needed by certificates that have not expired.
+- Hosts whose DNS name is outside the forest's own domains (scope `External` or `OtherForest`) are graded at most `Warning` /
+  `ReviewRequired`. A PKI that publishes CDP, AIA or OCSP under another DNS name therefore shows review items, not failures, for them.
+- Signature checks need the public-key signature APIs of .NET Framework 4.6.2 or later. Without them every signature is reported
+  as "could not be checked" (`UNSUPPORTED`, never `SIGNATURE_INVALID`), with one finding at the start of the run.
+- The TLS probe offers TLS 1.2, 1.1 and 1.0 (and 1.3 where the framework has it) and reads the server certificate; a server that
+  allows only TLS 1.3 on a framework without it cannot be probed. The Windows chain engine may fetch missing intermediate
+  certificates itself while it builds a chain for the TLS probe; those fetches are not bounded or logged by this tool.
+- There are still no recorded samples from a real AD CS: the CR_PROP ids, the `CertificateAuthority.View` column names, the
+  `msPKI-Enrollment-Servers` layout and the v4 template attribute formats are assumptions until the first live run (docs/TESTING.md).

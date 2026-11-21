@@ -19,9 +19,14 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
    no enumerating domain computers. Standard Microsoft PKI web paths may be tried only on hosts already proven
    to be PKI. Web probes are anonymous GETs; never send credentials to `/certsrv/mscep_admin/`.
    *Clarification:* the SCEP request paths (including `/certsrv/mscep_admin/`) are named in one file only,
-   `src/Probes/NdesProbe.ps1`. It can send exactly three anonymous GETs (GetCACaps, GetCACert, one anonymous request to
-   the admin page whose body is never read), never follows a redirect, and never sends credentials. `tests/Ndes.Tests.ps1`
-   enforces this with static checks and a loopback server that records every request.
+   `src/Probes/NdesProbe.ps1`. By default it sends two anonymous GETs (GetCACaps, GetCACert). The third, one anonymous request to
+   the admin page whose body is never read, is sent only when the run was started with `-IncludeNdesAdminProbe` (an open admin
+   page creates a challenge password when requested, which would be a write to a remote system, rule 1). It never follows a
+   redirect and never sends credentials. `tests/Ndes.Tests.ps1` enforces this with static checks and a loopback server that
+   records every request.
+   *Clarification:* an LDAP URL that names a host is contacted only when the host is the selected domain controller or in this
+   forest's own DNS domains (never with `-SkipNetwork` unless it is the selected domain controller), because a directory bind sends
+   the running user's Windows credentials. HTTP probes connect directly with no proxy unless `-UseSystemProxy` is given.
 5. **Windows PowerShell 5.1 and .NET Framework 4.x only.** No PS7-only syntax (`? :`, `??`, `&&`, `||`,
    `-Parallel`). No external runtime modules (no RSAT ActiveDirectory module, no PSPKI, no ImportExcel).
    Use `System.DirectoryServices`, `System.Security.Cryptography.X509Certificates`, `System.Net` and

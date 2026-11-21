@@ -48,7 +48,7 @@ function ConvertFrom-MspkiCrl {
     $revoked = 0
     if ($i -lt $kids.Count -and $kids[$i].Tag -eq 0x30) { $revoked = (Get-MspkiDerChild -Bytes $b -Element $kids[$i]).Count; $i++ }
 
-    $crlNumber = ''; $isDelta = $false; $baseNumber = ''; $freshest = @(); $caVersion = ''; $nextPublish = $null; $hasIdp = $false
+    $crlNumber = ''; $isDelta = $false; $baseNumber = ''; $freshest = @(); $caVersion = ''; $nextPublish = $null; $hasIdp = $false; $aki = ''
     if ($i -lt $kids.Count -and $kids[$i].Tag -eq 0xA0) {
         $extSeq = (Get-MspkiDerChild -Bytes $b -Element $kids[$i])[0]
         foreach ($ext in (Get-MspkiDerChild -Bytes $b -Element $extSeq)) {
@@ -68,6 +68,7 @@ function ConvertFrom-MspkiCrl {
                 }
                 ($script:MspkiCrlOid.FreshestCRL) { $freshest = Get-MspkiGeneralNameUri -Bytes $val }
                 ($script:MspkiCrlOid.Idp) { $hasIdp = $true }
+                ($script:MspkiCrlOid.AuthorityKeyId) { $aki = Get-MspkiAuthorityKeyIdHex -Value $val }
                 ($script:MspkiCrlOid.CAVersion) {
                     $v = ConvertFrom-MspkiCAVersionExtension -RawData $val
                     if ($null -ne $v) { $caVersion = $v.Label }
@@ -94,6 +95,7 @@ function ConvertFrom-MspkiCrl {
         FreshestCrlUrls    = $freshest
         HasIdp             = $hasIdp
         CAVersion          = $caVersion
+        AuthorityKeyId     = $aki
         RevokedCount       = $revoked
         SignatureAlgorithm = (ConvertFrom-MspkiDerOid -Content (Get-MspkiDerBytes -Bytes $b -Element $algKids[0]))
         Sha1               = (ConvertTo-MspkiHex ([System.Security.Cryptography.SHA1]::Create().ComputeHash($b)))
@@ -126,7 +128,7 @@ function Get-MspkiCrlFreshness {
     if ($left -lt 0) { $st = 'Fail'; $code = 'OBJECT_EXPIRED' }
     elseif ($pct -ge $CriticalPercent) { $st = 'Critical'; $code = 'OBJECT_EXPIRING' }
     elseif ($pct -ge $WarningPercent) { $st = 'Warning'; $code = 'OBJECT_EXPIRING' }
-    elseif ($Crl.ThisUpdate -gt $now.AddMinutes(10)) { $st = 'Warning'; $code = 'STALE_DATA' }
+    elseif ($Crl.ThisUpdate -gt $now.AddMinutes(10)) { $st = 'Warning'; $code = 'CLOCK_SKEW' }   # thisUpdate is in the future: the clocks differ
     else { $st = 'Pass'; $code = 'OK' }
     return [pscustomobject]@{ Status = $st; StatusCode = $code; PercentUsed = $pct; HoursLeft = $left; ValidityHours = [math]::Round($total, 1) }
 }

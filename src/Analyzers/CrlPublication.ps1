@@ -117,9 +117,11 @@ function Test-MspkiCaCrlPublication {
         }
         $ev += ('Reasoning: {0}' -f $why)
         $msg = '{0} serves {1} CRL number {2} but the CA holds number {3}: {4}.' -f $r.Url, $type, $r.Crl.CrlNumber, $own.Crl.CrlNumber, $why
-        [void]$findings.Add((New-MspkiFinding @common -Evidence $ev -Status $status -StatusCode $code -Message $msg -Layers @{ ContentStatus = 'Warning' } `
+        $pf = New-MspkiFinding @common -Evidence $ev -Status $status -StatusCode $code -Message $msg -Layers @{ ContentStatus = 'Warning' } `
             -Remediation 'Check that the CA can publish to this location (permissions on the publication target, replication for LDAP, the web server folder) and publish the CRL again.' `
-            -Notes 'Whether the CA is configured to publish to this location is not readable without CA registry access; the location is referenced by the CA''s CDP extension.'))
+            -Notes 'Whether the CA is configured to publish to this location is not readable without CA registry access; the location is referenced by the CA''s CDP extension.'
+        if ($r.PSObject.Properties['ReviewOnly'] -and $r.ReviewOnly) { $pf = ConvertTo-MspkiReviewFinding -Finding $pf -Reason $r.ReviewReason }
+        [void]$findings.Add($pf)
     }
     return [pscustomobject]@{ Findings = $findings.ToArray(); JudgedUrls = $judged.ToArray() }
 }

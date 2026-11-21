@@ -1,4 +1,7 @@
-# The ONLY requests this tool can ever send to a NDES / SCEP host (REQUIREMENTS 5.7). Everything else in the code
+# The ONLY requests this tool can ever send to a NDES / SCEP host (REQUIREMENTS 5.7). By default only GetCACaps and
+# GetCACert are sent. The anonymous request to the admin page is sent only when the run was started with
+# -IncludeNdesAdminProbe: an admin page that is wrongly open to anonymous users generates a one-time challenge password
+# when it is requested, so for that request the probe would write to a server. Everything else in the code
 # base is unable to build a NDES URL: this file holds the single table of allowed requests, and every request
 # goes through Send-MspkiNdesRequest, which
 #   - accepts only the three names in the table (a ValidateSet, plus a lookup that throws on anything else),
@@ -141,18 +144,21 @@ function Get-MspkiNdesTransport {
 function Invoke-MspkiNdesProbe {
     <#
     .SYNOPSIS
-    Sends the three allowed requests (GetCACaps, GetCACert and the anonymous admin request) to one host and returns
-    the responses by name. Nothing else is sent.
+    Sends the allowed requests to one host and returns the responses by name: GetCACaps and GetCACert, and the anonymous admin
+    request only with -IncludeAdmin (AdminAnonymous is $null otherwise). Nothing else is sent.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$HostName,
         [Parameter(Mandatory = $true)][ValidateSet('http', 'https')][string]$Scheme,
         [ValidateRange(0, 65535)][int]$Port = 0,
-        [ValidateRange(100, 600000)][int]$TimeoutMs = 5000
+        [ValidateRange(100, 600000)][int]$TimeoutMs = 5000,
+        [switch]$IncludeAdmin
     )
-    $out = [ordered]@{}
-    foreach ($name in @('GetCACaps', 'GetCACert', 'AdminAnonymous')) {
+    $out = [ordered]@{ AdminAnonymous = $null }
+    $names = @('GetCACaps', 'GetCACert')
+    if ($IncludeAdmin) { $names += 'AdminAnonymous' }
+    foreach ($name in $names) {
         $out[$name] = Send-MspkiNdesRequest -Name $name -HostName $HostName -Scheme $Scheme -Port $Port -TimeoutMs $TimeoutMs
     }
     return [pscustomobject]$out

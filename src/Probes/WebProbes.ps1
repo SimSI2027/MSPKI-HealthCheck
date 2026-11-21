@@ -4,6 +4,80 @@
 # nothing is sent over the connection.
 
 $script:MspkiHttpUserAgent = 'MSPKI-HealthCheck'
+# HTTP probes connect directly, without a proxy: the system proxy is not part of discovery, "automatically detect
+# settings" could start WPAD discovery, and a session proxy may carry credentials. -UseSystemProxy opts in; the proxy
+# is then taken from the system settings WITHOUT credentials, so a proxy that wants authentication answers 407.
+$script:MspkiWebSettings = @{ UseSystemProxy = $false }
+
+function Set-MspkiWebProbeOption {
+    <#
+    .SYNOPSIS
+    Sets the run-wide options of the web probes (in memory only). UseSystemProxy is off unless -UseSystemProxy is given.
+    #>
+    [CmdletBinding()]
+    param([switch]$UseSystemProxy)
+    $script:MspkiWebSettings.UseSystemProxy = [bool]$UseSystemProxy
+}
+
+function Get-MspkiWebProbeOption {
+    <#
+    .SYNOPSIS
+    Returns the run-wide options of the web probes: { UseSystemProxy; ProxyMode (text for the evidence) }.
+    #>
+    [CmdletBinding()]
+    param()
+    $mode = 'none (direct connection)'
+    if ($script:MspkiWebSettings.UseSystemProxy) { $mode = 'system proxy settings, without credentials (-UseSystemProxy)' }
+    return [pscustomobject]@{ UseSystemProxy = [bool]$script:MspkiWebSettings.UseSystemProxy; ProxyMode = $mode }
+}
+
+function Get-MspkiTlsClientProtocol {
+    <#
+    .SYNOPSIS
+    The TLS versions the probes offer: TLS 1.2, 1.1 and 1.0, plus 1.3 where this .NET Framework has that enum value.
+    They are passed explicitly because the .NET Framework default can be SSL 3 and TLS 1.0 only, which would make every
+    TLS 1.2-only server look broken. Offering old versions only lets the probe read the server certificate.
+    #>
+    [CmdletBinding()]
+    param([switch]$WithoutTls13)
+    $e = [System.Security.Authentication.SslProtocols]
+    $p = $e::Tls12 -bor $e::Tls11 -bor $e::Tls
+    if (-not $WithoutTls13 -and ([enum]::GetNames($e) -contains 'Tls13')) { $p = $p -bor ($e.GetEnumValues() | Where-Object { $_.ToString() -eq 'Tls13' } | Select-Object -First 1) }
+    return $p
+}
+
+function Enable-MspkiClientTlsProtocol {
+    <#
+    .SYNOPSIS
+    Makes sure that the process-wide TLS setting of the .NET Framework (ServicePointManager.SecurityProtocol, in memory only)
+    includes TLS 1.2, 1.1 and 1.0 for the HTTP probes, and returns the state for Restore-MspkiClientTlsProtocol. When the setting is
+    SystemDefault (0) the operating system chooses and nothing is changed.
+    #>
+    [CmdletBinding()]
+    param()
+    $prev = [System.Net.ServicePointManager]::SecurityProtocol
+    $state = [pscustomobject]@{ Previous = $prev; Changed = $false; Current = $prev }
+    try {
+        if ([int]$prev -ne 0) {
+            $want = [int](Get-MspkiTlsClientProtocol -WithoutTls13)
+            $new = [System.Net.SecurityProtocolType]([int]$prev -bor $want)
+            if ($new -ne $prev) { [System.Net.ServicePointManager]::SecurityProtocol = $new; $state.Changed = $true; $state.Current = $new }
+        }
+    }
+    catch { Write-MspkiLog -Level Warning -Message ('The TLS protocol setting of the HTTP requests could not be changed: {0}' -f $_.Exception.Message) }
+    return $state
+}
+
+function Restore-MspkiClientTlsProtocol {
+    <#
+    .SYNOPSIS
+    Puts the process-wide TLS setting back to what Enable-MspkiClientTlsProtocol found.
+    #>
+    [CmdletBinding()]
+    param([AllowNull()]$State)
+    if ($null -eq $State -or -not $State.Changed) { return }
+    try { [System.Net.ServicePointManager]::SecurityProtocol = $State.Previous } catch { }
+}
 
 function Get-MspkiWebException {
     [CmdletBinding()]
@@ -37,8 +111,10 @@ function Invoke-MspkiHttpGet {
     Anonymous HTTP(S) GET with a timeout, manual redirects (max 5 hops) and a size cap.
 
     .OUTPUTS
-    { Url, FinalUrl, HttpStatus (int, 0 when no response), Code (OK / HTTP_* / TIMEOUT / RETRIEVAL_FAIL /
-      TLS_HANDSHAKE_FAIL / DNS_FAIL / TCP_FAIL), Redirected, Hops, ContentType, Bytes, Error, ElapsedMs }
+    { Url, FinalUrl, HttpStatus (int, 0 when no response), Code (OK / HTTP_400 / HTTP_401_403 / HTTP_404 / HTTP_500 /
+      HTTP_OTHER (any other status) / HTTP_REDIRECT / CONTENT_WRONG_TYPE (response too large) / TIMEOUT / RETRIEVAL_FAIL /
+      TLS_* / OBJECT_EXPIRED (the TLS problem found by a separate handshake) / DNS_FAIL / TCP_FAIL), Redirected, Hops,
+      ContentType, Bytes, Error, ElapsedMs, ProxyMode }
     #>
     [CmdletBinding()]
     param(
@@ -48,14 +124,18 @@ function Invoke-MspkiHttpGet {
         [ValidateRange(0, 10)][int]$MaxRedirects = 5,
         [switch]$DiscardBody
     )
-    $key = 'http|' + $Url
+    $opt = Get-MspkiWebProbeOption
+    $key = 'http|{0}|{1}' -f [int]$opt.UseSystemProxy, $Url
     if ($DiscardBody) { $key += '|nobody' }
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
     $r = [pscustomobject][ordered]@{
         Url = $Url; FinalUrl = $Url; HttpStatus = 0; Code = 'RETRIEVAL_FAIL'; Redirected = $false
         Hops = (New-Object System.Collections.ArrayList); ContentType = ''; Bytes = $null; Error = ''; ElapsedMs = 0; FromCache = $false
+        ProxyMode = $opt.ProxyMode
     }
+    $sysProxy = $null
+    if ($opt.UseSystemProxy) { $sysProxy = [System.Net.WebRequest]::GetSystemWebProxy() }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $current = $Url
     for ($hop = 0; $hop -le $MaxRedirects; $hop++) {
@@ -68,6 +148,7 @@ function Invoke-MspkiHttpGet {
             $req.AllowAutoRedirect = $false
             $req.UseDefaultCredentials = $false
             $req.Credentials = $null
+            if ($opt.UseSystemProxy) { $req.Proxy = $sysProxy } else { $req.Proxy = $null }
             $req.PreAuthenticate = $false
             $req.KeepAlive = $false
             $req.UserAgent = '{0}/{1}' -f $script:MspkiHttpUserAgent, $script:MspkiToolVersion
@@ -83,7 +164,7 @@ function Invoke-MspkiHttpGet {
                         'Timeout' { $r.Code = 'TIMEOUT' }
                         'NameResolutionFailure' { $r.Code = 'DNS_FAIL' }
                         'ConnectFailure' { $r.Code = 'TCP_FAIL' }
-                        'TrustFailure' { $r.Code = 'TLS_UNTRUSTED_ROOT' }
+                        'TrustFailure' { $r.Code = Get-MspkiTrustFailureCode -Url $current -TimeoutMs $TimeoutMs }
                         'SecureChannelFailure' { $r.Code = 'TLS_HANDSHAKE_FAIL' }
                         default { $r.Code = 'RETRIEVAL_FAIL' }
                     }
@@ -107,7 +188,7 @@ function Invoke-MspkiHttpGet {
                 if ($DiscardBody) { $r.Code = 'OK' }   # the body is never read (used for pages that must not be read)
                 else {
                     $body = Read-MspkiResponseBody -Response $resp -MaxBytes $MaxBytes
-                    if ($body.TooLarge) { $r.Code = 'RETRIEVAL_FAIL'; $r.Error = ('Response larger than {0} bytes; not read.' -f $MaxBytes) }
+                    if ($body.TooLarge) { $r.Code = 'CONTENT_WRONG_TYPE'; $r.Error = ('Response larger than {0} bytes; not read.' -f $MaxBytes) }
                     else { $r.Bytes = $body.Bytes; $r.Code = 'OK' }
                 }
             }
@@ -115,15 +196,31 @@ function Invoke-MspkiHttpGet {
             elseif ($sc -eq 401 -or $sc -eq 403) { $r.Code = 'HTTP_401_403' }
             elseif ($sc -eq 404) { $r.Code = 'HTTP_404' }
             elseif ($sc -ge 500) { $r.Code = 'HTTP_500' }
-            else { $r.Code = 'RETRIEVAL_FAIL' }
+            else { $r.Code = 'HTTP_OTHER' }   # 1xx, 2xx other than 200, 3xx without a Location, 405, 407, 410 and so on
             break
         }
         finally { if ($null -ne $resp) { $resp.Close() } }
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     Set-MspkiProbeCacheEntry -Key $key -Value $r
-    Write-MspkiLog -Message ('HTTP GET {0}: {1} {2} ({3} hop(s), {4} ms) {5}' -f $Url, $r.HttpStatus, $r.Code, $r.Hops.Count, $r.ElapsedMs, $r.Error).Trim()
+    Write-MspkiLog -Message ('HTTP GET {0}: {1} {2} ({3} hop(s), {4} ms, proxy: {5}) {6}' -f $Url, $r.HttpStatus, $r.Code, $r.Hops.Count, $r.ElapsedMs, $r.ProxyMode, $r.Error).Trim()
     return $r
+}
+
+function Get-MspkiTrustFailureCode {
+    <#
+    .SYNOPSIS
+    Names the real TLS problem behind an HTTP request that failed with a trust failure. The request API reports an untrusted
+    root, a name mismatch, an expired or a revoked certificate all as one error, so one separate handshake to the host of
+    the failing hop (cached) tells them apart. When that handshake finds nothing wrong, the code is TLS_HANDSHAKE_FAIL.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Url, [ValidateRange(100, 600000)][int]$TimeoutMs = 5000)
+    $u = $null
+    if (-not [System.Uri]::TryCreate($Url, [System.UriKind]::Absolute, [ref]$u)) { return 'TLS_HANDSHAKE_FAIL' }
+    $tls = Test-MspkiTlsEndpoint -HostName $u.Host -Port $u.Port -TimeoutMs $TimeoutMs
+    if ($tls.Code -in @('TLS_UNTRUSTED_ROOT', 'TLS_PARTIAL_CHAIN', 'TLS_NAME_MISMATCH', 'OBJECT_EXPIRED')) { return $tls.Code }
+    return 'TLS_HANDSHAKE_FAIL'
 }
 
 function Test-MspkiTlsEndpoint {
@@ -146,6 +243,7 @@ function Test-MspkiTlsEndpoint {
     $r = [pscustomobject][ordered]@{
         Probe = 'TLS'; Target = ('{0}:{1}' -f $h, $Port); Status = 'Fail'; Code = 'TLS_HANDSHAKE_FAIL'; Protocol = ''
         NameMatch = $null; ChainErrors = @(); Subject = ''; Issuer = ''; Thumbprint = ''; NotAfter = ''; Error = ''; ElapsedMs = 0; FromCache = $false
+        OfferedProtocols = ''
     }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $tcp = Test-MspkiTcpPort -HostName $h -Port $Port -TimeoutMs $TimeoutMs
@@ -153,9 +251,19 @@ function Test-MspkiTlsEndpoint {
         $r.Code = $tcp.StatusCode; $r.Error = $tcp.Error
     }
     else {
+        # Up to two attempts: first with every protocol this .NET Framework knows (TLS 1.3 included where the enum has
+        # it), then, only when the framework rejects that set, without TLS 1.3.
+        $attempts = @((Get-MspkiTlsClientProtocol))
+        $legacy = Get-MspkiTlsClientProtocol -WithoutTls13
+        if ($attempts[0] -ne $legacy) { $attempts += $legacy }
+        $attemptNo = 0
+        foreach ($protocols in $attempts) {
+        $attemptNo++
+        $r.OfferedProtocols = [string]$protocols
         $client = New-Object System.Net.Sockets.TcpClient
         $ssl = $null
         $state = @{ Errors = $null; Chain = @(); Cert = $null }
+        $retry = $false
         try {
             $ar = $client.BeginConnect($h, $Port, $null, $null)
             if (-not $ar.AsyncWaitHandle.WaitOne($TimeoutMs)) { throw (New-Object System.TimeoutException('TCP connect timed out.')) }
@@ -173,7 +281,8 @@ function Test-MspkiTlsEndpoint {
                 return $true
             }
             $ssl = New-Object System.Net.Security.SslStream($ns, $false, $cb)
-            $ssl.AuthenticateAsClient($h)
+            # No client certificate, no revocation check by this call, and the protocol set is explicit (see Get-MspkiTlsClientProtocol).
+            $ssl.AuthenticateAsClient($h, $null, $protocols, $false)
             $r.Protocol = [string]$ssl.SslProtocol
             $errs = [System.Net.Security.SslPolicyErrors]$state.Errors
             $r.NameMatch = (($errs -band [System.Net.Security.SslPolicyErrors]::RemoteCertificateNameMismatch) -eq 0)
@@ -194,15 +303,19 @@ function Test-MspkiTlsEndpoint {
             $r.Error = $ei.Message
             if ($ei.Class -eq 'Timeout' -or $ei.ExceptionType -like '*IOException') { $r.Code = 'TLS_HANDSHAKE_FAIL' }
             if ($ei.Class -eq 'Timeout') { $r.Code = 'TIMEOUT' }
+            # This .NET Framework rejects the protocol set itself (for example TLS 1.3 on an older Windows): try once without it.
+            if ($attemptNo -lt $attempts.Count -and ($ei.Class -eq 'Unsupported' -or $ei.ExceptionType -like '*ArgumentException')) { $retry = $true; $r.Error = '' }
         }
         finally {
             if ($null -ne $ssl) { $ssl.Dispose() }
             $client.Close()
         }
+        if (-not $retry) { break }
+        }
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     Set-MspkiProbeCacheEntry -Key $key -Value $r
-    Write-MspkiLog -Message ('TLS {0}: {1} {2} {3} ms {4}' -f $r.Target, $r.Code, $r.Protocol, $r.ElapsedMs, $r.Error).Trim()
+    Write-MspkiLog -Message ('TLS {0}: {1} {2} (offered: {3}) {4} ms {5}' -f $r.Target, $r.Code, $r.Protocol, $r.OfferedProtocols, $r.ElapsedMs, $r.Error).Trim()
     return $r
 }
 
@@ -238,22 +351,37 @@ function Get-MspkiLdapUrlContent {
     <#
     .SYNOPSIS
     Reads the attribute an LDAP URL points to (base search). Code: OK, PUBLICATION_FAIL (object or value
-    missing), PERMISSION_DENIED, TIMEOUT or RETRIEVAL_FAIL.
+    missing), PERMISSION_DENIED, TIMEOUT, RETRIEVAL_FAIL, or NOT_APPLICABLE with Contacted = $false when the URL names a
+    host that may not be contacted (see Test-MspkiLdapHostAllowed): nothing is sent to such a host.
+
+    .DESCRIPTION
+    A directory bind authenticates with the Windows credentials of the user running the tool, so a host named in an LDAP URL
+    is contacted only when it is the selected domain controller or in one of this forest's own DNS domains (-LocalDomains),
+    and never with -SkipNetwork. A serverless URL goes to the selected domain controller (-DefaultServer).
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$Url,
         [string]$DefaultServer = '',
-        [int]$TimeoutSeconds = 15
+        [int]$TimeoutSeconds = 15,
+        [string[]]$LocalDomains = @(),
+        [switch]$SkipNetwork
     )
     $key = 'ldapurl|' + $Url
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { return $cached }
-    $r = [pscustomobject][ordered]@{ Url = $Url; Server = ''; Code = 'RETRIEVAL_FAIL'; Bytes = $null; ValueCount = 0; Error = ''; ElapsedMs = 0 }
+    $r = [pscustomobject][ordered]@{ Url = $Url; Server = ''; Code = 'RETRIEVAL_FAIL'; Bytes = $null; ValueCount = 0; Error = ''; ElapsedMs = 0; Contacted = $true }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $p = ConvertFrom-MspkiLdapUrl -Url $Url
         $r.Server = $p.Host
+        $allowed = Test-MspkiLdapHostAllowed -HostName $p.Host -DefaultServer $DefaultServer -LocalDomains $LocalDomains -SkipNetwork:$SkipNetwork
+        if (-not $allowed.Allowed) {
+            $r.Contacted = $false; $r.Code = 'NOT_APPLICABLE'; $r.Error = ('Not contacted: {0}.' -f $allowed.Reason)
+            Set-MspkiProbeCacheEntry -Key $key -Value $r
+            Write-MspkiLog -Message ('LDAP {0}: not contacted ({1})' -f $Url, $allowed.Reason)
+            return $r
+        }
         if (-not $r.Server) { $r.Server = $DefaultServer }
         if (-not $p.Attribute) { throw 'The LDAP URL names no attribute.' }
         $recs = @(Get-MspkiLdapObject -Server $r.Server -BaseDN $p.DN -Scope Base -Filter $p.Filter -Properties @($p.Attribute) -TimeoutSeconds $TimeoutSeconds)
@@ -279,6 +407,6 @@ function Get-MspkiLdapUrlContent {
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     Set-MspkiProbeCacheEntry -Key $key -Value $r
-    Write-MspkiLog -Message ('LDAP {0}: {1} {2}' -f $Url, $r.Code, $r.Error).Trim()
+    Write-MspkiLog -Message ('LDAP {0} (server {1}): {2} {3} ms {4}' -f $Url, $r.Server, $r.Code, $r.ElapsedMs, $r.Error).Trim()
     return $r
 }

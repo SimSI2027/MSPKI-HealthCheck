@@ -131,7 +131,7 @@ Describe 'StaleReferenceCandidate: needs every condition' {
         $r = & $script:cls $f 'StaleReferenceCandidate'
         $r.Count | Should -Be 1
         $r[0].Status | Should -Be 'Information'
-        $r[0].StatusCode | Should -Be 'STALE_DATA'
+        $r[0].StatusCode | Should -Be 'STALE_REFERENCE'
         $r[0].Severity | Should -Be 'ReviewRequired'
         $r[0].Confidence | Should -Be 'Inferred'
         $ev = $r[0].Evidence -join "`n"
@@ -206,7 +206,7 @@ Describe 'Enterprise CA objects' {
         $f = & $script:run (& $script:inv $certs @((& $script:ca $null))) @() @((& $script:caFail 'TCP_FAIL' @{ DnsStatus = 'Pass'; TcpStatus = 'Fail' }))
         $r = & $script:cls $f 'StaleReferenceCandidate'
         $r.Count | Should -Be 1
-        $r[0].StatusCode | Should -Be 'STALE_DATA'
+        $r[0].StatusCode | Should -Be 'STALE_REFERENCE'
         $r[0].Severity | Should -Be 'ReviewRequired'
         $r[0].Confidence | Should -Be 'Inferred'
         ($r[0].Evidence -join "`n") | Should -Match 'valid until 2020-01-01T00:00:00Z \(EXPIRED\)'

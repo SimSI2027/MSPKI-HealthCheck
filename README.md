@@ -23,6 +23,10 @@ Every result states where it came from and how sure the tool is: **Confirmed**, 
 .\Invoke-MspkiHealthCheck.ps1 -SkipNetwork            # read AD only, contact no other host
 ```
 
+Two opt-in switches are off by default: `-UseSystemProxy` (the web checks use the system proxy settings, without
+credentials; by default they connect directly, so no proxy and no automatic proxy detection is involved) and
+`-IncludeNdesAdminProbe` (also send the one anonymous request to the NDES admin page, see Safety).
+
 Thresholds are parameters with defaults: `-RootCaWarningDays 730`, `-RootCaCriticalDays 365`,
 `-IssuingCaWarningDays 180`, `-IssuingCaCriticalDays 90`, and CRL lifetime percentages
 `-RootCrlWarningPercent` / `-IssuingCrlWarningPercent` (75) and `-RootCrlCriticalPercent` /
@@ -49,9 +53,26 @@ error) · `6` incomplete (permissions).
 - It probes only hosts and URLs it found in authoritative sources. No network or port scans.
 - No `Invoke-Expression`, no `Add-Type`, no encoded commands, no downloaded code.
 - It never reads or exports private keys, passwords or challenge passwords.
-- NDES: it can send exactly three anonymous GET requests to a NDES host (SCEP GetCACaps, GetCACert and one anonymous
-  request to the admin page, whose response body is never read). It never enrolls and never follows a redirect.
+- NDES: by default it sends exactly two anonymous GET requests to a NDES host (SCEP GetCACaps and GetCACert). A third,
+  anonymous request to the admin page is sent only with `-IncludeNdesAdminProbe`, because an admin page that is wrongly
+  open to anonymous users creates a one-time challenge password when it is requested (a write on a remote server). The
+  response body is never read. It never enrolls and never follows a redirect.
+- LDAP locations named in certificates are contacted only when they are the selected domain controller or in one of this
+  forest's own DNS domains: a directory bind sends the Windows credentials of the user running the tool, so it is never
+  sent to a host named by a (possibly downloaded) certificate. With `-SkipNetwork` only the selected domain controller is used.
+- Links inside a certificate that was downloaded from an AIA location are followed only when that certificate is proven to
+  be the expected issuer (the signature of the certificate that references it verifies with its key).
+- Web checks are anonymous and direct (no proxy). The TLS versions offered are set explicitly (1.2, 1.1 and 1.0, and 1.3 where
+  the .NET Framework has it) for the run only and restored afterwards.
 - The Intune Certificate Connector is detected on the local computer only.
+- Warn your security team before a run. The tool reads every template with its security descriptor, the CA properties,
+  the CA database view and SCEP capabilities; directory and CA monitoring may see that as reconnaissance.
+
+## First live run
+
+[docs/TESTING.md](docs/TESTING.md) explains in plain language how to run the tool as a normal user and as an administrator,
+what a good result looks like and which files to send back (they contain real names and must never be committed or
+posted publicly).
 
 ## Status
 

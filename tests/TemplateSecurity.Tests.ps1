@@ -136,6 +136,22 @@ Describe 'Pattern ESC1: enrollee supplies the subject' {
         $h.Count | Should -Be 1
         ($h[0].Evidence -join "`n") | Should -Match 'Deny ACE exists for the same principal'
     }
+
+    It 'turns the match into a review item that is only Inferred when a Deny ACE exists for the same principal (effective access is not computed)' {
+        $plain = & $script:run (& $script:inv @((& $script:tpl 'T' @{ NameFlag = [int64]1; Eku = @($script:clientAuth); Acl = @((& $script:enrollAce)) })))
+        $c = @(& $script:hits $plain 'ESC1')[0]
+        $c.Severity | Should -Be 'High'
+        $c.Status | Should -Be 'Fail'
+        $c.Confidence | Should -Not -Be 'Inferred'
+        $acl = @((& $script:enrollAce), (& $script:ace $script:du 0x100 $script:enrollGuid 'Deny'))
+        $f = & $script:run (& $script:inv @((& $script:tpl 'T' @{ NameFlag = [int64]1; Eku = @($script:clientAuth); Acl = $acl })))
+        $h = @(& $script:hits $f 'ESC1')
+        $h.Count | Should -Be 1
+        $h[0].Severity | Should -Be 'ReviewRequired'
+        $h[0].Status | Should -Be 'Warning'
+        $h[0].Confidence | Should -Be 'Inferred'
+        ($h[0].Evidence -join "`n") | Should -Match 'may not apply and is only a review item'
+    }
 }
 
 Describe 'Pattern ESC2: any purpose or no EKU' {
@@ -326,12 +342,22 @@ Describe 'Unpublished templates and reading problems' {
         @($f | Where-Object { $_.Status -eq 'Pass' }).Count | Should -Be 0
     }
 
-    It 'reports templates whose permissions could not be read instead of treating them as clean' {
-        $f = & $script:run (& $script:inv @((& $script:tpl 'NoAcl' @{ Acl = @(); AclError = 'The security descriptor was not returned.' })))
+    It 'reports templates whose permissions were not returned as PERMISSION_DENIED (skipped), not as clean and not as a retrieval failure' {
+        $f = & $script:run (& $script:inv @((& $script:tpl 'NoAcl' @{ Acl = @(); AclError = 'The security descriptor was not returned.'; AclErrorClass = 'NotReturned' })))
+        $p = @($f | Where-Object { $_.StatusCode -eq 'PERMISSION_DENIED' })
+        $p.Count | Should -Be 1
+        $p[0].Status | Should -Be 'Skipped'
+        ($p[0].Evidence -join "`n") | Should -Match 'NoAcl'
+        @($f | Where-Object { $_.Status -eq 'Pass' -and $_.Message -like '*No review*' }).Count | Should -Be 0
+    }
+
+    It 'reports a security descriptor that could not be decoded as a limit of the tool (INTERNAL_ERROR), apart from a permission problem' {
+        $f = & $script:run (& $script:inv @((& $script:tpl 'BadAcl' @{ Acl = @(); AclError = 'Unexpected ACL revision.'; AclErrorClass = 'ParseError' })))
         $w = @($f | Where-Object { $_.Status -eq 'Warning' })
         $w.Count | Should -Be 1
-        $w[0].StatusCode | Should -Be 'RETRIEVAL_FAIL'
-        ($w[0].Evidence -join "`n") | Should -Match 'NoAcl'
+        $w[0].StatusCode | Should -Be 'INTERNAL_ERROR'
+        ($w[0].Evidence -join "`n") | Should -Match 'BadAcl'
+        @($f | Where-Object { $_.StatusCode -eq 'PERMISSION_DENIED' }).Count | Should -Be 0
     }
 
     It 'handles a missing inventory' {

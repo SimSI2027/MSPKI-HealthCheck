@@ -237,9 +237,37 @@ Describe 'Probing a CEP/CES endpoint: separate layers' {
         }
     }
 
-    It 'reports HTTP 500 as a service that answered, not as an unreachable one' {
+    It 'reports HTTP 500 as reachable but failing (Fail, HTTP_500, never Pass or Confirmed), and keeps the answer in the evidence' {
         $r = & $script:probe ($script:b + '/boom/service.svc')
-        $r.State | Should -Be 'ConfirmedResponding'
+        $r.State | Should -Be 'Failing'
+        $r.Responding | Should -BeFalse
+        $f = @($r.Findings)[0]
+        $f.Status | Should -Be 'Fail'
+        $f.StatusCode | Should -Be 'HTTP_500'
+        $f.Confidence | Should -Not -Be 'Confirmed'
+        $f.HttpStatus | Should -Be 'Fail'
+        ($f.Evidence -join "`n") | Should -Match 'the host answered with HTTP 500'
+        $f.Message | Should -Match 'reachable but failing'
+    }
+
+    It 'reports HTTP <Code> the same way for a CEP and a CES (a stopped application pool answers 503)' -TestCases @(
+        @{ Code = 501; Kind = 'CEP' }
+        @{ Code = 503; Kind = 'CEP' }
+        @{ Code = 503; Kind = 'CES' }
+    ) {
+        param($Code, $Kind)
+        $script:routes['/e{0}/service.svc' -f $Code] = @{ Status = $Code; Body = @() }
+        $r = & $script:probe ($script:b + ('/e{0}/service.svc' -f $Code)) $Kind 'AD:EnrollmentServices:msPKI-Enrollment-Servers'
+        $r.State | Should -Be 'Failing'
+        @($r.Findings)[0].Status | Should -Be 'Fail'
+        @($r.Findings)[0].StatusCode | Should -Be 'HTTP_500'
+    }
+
+    It 'does not turn a failing constructed candidate into a finding of its own and does not count it as answering' {
+        $r = & $script:probe ($script:b + '/boom/service.svc') 'CES' 'Constructed:CAHost' $null -Confidence 'Inferred'
+        $r.State | Should -Be 'Failing'
+        $r.Responding | Should -BeFalse
+        @($r.Findings).Count | Should -Be 0
     }
 }
 

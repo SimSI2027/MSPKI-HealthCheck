@@ -26,11 +26,63 @@ function New-MspkiEndpointFinding {
     $ev += @($Lead.Origins | ForEach-Object { 'Found in: {0}' -f $_ })
     $ev += @($Lead.Aliases | ForEach-Object { 'Also referenced as: {0}' -f $_ })
     $ev += $Evidence
+    # A reference to another environment goes to review and is never graded as a failure (REQUIREMENTS 4.2).
+    $sc = Resolve-MspkiScopeStatus -Status $Status -Scope $Lead.Scope
+    if ($sc.Capped) { $Status = $sc.Status; $ev += $sc.Evidence }
     $l = @{ DiscoveryStatus = 'Pass' }
     foreach ($k in $Layers.Keys) { $l[$k] = $Layers[$k] }
     return (New-MspkiFinding -Stage 'Probe' -Category $Category -Role $script:MspkiLeadRole[$Lead.Kind] -Target $target -Endpoint $Url `
-        -RelatedCA (@($Lead.RelatedCAs) -join ', ') -Status $Status -StatusCode $Code -Confidence $Confidence `
+        -RelatedCA (@($Lead.RelatedCAs) -join ', ') -Status $Status -StatusCode $Code -Confidence $Confidence -Severity $sc.Severity `
         -Sources @($Lead.Sources) -Scope $Lead.Scope -Message $Message -Evidence $ev -Notes $Notes -Layers $l)
+}
+
+function Test-MspkiAiaCertificateMatch {
+    <#
+    .SYNOPSIS
+    Checks that a certificate downloaded from an AIA location is the one the referencing certificates need: the expected
+    name AND the right key. Pure function (signature checks use only the downloaded public key).
+
+    .OUTPUTS
+    { Result (Verified, KeyMismatch, NameMismatch or NotVerifiable); Lines (evidence) }
+    Verified: the downloaded certificate is identical to a CA certificate already known from AD or the CA, or the signature
+    of a referencing certificate verifies with its key. KeyMismatch: it has the expected name, but no referencing
+    certificate verifies with its key (for example another key generation of the CA). NotVerifiable: the name matches but
+    no referencing certificate is known, or the signature could not be checked. Only Verified is Confirmed.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$Downloaded,
+        [Parameter(Mandatory = $true)]$Lead,
+        [hashtable]$KnownCertificates = @{},
+        [string[]]$ExpectedIssuer = @()
+    )
+    $lines = New-Object System.Collections.ArrayList
+    if ($ExpectedIssuer.Count -gt 0 -and $ExpectedIssuer -notcontains $Downloaded.Subject) {
+        [void]$lines.Add(('Expected subject: {0}' -f ($ExpectedIssuer -join ' | ')))
+        return [pscustomobject]@{ Result = 'NameMismatch'; Lines = @($lines) }
+    }
+    if ($KnownCertificates.ContainsKey($Downloaded.Thumbprint)) {
+        [void]$lines.Add('Key check: identical to a CA certificate that is known from Active Directory or from the CA (same thumbprint).')
+        return [pscustomobject]@{ Result = 'Verified'; Lines = @($lines) }
+    }
+    $refs = New-Object System.Collections.ArrayList
+    foreach ($s in @($Lead.Sources)) {
+        if ($s -match '^Cert:(?<tp>[0-9A-Fa-f]+):') {
+            $tp = $Matches['tp'].ToUpperInvariant()
+            if ($KnownCertificates.ContainsKey($tp)) { [void]$refs.Add($KnownCertificates[$tp]) }
+        }
+    }
+    $verified = $false; $bad = 0; $unknown = 0
+    foreach ($ref in $refs) {
+        $v = Test-MspkiSignature -SignedBytes $ref.RawData -Issuer $Downloaded
+        if ($v.Valid -eq $true) { $verified = $true; [void]$lines.Add(('Key check: the signature of the referencing certificate {0} [{1}] verifies with this certificate''s key.' -f $ref.Subject, $ref.Thumbprint)) }
+        elseif ($v.Valid -eq $false) { $bad++; [void]$lines.Add(('Key check: the signature of the referencing certificate {0} [{1}] does NOT verify with this certificate''s key.' -f $ref.Subject, $ref.Thumbprint)) }
+        else { $unknown++; [void]$lines.Add(('Key check: the signature of the referencing certificate {0} [{1}] could not be checked: {2}' -f $ref.Subject, $ref.Thumbprint, $v.Reason)) }
+    }
+    if ($verified) { return [pscustomobject]@{ Result = 'Verified'; Lines = @($lines) } }
+    if ($bad -gt 0 -and $unknown -eq 0) { return [pscustomobject]@{ Result = 'KeyMismatch'; Lines = @($lines) } }
+    if ($refs.Count -eq 0) { [void]$lines.Add('Key check: no referencing certificate is known (the URL comes from the CA configuration or from a certificate that was not discovered), so only the subject name was compared.') }
+    return [pscustomobject]@{ Result = 'NotVerifiable'; Lines = @($lines) }
 }
 
 function Get-MspkiExpectedIssuerName {
@@ -70,9 +122,10 @@ function Test-MspkiLeadEndpoint {
         [string]$DomainController = '',
         [int]$TimeoutSeconds = 5,
         [switch]$SkipNetwork,
-        [string[]]$ExpectedIssuer = @()
+        [string[]]$ExpectedIssuer = @(),
+        [hashtable]$KnownCertificate = @{}
     )
-    $out = [pscustomobject]@{ Findings = (New-Object System.Collections.ArrayList); Certificate = $null; Crl = $null; Url = $Url }
+    $out = [pscustomobject]@{ Findings = (New-Object System.Collections.ArrayList); Certificate = $null; Validated = $false; Crl = $null; Url = $Url }
     $ms = $TimeoutSeconds * 1000
     $n = ConvertTo-MspkiNormalizedUrl -Url $Url
     $what = @{ AIA = 'CA certificate'; CDP = 'CRL'; FreshestCRL = 'delta CRL'; OCSP = 'OCSP responder' }[$Lead.Kind]
@@ -88,8 +141,19 @@ function Test-MspkiLeadEndpoint {
     $ev = New-Object System.Collections.ArrayList
     if ($n.UrlType -eq 'Ldap') {
         $layers = @{ DnsStatus = 'NotApplicable'; TcpStatus = 'NotApplicable'; HttpStatus = 'NotApplicable'; RedirectStatus = 'NotApplicable' }
-        $r = Get-MspkiLdapUrlContent -Url $Url -DefaultServer $DomainController -TimeoutSeconds ([math]::Max(10, $TimeoutSeconds * 3))
+        # The bind uses the running user's Windows credentials, so only the selected domain controller and hosts in this
+        # forest's own domains are contacted, and with -SkipNetwork only the selected domain controller.
+        $r = Get-MspkiLdapUrlContent -Url $Url -DefaultServer $DomainController -TimeoutSeconds ([math]::Max(10, $TimeoutSeconds * 3)) `
+            -LocalDomains @(Get-MspkiLeadLocalDomain) -SkipNetwork:$SkipNetwork
         [void]$ev.Add(('LDAP server: {0}' -f $(if ($r.Server) { $r.Server } else { '(default)' })))
+        if (-not $r.Contacted) {
+            $layers['ContentStatus'] = 'Skipped'
+            [void]$ev.Add('No bind and no request was sent to this host.')
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Skipped' -Code 'NOT_APPLICABLE' -Layers $layers -Evidence @($ev) `
+                -Message ('The {0} location {1} was not contacted: {2}' -f $what, $Url, $r.Error) `
+                -Notes 'A directory bind sends the Windows credentials of the user running this tool. A URL in a certificate, above all one from a downloaded certificate, can name any host, so only this forest''s own domain controllers are contacted.'))
+            return $out
+        }
         if ($r.Code -ne 'OK') {
             $st = 'Fail'
             if ($r.Code -eq 'PERMISSION_DENIED') { $st = 'Skipped' }
@@ -141,6 +205,7 @@ function Test-MspkiLeadEndpoint {
             }
         }
         $http = Invoke-MspkiHttpGet -Url $Url -TimeoutMs $ms
+        [void]$ev.Add(('HTTP proxy: {0}' -f $http.ProxyMode))
         foreach ($h in $http.Hops) { [void]$ev.Add(('HTTP hop: {0} -> {1} {2} {3}' -f $h.Url, $h.HttpStatus, $h.Location, $h.Error).Trim()) }
         if ($http.Redirected) {
             $layers['RedirectStatus'] = 'Warning'
@@ -188,16 +253,32 @@ function Test-MspkiLeadEndpoint {
         }
         $out.Certificate = $cert
         [void]$ev.Add(('Certificate: {0} [{1}] until {2}' -f $cert.Subject, $cert.Thumbprint, $cert.NotAfter.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')))
-        if ($ExpectedIssuer.Count -gt 0 -and $ExpectedIssuer -notcontains $cert.Subject) {
+        $m = Test-MspkiAiaCertificateMatch -Downloaded $cert -Lead $Lead -KnownCertificates $KnownCertificate -ExpectedIssuer $ExpectedIssuer
+        foreach ($l in $m.Lines) { [void]$ev.Add($l) }
+        if ($m.Result -eq 'NameMismatch') {
             $layers['ContentStatus'] = 'Warning'
-            [void]$ev.Add(('Expected subject: {0}' -f ($ExpectedIssuer -join ' | ')))
             [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Warning' -Code 'CONTENT_WRONG_TYPE' -Layers $layers -Evidence @($ev) `
                 -Confidence 'Confirmed' -Message ('The AIA location returns a certificate for {0}, not the expected issuer.' -f $cert.Subject)))
             return $out
         }
+        if ($m.Result -eq 'KeyMismatch') {
+            $layers['ContentStatus'] = 'Warning'
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Warning' -Code 'CONTENT_WRONG_TYPE' -Layers $layers -Evidence @($ev) `
+                -Confidence 'Confirmed' -Message ('The AIA location returns a certificate with the expected name ({0}), but not the key that signed the certificate(s) that reference it.' -f $cert.Subject) `
+                -Notes 'This can be another key generation of the CA (an older CA certificate published at the location of the newer one).'))
+            return $out
+        }
         $layers['ContentStatus'] = 'Pass'
-        [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Pass' -Code 'OK' -Layers $layers -Evidence @($ev) `
-            -Confidence 'Confirmed' -Message ('The AIA location returns the CA certificate {0}.' -f $cert.Subject)))
+        if ($m.Result -eq 'Verified') {
+            $out.Validated = $true
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Pass' -Code 'OK' -Layers $layers -Evidence @($ev) `
+                -Confidence 'Confirmed' -Message ('The AIA location returns the CA certificate {0}.' -f $cert.Subject)))
+        }
+        else {
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Pass' -Code 'OK' -Layers $layers -Evidence @($ev) `
+                -Confidence 'Referenced' -Message ('The AIA location returns a certificate with the expected name ({0}); its key could not be verified.' -f $cert.Subject) `
+                -Notes 'The name matches, but nothing proved that this is the right key. Links inside this certificate are not followed.'))
+        }
         return $out
     }
 
@@ -235,10 +316,30 @@ function Test-MspkiCrlHealth {
     $crl = $Record.Crl
     $lead = $Record.Lead
     $issuer = $null; $sigText = 'issuer certificate not found among the discovered certificates'; $sigOk = $null
-    foreach ($c in @($Certificates | Where-Object { $null -ne $_ -and (ConvertTo-MspkiHex $_.SubjectName.RawData) -eq $crl.IssuerRawHex } | Sort-Object NotAfter -Descending)) {
+    $named = @($Certificates | Where-Object { $null -ne $_ -and (ConvertTo-MspkiHex $_.SubjectName.RawData) -eq $crl.IssuerRawHex } | Sort-Object NotAfter -Descending)
+    # When the CRL names the key that signed it (Authority Key Identifier), only a certificate with that key can be its issuer.
+    $cands = $named
+    if ($crl.AuthorityKeyId -and $named.Count -gt 0) {
+        $byKey = @($named | Where-Object { (Get-MspkiCertificateSubjectKeyId -Certificate $_) -eq $crl.AuthorityKeyId })
+        $noKey = @($named | Where-Object { -not (Get-MspkiCertificateSubjectKeyId -Certificate $_) })
+        if ($byKey.Count -gt 0) { $cands = $byKey }
+        elseif ($noKey.Count -gt 0) { $cands = $noKey }
+        else {
+            $cands = @()
+            $sigText = ('issuer certificate with key identifier {0} not found: {1} certificate(s) named {2} were discovered, but they carry other keys (another key generation of the CA)' -f $crl.AuthorityKeyId, $named.Count, $crl.Issuer)
+        }
+    }
+    $anyFalse = $false; $anyNull = $false; $lastReason = ''
+    foreach ($c in $cands) {
         $v = Test-MspkiSignature -SignedBytes $crl.Bytes -Issuer $c
-        if ($v.Valid -eq $true) { $issuer = $c; $sigOk = $true; $sigText = ('verified with {0} [{1}]' -f $c.Subject, $c.Thumbprint); break }
-        $sigOk = $false; $sigText = ('does not verify with any certificate named {0} ({1})' -f $crl.Issuer, $v.Reason)
+        if ($v.Valid -eq $true) { $issuer = $c; $sigOk = $true; $sigText = ('verified with {0} [{1}]' -f $c.Subject, $c.Thumbprint); $anyFalse = $false; $anyNull = $false; break }
+        if ($v.Valid -eq $false) { $anyFalse = $true } else { $anyNull = $true }
+        $lastReason = $v.Reason
+    }
+    if ($null -eq $issuer -and $cands.Count -gt 0) {
+        # "could not be checked" (Valid is $null) is not "invalid": only a signature that was really checked and does not verify is a failure.
+        if ($anyNull) { $sigOk = $null; $sigText = ('could not be checked with the certificate(s) named {0}: {1}' -f $crl.Issuer, $lastReason) }
+        elseif ($anyFalse) { $sigOk = $false; $sigText = ('does not verify with any certificate named {0} ({1})' -f $crl.Issuer, $lastReason) }
     }
     $isRoot = $false
     if ($null -ne $issuer) { $isRoot = ((ConvertTo-MspkiHex $issuer.SubjectName.RawData) -eq (ConvertTo-MspkiHex $issuer.IssuerName.RawData)) }
@@ -287,10 +388,14 @@ function Test-MspkiCrlHealth {
     if ($sigOk -eq $true) { $confidence = 'Confirmed'; $chain = 'Pass' }
     elseif ($sigOk -eq $false) { $chain = 'Fail' }
     $notes = ''
-    if ($null -eq $sigOk) { $notes = 'The issuer certificate was not discovered, so the signature and the issuer could not be validated.' }
-    return (New-MspkiFinding -Stage 'Analysis' -Category 'CRL' -Role 'CDPEndpoint' -Target $crl.Issuer -Endpoint $Record.Url `
+    if ($null -eq $sigOk) { $notes = 'The signature and the issuer could not be validated (no usable issuer certificate was discovered, or the signature could not be checked): this is not a bad signature.' }
+    $sc = Resolve-MspkiScopeStatus -Status $status -Scope $lead.Scope
+    if ($sc.Capped) { $status = $sc.Status; $ev += $sc.Evidence }
+    $finding = New-MspkiFinding -Stage 'Analysis' -Category 'CRL' -Role 'CDPEndpoint' -Target $crl.Issuer -Endpoint $Record.Url `
         -RelatedCA (@($lead.RelatedCAs) -join ', ') -Status $status -StatusCode $code -Confidence $confidence -Sources @($lead.Sources) `
-        -Scope $lead.Scope -Message $msg -Evidence $ev -Notes $notes -Layers @{ ContentStatus = 'Pass'; ChainStatus = $chain })
+        -Scope $lead.Scope -Severity $sc.Severity -Message $msg -Evidence $ev -Notes $notes -Layers @{ ContentStatus = 'Pass'; ChainStatus = $chain }
+    if ($Record.PSObject.Properties['ReviewOnly'] -and $Record.ReviewOnly) { $finding = ConvertTo-MspkiReviewFinding -Finding $finding -Reason $Record.ReviewReason }
+    return $finding
 }
 
 function Compare-MspkiHexNumber {
@@ -321,12 +426,14 @@ function Test-MspkiCrlConsistency {
             if ((Compare-MspkiHexNumber $r.Crl.CrlNumber $max) -lt 0) {
                 $type = 'base'
                 if ($r.Crl.IsDelta) { $type = 'delta' }
-                [void]$out.Add((New-MspkiFinding -Stage 'Analysis' -Category 'CRL' -Role 'CDPEndpoint' -Target $r.Crl.Issuer -Endpoint $r.Url `
+                $sf = New-MspkiFinding -Stage 'Analysis' -Category 'CRL' -Role 'CDPEndpoint' -Target $r.Crl.Issuer -Endpoint $r.Url `
                     -RelatedCA (@($r.Lead.RelatedCAs) -join ', ') -Status 'Warning' -StatusCode 'STALE_DATA' -Confidence 'Confirmed' `
                     -Sources @($r.Lead.Sources) -Scope $r.Lead.Scope -Layers @{ ContentStatus = 'Warning' } `
                     -Message ('{0} serves {1} CRL number {2}; another location serves the newer number {3}.' -f $r.Url, $type, $r.Crl.CrlNumber, $max) `
                     -Evidence @(('Newest at: {0}' -f ($newest -join ', ')), ('This update here: {0}' -f $r.Crl.ThisUpdate.ToString('yyyy-MM-ddTHH:mm:ssZ'))) `
-                    -Notes 'Publication to this location may have stopped or be delayed.'))
+                    -Notes 'Publication to this location may have stopped or be delayed.'
+                if ($r.PSObject.Properties['ReviewOnly'] -and $r.ReviewOnly) { $sf = ConvertTo-MspkiReviewFinding -Finding $sf -Reason $r.ReviewReason }
+                [void]$out.Add($sf)
             }
         }
     }
@@ -362,11 +469,18 @@ function Invoke-MspkiEndpointAnalysis {
         foreach ($lead in $pending) {
             $done[$lead.Key] = $true
             $expected = Get-MspkiExpectedIssuerName -Lead $lead -Certificates $certMap -CACertificates $caCerts
+            # What carries this URL decides how a failure is graded: a URL that only expired or historical certificates carry is a review item.
+            $grade = Get-MspkiLeadGrading -Lead $lead -Inventory $Discovery.Inventory -KnownCertificates $certMap
             foreach ($url in @($lead.Variants)) {
                 $r = Test-MspkiLeadEndpoint -Lead $lead -Url $url -DomainController $dc -TimeoutSeconds $TimeoutSeconds `
-                    -SkipNetwork:$SkipNetwork -ExpectedIssuer $expected
-                foreach ($f in $r.Findings) { [void]$findings.Add($f) }
-                if ($null -ne $r.Certificate) {
+                    -SkipNetwork:$SkipNetwork -ExpectedIssuer $expected -KnownCertificate $certMap
+                foreach ($f in $r.Findings) {
+                    if ($grade.ReviewOnly) { $f = ConvertTo-MspkiReviewFinding -Finding $f -Reason $grade.Reason }
+                    [void]$findings.Add($f)
+                }
+                # A downloaded certificate is used (to verify signatures, and for the links inside it) only when it is the expected
+                # issuer AND its key is proven: otherwise a changed or planted file could steer where this tool connects next.
+                if ($null -ne $r.Certificate -and $r.Validated) {
                     $c = $r.Certificate
                     if (-not $certMap.ContainsKey($c.Thumbprint)) { $certMap[$c.Thumbprint] = $c }
                     foreach ($u in (Get-MspkiCertificateUrl -Certificate $c)) {
@@ -375,8 +489,11 @@ function Invoke-MspkiEndpointAnalysis {
                             -Origin ('certificate {0} downloaded from {1}' -f $c.Subject, $url) -Depth ($lead.Depth + 1))
                     }
                 }
+                elseif ($null -ne $r.Certificate) {
+                    Write-MspkiLog -Level Warning -Message ('Certificate {0} downloaded from {1} was not proven to be the expected issuer; its links are not followed.' -f $r.Certificate.Subject, $url)
+                }
                 if ($null -ne $r.Crl) {
-                    [void]$records.Add([pscustomobject]@{ Url = $url; Lead = $lead; Crl = $r.Crl; ExpectedIssuer = $expected })
+                    [void]$records.Add([pscustomobject]@{ Url = $url; Lead = $lead; Crl = $r.Crl; ExpectedIssuer = $expected; ReviewOnly = $grade.ReviewOnly; ReviewReason = $grade.Reason })
                     foreach ($u in @($r.Crl.FreshestCrlUrls)) {
                         [void](Add-MspkiLead -Url $u -Kind 'FreshestCRL' -Source ('Crl:{0}:FreshestCRL' -f $r.Crl.Sha1) `
                             -Origin ('CRL of {0} downloaded from {1}' -f $r.Crl.Issuer, $url) -Depth ($lead.Depth + 1) -RelatedCA (@($lead.RelatedCAs) -join ', '))

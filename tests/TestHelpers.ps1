@@ -71,7 +71,8 @@ function New-TestCertificate {
         [string[]]$AiaUrls = @(),
         [string[]]$OcspUrls = @(),
         [switch]$Ecdsa,
-        $Key = $null
+        $Key = $null,
+        [switch]$WithAki
     )
     if ($Ecdsa) {
         $rsa = $Key
@@ -98,6 +99,15 @@ function New-TestCertificate {
     if ($CAVersion -ge 0) {
         $der = ConvertTo-TestDerInteger -Value $CAVersion
         $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509Extension('1.3.6.1.4.1.311.21.1', $der, $false)))
+    }
+    if ($WithAki -and $null -ne $Signer) {
+        # Authority Key Identifier = the signer's Subject Key Identifier (CertificateRequest.Create does not add it).
+        $skiExt = @($Signer.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.14' })[0]
+        $skiHex = (New-Object System.Security.Cryptography.X509Certificates.X509SubjectKeyIdentifierExtension($skiExt, $false)).SubjectKeyIdentifier
+        $skiBytes = New-Object byte[] ($skiHex.Length / 2)
+        for ($i = 0; $i -lt $skiBytes.Length; $i++) { $skiBytes[$i] = [Convert]::ToByte($skiHex.Substring($i * 2, 2), 16) }
+        $akiDer = New-TestDer -Tag 0x30 -Content (New-TestDer -Tag 0x80 -Content $skiBytes)
+        $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509Extension('2.5.29.35', $akiDer, $false)))
     }
     if ($PreviousHashHex) {
         $h = New-Object byte[] ($PreviousHashHex.Length / 2)
@@ -153,7 +163,8 @@ function New-TestCrl {
         [string[]]$FreshestUrls = @(),
         [switch]$NoNextUpdate,
         [int64]$CAVersion = -1,
-        $SigningKey = $null
+        $SigningKey = $null,
+        [string]$AuthorityKeyIdHex = ''
     )
     $inv = [System.Globalization.CultureInfo]::InvariantCulture
     $now = [DateTime]::UtcNow
@@ -170,6 +181,12 @@ function New-TestCrl {
     }
     if ($CAVersion -ge 0) {
         $exts += , (New-TestDer 0x30 (Join-TestBytes @((New-TestDer 0x06 ([byte[]](0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x15, 0x01))), (New-TestDer 0x04 (ConvertTo-TestDerInteger $CAVersion)))))
+    }
+    if ($AuthorityKeyIdHex) {
+        $akiBytes = New-Object byte[] ($AuthorityKeyIdHex.Length / 2)
+        for ($i = 0; $i -lt $akiBytes.Length; $i++) { $akiBytes[$i] = [Convert]::ToByte($AuthorityKeyIdHex.Substring($i * 2, 2), 16) }
+        $akiVal = New-TestDer 0x30 (New-TestDer 0x80 $akiBytes)
+        $exts += , (New-TestDer 0x30 (Join-TestBytes @((New-TestDer 0x06 ([byte[]](0x55, 0x1D, 0x23))), (New-TestDer 0x04 $akiVal))))
     }
     $parts = @()
     $parts += , (New-TestDer 0x02 ([byte[]](0x01)))

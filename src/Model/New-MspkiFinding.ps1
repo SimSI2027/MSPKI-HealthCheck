@@ -99,7 +99,8 @@ function New-MspkiErrorFinding {
     Permission failures and infrastructure failures are kept apart:
     PermissionDenied -> Skipped/PERMISSION_DENIED, Unsupported or NotDomainJoined -> Skipped/UNSUPPORTED,
     NotFound -> Information/<NotFoundCode>, Timeout -> <UnreachableStatus>/TIMEOUT,
-    Unreachable -> <UnreachableStatus>/RETRIEVAL_FAIL, anything else -> Error/RETRIEVAL_FAIL.
+    Unreachable -> <UnreachableStatus>/RETRIEVAL_FAIL. Anything that could not be classified (an unexpected exception,
+    which can be a fault in this tool itself) -> Error/INTERNAL_ERROR, so it is never mistaken for an unreachable server.
     #>
     [CmdletBinding()]
     param(
@@ -132,8 +133,8 @@ function New-MspkiErrorFinding {
                              $msg = ('Timed out while {0}.' -f $Action) }
         'Unreachable'      { $st = $UnreachableStatus; $code = 'RETRIEVAL_FAIL'; $layer = 'Fail'
                              $msg = ('Server not reachable while {0}.' -f $Action) }
-        default            { $st = 'Error'; $code = 'RETRIEVAL_FAIL'
-                             $msg = ('Error while {0}.' -f $Action) }
+        default            { $st = 'Error'; $code = 'INTERNAL_ERROR'
+                             $msg = ('Unexpected error while {0}.' -f $Action) }
     }
     $ev = @($Evidence)
     if ($ErrorInfo.HResult) { $ev += ('HResult: {0}' -f $ErrorInfo.HResult) }

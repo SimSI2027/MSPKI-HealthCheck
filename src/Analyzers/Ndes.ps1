@@ -100,6 +100,7 @@ function Test-MspkiNdesHost {
         [Parameter(Mandatory = $true)]$Info,
         [int]$TimeoutSeconds = 5,
         [switch]$SkipNetwork,
+        [switch]$IncludeAdminProbe,
         [DateTime]$Now = [DateTime]::UtcNow
     )
     $findings = New-Object System.Collections.ArrayList
@@ -115,8 +116,12 @@ function Test-MspkiNdesHost {
     $layers = @{ DiscoveryStatus = 'Pass' }
     $mk = {
         param($st, $cd, $msg, $cf, $extraEv, $notes)
+        $e = @($ev) + @($extraEv)
+        # A reference to another environment goes to review and is never graded as a failure (REQUIREMENTS 4.2).
+        $sc = Resolve-MspkiScopeStatus -Status $st -Scope $Lead.Scope
+        if ($sc.Capped) { $st = $sc.Status; $e += $sc.Evidence }
         New-MspkiFinding -Stage 'Probe' -Category 'NDES' -Role 'NDESEndpoint' -Target $hostName -Endpoint $Lead.Url -RelatedCA $related -Status $st -StatusCode $cd `
-            -Confidence $cf -Sources @($Info.Sources) -Scope $Lead.Scope -Message $msg -Evidence (@($ev) + @($extraEv)) -Layers $layers -Notes $notes
+            -Confidence $cf -Sources @($Info.Sources) -Scope $Lead.Scope -Message $msg -Evidence $e -Layers $layers -Notes $notes -Severity $sc.Severity
     }
     $result = [pscustomobject]@{ Findings = $findings; Classification = $initial; Confirmed = $false; Host = $hostName }
 
@@ -144,7 +149,8 @@ function Test-MspkiNdesHost {
     $layers['TcpStatus'] = 'Pass'
     $scheme = $tr.Chosen.Scheme; $port = $tr.Chosen.Port
     [void]$ev.Add(('Transport chosen: {0} on port {1}' -f $scheme, $port))
-    $resp = Invoke-MspkiNdesProbe -HostName $hostName -Scheme $scheme -Port $port -TimeoutMs $ms
+    $resp = Invoke-MspkiNdesProbe -HostName $hostName -Scheme $scheme -Port $port -TimeoutMs $ms -IncludeAdmin:$IncludeAdminProbe
+    [void]$ev.Add(('HTTP proxy: {0}' -f $resp.GetCACaps.ProxyMode))
 
     $confirmed = $false
     $extra = New-Object System.Collections.ArrayList
@@ -169,20 +175,28 @@ function Test-MspkiNdesHost {
         else { [void]$extra.Add(('GetCACert: HTTP 200 but the content is not a certificate ({0}, {1} bytes)' -f $cc.ContentType, (Get-MspkiByteCount $cc.Bytes))) }
     }
     else { [void]$extra.Add(('GetCACert: HTTP {0} {1}{2}' -f $cc.HttpStatus, $cc.Code, $(if ($cc.Redirected) { ' (redirect not followed)' } else { '' }))) }
-    # Anonymous admin request
+    # Anonymous admin request: only when it was asked for (-IncludeNdesAdminProbe). It never confirms an endpoint: IIS answers 401 for
+    # every path below a site that requires Windows authentication, and a WAF or an IP restriction answers 403 for every path.
     $ad = $resp.AdminAnonymous
-    $adminExists = ($ad.HttpStatus -eq 401 -or $ad.HttpStatus -eq 403)
-    if ($adminExists) { $confirmed = $true; [void]$extra.Add(('Admin page (anonymous request): HTTP {0}: the page exists and asks for authentication. No credentials were sent and the body was not read.' -f $ad.HttpStatus)) }
-    else { [void]$extra.Add(('Admin page (anonymous request): HTTP {0} {1}. No credentials were sent and the body was not read.' -f $ad.HttpStatus, $ad.Code)) }
+    $adminExists = $false
+    if ($null -eq $ad) {
+        [void]$extra.Add('Admin page: not requested. The anonymous request to the admin page is opt-in (-IncludeNdesAdminProbe), because an admin page that is wrongly open to anonymous users creates a challenge password when it is requested.')
+    }
+    else {
+        $adminExists = ($ad.HttpStatus -eq 401 -or $ad.HttpStatus -eq 403)
+        if ($adminExists) { [void]$extra.Add(('Admin page (anonymous request): HTTP {0}: something on this host asks for authentication at that path. This does not confirm NDES. No credentials were sent and the body was not read.' -f $ad.HttpStatus)) }
+        else { [void]$extra.Add(('Admin page (anonymous request): HTTP {0} {1}. No credentials were sent and the body was not read.' -f $ad.HttpStatus, $ad.Code)) }
+    }
 
     $layers['HttpStatus'] = $(if ($confirmed) { 'Pass' } else { 'Fail' })
     $layers['ContentStatus'] = $(if ($confirmed) { 'Pass' } else { 'Fail' })
     if ($confirmed) {
         $result.Confirmed = $true; $result.Classification = 'ConfirmedEndpoint'
         $ev[0] = 'Classification: ConfirmedEndpoint (evidence classification before the probe: {0})' -f $initial
-        [void]$findings.Add((& $mk 'Pass' 'OK' ('NDES host {0} answers SCEP requests (ConfirmedEndpoint).' -f $hostName) 'Confirmed' @($extra) `
-            'Only GetCACaps, GetCACert and one anonymous request to the admin page were sent. Nothing was enrolled and no challenge password was requested.'))
-        if ($ad.HttpStatus -eq 200) {
+        $sent = 'Only GetCACaps and GetCACert were sent. Nothing was enrolled and no challenge password was requested.'
+        if ($null -ne $ad) { $sent = 'Only GetCACaps, GetCACert and one anonymous request to the admin page were sent. Nothing was enrolled and no challenge password was requested.' }
+        [void]$findings.Add((& $mk 'Pass' 'OK' ('NDES host {0} answers SCEP requests (ConfirmedEndpoint).' -f $hostName) 'Confirmed' @($extra) $sent))
+        if ($null -ne $ad -and $ad.HttpStatus -eq 200) {
             [void]$findings.Add((New-MspkiFinding -Stage 'Probe' -Category 'NDES' -Role 'NDESEndpoint' -Target $hostName -Endpoint (New-MspkiNdesRequestUrl -Name AdminAnonymous -HostName $hostName -Scheme $scheme -Port $port) `
                 -RelatedCA $related -Status 'Fail' -StatusCode 'CONFIG_RISK' -Severity 'High' -Confidence 'Confirmed' -Sources @($Info.Sources) -Scope $Lead.Scope `
                 -Layers @{ DiscoveryStatus = 'Pass'; HttpStatus = 'Pass' } `
@@ -201,10 +215,12 @@ function Test-MspkiNdesHost {
         return $result
     }
     $st = 'Information'; if ($Info.Origin -eq 'Referenced') { $st = 'Fail' }
-    $code = 'RETRIEVAL_FAIL'
+    # HTTP 200 without a SCEP capability list is wrong content, not a failure to retrieve; every other answer keeps its own code.
+    $code = 'CONTENT_WRONG_TYPE'
     if ($caps.Code -and $caps.Code -ne 'OK') { $code = $caps.Code }
-    [void]$findings.Add((& $mk $st $code ('NDES host {0} ({1}) accepts connections but did not answer as a SCEP service.' -f $hostName, $initial) $conf @($extra) `
-        'The host may no longer run NDES, may use another site name, or may require a different scheme or port.'))
+    $why = 'The host may no longer run NDES, may use another site name, or may require a different scheme or port.'
+    if ($adminExists) { $why = 'The admin path answered with an authentication request, but IIS does that for every path below a protected site, so it is not evidence of NDES. ' + $why }
+    [void]$findings.Add((& $mk $st $code ('NDES host {0} ({1}) accepts connections but did not answer as a SCEP service.' -f $hostName, $initial) $conf @($extra) $why))
     return $result
 }
 
@@ -221,7 +237,8 @@ function Invoke-MspkiNdesAnalysis {
     param(
         [Parameter(Mandatory = $true)]$Discovery,
         [int]$TimeoutSeconds = 5,
-        [switch]$SkipNetwork
+        [switch]$SkipNetwork,
+        [switch]$IncludeAdminProbe
     )
     $findings = New-Object System.Collections.ArrayList
     $hosts = New-Object System.Collections.ArrayList
@@ -312,7 +329,7 @@ function Invoke-MspkiNdesAnalysis {
         if ($null -eq $i) { $i = @{ Origin = 'Referenced'; Lines = @(); Sources = @($lead.Sources); RelatedCAs = @($lead.RelatedCAs) } }
         $infoObj = [pscustomobject]@{ Origin = $i.Origin; Lines = @($i.Lines); Sources = @($i.Sources); RelatedCAs = @($i.RelatedCAs) }
         if (@($infoObj.Sources).Count -eq 0) { $infoObj.Sources = @($lead.Sources) }
-        $r = Test-MspkiNdesHost -Lead $lead -Info $infoObj -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork
+        $r = Test-MspkiNdesHost -Lead $lead -Info $infoObj -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork -IncludeAdminProbe:$IncludeAdminProbe
         foreach ($f in $r.Findings) { [void]$findings.Add($f) }
         [void]$hosts.Add([pscustomobject]@{ Host = $lead.Host; Classification = $r.Classification; Confirmed = $r.Confirmed })
     }
@@ -327,7 +344,9 @@ function Invoke-MspkiNdesAnalysis {
         }
         $ev = @(('CAs whose database was read for NDES evidence: {0} of {1}' -f $caRead, $evidenceCas.Count), ('Issued certificates from the NDES templates visible to this account: {0}' -f $rowsTotal),
             'URLs found in certificates, policy or AD that point at a SCEP path: 0') + $pub
-        [void]$findings.Add((New-MspkiFinding -Stage 'Analysis' -Category 'NDES' -Role 'NDESEndpoint' -Target 'NDES' -Status 'NotApplicable' -StatusCode 'NOT_DISCOVERED' -Confidence 'Confirmed' `
+        # "Nothing found" is only as strong as the reading behind it: when no CA database could be read it is not even a weak negative.
+        $ndConf = 'Unknown'; if ($caRead -gt 0) { $ndConf = 'Inferred' }
+        [void]$findings.Add((New-MspkiFinding -Stage 'Analysis' -Category 'NDES' -Role 'NDESEndpoint' -Target 'NDES' -Status 'NotApplicable' -StatusCode 'NOT_DISCOVERED' -Confidence $ndConf `
             -Sources @('CA:CertificateAuthority.View', 'AD:EnrollmentServices:certificateTemplates') -Scope 'Local' -Layers @{ DiscoveryStatus = 'Pass' } `
             -Message 'Classification NotDiscovered: no NDES / SCEP server was found from the CA databases or from references.' -Evidence (@('Classification: NotDiscovered') + $ev) `
             -Notes 'NDES detection depends on read rights to the CA database or on references existing. An account that is not a CA administrator or certificate manager sees only its own requests, so this does not prove that no NDES server exists.'))

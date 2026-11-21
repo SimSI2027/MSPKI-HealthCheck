@@ -113,7 +113,7 @@ function Invoke-MspkiDiscovery {
     $certMap = @{}
     $result = { [pscustomobject]@{ Inventory = [pscustomobject]$inventory; Findings = @($findings); Certificates = $certMap } }
 
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = Start-MspkiStageTimer -Stage 'Discovery:ADContext'
     $ad = Get-MspkiAdContext -TimeoutSeconds $TimeoutSeconds
     foreach ($f in $ad.Findings) { [void]$findings.Add($f) }
     $ctx = $ad.Data
@@ -121,7 +121,7 @@ function Invoke-MspkiDiscovery {
     Add-MspkiStageTiming -Stage 'Discovery:ADContext' -Stopwatch $sw
     if (-not $ctx.Ready) { return (& $result) }
 
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = Start-MspkiStageTimer -Stage 'Discovery:PKIContainers'
     $pc = Get-MspkiPkiContainer -Context $ctx -TimeoutSeconds $TimeoutSeconds
     foreach ($f in $pc.Findings) { [void]$findings.Add($f) }
     $inventory.PksExists = $pc.Data.PksExists
@@ -129,7 +129,7 @@ function Invoke-MspkiDiscovery {
     Add-MspkiStageTiming -Stage 'Discovery:PKIContainers' -Stopwatch $sw
     if (-not $pc.Data.PksExists) { return (& $result) }
 
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = Start-MspkiStageTimer -Stage 'Discovery:EnterpriseCAs'
     $ec = Get-MspkiEnterpriseCA -Context $ctx -TimeoutSeconds $TimeoutSeconds
     foreach ($f in $ec.Findings) { [void]$findings.Add($f) }
     $cas = @($ec.Data)
@@ -137,7 +137,7 @@ function Invoke-MspkiDiscovery {
     foreach ($f in $adCerts.Findings) { [void]$findings.Add($f) }
     Add-MspkiStageTiming -Stage 'Discovery:EnterpriseCAs' -Stopwatch $sw
 
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = Start-MspkiStageTimer -Stage 'Discovery:TemplatesKraOid'
     foreach ($step in @(
         @{ Name = 'Templates'; Fn = { Get-MspkiTemplateObject -Context $ctx -TimeoutSeconds $TimeoutSeconds }; Data = 'Templates'; Flag = 'TemplatesRead' },
         @{ Name = 'KRA'; Fn = { Get-MspkiKraObject -Context $ctx -TimeoutSeconds $TimeoutSeconds }; Data = 'Kra'; Flag = 'KraRead' },
@@ -155,7 +155,7 @@ function Invoke-MspkiDiscovery {
     }
     Add-MspkiStageTiming -Stage 'Discovery:TemplatesKraOid' -Stopwatch $sw
 
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = Start-MspkiStageTimer -Stage 'Discovery:CAProperties'
     $props = @{}
     $propFindings = New-Object System.Collections.ArrayList
     foreach ($ca in $cas) {
@@ -172,7 +172,7 @@ function Invoke-MspkiDiscovery {
     }
     Add-MspkiStageTiming -Stage 'Discovery:CAProperties' -Stopwatch $sw
 
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = Start-MspkiStageTimer -Stage 'Discovery:CACertificates'
     $entries = @(Merge-MspkiCACertificate -EnterpriseCAs $cas -CAProperties $props -AdEntries @($adCerts.Data))
     foreach ($ca in $cas) {
         $p = $null

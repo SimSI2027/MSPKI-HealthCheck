@@ -47,6 +47,18 @@ function Get-MspkiCertificateParent {
     }
     $cands = @($Candidates | Where-Object { $null -ne $_ -and (ConvertTo-MspkiHex $_.SubjectName.RawData) -eq $issuerHex -and $_.Thumbprint -ne $Certificate.Thumbprint })
     if ($cands.Count -eq 0) { return [pscustomobject]@{ Parent = $null; Status = 'NotFound'; Reason = 'No discovered certificate has the issuer name.' } }
+    # The name alone does not identify the issuer: a CA with a renewed key has several certificates with one name. When the
+    # certificate says which key signed it (Authority Key Identifier), only a certificate with that key can be the parent.
+    $aki = Get-MspkiCertificateAuthorityKeyId -Certificate $Certificate
+    if ($aki) {
+        $byKey = @($cands | Where-Object { (Get-MspkiCertificateSubjectKeyId -Certificate $_) -eq $aki })
+        $noKey = @($cands | Where-Object { -not (Get-MspkiCertificateSubjectKeyId -Certificate $_) })
+        if ($byKey.Count -gt 0) { $cands = $byKey }
+        elseif ($noKey.Count -gt 0) { $cands = $noKey }
+        else {
+            return [pscustomobject]@{ Parent = $null; Status = 'NotFound'; Reason = ('{0} certificate(s) with the issuer name were found, but none has the key identifier {1} that signed this certificate (another key generation of the issuer).' -f $cands.Count, $aki) }
+        }
+    }
     $reason = ''
     $unverifiable = $false
     foreach ($m in @($cands | Sort-Object NotAfter -Descending)) {
@@ -115,7 +127,9 @@ function Test-MspkiCACertificateHealth {
                 [void]$chainEv.Add(('Signature of {0} does not verify: {1}' -f $cur.Subject, $p.Reason))
             }
             else {
-                $chainStatus = 'Warning'; $chainCode = 'CHAIN_INVALID'; $chainLayer = 'Unknown'
+                # The signature could not be checked at all (unsupported algorithm, or this .NET Framework lacks the APIs): that is not
+                # a bad chain and not a bad signature, so it is reported as a check that could not be done.
+                $chainStatus = 'Information'; $chainCode = 'UNSUPPORTED'; $chainLayer = 'Unknown'
                 [void]$chainEv.Add(('Signature of {0} could not be checked: {1}' -f $cur.Subject, $p.Reason))
             }
             break
@@ -141,6 +155,7 @@ function Test-MspkiCACertificateHealth {
             'CHAIN_UNTRUSTED_ROOT' { 'Chain of {0} ends in a root that this computer does not trust.' -f $target }
             'CHAIN_PARTIAL' { 'Chain of {0} is incomplete: an issuer certificate was not found in AD or on the CA.' -f $target }
             'SIGNATURE_INVALID' { 'Chain of {0} has a signature that does not verify.' -f $target }
+            'UNSUPPORTED' { 'The signatures in the chain of {0} could not be checked on this computer.' -f $target }
             default { 'Chain of {0} needs review.' -f $target }
         }
         $notes = ''
@@ -167,6 +182,10 @@ function Test-MspkiCACertificateHealth {
             ('Key: {0} {1}; signature: {2}' -f $i.KeyAlgorithm, $i.KeySize, $i.SignatureAlgorithm)
         )
         if ($null -ne $parent) { $ev += ('Parent: {0} [{1}] valid until {2}' -f $parent.Subject, $parent.Thumbprint, $parent.NotAfter.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')) }
+        # Only a certificate that is confirmed or referenced as the current one is graded as being in use. An inferred or unknown
+        # lifecycle (an old root left in a container, an AD copy that is not among the CA's own signing certificates) is not.
+        $inUse = ($e.Lifecycle -eq 'Current' -and @('Confirmed', 'Referenced') -contains $e.LifecycleConfidence)
+        $sev = 'None'
         if ($e.Lifecycle -eq 'Historical') {
             if ($i.DaysLeft -lt 0) {
                 $st = 'NotApplicable'; $code = 'NOT_APPLICABLE'
@@ -180,10 +199,16 @@ function Test-MspkiCACertificateHealth {
         elseif ($days -lt 0) {
             $st = 'Critical'; $code = 'OBJECT_EXPIRED'
             $msg = 'CA certificate of {0} has expired ({1}).' -f $target, $(if ($limitedBy) { 'its parent expired' } else { $i.NotAfter })
+            if (-not $inUse) {
+                $st = 'Information'; $sev = 'ReviewRequired'
+                $msg = 'CA certificate of {0} has expired ({1}), but it is not confirmed to be the certificate in use (lifecycle {2}, {3}): review item.' -f $target, $(if ($limitedBy) { 'its parent expired' } else { $i.NotAfter }), $e.Lifecycle, $e.LifecycleConfidence
+                $ev += 'An expired certificate whose lifecycle is only inferred or unknown (for example an old root left in a container) is not graded as a failure; the stale-reference review shows what still points to it.'
+            }
         }
         elseif ($days -le $crit) {
             $st = 'Critical'; $code = 'OBJECT_EXPIRING'
             $msg = 'CA certificate of {0} expires in {1} days (critical threshold {2}).' -f $target, $days, $crit
+            if (-not $inUse) { $st = 'Warning'; $ev += 'Capped at Warning: the lifecycle of this certificate is only inferred or unknown, so it is not confirmed to be the certificate in use.' }
         }
         elseif ($days -le $warn) {
             $st = 'Warning'; $code = 'OBJECT_EXPIRING'
@@ -197,7 +222,7 @@ function Test-MspkiCACertificateHealth {
         if ($lifeConfidence -eq 'Inferred') { $notes = 'Current/historical is inferred from certificate dates; the status assumes this is the certificate in use.' }
         if ($e.Lifecycle -eq 'Historical') { $notes = 'An expired historical CA certificate may still be needed to validate older certificates and CRLs.' }
         [void]$findings.Add((New-MspkiFinding -Stage Analysis -Category 'CA' -Role $e.Role -Target $target -RelatedCA $related `
-            -Status $st -StatusCode $code -Confidence $lifeConfidence -Sources $sources -Scope 'Local' `
+            -Status $st -StatusCode $code -Confidence $lifeConfidence -Sources $sources -Scope 'Local' -Severity $sev `
             -Message $msg -Evidence $ev -Notes $notes -Layers @{ ContentStatus = 'Pass' }))
     }
     return , $findings.ToArray()

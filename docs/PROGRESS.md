@@ -3,6 +3,30 @@
 Newest entry first. Keep each entry to 3–6 lines: phase, what was done, what is next, open issues.
 Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 
+## Audit fixes (every High and Medium), first-live-run logging, docs/TESTING.md — done (675 tests; the new audit tests fail on the old code)
+- Done, High: H1 an LDAP URL naming a host is contacted only for the selected DC or a host of the forest's own domains (never with -SkipNetwork,
+  except the DC), and links in a downloaded AIA certificate are followed only when its key is proven; H2 CES/CEP HTTP 5xx = `Failing` / Fail /
+  `HTTP_500`; H3 a lead carried only by expired or historical certificates or an older CA signing-certificate index is a review item (leads now
+  keep `Carriers`; `LeadGrading.ps1`; the stale review still sees the failure).
+- Done, Medium: M1 direct HTTP, no proxy (`-UseSystemProxy` opt-in, no credentials); M2 NDES admin GET only with `-IncludeNdesAdminProbe`; M3 "could not
+  check" is never `SIGNATURE_INVALID`, issuer chosen by AKI/SKI, .NET release and signature-API check recorded; M4 expired + unconfirmed lifecycle =
+  review; M5 External/OtherForest capped at Warning/ReviewRequired; M6 explicit TLS 1.2/1.1/1.0(+1.3) for the probe and, for the run, the process
+  setting; M7 NDES `ConfirmedEndpoint` needs GetCACaps or GetCACert; M8 AIA Confirmed only with a proven key, NDES NotDiscovered Inferred/Unknown, Deny ACE =
+  ReviewRequired/Inferred; M9 NTAuth warning only for a CA with a sign-in template; M10 new codes `INTERNAL_ERROR`, `HTTP_OTHER`, `CLOCK_SKEW`,
+  `CONFIG_MISMATCH`, `STALE_REFERENCE`, TLS trust failures named by a handshake, first CA call classified at the call site; M11 tests (TLS listener, proxy, -SkipNetwork).
+- Live-run logging: every CA connection string tried (display name, then common name after "no such CA"), every GetCAProperty call (name, id, index, data
+  type, raw result type, size, time, error code; never a value), CA database view queries, `Stage ... started/took` lines, a closing summary line, run options.
+  `docs/TESTING.md` explains the first run (normal user, administrator, what to send back, warning that the files hold real names).
+- Decisions: `External`/`OtherForest` hosts are review items (a PKI published under another DNS name shows review items, not failures: check on the live run);
+  the demo fixture is unchanged; CLAUDE.md rule 4 clarification and REQUIREMENTS updated for the opt-in admin request and the LDAP rule.
+- Next: the first live run (docs/TESTING.md), then fix what the log shows; then Phase E and the Low findings below.
+- Open Low findings (docs/AUDIT.md): L1 PFX bytes loaded by `X509Certificate2(byte[])` (check `GetCertContentType`); L2 the Windows chain engine can fetch
+  intermediates unseen; L3 redirect targets not scoped or recorded as leads; L4 no timeout on forest/domain/trust calls, the LDAP bind and SID translation;
+  L5 local-policy errors classified by localised text; L6 `results.json` exports template ACLs; L7 no CRL `Unknown` state, `EXPECTED_OFFLINE` never emitted,
+  path length not validated, PEM CRLs rejected; L8 template review details (single-attribute write rights, BUILTIN\Users, v4 RA policies); L9 weak CES/CEP
+  content check; L10 AMSI note for `Invoke-MspkiTimeLimitedScript` (README now tells operators to warn their security team); L11 hygiene test blind spots.
+- Open: nothing has run against a live AD CS. Still assumptions: the CR_PROP ids, `CertificateAuthority.View` columns, `msPKI-Enrollment-Servers` layout, v4
+  template attributes, IIS behaviours. The TLS-listener tests create a throw-away key container on the dev machine (removed again in AfterAll).
 ## Audit after Phase D (docs/AUDIT.md) — done, no code changed
 - Done: full audit of src/, tests/, docs/ and git history against CLAUDE.md and REQUIREMENTS: 3 High, 11 Medium, 11 Low.
   572 tests pass under Windows PowerShell 5.1; no real names, e-mails or IPs; no forbidden AV/EDR pattern.

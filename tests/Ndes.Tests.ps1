@@ -33,13 +33,13 @@ BeforeAll {
         $script:routes[$script:adminPath] = @{ Status = 401; Body = @(); Headers = @{ 'WWW-Authenticate' = 'Negotiate' } }
     }
     $script:probe = {
-        param([string]$Origin = 'Referenced', [string]$Url = ($script:b + '/certsrv/mscep/mscep.dll'), [switch]$SkipNetwork)
-        InModuleScope MspkiHealthCheck -Parameters @{ U = $Url; O = $Origin; Skip = [bool]$SkipNetwork } {
-            param($U, $O, $Skip)
+        param([string]$Origin = 'Referenced', [string]$Url = ($script:b + '/certsrv/mscep/mscep.dll'), [switch]$SkipNetwork, [switch]$IncludeAdmin)
+        InModuleScope MspkiHealthCheck -Parameters @{ U = $Url; O = $Origin; Skip = [bool]$SkipNetwork; Adm = [bool]$IncludeAdmin } {
+            param($U, $O, $Skip, $Adm)
             Reset-MspkiLeadRegistry; Reset-MspkiProbeCache
             $lead = Add-MspkiLead -Url $U -Kind NDES -Source 'test:ndes' -Origin 'test fixture'
             $info = [pscustomobject]@{ Origin = $O; Lines = @('Test evidence line'); Sources = @('test:ndes'); RelatedCAs = @('Example Issuing CA') }
-            Test-MspkiNdesHost -Lead $lead -Info $info -TimeoutSeconds 3 -SkipNetwork:$Skip
+            Test-MspkiNdesHost -Lead $lead -Info $info -TimeoutSeconds 3 -SkipNetwork:$Skip -IncludeAdminProbe:$Adm
         }
     }
 }
@@ -141,7 +141,9 @@ Describe 'NDES requests: nothing else in the source can send anything to a NDES 
         foreach ($a in $assign) {
             $left = $a.Left.Extent.Text
             if ($left -match '\.Method$') { $a.Right.Extent.Text | Should -Be "'GET'" }
-            if ($left -match '\.(Credentials|ClientCertificates|Proxy)$') { $a.Right.Extent.Text | Should -Be '$null' }
+            if ($left -match '\.(Credentials|ClientCertificates)$') { $a.Right.Extent.Text | Should -Be '$null' }
+            # The proxy is $null (a direct connection) unless -UseSystemProxy was given; then it is the system proxy WITHOUT credentials.
+            if ($left -match '\.Proxy$') { $a.Right.Extent.Text | Should -BeIn @('$null', '$sysProxy') }
             if ($left -match '\.(UseDefaultCredentials|PreAuthenticate|AllowAutoRedirect)$') { $a.Right.Extent.Text | Should -Be '$false' }
         }
         $text = & $script:codeText (Join-Path $script:srcRoot 'Probes\WebProbes.ps1')
@@ -156,8 +158,21 @@ Describe 'NDES requests: nothing else in the source can send anything to a NDES 
 Describe 'NDES requests: what a server really receives' {
     BeforeEach { & $script:setOk; $script:server.Log.Clear() }
 
-    It 'receives exactly the three allowed anonymous GET requests: no credentials, no body, no other path' {
+    It 'by default sends only GetCACaps and GetCACert: the admin request is opt-in because it can make an open admin page create a challenge password' {
         $r = & $script:probe
+        $r.Classification | Should -Be 'ConfirmedEndpoint'
+        $log = @($script:server.Log)
+        $log.Count | Should -Be 2
+        @($log | ForEach-Object { $_.Path } | Sort-Object) | Should -Be @($script:capsPath, $script:certPath | Sort-Object)
+        @($log | Where-Object { $_.Path -like '*mscep_admin*' }).Count | Should -Be 0
+        ((@($r.Findings)[0].Evidence) -join "`n") | Should -Match 'Admin page: not requested'
+        ((@($r.Findings)[0].Evidence) -join "`n") | Should -Match 'HTTP proxy: none \(direct connection\)'
+        $direct = InModuleScope MspkiHealthCheck -Parameters @{ B = $script:b } { param($B) Reset-MspkiProbeCache; Invoke-MspkiNdesProbe -HostName '127.0.0.1' -Scheme http -Port ([uri]$B).Port -TimeoutMs 3000 }
+        $direct.AdminAnonymous | Should -BeNullOrEmpty
+    }
+
+    It 'with -IncludeNdesAdminProbe receives exactly the three allowed anonymous GET requests: no credentials, no body, no other path' {
+        $r = & $script:probe -IncludeAdmin
         $r.Classification | Should -Be 'ConfirmedEndpoint'
         $log = @($script:server.Log)
         $log.Count | Should -Be 3
@@ -174,7 +189,7 @@ Describe 'NDES requests: what a server really receives' {
         $script:routes[$script:capsPath] = @{ Status = 302; Body = @(); Headers = @{ Location = '/certsrv/mscep/mscep.dll?operation=PKIOperation&message=x' } }
         $script:routes[$script:certPath] = @{ Status = 301; Body = @(); Headers = @{ Location = '/elsewhere' } }
         $script:routes[$script:adminPath] = @{ Status = 302; Body = @(); Headers = @{ Location = '/certsrv/mscep_admin/login' } }
-        $r = & $script:probe
+        $r = & $script:probe -IncludeAdmin
         $log = @($script:server.Log)
         $log.Count | Should -Be 3
         @($log | ForEach-Object { $_.Path } | Where-Object { $script:allowedPaths -notcontains $_ }) | Should -BeNullOrEmpty
@@ -198,7 +213,7 @@ Describe 'NDES requests: what a server really receives' {
 
     It 'never reads the body of the admin page, and reports an anonymous HTTP 200 as a High finding without echoing it' {
         $script:routes[$script:adminPath] = @{ Status = 200; Body = [System.Text.Encoding]::ASCII.GetBytes('Enrollment challenge password: SECRET-CHALLENGE-123'); Headers = @{ 'Content-Type' = 'text/html' } }
-        $r = & $script:probe
+        $r = & $script:probe -IncludeAdmin
         $risk = @($r.Findings | Where-Object { $_.StatusCode -eq 'CONFIG_RISK' })
         $risk.Count | Should -Be 1
         $risk[0].Severity | Should -Be 'High'
@@ -210,15 +225,28 @@ Describe 'NDES requests: what a server really receives' {
         $direct.Bytes | Should -BeNullOrEmpty
     }
 
-    It 'treats HTTP 401 on the admin page as proof that it exists and records that no credentials were sent' {
+    It 'does not confirm a NDES endpoint from an anonymous HTTP 401 on the admin path alone (IIS answers 401 for any path below a protected site)' {
         $script:routes.Remove($script:capsPath); $script:routes.Remove($script:certPath)
-        $r = & $script:probe
-        $r.Classification | Should -Be 'ConfirmedEndpoint'
+        $r = & $script:probe -IncludeAdmin
+        $r.Confirmed | Should -BeFalse
+        $r.Classification | Should -Be 'ReferencedEndpoint'
         $f = @($r.Findings)[0]
-        $f.Confidence | Should -Be 'Confirmed'
-        ($f.Evidence -join "`n") | Should -Match 'Admin page \(anonymous request\): HTTP 401: the page exists'
+        $f.Confidence | Should -Not -Be 'Confirmed'
+        $f.Status | Should -Not -Be 'Pass'
+        ($f.Evidence -join "`n") | Should -Match 'Admin page \(anonymous request\): HTTP 401: something on this host asks for authentication'
+        ($f.Evidence -join "`n") | Should -Match 'does not confirm NDES'
         ($f.Evidence -join "`n") | Should -Match 'No credentials were sent and the body was not read'
         ($f.Evidence -join "`n") | Should -Match 'GetCACaps: HTTP 404'
+        $f.Notes | Should -Match 'every path below a protected site'
+    }
+
+    It 'reports a 200 answer that is not a SCEP capability list as CONTENT_WRONG_TYPE, not as a retrieval failure' {
+        $script:routes[$script:capsPath] = @{ Status = 200; Body = [System.Text.Encoding]::ASCII.GetBytes('<html>welcome</html>'); Headers = @{ 'Content-Type' = 'text/html' } }
+        $script:routes.Remove($script:certPath)
+        $r = & $script:probe 'Probable'
+        $r.Confirmed | Should -BeFalse
+        @($r.Findings)[0].StatusCode | Should -Be 'CONTENT_WRONG_TYPE'
+        @($r.Findings)[0].Status | Should -Be 'Information'
     }
 
     It 'reads the SCEP capabilities and the returned certificates (public data) and warns about an expired one' {
@@ -364,6 +392,16 @@ Describe 'NDES analysis' {
         $nd[0].StatusCode | Should -Be 'NOT_DISCOVERED'
         $nd[0].Notes | Should -Match 'does not prove'
         @($r.Hosts).Count | Should -Be 0
+        # No CA database could be read here, so the negative has no basis: it is Unknown, never Confirmed.
+        $nd[0].Confidence | Should -Be 'Unknown'
+    }
+
+    It 'calls NotDiscovered only Inferred (never Confirmed) even when a CA database was read and showed no NDES template rows' {
+        Mock -ModuleName MspkiHealthCheck Get-MspkiNdesCaEvidence { [pscustomobject]@{ Rows = @(); Read = $true; Findings = @() } }
+        $r = & $script:run (& $script:disc @($script:caObj))
+        $nd = @($r.Findings | Where-Object { $_.Message -like 'Classification NotDiscovered*' })
+        $nd.Count | Should -Be 1
+        $nd[0].Confidence | Should -Be 'Inferred'
     }
 
     It 'probes a SCEP URL that another lead references (ReferencedEndpoint) and nothing else' {
@@ -376,7 +414,7 @@ Describe 'NDES analysis' {
         ($f.Evidence -join "`n") | Should -Match 'Referenced URL: .*/certsrv/mscep/mscep.dll'
         $f.Sources | Should -Contain 'Policy:CEP:HKLM'
         $log = @($script:server.Log)
-        $log.Count | Should -Be 3
+        $log.Count | Should -Be 2
         @($log | ForEach-Object { $_.Path } | Where-Object { $script:allowedPaths -notcontains $_ }) | Should -BeNullOrEmpty
     }
 

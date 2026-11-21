@@ -10,6 +10,10 @@
   tracked files and the full history for names, e-mail addresses and IP addresses. No code was changed.
 - **Test run:** 572 tests, 572 passed, 0 failed.
 
+> **Status after the fix session:** H1-H3 and M1-M11 are fixed, each with tests that fail on the audited code; see
+> `docs/PROGRESS.md`. The Low findings (L1-L11) are still open and listed there. This document is the audit as it stood at
+> commit `b136283`; the line numbers below refer to that commit.
+
 ## Summary
 
 | Rank | Count | Main themes |

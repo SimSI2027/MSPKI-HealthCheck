@@ -84,7 +84,8 @@ function Add-MspkiLead {
         [string]$Origin = '',
         [int]$Depth = 0,
         [string]$RelatedCA = '',
-        [string]$Confidence = 'Referenced'
+        [string]$Confidence = 'Referenced',
+        [string[]]$Carrier = @()
     )
     $n = ConvertTo-MspkiNormalizedUrl -Url $Url
     if (-not $n.Valid) {
@@ -107,6 +108,7 @@ function Add-MspkiLead {
         if (-not $l.Sources.Contains($Source)) { [void]$l.Sources.Add($Source) }
         if ($Origin -and -not $l.Origins.Contains($Origin)) { [void]$l.Origins.Add($Origin) }
         if ($RelatedCA -and -not $l.RelatedCAs.Contains($RelatedCA)) { [void]$l.RelatedCAs.Add($RelatedCA) }
+        foreach ($c in $Carrier) { if ($c -and -not $l.Carriers.Contains($c)) { [void]$l.Carriers.Add($c) } }
         if (-not $l.Variants.Contains($n.Url)) { [void]$l.Variants.Add($n.Url) }
         if ($Depth -lt $l.Depth) { $l.Depth = $Depth }
         return $l
@@ -137,7 +139,9 @@ function Add-MspkiLead {
         Origins    = (New-Object System.Collections.ArrayList)
         RelatedCAs = (New-Object System.Collections.ArrayList)
         Aliases    = (New-Object System.Collections.ArrayList)
+        Carriers   = (New-Object System.Collections.ArrayList)
     }
+    foreach ($c in $Carrier) { if ($c -and -not $lead.Carriers.Contains($c)) { [void]$lead.Carriers.Add($c) } }
     [void]$lead.Variants.Add($n.Url)
     [void]$lead.Sources.Add($Source)
     if ($Origin) { [void]$lead.Origins.Add($Origin) }
@@ -246,6 +250,7 @@ function Merge-MspkiShortNameLead {
                 foreach ($x in $short.Sources) { if (-not $fq.Sources.Contains($x)) { [void]$fq.Sources.Add($x) } }
                 foreach ($x in $short.Origins) { if (-not $fq.Origins.Contains($x)) { [void]$fq.Origins.Add($x) } }
                 foreach ($x in $short.RelatedCAs) { if (-not $fq.RelatedCAs.Contains($x)) { [void]$fq.RelatedCAs.Add($x) } }
+                foreach ($x in $short.Carriers) { if (-not $fq.Carriers.Contains($x)) { [void]$fq.Carriers.Add($x) } }
                 if ($short.Depth -lt $fq.Depth) { $fq.Depth = $short.Depth }
                 foreach ($u in $short.Variants) {
                     $a = '{0} (same host as {1}: {2})' -f $u, $fq.Host, $proof.Proof
@@ -280,8 +285,18 @@ function ConvertTo-MspkiLeadExport {
         Id = $Lead.Id; Kind = $Lead.Kind; UrlType = $Lead.UrlType; Url = $Lead.Url; Host = $Lead.Host; Scope = $Lead.Scope
         Depth = $Lead.Depth; Confidence = $Lead.Confidence; Variants = [string[]]@($Lead.Variants)
         Sources = [string[]]@($Lead.Sources); Origins = [string[]]@($Lead.Origins); RelatedCAs = [string[]]@($Lead.RelatedCAs)
-        Aliases = [string[]]@($Lead.Aliases)
+        Aliases = [string[]]@($Lead.Aliases); Carriers = [string[]]@($Lead.Carriers)
     }
+}
+
+function Get-MspkiLeadLocalDomain {
+    <#
+    .SYNOPSIS
+    The DNS names of this forest's own domains, as given to the lead registry (used for the scope of a host).
+    #>
+    [CmdletBinding()]
+    param()
+    return , @($script:MspkiLeadSettings.LocalDomains)
 }
 
 function Register-MspkiDiscoveredLead {
@@ -309,9 +324,13 @@ function Register-MspkiDiscoveredLead {
         if ($null -ne $ca.Properties) {
             foreach ($s in @($ca.Properties.SigningCertificates)) {
                 $origin = 'URLs the CA {0} writes into issued certificates (signing certificate {1})' -f $ca.Name, $s.Index
-                foreach ($u in @($s.CdpUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'CDP' -Source ('CA:{0}:CertCdpUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name)) { $n++ } }
-                foreach ($u in @($s.AiaUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'AIA' -Source ('CA:{0}:CertAiaUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name)) { $n++ } }
-                foreach ($u in @($s.OcspUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'OCSP' -Source ('CA:{0}:CertAiaOcspUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name)) { $n++ } }
+                # The newest signing certificate is the one the CA uses now; the URLs of an older index are historical.
+                $state = 'Historical'
+                if ([int]$s.Index -eq ([int]$ca.Properties.SigningCertCount - 1)) { $state = 'Current' }
+                $carrier = @(('CAIndex|{0}|{1}|{2}' -f $ca.Name, $s.Index, $state))
+                foreach ($u in @($s.CdpUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'CDP' -Source ('CA:{0}:CertCdpUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name -Carrier $carrier)) { $n++ } }
+                foreach ($u in @($s.AiaUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'AIA' -Source ('CA:{0}:CertAiaUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name -Carrier $carrier)) { $n++ } }
+                foreach ($u in @($s.OcspUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'OCSP' -Source ('CA:{0}:CertAiaOcspUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name -Carrier $carrier)) { $n++ } }
             }
         }
         foreach ($e in @($ca.EnrollmentServers)) {

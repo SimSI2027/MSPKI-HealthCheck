@@ -19,6 +19,14 @@ Base timeout for each network probe. Default 5.
 .PARAMETER SkipNetwork
 Read AD only; do not contact CAs or other hosts.
 
+.PARAMETER UseSystemProxy
+Lets the HTTP probes use the system proxy settings, without credentials. By default the probes connect directly: no proxy and no
+automatic proxy detection (WPAD) is involved.
+
+.PARAMETER IncludeNdesAdminProbe
+Also sends the one anonymous request to the NDES admin page. Off by default: an admin page that is wrongly open to anonymous users
+creates a challenge password on the server when it is requested, so that request is a write to a remote system.
+
 .PARAMETER RootCaWarningDays
 Days before a root CA certificate expires when a warning is raised (default 730; critical default 365).
 
@@ -44,6 +52,8 @@ param(
     [string]$OutputPath,
     [ValidateRange(1, 120)][int]$TimeoutSeconds = 5,
     [switch]$SkipNetwork,
+    [switch]$UseSystemProxy,
+    [switch]$IncludeNdesAdminProbe,
     [ValidateRange(1, 36500)][int]$RootCaWarningDays = 730,
     [ValidateRange(1, 36500)][int]$RootCaCriticalDays = 365,
     [ValidateRange(1, 36500)][int]$IssuingCaWarningDays = 180,
@@ -66,6 +76,7 @@ catch {
 
 $run = @{
     OutputPath = $OutputPath; TimeoutSeconds = $TimeoutSeconds; SkipNetwork = $SkipNetwork
+    UseSystemProxy = $UseSystemProxy; IncludeNdesAdminProbe = $IncludeNdesAdminProbe
     RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays
     IssuingCaWarningDays = $IssuingCaWarningDays; IssuingCaCriticalDays = $IssuingCaCriticalDays
     RootCrlWarningPercent = $RootCrlWarningPercent; RootCrlCriticalPercent = $RootCrlCriticalPercent

@@ -144,7 +144,7 @@ function Get-MspkiTemplatePatternMatch {
 
     # Pattern ESC1: enrollee supplies the subject, certificate usable to sign in, broad enroll, no approval or signatures.
     if ($f.BroadEnroll.Count -gt 0 -and $f.Supplies.Count -gt 0 -and $f.ClientAuthCapable -and -not $f.ManagerApproval -and $f.RaSignatures -eq 0) {
-        [void]$found.Add([pscustomobject]@{ Rule = 'ESC1'; Severity = 'High'
+        [void]$found.Add([pscustomobject]@{ Rule = 'ESC1'; Principals = $f.BroadEnroll; Severity = 'High'
             Title = 'the enrollee supplies the subject of a certificate that can be used to sign in, and a broad group can enroll without approval'
             Conditions = @((& $enrollText), ('The enrollee supplies the {0}' -f ($f.Supplies -join ' and the ')),
                 ('EKU allows client authentication: {0}' -f $f.EkuText), $noApprovalText, $noSigText)
@@ -152,7 +152,7 @@ function Get-MspkiTemplatePatternMatch {
     }
     # Pattern ESC2: any-purpose or no EKU, broad enroll, no approval or signatures.
     if ($f.BroadEnroll.Count -gt 0 -and ($f.AnyPurpose -or $f.NoEku) -and -not $f.ManagerApproval -and $f.RaSignatures -eq 0) {
-        [void]$found.Add([pscustomobject]@{ Rule = 'ESC2'; Severity = 'High'
+        [void]$found.Add([pscustomobject]@{ Rule = 'ESC2'; Principals = $f.BroadEnroll; Severity = 'High'
             Title = 'the certificate is valid for any purpose (Any Purpose or no EKU) and a broad group can enroll without approval'
             Conditions = @((& $enrollText), ('EKU is Any Purpose or absent: {0}' -f $f.EkuText), $noApprovalText, $noSigText)
             Notes = 'A certificate valid for any purpose can also act as a certificate request agent or a subordinate CA certificate, depending on its other settings.' })
@@ -171,7 +171,7 @@ function Get-MspkiTemplatePatternMatch {
             $oc = @($others | ForEach-Object {
                 'Another published template accepts enrollment-agent signatures and allows client authentication: {0} (msPKI-RA-Signature = {1}; manager approval: {2}; broad enroll: {3})' -f `
                     $_.Template.Name, $_.Facts.RaSignatures, $(if ($_.Facts.ManagerApproval) { 'required' } else { 'not required' }), $(if ($_.Facts.BroadEnroll.Count -gt 0) { 'yes' } else { 'no' }) })
-            [void]$found.Add([pscustomobject]@{ Rule = 'ESC3'; Severity = 'High'
+            [void]$found.Add([pscustomobject]@{ Rule = 'ESC3'; Principals = $f.BroadEnroll; Severity = 'High'
                 Title = 'a broad group can enroll for a Certificate Request Agent certificate without approval, and another published template accepts that agent''s signature'
                 Conditions = @((& $enrollText), ('EKU includes Certificate Request Agent: {0}' -f $f.EkuText), $noApprovalText, ('Authorised signatures on this template: {0}' -f $f.RaSignatures)) + $oc
                 Notes = 'Enrollment agent restrictions configured on the CA cannot be read from here and may limit this.' })
@@ -179,7 +179,7 @@ function Get-MspkiTemplatePatternMatch {
     }
     # Pattern ESC4: a broad group has write, owner or full-control rights on the template object.
     if ($f.BroadWrite.Count -gt 0) {
-        [void]$found.Add([pscustomobject]@{ Rule = 'ESC4'; Severity = 'High'
+        [void]$found.Add([pscustomobject]@{ Rule = 'ESC4'; Principals = $f.BroadWrite; Severity = 'High'
             Title = 'a broad group has write, owner or full-control rights on the template object'
             Conditions = @(('Broad group with write-type rights on the template: {0}' -f (Get-MspkiPrincipalText $f.BroadWrite)))
             Notes = 'Anyone who can change the template can change who may enroll and what the certificate is valid for.' })
@@ -187,7 +187,7 @@ function Get-MspkiTemplatePatternMatch {
     # Pattern ESC9: no security extension, usable to sign in, broad enroll. Review only: strong certificate binding on the
     # domain controllers cannot be confirmed from here.
     if ($f.NoSecurityExt -and $f.ClientAuthCapable -and $f.BroadEnroll.Count -gt 0) {
-        [void]$found.Add([pscustomobject]@{ Rule = 'ESC9'; Severity = 'ReviewRequired'
+        [void]$found.Add([pscustomobject]@{ Rule = 'ESC9'; Principals = $f.BroadEnroll; Severity = 'ReviewRequired'
             Title = 'certificates from this template carry no security identifier extension, can be used to sign in, and a broad group can enroll'
             Conditions = @('The template sets CT_FLAG_NO_SECURITY_EXTENSION (msPKI-Enrollment-Flag)', ('EKU allows client authentication: {0}' -f $f.EkuText), (& $enrollText))
             Notes = 'Whether this matters depends on certificate-binding enforcement on the domain controllers (registry settings that are not read here), so it is marked for review.' })
@@ -200,7 +200,7 @@ function Get-MspkiTemplatePatternMatch {
                 $o = $OidLinks[[string]$_]
                 $gr = 'resolved'; if ($o.GroupResolved -ne $true) { $gr = 'not looked up' }
                 'Issuance policy {0} ({1}) is linked by msDS-OIDToGroupLink to {2} (group {3})' -f $o.Oid, $o.DisplayName, $o.GroupLink, $gr })
-            [void]$found.Add([pscustomobject]@{ Rule = 'ESC13'; Severity = 'Medium'
+            [void]$found.Add([pscustomobject]@{ Rule = 'ESC13'; Principals = $f.BroadEnroll; Severity = 'Medium'
                 Title = 'the template carries an issuance policy that is linked to a group, and a broad group can enroll'
                 Conditions = @($lc) + @((& $enrollText), ('Other settings (for the reviewer): client authentication EKU {0}; manager approval {1}; authorised signatures {2}' -f $f.ClientAuthCapable, $f.ManagerApproval, $f.RaSignatures))
                 Notes = 'A certificate with this issuance policy can add the linked group to a Kerberos ticket. Review the group''s members and rights.'; Extra = 'AD:OID:msDS-OIDToGroupLink' })
@@ -241,11 +241,23 @@ function Test-MspkiTemplateEnrollmentRisk {
         $allFacts[([string]$t.Name).ToLowerInvariant()] = @{ Template = $t; Facts = (Get-MspkiTemplateFact -Template $t) }
         if ($t.AclError) { [void]$noAcl.Add($t) }
     }
-    if ($noAcl.Count -gt 0) {
-        [void]$findings.Add((New-MspkiFinding @common -Target 'Certificate Templates' -Status 'Warning' -StatusCode 'RETRIEVAL_FAIL' -Confidence 'Confirmed' `
+    # Two different reasons, two different codes: the descriptor was not returned (the account lacks the right to read it) is a
+    # permission matter; a descriptor that came back but could not be parsed is a limit of this tool.
+    $noAclPerm = @($noAcl | Where-Object { $_.AclErrorClass -eq 'NotReturned' })
+    $noAclParse = @($noAcl | Where-Object { $_.AclErrorClass -ne 'NotReturned' })
+    if ($noAclPerm.Count -gt 0) {
+        [void]$findings.Add((New-MspkiFinding @common -Target 'Certificate Templates' -Status 'Skipped' -StatusCode 'PERMISSION_DENIED' -Confidence 'Confirmed' `
+            -Sources 'AD:CertificateTemplates' -Layers @{ DiscoveryStatus = 'PermissionDenied' } `
+            -Message ('The permissions of {0} template(s) were not returned by the directory, so the enrollment and write patterns could not be evaluated for them.' -f $noAclPerm.Count) `
+            -Evidence @($noAclPerm | ForEach-Object { 'Template {0}: {1}' -f $_.Name, $_.AclError }) `
+            -Notes 'The account running the tool may lack the right to read the security descriptor of these template objects.'))
+    }
+    if ($noAclParse.Count -gt 0) {
+        [void]$findings.Add((New-MspkiFinding @common -Target 'Certificate Templates' -Status 'Warning' -StatusCode 'INTERNAL_ERROR' -Confidence 'Confirmed' `
             -Sources 'AD:CertificateTemplates' -Layers @{ DiscoveryStatus = 'Warning' } `
-            -Message ('The permissions of {0} template(s) could not be read, so the enrollment and write patterns could not be evaluated for them.' -f $noAcl.Count) `
-            -Evidence @($noAcl | ForEach-Object { 'Template {0}: {1}' -f $_.Name, $_.AclError })))
+            -Message ('The permissions of {0} template(s) could not be read by this tool, so the enrollment and write patterns could not be evaluated for them.' -f $noAclParse.Count) `
+            -Evidence @($noAclParse | ForEach-Object { 'Template {0}: {1}' -f $_.Name, $_.AclError }) `
+            -Notes 'The security descriptor was returned but could not be decoded. This is a limit or a fault of this tool, not a finding about the template.'))
     }
 
     $matched = 0
@@ -274,6 +286,13 @@ function Test-MspkiTemplateEnrollmentRisk {
             if ($h.Extra) { $src += $h.Extra }
             $conf = 'Referenced'
             if ($isPub -and $viaCa) { $conf = 'Confirmed' }
+            # A Deny ACE for the same principal may cancel the grant that matched, and effective access is not computed: such a
+            # match is a review item that is only inferred, never a confirmed failure.
+            $denied = @(@($h.Principals) | Where-Object { $_ -and $_.Denied })
+            if ($denied.Count -gt 0) {
+                $sev = 'ReviewRequired'; $status = $script:MspkiSeverityStatus[$sev]; $conf = 'Inferred'
+                $ev += ('A Deny ACE exists for the same principal ({0}). Effective access (the order and combination of the ACEs, group nesting) is not computed, so this match may not apply and is only a review item.' -f (($denied | ForEach-Object { $_.Principal }) -join ', '))
+            }
             $prefix = ''
             if (-not $isPub) { $prefix = '[Unpublished] ' }
             $msg = '{0}Template {1} meets every condition of review pattern {2}: {3}.' -f $prefix, $t.Name, $h.Rule, $h.Title

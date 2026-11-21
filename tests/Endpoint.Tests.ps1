@@ -60,7 +60,8 @@ Describe 'CRL decoding and freshness' {
 }
 
 Describe 'Test-MspkiCrlHealth' {
-    BeforeEach { InModuleScope MspkiHealthCheck { [void](Initialize-MspkiRun) } }
+    # The forest's own domain is registered, so pki.corp.example.test is Local and failures are graded in full (see Audit.Tests.ps1 for the scope rule).
+    BeforeEach { InModuleScope MspkiHealthCheck { [void](Initialize-MspkiRun); Reset-MspkiLeadRegistry -LocalDomains @('corp.example.test') } }
 
     It 'confirms a CRL whose signature verifies and uses root thresholds for a root issuer' {
         $b = New-TestCrl -Issuer $script:root
@@ -193,7 +194,7 @@ Describe 'HTTP probes against a loopback test server' {
             (Invoke-MspkiHttpGet -Url "$B/denied.crl").Code | Should -Be 'HTTP_401_403'
             (Invoke-MspkiHttpGet -Url "$B/broken.crl").Code | Should -Be 'HTTP_500'
             $big = Invoke-MspkiHttpGet -Url "$B/big.crl" -MaxBytes 1024
-            $big.Code | Should -Be 'RETRIEVAL_FAIL'
+            $big.Code | Should -Be 'CONTENT_WRONG_TYPE'
             $big.Bytes | Should -BeNullOrEmpty
             (Invoke-MspkiHttpGet -Url "$B/root.crl").FromCache | Should -BeTrue
         }
@@ -210,9 +211,15 @@ Describe 'HTTP probes against a loopback test server' {
         $ocsp = & $script:newLead "$b/ocsp" 'OCSP'
         InModuleScope MspkiHealthCheck -Parameters @{ A = $aia; Bad = $bad; C = $cdp; M = $miss; O = $ocsp; Root = $script:root.Public } {
             param($A, $Bad, $C, $M, $O, $Root)
-            $ra = Test-MspkiLeadEndpoint -Lead $A -Url $A.Url -ExpectedIssuer @($Root.Subject)
+            # Same name alone is not proof: without a way to verify the key the result is Pass but only Referenced, and nothing is followed.
+            $rn = Test-MspkiLeadEndpoint -Lead $A -Url $A.Url -ExpectedIssuer @($Root.Subject)
+            $rn.Findings[0].Status | Should -Be 'Pass'
+            $rn.Findings[0].Confidence | Should -Be 'Referenced'
+            $rn.Validated | Should -BeFalse
+            $ra = Test-MspkiLeadEndpoint -Lead $A -Url $A.Url -ExpectedIssuer @($Root.Subject) -KnownCertificate @{ $Root.Thumbprint = $Root }
             $ra.Findings[0].Status | Should -Be 'Pass'
             $ra.Findings[0].Confidence | Should -Be 'Confirmed'
+            $ra.Validated | Should -BeTrue
             $ra.Findings[0].DnsStatus | Should -Be 'Pass'
             $ra.Findings[0].TcpStatus | Should -Be 'Pass'
             $ra.Findings[0].HttpStatus | Should -Be 'Pass'
