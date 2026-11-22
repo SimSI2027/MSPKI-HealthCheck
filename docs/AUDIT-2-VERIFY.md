@@ -428,6 +428,7 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 | N3 | Fixed | `5cdbc23` | `tests/Audit2.BatchE.Size.Tests.ps1`: "Audit 2 N3: an AIA download above the size cap is not an Information / Confirmed result" (3) | against `25ae790`: 3 ran, 2 red, both behavioural: the AIA answer above the cap was Information (expected Fail), and the message named the 64 MB CRL limit instead of the 10 MB that applied. The negative case (a 10.6 MB CRL is read under the 64 MB cap) passes on both |
 | N4 | Fixed | `72646fb` | `tests/Audit2.BatchE.N4.Tests.ps1`: "Audit 2 N4: a 200 answer from a CES or CEP is Confirmed only for a valid service response" (9); `tests/EnrollmentServices.Tests.ps1` updated | against `5cdbc23`: 9 ran, 8 red, all behavioural: an HTML portal, XML that only contains the words, `definitions` in the wrong namespace, a cut-off WSDL and a DTD document were all Pass / Confirmed / responding (expected Inferred, not responding); both SOAP faults were a Warning because they contain none of the five words (expected Confirmed); the evidence did not say why. The real WSDL passes on both |
 | N7 | Fixed | `32da0b8` | `tests/Hygiene.Tests.ps1`: "Audit 2 N7: the hygiene patterns match the rules they guard" (27 tests: 10 certificate-building forms, 1 text pattern, 12 file-writing forms, 1 store-open self-test, 3 scans of src); `tests/IntuneConnector.Tests.ps1` updated | the tests were written before the fix, with the old patterns still in place: 6 red, all behavioural. The old certificate-loading text pattern did not match `[X509Certificate2]::new`; the old write pattern missed `File.Create`, `OpenWrite`, `.Save(` and `Tee-Object` (4 cases); the store scan found `IntuneConnector.ps1` opened without `OpenExistingOnly`. The AST scans of the code files pass from the start (nothing in `src` builds a certificate or redirects to a file outside the allowed places), so they guard against new code, not against old behaviour |
+| M14 remainder | Fixed (check); history **not** clean | `M14_HASH` | `tests/Hygiene.Tests.ps1`: "Audit 2 M14: the whole history is checked ..." (8: 6 planted-history self-tests, the real-history scan, and the private-list self-test; plus the private-list scan, which runs only with `MSPKI_PRIVATE_NAMES_FILE`) | planted-history self-tests run with the old logic (author and message only): 3 red, all behavioural (a name in the committer fields, in an old commits file, in an old path). On this repository: pattern scan 0 hits; private list 2 of 19 names in the content of 47 of 78 commits (see above) |
 
 ### N1: what changed
 - `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
@@ -565,6 +566,31 @@ counts the tests that failed because of the old behaviour; "signature" counts th
   `X509Store.Open(...OpenFlags...)` in `src` and requires `OpenExistingOnly`; it was red on that one line.
 - The history check of N7 is item 2 (M14) of this batch.
 - Lab run as a normal user: 99 findings, exit 6, identical histogram.
+
+### M14 remainder (Batch E): the history check
+- `tests/Hygiene.Tests.ps1`, "Audit 2 M14: the whole history is checked ...": `scanHistory` checks **every commit on every ref** (`git rev-list --all`):
+  - **author and committer** (name and e-mail of both): each must be the project identity (name `ED`, GitHub noreply address); the old test checked
+    the author only (the committer fields were only searched for host-like text);
+  - **messages** (subject and body);
+  - **file paths** of every commit (`git log --name-only`), because a name can sit in a path that a later commit removed;
+  - the **full content of every file in every commit**: `git grep -a -h -o -P` for the host, IP and e-mail patterns of the working-tree scan,
+    over the revisions in batches of 40, text and binary files alike. The old test never read old file content.
+- **Counts only.** The matches are collected inside the helper and never leave it; the result and the failure message hold numbers
+  ("commits scanned 78; identities 0; distinct names in messages 0, in file paths 0, in file content 0"). A test shows the result holds no
+  match text. The old history `It` was replaced by this one.
+- **Private list (optional).** `MSPKI_PRIVATE_NAMES_FILE` may name a file of names, one per line, kept outside the repository; a second test
+  counts them per place (content, messages, paths, identities) and the commits affected. It is skipped when the variable is not set, and the
+  tool never needs it. Its logic is covered by a self-test on a planted history.
+- Self-tests on planted repositories (in `$TestDrive`): a name in the committer fields only, a name in a file of an old commit that a later
+  commit removed, a name in an old path, a name in a message, a clean history, and "counts only". Run first with the old logic
+  (author and message only): 3 red, all behavioural (committer, old content, old path); the message, clean and counts-only cases passed on
+  both, as they should.
+- **Result on this repository (counts only):** the pattern scan finds nothing (78 commits; identities 0, messages 0, paths 0, content 0). The
+  patterns look for host names with a top-level domain, IP addresses and e-mail addresses. **The private-list check does find lab names:
+  2 of the 19 names on the lab list are in the file content of 47 of 78 commits** (the older ones, commits 11 to 57 counted from the
+  oldest); none in HEAD, in any message, path or identity. They are the short names that the fixture rename (`b0a352a`) removed from the
+  current tree; the pattern scan cannot know a short name. **Removing them needs a history rewrite and a force push of a public
+  repository. That is the owner's decision and was not done.**
 
 ### Fix log 2: runs
 - Timed full suite before each commit (Pester 5.7.1, Windows PowerShell 5.1): N1 1039 passed; N5 1043; N6 1064 run, 8 red (7 were the

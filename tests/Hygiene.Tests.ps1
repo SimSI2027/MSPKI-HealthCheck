@@ -28,6 +28,15 @@ BeforeAll {
         return $joined
     }
 
+    # The patterns of the repository scans (files, and the whole history in the Audit 2 M14 tests below).
+        $script:hostCi = '(?i)(?<![\w$.\\-])((?:[a-z0-9-]+\.)+(?:com|net|org|local|lan|corp|internal|intra|gov|edu|io|uk|de|nl|ie|eu|fr|ch|be|au|info|biz|cloud|online|tech|test|lab))\b'
+        $script:hostLc = '(?-i)(?<![\w$.\\-])((?:[a-z0-9-]+\.)+(?:domain|ad|ca|co|us|int|home|site|priv|private))\b'
+        $script:hostAllowed = '(?i)^((?:[a-z0-9-]+\.)*example\.test|system\.(?:[a-z]+\.)*(?:io|net)|asp\.net|learn\.microsoft\.com|docs\.microsoft\.com|github\.com|claude\.com|anthropic\.com|www\.w3\.org|schemas\.xmlsoap\.org|schemas\.microsoft\.com)$'
+        $script:ipv4 = '(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])'
+        $script:ipAllowed = '^(127\.|0\.0\.0\.0$|192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|2\.5\.29\.|2\.5\.4\.)'
+        $script:email = '(?i)[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+'
+        $script:emailAllowed = '(?i)(@(?:[a-z0-9-]+\.)*example\.test|^noreply@anthropic\.com|@users\.noreply\.github\.com)$'
+
     $script:forbidden = [ordered]@{
         'Invoke-Expression'            = '(?i)Invoke-Expression|\biex\b'
         # Only "Add-Type -AssemblyName <in-box WPF assembly>" is allowed (CLAUDE.md rule 6), plus System.Web.Extensions in JsonReader.ps1
@@ -137,13 +146,6 @@ Describe 'Public repository hygiene' {
         $ext = @('.ps1', '.psm1', '.psd1', '.md', '.json', '.txt', '.xml', '.xaml', '.html', '.css', '.csv', '.yml', '.yaml', '')
         $script:textFiles = @(Get-ChildItem -LiteralPath $script:RepoRoot -Recurse -File -Force |
             Where-Object { $_.FullName -notmatch $skip -and ($ext -contains $_.Extension -or $_.Name -eq '.gitignore') })
-        $script:hostCi = '(?i)(?<![\w$.\\-])((?:[a-z0-9-]+\.)+(?:com|net|org|local|lan|corp|internal|intra|gov|edu|io|uk|de|nl|ie|eu|fr|ch|be|au|info|biz|cloud|online|tech|test|lab))\b'
-        $script:hostLc = '(?-i)(?<![\w$.\\-])((?:[a-z0-9-]+\.)+(?:domain|ad|ca|co|us|int|home|site|priv|private))\b'
-        $script:hostAllowed = '(?i)^((?:[a-z0-9-]+\.)*example\.test|system\.(?:[a-z]+\.)*(?:io|net)|asp\.net|learn\.microsoft\.com|docs\.microsoft\.com|github\.com|claude\.com|anthropic\.com|www\.w3\.org|schemas\.xmlsoap\.org|schemas\.microsoft\.com)$'
-        $script:ipv4 = '(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])'
-        $script:ipAllowed = '^(127\.|0\.0\.0\.0$|192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|2\.5\.29\.|2\.5\.4\.)'
-        $script:email = '(?i)[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+'
-        $script:emailAllowed = '(?i)(@(?:[a-z0-9-]+\.)*example\.test|^noreply@anthropic\.com|@users\.noreply\.github\.com)$'
     }
 
     It 'finds text files to scan' { $script:textFiles.Count | Should -BeGreaterThan 10 }
@@ -217,29 +219,6 @@ Context 'Audit 2 M14: more of the hard rules are enforced by the hygiene tests' 
             if ($text -match $script:adsiWrite) { [void]$hits.Add('ADSI write: ' + $f.Name) }
             if ($text -match $script:itemInvoke -and $script:invokeItemAllowed -notcontains $f.Name) { [void]$hits.Add('Invoke-Item: ' + $f.Name) }
         }
-        $hits.Count | Should -Be 0 -Because ($hits -join '; ')
-    }
-
-    It 'every commit message and author in the history is free of real names, and the author is the noreply identity' -Skip:(-not ((Get-Command git -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) '.git')))) {
-        Push-Location $script:RepoRoot
-        try {
-            $log = @(& git log --all --format='%an|%ae|%cn|%ce|%s%n%b%n--END--' 2>$null)
-            $authors = @(& git log --all --format='%an|%ae|%cn|%ce' 2>$null | Sort-Object -Unique)
-        }
-        finally { Pop-Location }
-        $log.Count | Should -BeGreaterThan 10
-        foreach ($a in $authors) {
-            $p = $a -split '\|'
-            $p[0] | Should -Be 'ED'
-            $p[1] | Should -Match '@users\.noreply\.github\.com$'
-        }
-        $text = $log -join "`n"
-        $hits = New-Object System.Collections.ArrayList
-        foreach ($rx in @($script:hostCi, $script:hostLc)) {
-            foreach ($m in [regex]::Matches($text, $rx)) { if ($m.Groups[1].Value -notmatch $script:hostAllowed -and $m.Groups[1].Value -notmatch '^users\.noreply\.github\.com$') { [void]$hits.Add($m.Groups[1].Value) } }
-        }
-        foreach ($m in [regex]::Matches($text, $script:ipv4)) { if ($m.Value -notmatch $script:ipAllowed) { [void]$hits.Add($m.Value) } }
-        foreach ($m in [regex]::Matches($text, $script:email)) { if ($m.Value -notmatch $script:emailAllowed -and $m.Value -notmatch 'noreply@anthropic\.com') { [void]$hits.Add($m.Value) } }
         $hits.Count | Should -Be 0 -Because ($hits -join '; ')
     }
 }
@@ -387,5 +366,193 @@ Describe 'Audit 2 N7: the hygiene patterns match the rules they guard' {
         $hits = New-Object System.Collections.ArrayList
         foreach ($f in $files) { foreach ($s in @(Get-StoreOpenWithoutExistingOnly -Path $f.FullName)) { [void]$hits.Add(('{0}: {1}' -f $f.Name, $s)) } }
         $hits.Count | Should -Be 0 -Because ($hits -join '; ')
+    }
+}
+
+Describe 'Audit 2 M14: the whole history is checked, author and committer, messages and the content of every commit' {
+    BeforeAll {
+        $script:gitAvailable = [bool](Get-Command git -ErrorAction SilentlyContinue)
+        # Counts only. Nothing that matched is ever returned or printed: the hits can be real names, and the repository is public.
+        $script:scanHistory = {
+            param([string]$Repo)
+            $r = @{ Commits = 0; Identity = 0; Message = 0; Content = 0; Path = 0 }
+            $noreply = '@users\.noreply\.github\.com$'
+            # Which matches are real names: the same allowances as the scan of the working tree.
+            $isReal = {
+                param([string]$Kind, [string]$Value)
+                switch ($Kind) {
+                    'host' { return ($Value -notmatch $script:hostAllowed -and $Value -notmatch '^users\.noreply\.github\.com$') }
+                    'ip' { return ($Value -notmatch $script:ipAllowed) }
+                    default { return ($Value -notmatch $script:emailAllowed -and $Value -notmatch 'noreply@anthropic\.com') }
+                }
+            }
+            $inText = {
+                param([string]$Text)
+                $set = New-Object System.Collections.Generic.HashSet[string]
+                foreach ($rx in @($script:hostCi, $script:hostLc)) { foreach ($m in [regex]::Matches($Text, $rx)) { if (& $isReal 'host' $m.Groups[1].Value) { [void]$set.Add($m.Groups[1].Value) } } }
+                foreach ($m in [regex]::Matches($Text, $script:ipv4)) { if (& $isReal 'ip' $m.Value) { [void]$set.Add($m.Value) } }
+                foreach ($m in [regex]::Matches($Text, $script:email)) { if (& $isReal 'email' $m.Value) { [void]$set.Add($m.Value) } }
+                return $set.Count
+            }
+            Push-Location $Repo
+            try {
+                $revs = @(& git rev-list --all 2>$null)
+                $r.Commits = $revs.Count
+                # Author AND committer: both must be the project identity (name ED, GitHub noreply address).
+                foreach ($line in @(& git log --all --format='%an|%ae|%cn|%ce' 2>$null | Sort-Object -Unique)) {
+                    $p = $line -split '\|'
+                    if ($p.Count -ne 4 -or $p[0] -ne 'ED' -or $p[2] -ne 'ED' -or $p[1] -notmatch $noreply -or $p[3] -notmatch $noreply) { $r.Identity++ }
+                }
+                # Messages, subject and body of every commit on every ref.
+                $r.Message = & $inText ((@(& git log --all --format='%B' 2>$null)) -join "`n")
+                # File paths of every commit (a name can sit in a path that a later commit removed).
+                $r.Path = & $inText ((@(& git log --all --name-only --format= 2>$null | Sort-Object -Unique)) -join "`n")
+                # The full content of every file in every commit, found with git grep over the revisions (text and binary files).
+                # The matches are collected here and never leave this function; only the count does.
+                $found = New-Object System.Collections.Generic.HashSet[string]
+                $patterns = @(@('host', $script:hostCi), @('host', $script:hostLc), @('ip', $script:ipv4), @('email', $script:email))
+                for ($i = 0; $i -lt $revs.Count; $i += 40) {
+                    $batch = @($revs[$i..([math]::Min($i + 39, $revs.Count - 1))])
+                    foreach ($pt in $patterns) {
+                        foreach ($m in @(& git grep -a -h -o -P -e $pt[1] @batch -- 2>$null)) {
+                            if ($m -and (& $isReal $pt[0] ([string]$m))) { [void]$found.Add([string]$m) }
+                        }
+                    }
+                }
+                $r.Content = $found.Count
+            }
+            finally { Pop-Location }
+            return $r
+        }
+        $script:scanHistoryNames = {
+            param([string]$Repo, [string]$NamesFile)
+            $r = @{ Commits = 0; Names = 0; InContent = 0; InMessage = 0; InPath = 0; InIdentity = 0; CommitsWithContentHit = 0 }
+            $names = @([System.IO.File]::ReadAllLines($NamesFile) | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ -and -not $_.StartsWith('#') } | Sort-Object -Unique)
+            $r.Names = $names.Count
+            Push-Location $Repo
+            try {
+                $revs = @(& git rev-list --all 2>$null)
+                $r.Commits = $revs.Count
+                $ident = ((@(& git log --all --format='%an %ae %cn %ce' 2>$null)) -join "`n").ToLowerInvariant()
+                $msg = ((@(& git log --all --format='%B' 2>$null)) -join "`n").ToLowerInvariant()
+                $path = ((@(& git log --all --name-only --format= 2>$null)) -join "`n").ToLowerInvariant()
+                $commits = New-Object System.Collections.Generic.HashSet[string]
+                foreach ($n in $names) {
+                    if ($ident.Contains($n)) { $r.InIdentity++ }
+                    if ($msg.Contains($n)) { $r.InMessage++ }
+                    if ($path.Contains($n)) { $r.InPath++ }
+                    $hit = $false
+                    for ($i = 0; $i -lt $revs.Count; $i += 40) {
+                        $batch = @($revs[$i..([math]::Min($i + 39, $revs.Count - 1))])
+                        foreach ($o in @(& git grep -a -l -i -F -e $n @batch -- 2>$null)) { $hit = $true; [void]$commits.Add(([string]$o -split ':')[0]) }
+                    }
+                    if ($hit) { $r.InContent++ }
+                }
+                $r.CommitsWithContentHit = $commits.Count
+            }
+            finally { Pop-Location }
+            return $r
+        }
+        $script:newRepo = {
+            param([string]$Name)
+            $d = Join-Path $TestDrive $Name
+            New-Item -ItemType Directory -Path $d | Out-Null
+            Push-Location $d
+            try { & git init -q 2>$null | Out-Null } finally { Pop-Location }
+            return $d
+        }
+        $script:commit = {
+            param([string]$Repo, [string]$Message, [hashtable]$Files = @{}, [string[]]$Remove = @(), [string]$Author = ('ED|1+ed@users' + '.noreply.github.com'), [string]$Committer = ('ED|1+ed@users' + '.noreply.github.com'))
+            Push-Location $Repo
+            try {
+                foreach ($k in $Files.Keys) { [System.IO.File]::WriteAllText((Join-Path $Repo $k), [string]$Files[$k]); & git add -- $k 2>$null | Out-Null }
+                foreach ($k in $Remove) { & git rm -q -- $k 2>$null | Out-Null }
+                $a = $Author -split '\|'; $c = $Committer -split '\|'
+                $env:GIT_AUTHOR_NAME = $a[0]; $env:GIT_AUTHOR_EMAIL = $a[1]; $env:GIT_COMMITTER_NAME = $c[0]; $env:GIT_COMMITTER_EMAIL = $c[1]
+                & git -c commit.gpgsign=false -c core.hooksPath=NUL commit -q --allow-empty -m $Message 2>$null | Out-Null
+            }
+            finally {
+                'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL' | ForEach-Object { Remove-Item "Env:$_" -ErrorAction SilentlyContinue }
+                Pop-Location
+            }
+        }
+        # Built by concatenation so that this file itself stays clean for the scan of the repository.
+        $script:plantHost = 'pki01.sample' + '.local'
+        $script:plantMail = 'admin@sample' + '.org'
+    }
+
+    It 'finds a real name that sits in the committer fields only' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $d = & $script:newRepo 'committer'
+        & $script:commit $d 'clean message' @{ 'a.txt' = 'clean' } -Committer ('Some Name|' + $script:plantMail)
+        $r = & $script:scanHistory $d
+        $r.Identity | Should -BeGreaterThan 0
+    }
+
+    It 'finds a real name in a file of an OLD commit that a later commit removed' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $d = & $script:newRepo 'oldcontent'
+        & $script:commit $d 'add' @{ 'notes.txt' = ('see ' + $script:plantHost) }
+        & $script:commit $d 'remove' -Remove @('notes.txt')
+        $r = & $script:scanHistory $d
+        $r.Content | Should -BeGreaterThan 0
+    }
+
+    It 'finds a real name in a file path of an older commit' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $d = & $script:newRepo 'path'
+        & $script:commit $d 'add' @{ ($script:plantHost + '.txt') = 'clean' }
+        & $script:commit $d 'remove' -Remove @(($script:plantHost + '.txt'))
+        $r = & $script:scanHistory $d
+        $r.Path | Should -BeGreaterThan 0
+    }
+
+    It 'finds a real name in a commit message' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $d = & $script:newRepo 'message'
+        & $script:commit $d ('fix ' + $script:plantHost) @{ 'a.txt' = 'clean' }
+        $r = & $script:scanHistory $d
+        $r.Message | Should -BeGreaterThan 0
+    }
+
+    It 'finds nothing in a clean history (example.test names and the noreply identity)' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $d = & $script:newRepo 'clean'
+        & $script:commit $d 'add ca.corp.example.test' @{ 'a.txt' = 'host pki.example.test, 192.0.2.10 and 127.0.0.1' }
+        $r = & $script:scanHistory $d
+        $r.Identity + $r.Message + $r.Content + $r.Path | Should -Be 0
+    }
+
+    It 'returns counts only, never the names that matched' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $d = & $script:newRepo 'countsonly'
+        & $script:commit $d ('see ' + $script:plantHost) @{ 'a.txt' = $script:plantHost }
+        $r = & $script:scanHistory $d
+        foreach ($v in $r.Values) { $v | Should -BeOfType [int] }
+        ($r | Out-String) | Should -Not -Match 'sample'
+    }
+
+    It 'the history of this repository has no real name: author and committer fields, messages, file paths and the content of every commit (counts only)' -Skip:(-not ((Get-Command git -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) '.git')))) {
+        $r = & $script:scanHistory $script:RepoRoot
+        $r.Commits | Should -BeGreaterThan 10
+        # Only counts are printed: the names themselves can be real, and this repository is public.
+        $summary = 'commits scanned {0}; identities that are not the project identity {1}; distinct names in messages {2}, in file paths {3}, in file content {4}' -f $r.Commits, $r.Identity, $r.Message, $r.Path, $r.Content
+        ($r.Identity + $r.Message + $r.Path + $r.Content) | Should -Be 0 -Because $summary
+    }
+
+    # An optional private list of names (one per line, kept outside the repository; set MSPKI_PRIVATE_NAMES_FILE to its path) can be checked
+    # against the same history. The tool never needs it; it is for the person who owns the real environment. Counts only.
+    It 'counts the names of a private list in the whole history, per place (self-test on a planted history)' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $d = & $script:newRepo 'privatelist'
+        & $script:commit $d ('fix ' + $script:plantHost) @{ ($script:plantHost + '.txt') = ('see ' + $script:plantHost) } -Committer ('Some Name|x@sample' + '.org')
+        & $script:commit $d 'remove' -Remove @(($script:plantHost + '.txt'))
+        $list = Join-Path $TestDrive 'names.txt'
+        [System.IO.File]::WriteAllText($list, ($script:plantHost + "`n" + 'unrelated-name'))
+        $r = & $script:scanHistoryNames $d $list
+        $r.Names | Should -Be 2
+        $r.InContent | Should -Be 1
+        $r.InMessage | Should -Be 1
+        $r.InPath | Should -Be 1
+        $r.InIdentity | Should -Be 0
+    }
+
+    It 'finds none of the names of the private list in the history of this repository (runs only when MSPKI_PRIVATE_NAMES_FILE names a file)' -Skip:(-not ($env:MSPKI_PRIVATE_NAMES_FILE -and (Test-Path -LiteralPath $env:MSPKI_PRIVATE_NAMES_FILE))) {
+        $r = & $script:scanHistoryNames $script:RepoRoot $env:MSPKI_PRIVATE_NAMES_FILE
+        $summary = 'names checked {0}; found in file content {1}, messages {2}, file paths {3}, identities {4}; commits whose content has one: {5} of {6}' -f $r.Names, $r.InContent, $r.InMessage, $r.InPath, $r.InIdentity, $r.CommitsWithContentHit, $r.Commits
+        ($r.InContent + $r.InMessage + $r.InPath + $r.InIdentity) | Should -Be 0 -Because $summary
     }
 }
