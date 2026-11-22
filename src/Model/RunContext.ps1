@@ -61,6 +61,11 @@ function Initialize-MspkiRun {
         Methods        = New-Object System.Collections.ArrayList
         Limits         = New-Object System.Collections.ArrayList
     }
+    if (-not [bool]$Parameters['SkipNetwork']) {
+        # CryptoAPI builds the certificate chain of a TLS server certificate itself and may fetch missing intermediate certificates from its AIA
+        # (audit 2 L1). Those fetches are not bounded, cached or logged by this tool; with -SkipNetwork no TLS handshake is made.
+        Add-MspkiRunLimit -Text 'While Windows validates a TLS server certificate (chain building) it may fetch missing intermediate certificates on its own, from the AIA of that certificate. Those fetches are not bounded, cached or logged by this tool.'
+    }
     return $script:MspkiRun
 }
 
@@ -177,6 +182,7 @@ function Complete-MspkiRun {
     [CmdletBinding()]
     param([bool]$Completed = $true)
     if ($null -eq $script:MspkiRun) { return }
+    [void](Remove-MspkiAbandonedProbe)
     $script:MspkiRun.FinishedUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
     $script:MspkiRun.Completed = $Completed
     # One closing line for whoever reads the log: did the run finish, and where did the time go.

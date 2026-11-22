@@ -346,3 +346,79 @@ Describe 'Audit 2 M13: Constrained Language Mode is detected at the start and re
         Test-Path -LiteralPath $out | Should -BeFalse
     }
 }
+
+Describe 'Audit 2 L13: a cancel during discovery keeps what discovery had found' {
+    It 'returns the partial inventory and findings, marked Cancelled, instead of throwing them away' {
+        $d = InModuleScope MspkiHealthCheck {
+            $ctl = New-MspkiRunControl
+            Set-MspkiRunControl -Control $ctl
+            try {
+                Mock Get-MspkiAdContext { $ctl.Cancel = $true; [pscustomobject]@{ Findings = @(); Data = [pscustomobject]@{ Ready = $true; Forest = 'corp.example.test'; Domain = 'corp.example.test'; DomainController = 'dc01.corp.example.test' } } }
+                Invoke-MspkiDiscovery -TimeoutSeconds 1
+            }
+            finally { Set-MspkiRunControl -Control $null }
+        }
+        $d.Cancelled | Should -BeTrue
+        $d.Inventory.AdContext.Forest | Should -Be 'corp.example.test'
+        @($d.Findings | Where-Object { $_.StatusCode -eq 'NOT_APPLICABLE' -and $_.Status -eq 'Skipped' -and $_.Message -match 'cancel' }).Count | Should -Be 1
+    }
+    It 'has no Cancelled flag on a normal run' {
+        $d = InModuleScope MspkiHealthCheck {
+            Set-MspkiRunControl -Control $null
+            Mock Get-MspkiAdContext { [pscustomobject]@{ Findings = @(); Data = [pscustomobject]@{ Ready = $false } } }
+            Invoke-MspkiDiscovery -TimeoutSeconds 1
+        }
+        $d.Cancelled | Should -BeFalse
+    }
+}
+
+Describe 'Audit 2 L14 and L1: limits of a run are recorded, not silent' {
+    It 'L14: when run.log cannot be written, the run records it as a limit and keeps the log in memory' {
+        $lim = InModuleScope MspkiHealthCheck {
+            [void](Initialize-MspkiRun)
+            $script:MspkiLogPath = Join-Path ([System.IO.Path]::GetTempPath()) 'mspki-not-the-output-folder\run.log'
+            Write-MspkiLog -Message 'first line after the log became unwritable'
+            [pscustomobject]@{ Limits = @($script:MspkiRun.Limits); InMemory = @(Get-MspkiLogLine | Where-Object { $_ -like '*first line after*' }).Count; Path = $script:MspkiLogPath }
+        }
+        $lim.Path | Should -Be ''
+        $lim.InMemory | Should -Be 1
+        @($lim.Limits | Where-Object { $_ -match 'run\.log' -and $_ -match 'could not be written' }).Count | Should -Be 1
+    }
+    It 'L1: a run with network checks says that Windows may fetch certificates on its own during TLS validation; -SkipNetwork does not' {
+        $r = InModuleScope MspkiHealthCheck {
+            [void](Initialize-MspkiRun -Parameters @{ SkipNetwork = $false }); $a = @($script:MspkiRun.Limits)
+            [void](Initialize-MspkiRun -Parameters @{ SkipNetwork = $true }); $b = @($script:MspkiRun.Limits)
+            [pscustomobject]@{ With = $a; Without = $b }
+        }
+        @($r.With | Where-Object { $_ -match 'chain' -and $_ -match 'not bounded' }).Count | Should -Be 1
+        @($r.Without | Where-Object { $_ -match 'chain' -and $_ -match 'not bounded' }).Count | Should -Be 0
+    }
+}
+
+Describe 'Audit 2 L15: the report is opened in the browser only in an interactive session' {
+    It 'checks [Environment]::UserInteractive (and -NoOpen) before it starts the default browser, and says so in the help' {
+        $t = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'Invoke-MspkiHealthCheck.ps1') -Raw
+        $t | Should -Match '\$result\.ReportPath -and -not \$NoOpen -and \[Environment\]::UserInteractive'
+        $t | Should -Match '(?is)\.PARAMETER NoOpen.{0,400}interactive'
+    }
+}
+
+Describe 'Audit 2 L12: a probe runspace that timed out is disposed once its call has ended' {
+    It 'keeps the abandoned runspace in a list, and Remove-MspkiAbandonedProbe closes and removes it after the call stopped' {
+        $r = InModuleScope MspkiHealthCheck {
+            [void](Initialize-MspkiRun)
+            $res = Invoke-MspkiTimeLimitedScript -ScriptBlock { Start-Sleep -Seconds 20 } -TimeoutSeconds 1
+            $before = @($script:MspkiAbandonedProbe).Count
+            $rs = @($script:MspkiAbandonedProbe)[0].Runspace
+            # BeginStop was asked for; give the sleeping call a moment to end.
+            $n = 0
+            for ($i = 0; $i -lt 40 -and $n -eq 0; $i++) { Start-Sleep -Milliseconds 250; $n = Remove-MspkiAbandonedProbe }
+            [pscustomobject]@{ TimedOut = $res.TimedOut; Before = $before; Removed = $n; After = @($script:MspkiAbandonedProbe).Count; State = [string]$rs.RunspaceStateInfo.State }
+        }
+        $r.TimedOut | Should -BeTrue
+        $r.Before | Should -Be 1
+        $r.Removed | Should -Be 1
+        $r.After | Should -Be 0
+        $r.State | Should -Be 'Closed'
+    }
+}

@@ -27,7 +27,11 @@ function Write-MspkiLog {
     Send-MspkiProgress -Kind 'Log' -Text $line -Level $Level
     if ($script:MspkiLogPath) {
         try { Write-MspkiOutputFile -Path $script:MspkiLogPath -Content ($line + "`r`n") -Append }
-        catch { $script:MspkiLogPath = '' }
+        catch {
+            # The log goes on in memory (and to the window), but the file stops: say so as a limit of this run instead of going quiet (audit 2 L14).
+            $script:MspkiLogPath = ''
+            Add-MspkiRunLimit -Text ('run.log could not be written and stopped at this point ({0}); the log of the rest of the run is only in memory and in the window.' -f (Get-MspkiErrorInfo $_).Message)
+        }
     }
 }
 

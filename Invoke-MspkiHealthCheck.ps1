@@ -20,8 +20,8 @@ Base timeout for each network probe. Default 5.
 Read AD only; do not contact CAs or other hosts.
 
 .PARAMETER NoOpen
-Do not open report.html in the default browser at the end of the run. By default the report is opened (use -NoOpen on a server
-without a browser, in a scheduled task or in a script).
+Do not open report.html in the default browser at the end of the run. By default the report is opened only when the session is
+interactive (a person at the console); in a scheduled task or a service the browser is never started, with or without -NoOpen.
 
 .PARAMETER UseSystemProxy
 Lets the HTTP probes use the system proxy settings, without credentials. By default the probes connect directly: no proxy and no
@@ -111,7 +111,7 @@ if ($result.CsvPath) { Write-Host ('CSV:     {0}' -f $result.CsvPath) }
 if ($result.ReportPath) { Write-Host ('Report:  {0}' -f $result.ReportPath) }
 Write-Host ('Exit code: {0}' -f $result.ExitCode)
 # Open the report (opt out with -NoOpen). Invoke-Item hands the one file this run just wrote to the shell; nothing else is started.
-if ($result.ReportPath -and -not $NoOpen) {
+if ($result.ReportPath -and -not $NoOpen -and [Environment]::UserInteractive) {
     try { Invoke-Item -LiteralPath $result.ReportPath -ErrorAction Stop }
     catch { Write-Host ('The report could not be opened: {0}' -f $_.Exception.Message) }
 }

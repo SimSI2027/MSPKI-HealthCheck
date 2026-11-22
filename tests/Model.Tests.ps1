@@ -190,7 +190,7 @@ Describe 'Get-MspkiExitCode' {
 Describe 'Run context and log' {
     It 'records run metadata, methods, stage timings and limits' {
         InModuleScope MspkiHealthCheck {
-            $r = Initialize-MspkiRun -Parameters @{ TimeoutSeconds = 5 }
+            $r = Initialize-MspkiRun -Parameters @{ TimeoutSeconds = 5; SkipNetwork = $true }
             $r.RunId | Should -Match '^[0-9a-f-]{36}$'
             $r.ToolVersion | Should -Be $script:MspkiToolVersion
             $r.Parameters.TimeoutSeconds | Should -Be '5'

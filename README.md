@@ -21,7 +21,7 @@ Every result states where it came from and how sure the tool is: **Confirmed**, 
 .\Invoke-MspkiHealthCheck.ps1
 .\Invoke-MspkiHealthCheck.ps1 -OutputPath D:\Reports -TimeoutSeconds 10
 .\Invoke-MspkiHealthCheck.ps1 -SkipNetwork            # read AD only, contact no other host
-.\Invoke-MspkiHealthCheck.ps1 -NoOpen                 # do not open report.html at the end (it opens by default)
+.\Invoke-MspkiHealthCheck.ps1 -NoOpen                 # do not open report.html at the end (it opens by default in an interactive session, never in a scheduled task)
 ```
 
 Two opt-in switches are off by default: `-UseSystemProxy` (the web checks use the system proxy settings, without

@@ -420,7 +420,7 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | M10 | Fixed | `a95e566` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M10: downloaded bytes never create a private key on disk" (5 tests: content type, New-MspkiCertificate, AIA endpoint, NDES reader, PKCS #7 still read); new Hygiene patterns "key persistence" and "certificate loading" |
 | M9 | Fixed | `4aa6a91` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M9: a redirect or a TLS handshake never goes to a host that no trusted evidence named" (5 tests); audit 1 test "looks at the host of the failing hop ..." now registers the HTTPS host as a lead first |
 | H2 | Fixed | `59a2f72` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2: ESC3 in a forest modelled on the default templates" (10 tests: default forest does not fire; broad agent template + default User fires; two targets counted; 7 negative cases, one condition each) |
-| M11 | Fixed (confidence and Deny ACEs in `3aad084`; the ESC4 attribute rule in `PENDING`) | `3aad084` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 M11: a permission-based template finding is never Confirmed while effective permissions are not computed" (6 tests); two older assertions updated to the new rule and wording |
+| M11 | Fixed (confidence and Deny ACEs in `3aad084`; the ESC4 attribute rule in `a4a76e1`) | `3aad084` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 M11: a permission-based template finding is never Confirmed while effective permissions are not computed" (6 tests); two older assertions updated to the new rule and wording |
 | M1 | Fixed | `7842317` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M1" (2 tests: the old root is known too and the subordinate needs the new key gives KeyMismatch; the new root is still Verified) |
 | M2 | Fixed | `d1f7f55` | `tests/EnrollmentServices.Tests.ps1`: 401 and 403 are AuthRequired (Information, Referenced, `HTTP_401_403`), never Pass or Confirmed; a 3xx is not a responding service; 400/405/200-with-service-page stay Confirmed; a 200 with other content is Referenced; the plain-HTTP risk is kept for AuthRequired. 5 tests were red on the old code |
 | M7 | Fixed | `2a2bf0c` | `tests/GuiEntity.Tests.ps1`: "Audit 2 M7" (2 tests): an Inferred-only kind shows "Something answers (not confirmed)" in a Warn tone and the list is titled "Answers at the standard path (not confirmed)"; with one Confirmed and one Inferred instance the heading counts 1 found and says "1 more ... not confirmed". The summary line counts confirmed kinds |
@@ -589,3 +589,13 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
   application policies, RA policies, certificate policy, minimal key size). Their schema IDs were read from a lab forest's schema (read-only)
   and are Microsoft-defined, so they are the same everywhere. The old test that expected a harmless single-attribute write to fire was
   replaced; two new tests were red on the old code (harmless attribute, display name).
+
+## Fix log: Low items (Batch B)
+
+| ID | Status | Commit | Test or reason |
+|---|---|---|---|
+| L1 | Fixed as a recorded limit | `LOWCL1` | `tests/Audit2.Results.Tests.ps1` "Audit 2 L14 and L1": a run with network checks lists "Windows may fetch missing intermediate certificates itself during TLS validation; not bounded, cached or logged" among its limits (report Run details, results.json); `-SkipNetwork` does not. The fetches themselves cannot be bounded from PowerShell |
+| L12 | Fixed | `LOWCL1` | `tests/Audit2.Results.Tests.ps1` "Audit 2 L12": a timed-out or cancelled probe runspace is kept in `$script:MspkiAbandonedProbe` and disposed (state Closed) by `Remove-MspkiAbandonedProbe` once its call has ended; it runs before every new time-limited call and in `Complete-MspkiRun`. A call that is still blocked in DCOM stays until it ends (disposing it would wait) |
+| L13 | Fixed | `LOWCL1` | `tests/Audit2.Results.Tests.ps1` "Audit 2 L13": `Invoke-MspkiDiscovery` catches the cancel, returns the partial inventory and findings with `Cancelled = $true` and a Skipped finding |
+| L14 | Fixed | `LOWCL1` | `tests/Audit2.Results.Tests.ps1`: a failing `run.log` write records a run limit and the log goes on in memory |
+| L15 | Fixed | `LOWCL1` | `tests/Audit2.Results.Tests.ps1` "Audit 2 L15": the report is opened only when `-NoOpen` is absent and `[Environment]::UserInteractive` is true; README and help say so |

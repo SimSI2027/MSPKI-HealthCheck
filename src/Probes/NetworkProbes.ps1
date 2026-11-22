@@ -162,6 +162,31 @@ function Test-MspkiTcpPort {
     return $r
 }
 
+# Probe runspaces that timed out or were cancelled while a call was still blocked (for example in DCOM). They are disposed later, when
+# the call has ended: Remove-MspkiAbandonedProbe runs before every new time-limited call and when the run completes.
+$script:MspkiAbandonedProbe = New-Object System.Collections.ArrayList
+
+function Remove-MspkiAbandonedProbe {
+    <#
+    .SYNOPSIS
+    Disposes the abandoned probe runspaces whose call has ended and returns how many were removed. A call that is still blocked is left alone
+    (disposing a busy runspace would wait for it).
+    #>
+    [CmdletBinding()]
+    param()
+    $removed = 0
+    foreach ($e in @($script:MspkiAbandonedProbe)) {
+        $ended = $false
+        try { $ended = [bool]$e.Handle.IsCompleted -or ($e.PowerShell.InvocationStateInfo.State -in @('Stopped', 'Completed', 'Failed')) } catch { $ended = $true }
+        if (-not $ended) { continue }
+        try { $e.PowerShell.Dispose() } catch { }
+        try { $e.Runspace.Dispose() } catch { }
+        $script:MspkiAbandonedProbe.Remove($e)
+        $removed++
+    }
+    return $removed
+}
+
 function Invoke-MspkiTimeLimitedScript {
     <#
     .SYNOPSIS
@@ -179,6 +204,7 @@ function Invoke-MspkiTimeLimitedScript {
         [string]$ProgressText = 'Calling a CA (COM)'
     )
     Assert-MspkiNotCancelled
+    [void](Remove-MspkiAbandonedProbe)
     Send-MspkiProgress -Kind 'Target' -Text $ProgressText
     $res = [pscustomobject][ordered]@{
         Completed = $false; TimedOut = $false; Output = @(); Errors = @(); ElapsedMs = 0
@@ -203,6 +229,7 @@ function Invoke-MspkiTimeLimitedScript {
     }
     if ($cancelled) {
         try { [void]$ps.BeginStop($null, $null) } catch { }
+        [void]$script:MspkiAbandonedProbe.Add([pscustomobject]@{ PowerShell = $ps; Runspace = $rs; Handle = $handle })
         throw (New-Object System.OperationCanceledException('The run was cancelled.'))
     }
     if ($done) {
@@ -220,6 +247,8 @@ function Invoke-MspkiTimeLimitedScript {
         # wait for it, so the run continues.
         $res.TimedOut = $true
         try { [void]$ps.BeginStop($null, $null) } catch { }
+        # Remember it, so that it can be disposed once the blocked call has ended (audit 2 L12).
+        [void]$script:MspkiAbandonedProbe.Add([pscustomobject]@{ PowerShell = $ps; Runspace = $rs; Handle = $handle })
     }
     $res.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     return $res
