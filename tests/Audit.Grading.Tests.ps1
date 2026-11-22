@@ -279,8 +279,8 @@ Describe 'M8: Confirmed only when the content was validated' {
         $m.Result | Should -Be 'Verified'
         ($m.Lines -join "`n") | Should -Match 'verifies with this certificate''s key'
     }
-    It 'KeyMismatch: the expected name, but another key generation' {
-        $m = & $script:match $script:root2.Public $script:refLead @{ $script:refTp = $script:subAki.Public } @('CN=Example Root CA, DC=example, DC=test')
+    It 'KeyMismatch: the expected name, but another key generation (the downloaded generation is known too, as in a real run)' {
+        $m = & $script:match $script:root2.Public $script:refLead @{ $script:refTp = $script:subAki.Public; $script:root2.Public.Thumbprint = $script:root2.Public; $script:root1.Public.Thumbprint = $script:root1.Public } @('CN=Example Root CA, DC=example, DC=test')
         $m.Result | Should -Be 'KeyMismatch'
         ($m.Lines -join "`n") | Should -Match 'does NOT verify'
     }

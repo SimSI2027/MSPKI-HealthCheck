@@ -430,7 +430,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | M6 | Fixed | `96e3ee8` | `tests/Gui.Tests.ps1`: "Audit 2 M6" (3 tests, red on the old code): error text without stack trace; `Invoke-MspkiGuiUnhandledError` logs a Run log row and gui-error.log, shows the same error once, cancels a run in progress through the Cancel flag and returns Handled; in a real dispatcher loop a throwing event delegate reaches the hook and a throwing timer tick does not stop the timer |
 | M8 | Fixed (two items explained) | `759bb77` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M8" (16 tests, red on the old code): chain errors map to `CHAIN_INVALID` (not `TLS_HANDSHAKE_FAIL`) after a completed handshake; a host identity summary is not `OK` without an address; one code for a missing COM class; the new codes exist and every schema code is documented in REQUIREMENTS. Assertions updated in `Endpoint`, `Audit.Grading`, `Audit.Probes`, `Discovery`, `Model` and `LocalEvidence` tests (new case: enrollment error event) |
 | M12 | Fixed | `d73534f` | `tests/NdesTemplateAccess.Tests.ps1`: "Audit 2 M12" (3 tests, 2 red on the old code): a group member and a computer allowed to use a gMSA become Account entities (Seen in AD), linked `memberOf` / `mayUse` to the principal; the member, not the group or gMSA, `identifies` the host; the host list and its "how" text are unchanged |
-| M13 | Fixed | `PENDING` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M13" (9 tests, 8 red on the old code): `Get-MspkiLanguageModeStatus` for Full, Constrained, Restricted and No language; a child process switched to Constrained Language Mode really is restricted; `Invoke-MspkiHealthCheck.ps1` and `Start-MspkiHealthCheckGui.ps1` in that child exit with code 5, print the plain explanation and create nothing (no window); `Start-MspkiHealthCheck` throws the same words |
+| M13 | Fixed | `ea37054` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M13" (9 tests, 8 red on the old code): `Get-MspkiLanguageModeStatus` for Full, Constrained, Restricted and No language; a child process switched to Constrained Language Mode really is restricted; `Invoke-MspkiHealthCheck.ps1` and `Start-MspkiHealthCheckGui.ps1` in that child exit with code 5, print the plain explanation and create nothing (no window); `Start-MspkiHealthCheck` throws the same words |
+| M14 | Fixed | `PENDING` | `tests/Hygiene.Tests.ps1`: the code-file scan could never match a method call (tokens were joined as `$de . CommitChanges ( )`), so the patterns for AD writes, registry `SetValue(`, `.Export(`, `.Put(` and so on were dead; `Get-MspkiCodeText` now rejoins them, with a planted-code self-test that was red before. New checks: certificate store writes, ADSI `.Invoke('...')` / `.DeleteObject(`, `Invoke-Item` outside three files, commit messages and authors in the history. `Audit.Grading` (M1) and `HierarchyHealth` (M4) tests now use the realistic, differently spelled inputs; `EndpointIdentity` has Web Enrollment tests from real HTTP answers (401 NTLM, 403, 302) |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -569,3 +570,13 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 - The test child switches itself with `$ExecutionContext.SessionState.LanguageMode = 'ConstrainedLanguage'` (the `__PSLockdownPolicy`
   environment variable did not restrict the child on the dev machine). It is killed after 90 s, and the tests check that it really is
   restricted before they run a script in it, so a failure cannot start a real check or open a window.
+
+### M14 notes (Batch B)
+- The missing tests listed in M14 exist: H1 and H2 (Batch A), M3 (SIZE_LIMIT), M2 (401, 403, 3xx), M6 (handler and timer-tick exceptions in a real
+  dispatcher loop), M7, M10 (Batch A), M13 (a real Constrained Language Mode child). The three tests that hid defects were replaced (M1 known map
+  with the downloaded generation; M4 spelled differently on the two sides; M5 through `Invoke-MspkiHttpGet`), and each new test was shown red on
+  the old code in its own fix.
+- Hygiene: `Get-CodeText` joined tokens with spaces, so every pattern that contains `.Name(` was dead. Fixed with a self-test; the repaired
+  scan finds nothing in the code. New patterns and the history check are listed above (the history check is skipped without git).
+- A local pre-commit check against the private lab facts now exists outside the repository (an untracked git hook and a script that live next to
+  the facts file). It looks at added lines only and prints a masked shape, never the name.

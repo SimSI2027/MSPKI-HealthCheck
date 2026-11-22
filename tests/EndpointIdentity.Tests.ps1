@@ -243,3 +243,40 @@ Describe 'HTTP probe identity headers' {
         @($r.AuthSchemes).Count | Should -Be 0
     }
 }
+
+Describe 'Web Enrollment from a real HTTP answer (audit 2 M14: not hand-built result objects)' {
+    BeforeAll {
+        $script:routesW = [hashtable]::Synchronized(@{})
+        $script:serverW = Start-TestHttpServer -Routes $script:routesW
+        $script:bW = $script:serverW.Base
+        $script:routesW['/ntlm/certsrv/'] = @{ Status = 401; Body = @(); Headers = @{ 'WWW-Authenticate' = 'NTLM'; Server = 'Microsoft-IIS/10.0' } }
+        $script:routesW['/ssl/certsrv/'] = @{ Status = 403; Body = [System.Text.Encoding]::ASCII.GetBytes('403.4 SSL required') }
+        $script:routesW['/redir/certsrv/'] = @{ Status = 302; Body = @(); Headers = @{ Location = 'https://ca01.corp.example.test/certsrv/' } }
+        $script:getW = {
+            param([string]$Path)
+            InModuleScope MspkiHealthCheck -Parameters @{ U = ($script:bW + $Path) } { param($U) Reset-MspkiProbeCache; Invoke-MspkiHttpGet -Url $U -TimeoutMs 3000 -MaxRedirects 0 -DiscardBody }
+        }
+    }
+    AfterAll { Stop-TestHttpServer -Server $script:serverW }
+
+    It 'reads the sign-in scheme and the Server header from a real 401 and warns about NTLM over plain HTTP (ESC8)' {
+        $http = & $script:getW '/ntlm/certsrv/'
+        $http.HttpStatus | Should -Be 401
+        $f = @(InModuleScope MspkiHealthCheck -Parameters @{ H = $http } { param($H) Test-MspkiWebEnrollment -HostName 'ca01.corp.example.test' -Http $H })
+        @($f | Where-Object { $_.StatusCode -eq 'CONFIG_RISK' -and $_.Status -eq 'Warning' }).Count | Should -Be 1
+        ($f[0].Evidence -join "`n") | Should -Match 'Server: Microsoft-IIS/10.0'
+    }
+    It 'reads a real 403 as present and not a risk' {
+        $http = & $script:getW '/ssl/certsrv/'
+        $f = @(InModuleScope MspkiHealthCheck -Parameters @{ H = $http } { param($H) Test-MspkiWebEnrollment -HostName 'ca01.corp.example.test' -Http $H })
+        $f.Count | Should -Be 1
+        $f[0].Status | Should -Be 'Information'
+        ($f[0].Evidence -join "`n") | Should -Match 'refuses anonymous access'
+    }
+    It 'reads a real redirect (not followed) as present, with the Location in the evidence' {
+        $http = & $script:getW '/redir/certsrv/'
+        $f = @(InModuleScope MspkiHealthCheck -Parameters @{ H = $http } { param($H) Test-MspkiWebEnrollment -HostName 'ca01.corp.example.test' -Http $H })
+        $f.Count | Should -Be 1
+        ($f[0].Evidence -join "`n") | Should -Match 'redirects \(HTTP 302\) to https://ca01\.corp\.example\.test/certsrv/'
+    }
+}

@@ -19,8 +19,13 @@ BeforeAll {
         param([string]$Path)
         $tokens = $null; $errors = $null
         [void][System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tokens, [ref]$errors)
-        return (@($tokens | Where-Object { $_.Kind -ne [System.Management.Automation.Language.TokenKind]::Comment } |
+        $joined = (@($tokens | Where-Object { $_.Kind -ne [System.Management.Automation.Language.TokenKind]::Comment } |
             ForEach-Object { $_.Text }) -join ' ')
+        # Tokens are joined with spaces ('$de . CommitChanges ( )'); put method calls back together so that patterns such as
+        # '\.CommitChanges\(' can match (audit 2 M14: they never did).
+        $joined = [regex]::Replace($joined, '\s*\.\s*(?=[A-Za-z_])', '.')
+        $joined = [regex]::Replace($joined, '([A-Za-z0-9_])\s+\(', '$1(')
+        return $joined
     }
 
     $script:forbidden = [ordered]@{
@@ -174,4 +179,68 @@ Describe 'Public repository hygiene' {
         @([regex]::Matches($sample, $script:hostCi) | Where-Object { $_.Groups[1].Value -notmatch $script:hostAllowed }).Count | Should -Be 2
         @([regex]::Matches($sample, $script:ipv4) | Where-Object { $_.Value -notmatch $script:ipAllowed }).Count | Should -Be 1
     }
+
+Context 'Audit 2 M14: more of the hard rules are enforced by the hygiene tests' {
+    BeforeAll {
+        # The same patterns as in the code-file test above, kept here so that a self-test can show that they match what they should.
+        $script:storeWrite = '(?i)ReadWrite\b|MaxAllowed|\$\w*store\w*\.(Add|Remove|AddRange|RemoveRange)\('
+        $script:adsiWrite = '(?i)\.DeleteObject\(|\.InvokeSet\(|\.Invoke\(\s*[''"]|SetPassword|ChangePassword'
+        $script:itemInvoke = '(?i)Invoke-Item'
+        $script:invokeItemAllowed = @('GuiApp.ps1', 'Invoke-MspkiHealthCheck.ps1', 'Invoke-MspkiDemo.ps1')
+    }
+
+    It 'the patterns match what they are meant to catch (self-test) and not ReadWriteTimeout' {
+        '$s.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)' | Should -Match $script:storeWrite
+        '$store = New-Object System.Security.Cryptography.X509Certificates.X509Store; $store.Add($c)' | Should -Match $script:storeWrite
+        '$req.ReadWriteTimeout = 5' | Should -Not -Match $script:storeWrite
+        '$de.Invoke("SetPassword", $x)' | Should -Match $script:adsiWrite
+        '$de.DeleteObject(0)' | Should -Match $script:adsiWrite
+        '$ps.Invoke()' | Should -Not -Match $script:adsiWrite
+    }
+
+    It 'the code-file scan sees method calls: the forbidden patterns match code written the way the code files write it (self-test)' {
+        $f = Join-Path $TestDrive 'planted.ps1'
+        [System.IO.File]::WriteAllText($f, '$de.CommitChanges(); $k.SetValue(1, 2); $c.Export(1); $x.Put("a", 1); $s.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)')
+        $text = Get-CodeText -Path $f
+        $text | Should -Match $script:forbidden['AD writes']
+        $text | Should -Match $script:forbidden['registry writes']
+        $text | Should -Match $script:forbidden['private keys']
+        $text | Should -Match $script:storeWrite
+    }
+    It 'no code file writes to a certificate store, changes AD through ADSI methods, or starts a file with Invoke-Item unlisted' {
+        $files = @(Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot 'src') -Recurse -File -Filter '*.ps1') +
+            @(Get-Item -LiteralPath (Join-Path $script:RepoRoot 'Invoke-MspkiHealthCheck.ps1'), (Join-Path $script:RepoRoot 'Start-MspkiHealthCheckGui.ps1'), (Join-Path $script:RepoRoot 'demo\Invoke-MspkiDemo.ps1'))
+        $hits = New-Object System.Collections.ArrayList
+        foreach ($f in $files) {
+            $text = Get-CodeText -Path $f.FullName
+            if ($text -match $script:storeWrite) { [void]$hits.Add('store write: ' + $f.Name) }
+            if ($text -match $script:adsiWrite) { [void]$hits.Add('ADSI write: ' + $f.Name) }
+            if ($text -match $script:itemInvoke -and $script:invokeItemAllowed -notcontains $f.Name) { [void]$hits.Add('Invoke-Item: ' + $f.Name) }
+        }
+        $hits.Count | Should -Be 0 -Because ($hits -join '; ')
+    }
+
+    It 'every commit message and author in the history is free of real names, and the author is the noreply identity' -Skip:(-not ((Get-Command git -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) '.git')))) {
+        Push-Location $script:RepoRoot
+        try {
+            $log = @(& git log --all --format='%an|%ae|%cn|%ce|%s%n%b%n--END--' 2>$null)
+            $authors = @(& git log --all --format='%an|%ae|%cn|%ce' 2>$null | Sort-Object -Unique)
+        }
+        finally { Pop-Location }
+        $log.Count | Should -BeGreaterThan 10
+        foreach ($a in $authors) {
+            $p = $a -split '\|'
+            $p[0] | Should -Be 'ED'
+            $p[1] | Should -Match '@users\.noreply\.github\.com$'
+        }
+        $text = $log -join "`n"
+        $hits = New-Object System.Collections.ArrayList
+        foreach ($rx in @($script:hostCi, $script:hostLc)) {
+            foreach ($m in [regex]::Matches($text, $rx)) { if ($m.Groups[1].Value -notmatch $script:hostAllowed -and $m.Groups[1].Value -notmatch '^users\.noreply\.github\.com$') { [void]$hits.Add($m.Groups[1].Value) } }
+        }
+        foreach ($m in [regex]::Matches($text, $script:ipv4)) { if ($m.Value -notmatch $script:ipAllowed) { [void]$hits.Add($m.Value) } }
+        foreach ($m in [regex]::Matches($text, $script:email)) { if ($m.Value -notmatch $script:emailAllowed -and $m.Value -notmatch 'noreply@anthropic\.com') { [void]$hits.Add($m.Value) } }
+        $hits.Count | Should -Be 0 -Because ($hits -join '; ')
+    }
+}
 }
