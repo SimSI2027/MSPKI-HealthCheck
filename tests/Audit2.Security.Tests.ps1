@@ -124,12 +124,17 @@ Describe 'Audit 2 H1: an LDAP bind goes only to hosts proven by authoritative di
     }
 
     It 'reads the forest domain controllers from the server objects under CN=Sites of the Configuration partition' {
-        Mock -ModuleName MspkiHealthCheck Get-MspkiLdapObject {
-            @(@{ dnshostname = @('DC01.corp.example.test') }, @{ dnshostname = @('dc02.child.corp.example.test.') }, @{ cn = @('no-name') })
+        $s = 'CN=Servers,CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=corp,DC=example,DC=test'
+        Mock -ModuleName MspkiHealthCheck Get-MspkiLdapObject -ParameterFilter { $Filter -like '*objectClass=server*' } {
+            @(@{ dnshostname = @('DC01.corp.example.test'); distinguishedname = @("CN=DC01,$s") }, @{ dnshostname = @('dc02.child.corp.example.test.'); distinguishedname = @("CN=DC02,$s") }, @{ cn = @('no-name') })
         }
-        $dcs = InModuleScope MspkiHealthCheck { Get-MspkiForestDomainController -Server 'dc01.corp.example.test' -ConfigNC 'CN=Configuration,DC=corp,DC=example,DC=test' }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiLdapObject -ParameterFilter { $Filter -eq '(objectClass=nTDSDSA)' } {
+            @(@{ distinguishedname = @("CN=NTDS Settings,CN=DC01,$s") }, @{ distinguishedname = @("CN=NTDS Settings,CN=DC02,$s") })
+        }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiLiveDomainControllerName { [pscustomobject]@{ Names = @('dc01.corp.example.test', 'dc02.child.corp.example.test'); Method = 'DnsSrv'; Errors = @(); Completed = $true } }
+        $dcs = InModuleScope MspkiHealthCheck { Get-MspkiForestDomainController -Server 'dc01.corp.example.test' -ConfigNC 'CN=Configuration,DC=corp,DC=example,DC=test' -Domains @('corp.example.test') }
         $dcs | Should -Be @('dc01.corp.example.test', 'dc02.child.corp.example.test')
-        Should -Invoke -ModuleName MspkiHealthCheck Get-MspkiLdapObject -Times 1 -Exactly -ParameterFilter {
+        Should -Invoke -ModuleName MspkiHealthCheck Get-MspkiLdapObject -Times 2 -Exactly -ParameterFilter {
             $BaseDN -eq 'CN=Sites,CN=Configuration,DC=corp,DC=example,DC=test' -and $Scope -eq 'Subtree' -and $Server -eq 'dc01.corp.example.test' }
     }
 }

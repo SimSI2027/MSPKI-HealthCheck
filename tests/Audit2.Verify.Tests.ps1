@@ -158,3 +158,77 @@ Describe 'Audit 2 N1: a forged certificate at an AIA location is not followed' {
         @($script:server.Log | Where-Object { $_.Path -eq '/policy.crl' }).Count | Should -BeGreaterThan 0
     }
 }
+
+Describe 'Audit 2 N5: the forest domain controller list holds live domain controllers only' {
+    BeforeAll {
+        $script:sites = 'CN=Servers,CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=corp,DC=example,DC=test'
+        $script:mockSites = {
+            Mock -ModuleName MspkiHealthCheck Get-MspkiLdapObject -ParameterFilter { $Filter -like '*objectClass=server*' } {
+                $s = 'CN=Servers,CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=corp,DC=example,DC=test'
+                @(@{ dnshostname = @('dc01.corp.example.test'); distinguishedname = @("CN=DC01,$s") },
+                    @{ dnshostname = @('dc-gone.corp.example.test'); distinguishedname = @("CN=DC-GONE,$s") },
+                    @{ dnshostname = @('dc-unlisted.corp.example.test'); distinguishedname = @("CN=DC-UNLISTED,$s") })
+            }
+            Mock -ModuleName MspkiHealthCheck Get-MspkiLdapObject -ParameterFilter { $Filter -eq '(objectClass=nTDSDSA)' } {
+                $s = 'CN=Servers,CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=corp,DC=example,DC=test'
+                @(@{ distinguishedname = @("CN=NTDS Settings,CN=DC01,$s") }, @{ distinguishedname = @("CN=NTDS Settings,CN=DC-UNLISTED,$s") })
+            }
+        }
+    }
+
+    It 'counts a server object only when it has NTDS Settings AND a DNS SRV record names it' {
+        & $script:mockSites
+        Mock -ModuleName MspkiHealthCheck Get-MspkiLiveDomainControllerName {
+            [pscustomobject]@{ Names = @('dc01.corp.example.test', 'dc-gone.corp.example.test'); Method = 'DnsSrv'; Errors = @(); Completed = $true } }
+        $d = InModuleScope MspkiHealthCheck { Get-MspkiForestDomainController -Server 'dc01.corp.example.test' -ConfigNC 'CN=Configuration,DC=corp,DC=example,DC=test' -Domains @('corp.example.test') -Detail }
+        $d.Names | Should -Be @('dc01.corp.example.test')
+        @($d.Excluded).Count | Should -Be 2
+        (@($d.Excluded | Where-Object Name -eq 'dc-gone.corp.example.test')[0].Reason) | Should -Match 'no NTDS Settings'
+        (@($d.Excluded | Where-Object Name -eq 'dc-unlisted.corp.example.test')[0].Reason) | Should -Match 'SRV'
+    }
+
+    It 'counts no other domain controller when the live evidence cannot be read' {
+        & $script:mockSites
+        Mock -ModuleName MspkiHealthCheck Get-MspkiLiveDomainControllerName { [pscustomobject]@{ Names = @(); Method = 'DnsSrv'; Errors = @('No answer within 10 s.'); Completed = $false } }
+        $d = InModuleScope MspkiHealthCheck { Get-MspkiForestDomainController -ConfigNC 'CN=Configuration,DC=corp,DC=example,DC=test' -Domains @('corp.example.test') -Detail }
+        @($d.Names).Count | Should -Be 0
+        (@($d.Excluded)[0].Reason) | Should -Match 'could not be read'
+    }
+
+    It 'reads the SRV records of every forest domain in one time-limited runspace' {
+        Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript {
+            [pscustomobject]@{ Completed = $true; TimedOut = $false; Errors = @(); ElapsedMs = 1
+                Output = @(@{ Domain = 'corp.example.test'; Names = [string[]]@('DC01.corp.example.test.'); Errors = [string[]]@() },
+                    @{ Domain = 'child.corp.example.test'; Names = [string[]]@('dc02.child.corp.example.test'); Errors = [string[]]@('x') }) } }
+        $l = InModuleScope MspkiHealthCheck { Get-MspkiLiveDomainControllerName -Domains @('corp.example.test', 'child.corp.example.test') }
+        $l.Names | Should -Be @('dc01.corp.example.test', 'dc02.child.corp.example.test')
+        @($l.Errors).Count | Should -Be 1
+        Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript -Times 1 -Exactly -ParameterFilter {
+            ($ArgumentList[0] -join ',') -eq 'corp.example.test,child.corp.example.test' -and $ScriptBlock.ToString() -match '_ldap\._tcp\.dc\._msdcs\.' }
+    }
+
+    It 'reports the server objects that were not counted, and no bind goes to them' {
+        & $script:mockSites
+        # The DNS SRV answer, at the runspace call (a function the code had before this fix too, so the test fails on the old
+        # behaviour, not on a missing function).
+        Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript -ParameterFilter { $ProgressText -like 'Domain controllers*' } {
+            [pscustomobject]@{ Completed = $true; TimedOut = $false; Errors = @(); ElapsedMs = 1
+                Output = @(@{ Domain = 'corp.example.test'; Names = [string[]]@('dc01.corp.example.test'); Errors = [string[]]@() }) } }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiComputerSystemInfo { [pscustomobject]@{ PartOfDomain = $true; Domain = 'corp.example.test' } }
+        Mock -ModuleName MspkiHealthCheck Find-MspkiRootDse { [pscustomobject]@{ Method = 'Serverless'; Constructed = $false; Attempts = @()
+                Root = [pscustomobject]@{ configurationNamingContext = 'CN=Configuration,DC=corp,DC=example,DC=test'; rootDomainNamingContext = 'DC=corp,DC=example,DC=test'
+                    defaultNamingContext = 'DC=corp,DC=example,DC=test'; schemaNamingContext = 'CN=Schema,CN=Configuration,DC=corp,DC=example,DC=test'
+                    dnsHostName = 'dc01.corp.example.test'; serverName = ''; currentTime = ''; domainControllerFunctionality = '7' } } }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiForestInfo { [pscustomobject]@{ Name = 'corp.example.test'; RootDomain = 'corp.example.test'; ForestMode = 'x'; Domains = @('corp.example.test'); Trusts = @(); TrustErrors = @() } }
+        Mock -ModuleName MspkiHealthCheck Get-MspkiComputerSiteName { 'Default-First-Site-Name' }
+        $c = InModuleScope MspkiHealthCheck { [void](Initialize-MspkiRun); Get-MspkiAdContext -TimeoutSeconds 5 }
+        $c.Data.DomainControllers | Should -Be @('dc01.corp.example.test')
+        $st = @($c.Findings | Where-Object { $_.StatusCode -eq 'STALE_REFERENCE' })
+        $st.Count | Should -Be 1
+        $st[0].Status | Should -Be 'Information'
+        ($st[0].Evidence -join "`n") | Should -Match 'dc-gone\.corp\.example\.test: its server object has no NTDS Settings'
+        $gate = InModuleScope MspkiHealthCheck -Parameters @{ D = @($c.Data.DomainControllers) } { param($D)
+            Test-MspkiLdapHostAllowed -HostName 'dc-gone.example.test' -DefaultServer 'dc01.corp.example.test' -LocalDomains @('corp.example.test') -DomainControllers $D -Trust 'Authoritative' }
+        $gate.Allowed | Should -BeFalse
+    }
+}

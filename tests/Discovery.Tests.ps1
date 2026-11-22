@@ -33,6 +33,8 @@ BeforeAll {
     }
 
     $script:mockAd = {
+        # The live domain controller check reads DNS SRV records in a runspace (audit 2 N5); these tests count only the CA calls.
+        Mock -ModuleName MspkiHealthCheck Get-MspkiLiveDomainControllerName { [pscustomobject]@{ Names = @('dc01.corp.example.test'); Method = 'DnsSrv'; Errors = @(); Completed = $true } }
         Mock -ModuleName MspkiHealthCheck Get-MspkiComputerSystemInfo { [pscustomobject]@{ PartOfDomain = $true; Domain = 'corp.example.test' } }
         Mock -ModuleName MspkiHealthCheck Get-MspkiRootDse { $script:rootDse }
         Mock -ModuleName MspkiHealthCheck Get-MspkiForestInfo {

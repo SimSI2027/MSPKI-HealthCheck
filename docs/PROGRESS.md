@@ -413,3 +413,6 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   or when its own signature verifies with a trusted CA key; a self-signed root needs both its self-signature and an exact copy. Public-key
   match alone is never enough; non-CA certificates are never issuers. Forged self-signed roots are Fail / SIGNATURE_INVALID.
   Tests: tests/Audit2.Verify.Tests.ps1 (N1). Lab: 99 findings, exit 6, unchanged. Fix log 2 in docs/AUDIT-2-VERIFY.md.
+- N5: the forest DC list counts a server object only with an NTDS Settings child AND a DNS SRV record (_ldap._tcp.dc._msdcs.<domain>,
+  DC locator as fallback); excluded objects are one Information / STALE_REFERENCE finding and never get a bind. -SkipNetwork skips the
+  DNS lookup. Lab: 2 DCs counted, 0 excluded, 99 findings, exit 6.

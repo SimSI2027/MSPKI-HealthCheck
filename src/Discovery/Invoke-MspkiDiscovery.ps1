@@ -119,7 +119,7 @@ function Invoke-MspkiDiscovery {
     # so that the results still hold the AD context and whatever else was found (audit 2 L13).
     try {
     $sw = Start-MspkiStageTimer -Stage 'Discovery:ADContext'
-        $ad = Get-MspkiAdContext -TimeoutSeconds $TimeoutSeconds
+        $ad = Get-MspkiAdContext -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork
         foreach ($f in $ad.Findings) { [void]$findings.Add($f) }
         $ctx = $ad.Data
         $inventory.AdContext = $ctx

@@ -80,7 +80,7 @@ function Test-MspkiLdapHostAllowed {
     AD-integrated zone any authenticated user can create a record. Allowed are:
     - a serverless URL (the selected domain controller is used);
     - the selected domain controller;
-    - a domain controller of the forest (-DomainControllers, server objects in the Configuration partition);
+    - a live domain controller of the forest (-DomainControllers: a server object with NTDS Settings that DNS SRV records name);
     - a host in one of this forest's own DNS domains named by an Authoritative or Verified lead (-Trust): an AD object, a CA
       property, or a downloaded object whose signature was verified with a discovered CA certificate.
     With -SkipNetwork only the serverless URL and the selected domain controller are allowed. Everything else is reported
@@ -108,7 +108,7 @@ function Test-MspkiLdapHostAllowed {
         return [pscustomobject]@{ Allowed = $false; Reason = 'the URL names a host other than the selected domain controller and -SkipNetwork was used' }
     }
     $dcs = @($DomainControllers | ForEach-Object { ConvertTo-MspkiHostName $_ } | Where-Object { $_ })
-    if ($dcs -contains $h) { return [pscustomobject]@{ Allowed = $true; Reason = 'the host is a domain controller of this forest (server object in the Configuration partition)' } }
+    if ($dcs -contains $h) { return [pscustomobject]@{ Allowed = $true; Reason = 'the host is a live domain controller of this forest (server object with NTDS Settings, named by DNS SRV records)' } }
     $scope = Get-MspkiHostScope -HostName $h -LocalDomains $LocalDomains
     if ($scope -ne 'Local') {
         return [pscustomobject]@{ Allowed = $false; Reason = ('the URL names host {0}, which is not in one of this forest''s own DNS domains (scope {1}); a directory bind would send the Windows credentials of the user running this tool to it' -f $h, $scope) }

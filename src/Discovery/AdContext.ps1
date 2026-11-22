@@ -40,23 +40,118 @@ function Get-MspkiRootDse {
     return [pscustomobject]$out
 }
 
+function Get-MspkiLiveDomainControllerName {
+    <#
+    .SYNOPSIS
+    Live evidence of the forest's domain controllers: the targets of the DNS SRV records _ldap._tcp.dc._msdcs.<domain> of every forest
+    domain (Resolve-DnsName, DNS only). Where the DnsClient module is missing, the in-box DC locator (DomainController.FindAll, which
+    reads the same DNS records) is used. Runs in one time-limited runspace. No directory bind is made.
+
+    .OUTPUTS
+    { Names (host names); Method ('DnsSrv' or 'DcLocator'); Errors (text); Completed (bool) }
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyCollection()][string[]]$Domains = @(), [int]$TimeoutSeconds = 15)
+    $doms = @($Domains | ForEach-Object { ConvertTo-MspkiHostName $_ } | Where-Object { $_ } | Select-Object -Unique)
+    $hasDnsClient = $null -ne (Get-Command -Name 'Resolve-DnsName' -ErrorAction SilentlyContinue)
+    $out = [pscustomobject]@{ Names = @(); Method = $(if ($hasDnsClient) { 'DnsSrv' } else { 'DcLocator' }); Errors = @(); Completed = $false }
+    if ($doms.Count -eq 0) { $out.Errors = @('No forest domain is known.'); return $out }
+    $script = {
+        param([string[]]$Domains, [bool]$UseDnsClient)
+        foreach ($d in $Domains) {
+            $names = @(); $errs = @()
+            if ($UseDnsClient) {
+                try {
+                    $names = @(Resolve-DnsName -Name ('_ldap._tcp.dc._msdcs.' + $d) -Type SRV -DnsOnly -QuickTimeout -ErrorAction Stop |
+                        Where-Object { $null -ne $_.PSObject.Properties['NameTarget'] } | ForEach-Object { [string]$_.NameTarget })
+                }
+                catch { $errs += ('DNS SRV for {0}: {1}' -f $d, $_.Exception.Message) }
+            }
+            else {
+                try {
+                    $ctx = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext([System.DirectoryServices.ActiveDirectory.DirectoryContextType]::Domain, $d)
+                    foreach ($x in [System.DirectoryServices.ActiveDirectory.DomainController]::FindAll($ctx)) { $names += [string]$x.Name; $x.Dispose() }
+                }
+                catch { $errs += ('DC locator for {0}: {1}' -f $d, $_.Exception.Message) }
+            }
+            @{ Domain = $d; Names = [string[]]$names; Errors = [string[]]$errs }
+        }
+    }
+    $limit = [int][Math]::Min(600, [Math]::Max(10, $TimeoutSeconds * (1 + $doms.Count)))
+    $call = Invoke-MspkiTimeLimitedScript -ScriptBlock $script -ArgumentList @([string[]]$doms, $hasDnsClient) -TimeoutSeconds $limit `
+        -ProgressText ('Domain controllers of {0} domain(s) (DNS SRV records)' -f $doms.Count)
+    $names = @(); $errs = @()
+    foreach ($o in @($call.Output | ForEach-Object { $_ })) {
+        if ($o -isnot [hashtable]) { continue }
+        foreach ($n in @($o.Names)) { $h = ConvertTo-MspkiHostName $n; if ($h -and $names -notcontains $h) { $names += $h } }
+        $errs += @($o.Errors | Where-Object { $_ })
+    }
+    if ($call.TimedOut) { $errs += ('No answer within {0} s.' -f $limit) }
+    $errs += @($call.Errors | Where-Object { $_ })
+    $out.Names = $names; $out.Errors = $errs; $out.Completed = [bool]$call.Completed
+    return $out
+}
+
 function Get-MspkiForestDomainController {
     <#
     .SYNOPSIS
-    The DNS names of the forest's domain controllers: the server objects (with a dNSHostName) under CN=Sites of the Configuration
-    partition, read with one subtree search on the selected domain controller. Read-only. These are the only named hosts, besides
-    the selected domain controller, that an LDAP URL may reach without other proof (audit 2 H1).
+    The DNS names of the forest's live domain controllers (audit 2 verification N5). Read-only. Besides the selected domain controller,
+    these are the only named hosts that an LDAP URL may reach without other proof (audit 2 H1).
+
+    .DESCRIPTION
+    A domain controller counts only when both hold:
+    - its server object under CN=Sites of the Configuration partition has an NTDS Settings (nTDSDSA) child. A removed domain controller
+      whose metadata was not cleaned up leaves a server object without one;
+    - live evidence names it: a DNS SRV record _ldap._tcp.dc._msdcs.<domain> of a forest domain, or the DC locator
+      (Get-MspkiLiveDomainControllerName). A stale name whose DNS record was scavenged can be registered again by any user.
+    The two directory reads are subtree searches on the selected domain controller. Every server object that is not counted is
+    returned in Excluded with the reason.
+
+    .OUTPUTS
+    The host names; with -Detail { Names; Excluded ({ Name; Reason }); Live (see Get-MspkiLiveDomainControllerName) }.
     #>
     [CmdletBinding()]
-    param([string]$Server = '', [Parameter(Mandatory = $true)][string]$ConfigNC, [int]$TimeoutSeconds = 15)
-    $recs = @(Get-MspkiLdapObject -Server $Server -BaseDN ('CN=Sites,{0}' -f $ConfigNC) -Scope Subtree `
-        -Filter '(&(objectClass=server)(dNSHostName=*))' -Properties @('dNSHostName') -TimeoutSeconds $TimeoutSeconds)
-    $out = @()
-    foreach ($r in $recs) {
-        $h = ConvertTo-MspkiHostName ([string](Get-MspkiLdapValue -Record $r -Name 'dNSHostName'))
-        if ($h -and $out -notcontains $h) { $out += $h }
+    param(
+        [string]$Server = '',
+        [Parameter(Mandatory = $true)][string]$ConfigNC,
+        [int]$TimeoutSeconds = 15,
+        # The forest's DNS domains (whose SRV records are read).
+        [AllowEmptyCollection()][string[]]$Domains = @(),
+        [switch]$Detail
+    )
+    $base = 'CN=Sites,{0}' -f $ConfigNC
+    $servers = @(Get-MspkiLdapObject -Server $Server -BaseDN $base -Scope Subtree `
+        -Filter '(&(objectClass=server)(dNSHostName=*))' -Properties @('dNSHostName', 'distinguishedName') -TimeoutSeconds $TimeoutSeconds)
+    $ntds = @(Get-MspkiLdapObject -Server $Server -BaseDN $base -Scope Subtree -Filter '(objectClass=nTDSDSA)' `
+        -Properties @('distinguishedName') -TimeoutSeconds $TimeoutSeconds)
+    # The parent of CN=NTDS Settings,CN=<server>,CN=Servers,... is the server object.
+    $withNtds = @{}
+    foreach ($n in $ntds) {
+        $dn = [string](Get-MspkiLdapValue -Record $n -Name 'distinguishedName')
+        $m = [regex]::Match($dn, '^(?:[^,\\]|\\.)*,(?<parent>.+)$')
+        if ($m.Success) { $withNtds[$m.Groups['parent'].Value.ToLowerInvariant()] = $true }
     }
-    return , $out
+    $live = Get-MspkiLiveDomainControllerName -Domains $Domains -TimeoutSeconds $TimeoutSeconds
+    $names = @(); $excluded = New-Object System.Collections.ArrayList
+    foreach ($r in $servers) {
+        $h = ConvertTo-MspkiHostName ([string](Get-MspkiLdapValue -Record $r -Name 'dNSHostName'))
+        if (-not $h -or $names -contains $h) { continue }
+        $dn = ([string](Get-MspkiLdapValue -Record $r -Name 'distinguishedName')).ToLowerInvariant()
+        if (-not $withNtds.ContainsKey($dn)) {
+            [void]$excluded.Add([pscustomobject]@{ Name = $h; Reason = 'its server object has no NTDS Settings object (a server object that a removed domain controller left behind looks like this)' })
+            continue
+        }
+        if (@($live.Names) -notcontains $h) {
+            $why = 'no DNS SRV record (_ldap._tcp.dc._msdcs.<domain>) of a forest domain names it'
+            if ($live.Method -eq 'DcLocator') { $why = 'the DC locator does not find it' }
+            if (@($live.Names).Count -eq 0 -and @($live.Errors).Count -gt 0) { $why = ('the live domain controllers could not be read ({0})' -f (@($live.Errors) -join '; ')) }
+            [void]$excluded.Add([pscustomobject]@{ Name = $h; Reason = $why })
+            continue
+        }
+        $names += $h
+    }
+    if ($Detail) { return [pscustomobject]@{ Names = $names; Excluded = @($excluded); Live = $live } }
+    return , $names
 }
 
 function Get-MspkiDomainControllerName {
@@ -243,10 +338,11 @@ function Get-MspkiAdContext {
     <#
     .SYNOPSIS
     Discovers the AD context for the run: domain membership, domain controller, naming contexts,
-    forest, domains, trusts and site. Returns Data (context) and Findings.
+    forest, domains, trusts and site. Returns Data (context) and Findings. With -SkipNetwork the live domain controllers are not read
+    from DNS: only the selected domain controller may then receive a bind, so the list is not needed.
     #>
     [CmdletBinding()]
-    param([int]$TimeoutSeconds = 5)
+    param([int]$TimeoutSeconds = 5, [switch]$SkipNetwork)
 
     $findings = New-Object System.Collections.ArrayList
     $ctx = [ordered]@{
@@ -393,10 +489,31 @@ function Get-MspkiAdContext {
         # No domain controller answered: there is nothing to read the list from, and no LDAP URL that names a host is contacted.
         Add-MspkiMethodOutcome -Method 'AD:Sites:Servers' -Outcome 'Skipped' -Detail 'no domain controller answered for RootDSE'
     }
+    elseif ($SkipNetwork) {
+        $ctx.DomainControllers = @($ctx.DomainController | Where-Object { $_ })
+        Add-MspkiMethodOutcome -Method 'AD:Sites:Servers' -Outcome 'Skipped' -Detail '-SkipNetwork: only the selected domain controller is contacted'
+    }
     else { try {
-        $ctx.DomainControllers = @(Get-MspkiForestDomainController -Server $ctx.DomainController -ConfigNC $ctx.ConfigNC -TimeoutSeconds $ldapTimeout)
+        # Only live domain controllers count: a server object with NTDS Settings that DNS SRV records (or the DC locator) also name
+        # (audit 2 verification N5). Stale server objects are reported, never contacted.
+        $doms = @($ctx.ForestDomains | Where-Object { $_ })
+        if ($doms.Count -eq 0 -and $ctx.Domain) { $doms = @($ctx.Domain) }
+        $dcInfo = Get-MspkiForestDomainController -Server $ctx.DomainController -ConfigNC $ctx.ConfigNC -TimeoutSeconds $ldapTimeout -Domains $doms -Detail
+        $ctx.DomainControllers = @($dcInfo.Names)
         if ($ctx.DomainController -and $ctx.DomainControllers -notcontains $ctx.DomainController) { $ctx.DomainControllers = @($ctx.DomainControllers) + $ctx.DomainController }
-        Add-MspkiMethodOutcome -Method 'AD:Sites:Servers' -Outcome 'Success' -Detail ('{0} domain controller(s)' -f @($ctx.DomainControllers).Count) -ElapsedMs $sw.ElapsedMilliseconds
+        Add-MspkiMethodOutcome -Method 'AD:Sites:Servers' -Outcome 'Success' -ElapsedMs $sw.ElapsedMilliseconds `
+            -Detail ('{0} live domain controller(s) ({1}); {2} server object(s) not counted' -f @($ctx.DomainControllers).Count, $dcInfo.Live.Method, @($dcInfo.Excluded).Count)
+        if (@($dcInfo.Live.Names).Count -eq 0 -and @($dcInfo.Live.Errors).Count -gt 0) {
+            Write-MspkiLog -Level Warning -Message ('Live domain controllers not read: {0}' -f (@($dcInfo.Live.Errors) -join '; '))
+            Add-MspkiRunLimit -Text 'The forest''s live domain controllers could not be read from DNS: LDAP URLs that name a domain controller other than the selected one were contacted only when trusted evidence named them.'
+        }
+        if (@($dcInfo.Excluded).Count -gt 0) {
+            [void]$findings.Add((New-MspkiFinding -Category 'ADDependency' -Role 'DomainController' -Target $ctx.Forest `
+                -Status 'Information' -StatusCode 'STALE_REFERENCE' -Confidence 'Confirmed' -Sources 'AD:Sites:Servers' -Scope 'Local' `
+                -Message ('{0} server object(s) under CN=Sites were not counted as live domain controllers.' -f @($dcInfo.Excluded).Count) `
+                -Layers @{ DiscoveryStatus = 'Pass' } -Evidence @($dcInfo.Excluded | ForEach-Object { '{0}: {1}' -f $_.Name, $_.Reason }) `
+                -Notes 'This tool never sends a directory bind to these names because of their server objects. A server object without NTDS Settings usually remains after a domain controller was removed without metadata cleanup; check it and remove it if the domain controller is gone.'))
+        }
     }
     catch {
         $ei = Get-MspkiErrorInfo $_

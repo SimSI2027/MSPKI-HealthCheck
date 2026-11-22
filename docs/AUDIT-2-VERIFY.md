@@ -418,7 +418,8 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 
 | ID | Status | Commit | Tests | Pre-fix run |
 |---|---|---|---|---|
-| N1 | Fixed | (this commit) | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N1: a downloaded CA certificate is trusted only as an authoritative copy or by its own verified signature" (6), "Audit 2 N1: a forged certificate at an AIA location is not followed" (4) | against `9b43bb1`: 10 ran, 8 red. Behavioural 2: the forged certificate was Pass / **Confirmed** (expected Referenced), and the forged self-signed root was **Pass** (expected Fail / SIGNATURE_INVALID). Signature 6: `Test-MspkiDownloadedCertificateTrust` did not exist. The 2 positive cases (exact root copy, proven subordinate) pass on both, as they should |
+| N1 | Fixed | `eccbc02` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N1: a downloaded CA certificate is trusted only as an authoritative copy or by its own verified signature" (6), "Audit 2 N1: a forged certificate at an AIA location is not followed" (4) | against `9b43bb1`: 10 ran, 8 red. Behavioural 2: the forged certificate was Pass / **Confirmed** (expected Referenced), and the forged self-signed root was **Pass** (expected Fail / SIGNATURE_INVALID). Signature 6: `Test-MspkiDownloadedCertificateTrust` did not exist. The 2 positive cases (exact root copy, proven subordinate) pass on both, as they should |
+| N5 | Fixed | (this commit) | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N5: the forest domain controller list holds live domain controllers only" (4); `tests/Audit2.Security.Tests.ps1` "reads the forest domain controllers ..." updated (two reads now) | against `eccbc02`: 5 ran, 5 red. Behavioural 1: "reports the server objects that were not counted" got all three server objects (a stale one without NTDS Settings and one without an SRV record included), expected one. Signature 4: `Get-MspkiLiveDomainControllerName` did not exist |
 
 ### N1: what changed
 - `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
@@ -434,3 +435,13 @@ counts the tests that failed because of the old behaviour; "signature" counts th
   key only (`Test-MspkiSignature`); no `X509Chain` is built, so Windows fetches nothing in the background.
 - Lab run as a normal (non-elevated) user after N1: 99 findings, exit 6, the same categories, statuses, codes and confidences as the
   baseline (the lab's AIA certificates are exact copies of the AD ones, so they stay Confirmed).
+
+### N5: what changed
+- `Get-MspkiForestDomainController` (`src/Discovery/AdContext.ps1`) counts a domain controller only when its server object under
+  CN=Sites has an NTDS Settings (nTDSDSA) child **and** live evidence names it: the SRV records `_ldap._tcp.dc._msdcs.<domain>` of every
+  forest domain (`Get-MspkiLiveDomainControllerName`, `Resolve-DnsName -DnsOnly` in one time-limited runspace; the in-box DC locator only
+  where the DnsClient module is missing). No directory bind is made for this.
+- Server objects that are not counted are reported once (Information / STALE_REFERENCE, with the reason per name) and never receive a
+  bind. If DNS cannot be read, no other domain controller is counted and a run limit says so. With `-SkipNetwork` the DNS lookup is
+  skipped (only the selected domain controller can receive a bind then).
+- Lab check: 2 domains, 2 server objects, both with NTDS Settings and SRV records, 0 excluded.
