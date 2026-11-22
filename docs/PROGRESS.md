@@ -399,3 +399,11 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   any change to a directory or network read, run the lab, because the unit tests mock those reads.
 - A local pre-commit check against the private lab facts now exists outside the repository (an untracked git hook).
 - Next: the verification audit.
+
+## Audit 2 verification (2026-11-22): docs/AUDIT-2-VERIFY.md, no code changed
+- Every Fixed item was checked in the code, and its tests were run against the parent commit's code (behavioural versus signature-only
+  red recorded). Full suite at f8ed721: 1029 passed.
+- Verified: H1 (CRL path), M1-M2, M4-M7, M9-M13, the Lows claimed. Partly: M8, M14. Regressed: H2 (ESC3 shared-principal check misses
+  Authenticated Users / Everyone agents; a schema 2 case that matched before no longer does). M3 has a small AIA side effect.
+- New: N1 (High) a forged AIA certificate with the real CA key is Pass/Confirmed and its LDAP link reaches a bind; N4-N7 Low/nit.
+- Next: fix N1, then N2 (H2), then N3-N7.
