@@ -2,7 +2,7 @@ BeforeAll {
     . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
     Import-Module $script:ModulePath -Force
     $script:demoResults = Join-Path $script:FixturePath 'demo-results.json'
-    $script:demoJson = [System.IO.File]::ReadAllText($script:demoResults, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+    $script:demoJson = Read-MspkiResultsJson -Path $script:demoResults
 }
 
 Describe 'Exit codes' {
@@ -97,7 +97,7 @@ Describe 'Exit codes' {
             $out = Join-Path $TestDrive ('run-' + $Name)
             $r = Start-MspkiHealthCheck -OutputPath $out -TimeoutSeconds 1 -SkipNetwork
             $r.ExitCode | Should -Be $Code
-            $j = Get-Content -LiteralPath $r.ResultsPath -Raw | ConvertFrom-Json
+            $j = Read-MspkiResultsJson -Path $r.ResultsPath
             $j.ExitCode | Should -Be $Code
             Test-Path -LiteralPath $r.CsvPath | Should -BeTrue
             Test-Path -LiteralPath $r.ReportPath | Should -BeTrue
@@ -114,7 +114,7 @@ Describe 'Exit codes' {
             Test-Path -LiteralPath $r.ResultsPath | Should -BeTrue
             Test-Path -LiteralPath $r.CsvPath | Should -BeTrue
             Test-Path -LiteralPath (Join-Path $r.OutputFolder 'report.html') | Should -BeFalse
-            $j = Get-Content -LiteralPath $r.ResultsPath -Raw | ConvertFrom-Json
+            $j = Read-MspkiResultsJson -Path $r.ResultsPath
             $j.ExitCode | Should -Be 5
             @($j.Findings | Where-Object { $_.Stage -eq 'Report' -and $_.Status -eq 'Error' }).Count | Should -Be 1
         }

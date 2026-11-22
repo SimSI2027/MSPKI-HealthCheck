@@ -132,7 +132,7 @@ function Get-MspkiDiscoveryTree {
 
     # --- PKI containers
     $containers = @()
-    if ($null -ne $inv) { $containers = @($inv.Containers) }
+    if ($null -ne $inv) { $containers = @($inv.Containers | Where-Object { $null -ne $_ }) }
     if ($containers.Count -gt 0) {
         $cn = New-MspkiMapNode -Type 'Group' -Label ('Public Key Services containers ({0})' -f $containers.Count) -Sources @('AD:PublicKeyServices')
         foreach ($c in $containers) {
@@ -170,9 +170,9 @@ function Get-MspkiDiscoveryTree {
 
     # --- CAs
     $cas = @()
-    if ($null -ne $inv) { $cas = @($inv.EnterpriseCAs) }
+    if ($null -ne $inv) { $cas = @($inv.EnterpriseCAs | Where-Object { $null -ne $_ }) }
     $certs = @()
-    if ($null -ne $inv) { $certs = @($inv.CACertificates) }
+    if ($null -ne $inv) { $certs = @($inv.CACertificates | Where-Object { $null -ne $_ }) }
     $certNode = {
         param($C)
         $i = $C.Info

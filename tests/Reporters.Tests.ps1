@@ -38,7 +38,7 @@ Describe 'Export-MspkiJson' {
             Export-MspkiJson -Path $p -RunInfo ([pscustomobject]$run) -Inventory ([pscustomobject]@{ X = 1 }) -Findings @($f1, $f2) -ExitCode 3 | Out-Null
             $bytes = [System.IO.File]::ReadAllBytes($p)
             ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB) | Should -BeFalse
-            $j = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
+            $j = ConvertFrom-MspkiJson -Text ([System.Text.Encoding]::UTF8.GetString($bytes))
             $j.Schema | Should -Be 'mspki-healthcheck/2'
             $j.SchemaVersion | Should -Be 2
             $j.PSObject.Properties.Name | Should -Contain 'Graph'
@@ -64,7 +64,7 @@ Describe 'Start-MspkiHealthCheck end to end (local machine, -SkipNetwork)' {
         Test-Path -LiteralPath $r.ResultsPath | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $r.OutputFolder 'run.log') | Should -BeTrue
         $r.OutputFolder | Should -BeLike ((Join-Path $out '*'))
-        $j = Get-Content -LiteralPath $r.ResultsPath -Raw | ConvertFrom-Json
+        $j = Read-MspkiResultsJson -Path $r.ResultsPath
         $j.ExitCode | Should -Be $r.ExitCode
         $r.ExitCode | Should -BeIn @(0, 2, 3, 4, 5, 6)
         Test-Path -LiteralPath (Join-Path $r.OutputFolder 'findings.csv') | Should -BeTrue
@@ -89,7 +89,7 @@ Describe 'Invoke-MspkiHealthCheck.ps1 entry point' {
         $json.Count | Should -Be 1
         Test-Path -LiteralPath (Join-Path $json[0].DirectoryName 'report.html') | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $json[0].DirectoryName 'findings.csv') | Should -BeTrue
-        $j = Get-Content -LiteralPath $json[0].FullName -Raw | ConvertFrom-Json
+        $j = Read-MspkiResultsJson -Path $json[0].FullName
         $code | Should -Be $j.ExitCode
         $j.RunInfo.PSEdition | Should -Be 'Desktop'
     }

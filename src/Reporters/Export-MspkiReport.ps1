@@ -59,7 +59,7 @@ function Export-MspkiReportFromResults {
         [Parameter(Mandatory = $true)][string]$OutputFolder
     )
     $text = [System.IO.File]::ReadAllText([System.IO.Path]::GetFullPath($ResultsPath), [System.Text.Encoding]::UTF8)
-    $j = ConvertFrom-MspkiResultsDocument -Document ($text | ConvertFrom-Json)
+    $j = ConvertFrom-MspkiResultsDocument -Document (ConvertFrom-MspkiJson -Text $text)
     $folder = Use-MspkiOutputFolder -Path $OutputFolder
     $findings = @($j.Findings)
     $r = Write-MspkiRunReport -Folder $folder -RunInfo $j.RunInfo -Inventory $j.Inventory -Findings $findings -ExitCode ([int]$j.ExitCode)

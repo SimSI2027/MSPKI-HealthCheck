@@ -316,7 +316,7 @@ Describe 'Invoke-MspkiDiscovery' {
     It 'runs discovery, lead registration and CA certificate health end to end' {
         & $script:mockAd
         $r = Start-MspkiHealthCheck -OutputPath (Join-Path $TestDrive 'e2e') -TimeoutSeconds 1
-        $j = Get-Content -LiteralPath $r.ResultsPath -Raw | ConvertFrom-Json
+        $j = Read-MspkiResultsJson -Path $r.ResultsPath
         @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'CDP' }).Count | Should -Be 2
         @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'AIA' }).Count | Should -Be 1
         @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'CES' -and $_.Confidence -eq 'Referenced' }).Count | Should -Be 2

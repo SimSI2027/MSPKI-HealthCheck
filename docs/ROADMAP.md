@@ -6,6 +6,7 @@ capture, RSAT, PSPKI, Sysinternals) are for understanding on the lab machine; th
 
 ## DONE
 - Entity graph (results.json format 2, `docs/DATA-MODEL.md`): the base for G1/G2 drill-down. GUI reads format 1 and 2.
+- WP1 (2026-11-21): results.json is read with the in-box JavaScriptSerializer (no size limit; 10 MB tested).
 - Engine phases A-C (discovery, endpoint and CRL health, reports, exit codes); live AD discovery.
 - GUI redesign passed the rubric (round 5); cancel, progress, developer snapshots.
 - Audit High and Medium findings fixed (`docs/AUDIT.md`).

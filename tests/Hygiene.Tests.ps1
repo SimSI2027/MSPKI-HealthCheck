@@ -25,7 +25,8 @@ BeforeAll {
 
     $script:forbidden = [ordered]@{
         'Invoke-Expression'            = '(?i)Invoke-Expression|\biex\b'
-        # Only "Add-Type -AssemblyName <in-box WPF assembly>" is allowed (CLAUDE.md rule 6); -TypeDefinition / -MemberDefinition are not.
+        # Only "Add-Type -AssemblyName <in-box WPF assembly>" is allowed (CLAUDE.md rule 6), plus System.Web.Extensions in JsonReader.ps1
+        # (handled in the test below); -TypeDefinition / -MemberDefinition are not.
         'Add-Type'                     = '(?i)Add-Type(?!\s+-AssemblyName\s+(PresentationFramework|PresentationCore|WindowsBase)\b)'
         'encoded command'              = '(?i)-EncodedCommand|\s-enc\s|\s-e\s'
         'Base64 decoding'              = '(?i)FromBase64'
@@ -64,7 +65,11 @@ Describe 'Code file <Name>' -ForEach $script:codeFiles {
             if ($k -eq 'Base64 decoding' -and $Name -eq 'BinaryData.ps1') { continue }
             # The NDES request table is the one place that may name the admin path (anonymous GET only; see tests/Ndes.Tests.ps1).
             if ($k -eq 'credentials to mscep_admin' -and $Name -eq 'NdesProbe.ps1') { continue }
-            $text | Should -Not -Match $script:forbidden[$k] -Because ('{0} is not allowed (CLAUDE.md hard rules)' -f $k)
+            $t = $text
+            # The JSON reader may load the in-box System.Web.Extensions assembly (JavaScriptSerializer); no other file may.
+            if ($k -eq 'Add-Type' -and $Name -eq 'JsonReader.ps1') { $t = $t -replace '(?i)Add-Type\s+-AssemblyName\s+System\.Web\.Extensions\b', '' }
+            if ($k -eq 'Add-Type' -and $Name -ne 'JsonReader.ps1') { $t | Should -Not -Match '(?i)System\.Web\.Extensions' }
+            $t | Should -Not -Match $script:forbidden[$k] -Because ('{0} is not allowed (CLAUDE.md hard rules)' -f $k)
         }
     }
 

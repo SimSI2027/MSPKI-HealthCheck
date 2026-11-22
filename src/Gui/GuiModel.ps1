@@ -293,13 +293,9 @@ function Read-MspkiGuiResults {
     if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw ('The file was not found: {0}' -f $full) }
     $text = [System.IO.File]::ReadAllText($full, [System.Text.Encoding]::UTF8)
     $j = $null
-    try { $j = $text | ConvertFrom-Json }
-    catch {
-        if ($text.Length -gt 2000000) {
-            throw 'This results file is larger than Windows PowerShell 5.1 can read (about 2 MB of JSON). Open report.html from the same folder instead.'
-        }
-        throw ('This file is not valid JSON: {0}' -f $_.Exception.Message)
-    }
+    # In-box JavaScriptSerializer with no size limit (ConvertFrom-Json in Windows PowerShell 5.1 stops at about 2 MB).
+    try { $j = ConvertFrom-MspkiJson -Text $text }
+    catch { throw ('This file is not valid JSON: {0}' -f $_.Exception.Message) }
     if ($null -eq $j -or -not $j.Schema -or ([string]$j.Schema) -notlike 'mspki-healthcheck/*') {
         throw 'This is not a results.json written by the MSPKI Health Check.'
     }

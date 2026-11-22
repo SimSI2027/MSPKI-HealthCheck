@@ -73,7 +73,8 @@ this computer when there is no forest), so the list is never empty.
   ExpectedMissing, ByType }; Entities[]; Observations[]; Relations[] }`, sorted by id. Entity = `{ Id; Type; Name; Properties }`.
 - Readers go through `ConvertFrom-MspkiResultsDocument` (exported): format 1 is accepted (no graph, empty `EntityIds`, a `Notice` the
   GUI shows in its banner); a newer format throws a plain-language message. The report re-export uses the same adapter.
-- Size: Windows PowerShell 5.1's `ConvertFrom-Json` stops at about 2 MB. The lab run with the graph is about 1.4 MB; keep entity
+- Size: every reader (GUI, report re-export, tests) goes through `ConvertFrom-MspkiJson` (`src/Model/JsonReader.ps1`: in-box JavaScriptSerializer,
+  `MaxJsonLength = [int]::MaxValue`), so there is no ~2 MB limit; a 10 MB file is tested. Still keep entity
   properties short (no certificate bytes, no ACLs in the graph).
 
 ## How it is built during a run

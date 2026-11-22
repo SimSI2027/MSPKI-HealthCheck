@@ -40,7 +40,9 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
    allowed. Do it only in `ConvertFrom-MspkiBase64Data` (`src/Model/BinaryData.ps1`), which accepts only
    certificate/CRL-shaped DER data. Never decode and then run, load, dot-source or write anything.
    *Clarification:* `Add-Type -AssemblyName` to load the in-box WPF assemblies (`PresentationFramework`, `PresentationCore`,
-   `WindowsBase`) is allowed, for the GUI only (`Start-MspkiHealthCheckGui.ps1`, `src/Gui/`). `Add-Type` with `-TypeDefinition` or
+   `WindowsBase`) is allowed, for the GUI only (`Start-MspkiHealthCheckGui.ps1`, `src/Gui/`). `Add-Type -AssemblyName System.Web.Extensions`
+   is allowed in `src/Model/JsonReader.ps1` only (the in-box JavaScriptSerializer reads results.json above PS 5.1's ~2 MB
+   `ConvertFrom-Json` limit; data only). `Add-Type` with `-TypeDefinition` or
    `-MemberDefinition`, which compiles code, stays banned. Everything else in this rule still applies. `tests/Hygiene.Tests.ps1`
    enforces it.
 7. **No secrets.** Never read, log or export private keys, passwords, tokens, challenge passwords or

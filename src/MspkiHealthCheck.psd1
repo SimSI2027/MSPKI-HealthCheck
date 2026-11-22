@@ -7,7 +7,7 @@
     Description          = 'Read-only, self-discovering health check for Microsoft AD CS (Windows PowerShell 5.1).'
     PowerShellVersion    = '5.1'
     CompatiblePSEditions = @('Desktop')
-    FunctionsToExport    = @('Start-MspkiHealthCheck', 'New-MspkiFinding', 'Get-MspkiSchema', 'Export-MspkiReportFromResults', 'New-MspkiRunControl', 'Get-MspkiDiscoveryTree', 'Get-MspkiFindingSummary', 'Get-MspkiExitCodeInfo', 'ConvertFrom-MspkiResultsDocument')
+    FunctionsToExport    = @('Start-MspkiHealthCheck', 'New-MspkiFinding', 'Get-MspkiSchema', 'Export-MspkiReportFromResults', 'New-MspkiRunControl', 'Get-MspkiDiscoveryTree', 'Get-MspkiFindingSummary', 'Get-MspkiExitCodeInfo', 'ConvertFrom-MspkiResultsDocument', 'ConvertFrom-MspkiJson', 'Read-MspkiResultsJson')
     CmdletsToExport      = @()
     VariablesToExport    = @()
     AliasesToExport      = @()

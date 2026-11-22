@@ -236,3 +236,12 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Decisions: /ocsp/ is probed only on Enterprise CA hosts (proven PKI, anonymous GET, no redirects, body discarded). SAN names are resolved
   only when they come from a certificate. results.json is now 1.5 MB in the lab: watch the 2 MB `ConvertFrom-Json` limit of PS 5.1.
 - Next: G1/G2 drill-down on the graph; D2 endpoint identity (PTR, CNAME → `resolvesTo`); NDES via template ACE / SPN route.
+
+## WP1 (2026-11-21): results.json without a size limit
+- New `src/Model/JsonReader.ps1`: `ConvertFrom-MspkiJson` / `Read-MspkiResultsJson` (in-box JavaScriptSerializer, `MaxJsonLength = [int]::MaxValue`,
+  dictionaries become PSCustomObjects; arrays are converted in place so they never serialise as `{ value, Count }`). The GUI, the report re-export
+  and every test that reads a results.json use it. Hygiene: `Add-Type -AssemblyName System.Web.Extensions` is allowed in that one file only (CLAUDE.md rule 6).
+- New `tests/JsonReader.Tests.ps1`: same shape as ConvertFrom-Json; a 10+ MB results.json written by `Export-MspkiJson` opens in the reader, the GUI model and
+  the report re-export. Found and fixed on the way: the report tree crashed on an inventory without `Containers` (`@($null)` gave one empty node).
+- Note: on this machine PS 5.1 `ConvertFrom-Json` also read the 10 MB file; the ~2 MB limit noted earlier was not reproduced. The tool no longer depends on it.
+- Full suite 805 passed, 0 failed. Next: WP2 endpoint identity (D2).

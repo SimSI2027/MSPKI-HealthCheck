@@ -217,7 +217,7 @@ Describe 'Finding links' {
 
 Describe 'results.json versions' {
     It 'reads a format-1 file (the demo fixture) through the adapter, with a notice and empty EntityIds' {
-        $j = Get-Content (Join-Path $PSScriptRoot 'fixtures\demo-results.json') -Raw | ConvertFrom-Json
+        $j = Read-MspkiResultsJson -Path (Join-Path $PSScriptRoot 'fixtures\demo-results.json')
         $r = ConvertFrom-MspkiResultsDocument -Document $j
         $r.SchemaVersion | Should -Be 1
         $r.Graph | Should -BeNullOrEmpty

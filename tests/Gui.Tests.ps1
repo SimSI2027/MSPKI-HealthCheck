@@ -142,7 +142,7 @@ Describe 'Run control (cancel flag and progress queue)' {
             Test-Path -LiteralPath $r.ResultsPath | Should -BeTrue
             Test-Path -LiteralPath $r.ReportPath | Should -BeTrue
             Test-MspkiCancelled | Should -BeFalse
-            $j = Get-Content -LiteralPath $r.ResultsPath -Raw | ConvertFrom-Json
+            $j = Read-MspkiResultsJson -Path $r.ResultsPath
             $j.RunInfo.Completed | Should -BeFalse
         }
     }
