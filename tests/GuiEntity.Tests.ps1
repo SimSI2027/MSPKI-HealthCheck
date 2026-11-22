@@ -51,7 +51,7 @@ Describe 'Object views' {
         $p.Related[0].Label | Should -Be 'Certificate of'
         $p.Related[0].Tag | Should -Be 'ent:ca:ca01.corp.example.test\example issuing ca'
         $p.FindingCount | Should -Be 1
-        @($p.Breadcrumbs).Count | Should -Be 2
+        @($p.Breadcrumbs).Count | Should -Be 1
         $p.CanGoBack | Should -BeTrue
         $p.CopyText | Should -Match 'MISSING: LocalStore'
     }
@@ -121,9 +121,11 @@ Describe 'Object views' {
         $from.BackText | Should -Be 'Back to the finding'
         $two = Get-MspkiGuiEntityPane -Index $ix -Id 'host:ca01.corp.example.test' -Trail @('cacert:aa', 'host:ca01.corp.example.test')
         $two.BackText | Should -Be 'Back to CN=Example Issuing CA'
-        $two.ShowCrumbs | Should -BeTrue
-        $two.Breadcrumbs[0].NotLast | Should -BeTrue
-        $two.Breadcrumbs[1].IsLast | Should -BeTrue
+        $two.ShowCrumbs | Should -BeFalse
+        $three = Get-MspkiGuiEntityPane -Index $ix -Id 'host:other.example.test' -Trail @('cacert:aa', 'host:ca01.corp.example.test', 'host:other.example.test')
+        $three.ShowCrumbs | Should -BeTrue
+        @($three.Breadcrumbs).Count | Should -Be 2
+        $three.Breadcrumbs[1].Tag | Should -Be 'crumb:1'
         $c = Get-MspkiGuiEntityPane -Index $ix -Id 'cacert:aa'
         $c.MissingBadge | Should -Be 'Missing in 1 expected place'
         $c.SeenBadge | Should -Be 'Seen or named in 1 place'

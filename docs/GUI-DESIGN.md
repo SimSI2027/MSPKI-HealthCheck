@@ -173,3 +173,18 @@ What still separates it from a top-tier product (known, not fixable within the c
 - At the minimum size the Findings grid shows about five rows; Category, Severity and Confidence scroll horizontally.
 - No column chooser or remembered layout (column widths, splitter position, last page) between sessions.
 - No motion (page transitions, progress shimmer); the container icon in the tree is a generic library glyph.
+
+### WP7 round 1 (2026-11-22, new views: Objects page, object details, PKI services; example fixture at 1080x700 and 1920x1080)
+Scores: hierarchy 8, alignment 8, typography 8, colour 9, density 7, controls 8, icons 8, states 8, data readability 7, polish 7. **Not a pass.**
+Defects: host details listed its DNS/TLS facts twice (Host identity and Properties); the "what this is" box took four lines of the details
+pane at minimum size; breadcrumbs repeated the Back link and pushed the current object onto an orphan second line; a state line broke
+inside "-SkipNetwork"; long ids wrapped and were clipped in Objects rows (fixed during WP5).
+Generator: host identity facts shown once; the note is one compact line-wrapped paragraph ("What it is: ..."); breadcrumbs only from the
+third object, listing the objects before the current one; state texts without switch names.
+
+### WP7 round 2 (1080x700 and maximised on a 3856 px screen)
+Defect found and fixed: on the ultra-wide screen the service card prose ran to 200+ character lines (capped at 880 px, as the details pane
+and search box already are).
+Scores: hierarchy 8, alignment 8, typography 8, colour 9, density 8, controls 8, icons 8, states 8, data readability 8, polish 8. **PASS.**
+Known, accepted: on an ultra-wide screen the state badge of a service card sits far from its title (right-aligned in a wide card); the object
+id is a second, long monospace line under the title; generator and discriminator were the same model in this loop.

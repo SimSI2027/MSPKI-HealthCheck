@@ -138,11 +138,13 @@ function Get-MspkiGuiEntityPane {
         [string]$OriginText = '')
     # Back goes to the previous object of the trail, or (at the first object) to what the user came from: a finding or a map item.
     $n = @($Trail).Count
-    $crumbs = @(for ($i = 0; $i -lt $n; $i++) { [pscustomobject]@{ Name = (Get-MspkiGuiEntityName -Index $Index -Id $Trail[$i]); Tag = ('crumb:{0}' -f $i); IsLast = ($i -eq $n - 1); NotLast = ($i -lt $n - 1); NotFirst = ($i -gt 0) } })
+    # The breadcrumbs are the objects before this one (the title names this one); with only one before it, Back says the same, so they show
+    # from the third object on.
+    $crumbs = @(for ($i = 0; $i -lt $n - 1; $i++) { [pscustomobject]@{ Name = (Get-MspkiGuiEntityName -Index $Index -Id $Trail[$i]); Tag = ('crumb:{0}' -f $i) } })
     $backText = ''
     if ($n -gt 1) { $backText = 'Back to {0}' -f (Get-MspkiGuiEntityName -Index $Index -Id $Trail[$n - 2]) }
     elseif ($OriginText) { $backText = $OriginText }
-    $nav = @{ Breadcrumbs = $crumbs; ShowCrumbs = ($n -gt 1); CanGoBack = [bool]$backText; BackText = $backText }
+    $nav = @{ Breadcrumbs = $crumbs; ShowCrumbs = ($n -gt 2); CanGoBack = [bool]$backText; BackText = $backText }
     if ($null -eq $Index -or -not $Index.Entities.ContainsKey($Id)) {
         $why = 'This object is not in the results of this run.'
         if ($null -eq $Index) { $why = 'These results were written by an older version of the tool, without the object graph. Run the health check again to see objects.' }
@@ -160,7 +162,9 @@ function Get-MspkiGuiEntityPane {
     }
     $props = @()
     if ($null -ne $e.Properties) {
-        $props = @($e.Properties.PSObject.Properties | Where-Object { $null -ne $_.Value -and [string]$_.Value -ne '' } | Sort-Object Name | ForEach-Object { [pscustomobject]@{ Name = ($_.Name -creplace '([a-z])([A-Z])', '$1 $2'); Value = (ConvertTo-MspkiGuiValueText $_.Value) } } | Where-Object { $_.Value })
+        # A host's DNS / TLS / HTTP facts are shown once, under Host identity.
+        $skip = @(); if ([string]$e.Type -eq 'Host') { $skip = @('A', 'AAAA', 'Ptr', 'AliasChain', 'CanonicalName', 'QueryName', 'DnsMethod', 'DnsLookup', 'TlsCertificates', 'HttpServer', 'Addresses') }
+        $props = @($e.Properties.PSObject.Properties | Where-Object { $null -ne $_.Value -and [string]$_.Value -ne '' -and $skip -notcontains $_.Name } | Sort-Object Name | ForEach-Object { [pscustomobject]@{ Name = ($_.Name -creplace '([a-z])([A-Z])', '$1 $2'); Value = (ConvertTo-MspkiGuiValueText $_.Value) } } | Where-Object { $_.Value })
     }
     $obs = @(); if ($Index.Obs.ContainsKey($Id)) { $obs = @($Index.Obs[$Id]) }
     $toRow = {
@@ -453,7 +457,7 @@ function Get-MspkiGuiServiceSection {
             $why = $(if ($cannot) { 'Not there where this run could look; some places could not be checked from here, so it may still exist elsewhere (see the findings).' } else { 'Looked for in this run; nothing was there.' })
         }
         elseif ($cannot) { $st = New-MspkiGuiPill -Text 'Cannot be checked from here' -Tone Admin -Code 0xE72E; $why = 'This run could not look (permission, unsupported or unreachable): not found is not the same as not present.' }
-        else { $st = New-MspkiGuiPill -Text 'Not checked in this run' -Tone Neutral -Code 0xE7E8; $why = 'No check in this run covered it (for example with -SkipNetwork, or a run that was cancelled).' }
+        else { $st = New-MspkiGuiPill -Text 'Not checked in this run' -Tone Neutral -Code 0xE7E8; $why = 'No check in this run covered it (for example a run with the network checks turned off, or a cancelled run).' }
         $risk = @($mine | Where-Object { $quiet -notcontains [string]$_.Status -or [string]$_.Finding.StatusCode -eq 'CONFIG_RISK' })
         [void]$out.Add([pscustomobject][ordered]@{
             Kind = $kind; Label = $k.Label; Glyph = [string][char]$k.Glyph; About = $k.About; Scope = $k.Scope

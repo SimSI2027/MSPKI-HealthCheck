@@ -305,3 +305,9 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   NOTE: this Claude terminal runs at High integrity (IsAdmin true), not as a normal user; normal-user runs need the filtered token.
 - Tests: services states in `tests/GuiEntity.Tests.ps1`, the page in the window test; full suite 885 passed, 0 failed. (The NDES path
   rule test caught the Web Enrollment path in a GUI note; the note now names the service, not the path.) Next: WP7 GUI adversarial polish.
+
+## WP7 (2026-11-22): GUI adversarial polish - DONE (PASS in round 2)
+- Round 1 (8/8/8/9/7/8/8/8/7/7): duplicated host facts, a tall note box, redundant/orphan breadcrumbs, a state line broken at a switch name.
+  Round 2 (8/8/8/9/8/8/8/8/8/8, PASS) after also capping card prose at 880 px on ultra-wide screens. Details in `docs/GUI-DESIGN.md`.
+- Breadcrumbs now show from the third object and list the objects before the current one; Back always goes one step.
+- Next: WP8 ready for audit (normal-user lab run with the filtered token, discriminator check against the lab facts, README/TESTING).

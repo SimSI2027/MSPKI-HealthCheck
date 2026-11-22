@@ -72,7 +72,7 @@
             <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="8,0,0,0"/>
             <StackPanel>
               <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/>
-              <TextBlock Text="{Binding Message}" TextWrapping="Wrap" MaxHeight="54" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
+              <TextBlock Text="{Binding Message}" TextWrapping="Wrap" MaxHeight="54" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" MaxWidth="880" HorizontalAlignment="Left"/>
             </StackPanel>
           </DockPanel>
         </Button>
@@ -96,10 +96,10 @@
               </Border>
               <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding Label}" Style="{StaticResource H2}" TextWrapping="Wrap"/>
-                <TextBlock Text="{Binding StateWhy}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,2,0,0" Visibility="{Binding HasStateWhy, Converter={StaticResource BoolToVis}}"/>
+                <TextBlock Text="{Binding StateWhy}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,2,0,0" MaxWidth="880" HorizontalAlignment="Left" Visibility="{Binding HasStateWhy, Converter={StaticResource BoolToVis}}"/>
               </StackPanel>
             </DockPanel>
-            <TextBlock Text="{Binding About}" TextWrapping="Wrap" Margin="0,12,0,0"/>
+            <TextBlock Text="{Binding About}" TextWrapping="Wrap" Margin="0,12,0,0" MaxWidth="880" HorizontalAlignment="Left"/>
             <StackPanel Visibility="{Binding HasInstances, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
               <TextBlock Text="{Binding InstancesTitle}" Style="{StaticResource Label}" Margin="0,0,0,2"/>
               <ItemsControl ItemsSource="{Binding Instances}" Focusable="False">
@@ -132,7 +132,7 @@
             <Border Background="{StaticResource B.Hover}" CornerRadius="4" Padding="10,8" Margin="0,12,0,0">
               <DockPanel>
                 <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" FontSize="12" Foreground="{StaticResource B.Muted}" VerticalAlignment="Top" Margin="0,2,8,0"/>
-                <TextBlock Style="{StaticResource Small}" TextWrapping="Wrap"><Run Text="What this run can see: " FontWeight="SemiBold"/><Run Text="{Binding Scope, Mode=OneWay}"/></TextBlock>
+                <TextBlock Style="{StaticResource Small}" TextWrapping="Wrap" MaxWidth="880" HorizontalAlignment="Left"><Run Text="What this run can see: " FontWeight="SemiBold"/><Run Text="{Binding Scope, Mode=OneWay}"/></TextBlock>
               </DockPanel>
             </Border>
           </StackPanel>
@@ -152,11 +152,10 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
                     <StackPanel Orientation="Horizontal">
-                      <TextBlock Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="10" Foreground="{StaticResource B.Muted}" Margin="6,0,6,0" Visibility="{Binding NotFirst, Converter={StaticResource BoolToVis}}"/>
-                      <Button Tag="{Binding Tag}" Style="{StaticResource LinkButton}" Visibility="{Binding NotLast, Converter={StaticResource BoolToVis}}" ToolTip="{Binding Name}">
+                      <Button Tag="{Binding Tag}" Style="{StaticResource LinkButton}" ToolTip="{Binding Name}">
                         <TextBlock Text="{Binding Name}" MaxWidth="180" TextTrimming="CharacterEllipsis" FontSize="12"/>
                       </Button>
-                      <TextBlock Text="{Binding Name}" MaxWidth="220" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="{StaticResource B.Muted}" VerticalAlignment="Center" Visibility="{Binding IsLast, Converter={StaticResource BoolToVis}}" ToolTip="{Binding Name}"/>
+                      <TextBlock Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="10" Foreground="{StaticResource B.Muted}" Margin="6,0,6,0"/>
                     </StackPanel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -187,13 +186,10 @@
           </Border>
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <StackPanel Margin="20,16,20,20">
-              <Border Visibility="{Binding HasAbout, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16" Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+              <Border Visibility="{Binding HasAbout, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16" Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,8">
                 <DockPanel>
-                  <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{StaticResource B.InfoFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
-                  <StackPanel>
-                    <TextBlock Text="What this is and why it matters" FontWeight="SemiBold" Foreground="{StaticResource B.InfoFore}" Margin="0,0,0,2"/>
-                    <TextBox Text="{Binding About, Mode=OneWay}" Style="{StaticResource ValueText}"/>
-                  </StackPanel>
+                  <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{StaticResource B.InfoFore}" VerticalAlignment="Top" Margin="0,2,10,0"/>
+                  <TextBlock TextWrapping="Wrap" ToolTip="What this is and why it matters"><Run Text="What it is: " FontWeight="SemiBold" Foreground="{StaticResource B.InfoFore}"/><Run Text="{Binding About, Mode=OneWay}"/></TextBlock>
                 </DockPanel>
               </Border>
 
