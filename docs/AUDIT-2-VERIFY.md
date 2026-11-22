@@ -429,6 +429,7 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 | N4 | Fixed | `72646fb` | `tests/Audit2.BatchE.N4.Tests.ps1`: "Audit 2 N4: a 200 answer from a CES or CEP is Confirmed only for a valid service response" (9); `tests/EnrollmentServices.Tests.ps1` updated | against `5cdbc23`: 9 ran, 8 red, all behavioural: an HTML portal, XML that only contains the words, `definitions` in the wrong namespace, a cut-off WSDL and a DTD document were all Pass / Confirmed / responding (expected Inferred, not responding); both SOAP faults were a Warning because they contain none of the five words (expected Confirmed); the evidence did not say why. The real WSDL passes on both |
 | N7 | Fixed | `32da0b8` | `tests/Hygiene.Tests.ps1`: "Audit 2 N7: the hygiene patterns match the rules they guard" (27 tests: 10 certificate-building forms, 1 text pattern, 12 file-writing forms, 1 store-open self-test, 3 scans of src); `tests/IntuneConnector.Tests.ps1` updated | the tests were written before the fix, with the old patterns still in place: 6 red, all behavioural. The old certificate-loading text pattern did not match `[X509Certificate2]::new`; the old write pattern missed `File.Create`, `OpenWrite`, `.Save(` and `Tee-Object` (4 cases); the store scan found `IntuneConnector.ps1` opened without `OpenExistingOnly`. The AST scans of the code files pass from the start (nothing in `src` builds a certificate or redirects to a file outside the allowed places), so they guard against new code, not against old behaviour |
 | M14 remainder | Fixed (check); history **not** clean | `3432c1e` | `tests/Hygiene.Tests.ps1`: "Audit 2 M14: the whole history is checked ..." (8: 6 planted-history self-tests, the real-history scan, and the private-list self-test; plus the private-list scan, which runs only with `MSPKI_PRIVATE_NAMES_FILE`) | planted-history self-tests run with the old logic (author and message only): 3 red, all behavioural (a name in the committer fields, in an old commits file, in an old path). On this repository: pattern scan 0 hits; private list 2 of 19 names in the content of 47 of 78 commits (see above) |
+| M4 (behavioural) | Done | `M4B_HASH` | `tests/Audit2.BatchE.M4.Tests.ps1`: "Audit 2 M4, behaviour of the whole retrieval-order analysis" (3) | against `dce392b^`: 3 ran, 3 red, **all behavioural**: Skipped where Fail belongs, Skipped where Pass belongs, Pass where Fail belongs (a false Pass). On the current code: 3 passed |
 
 ### N1: what changed
 - `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
@@ -591,6 +592,20 @@ counts the tests that failed because of the old behaviour; "signature" counts th
   oldest); none in HEAD, in any message, path or identity. They are the short names that the fixture rename (`b0a352a`) removed from the
   current tree; the pattern scan cannot know a short name. **Removing them needs a history rewrite and a force push of a public
   repository. That is the owner's decision and was not done.**
+
+### M4 behavioural test (Batch E)
+- The M4 tests of `dce392b` call functions that did not exist before it (`Get-MspkiRetrievalOutcome`, `-UrlOutcome`), so on the old code they
+  were red on a missing function and showed nothing of the old behaviour. `tests/Audit2.BatchE.M4.Tests.ps1` uses only what exists on both
+  sides: the whole `Invoke-MspkiHierarchyAnalysis` with a certificate that carries the CDP URLs, and probe findings built by hand (Endpoint
+  as the probes record it, a space as `%20`).
+- Run against the code of `dce392b^` (`git archive` outside the repository, the new test file laid over it): **3 ran, 3 red, all behavioural,
+  none on a missing function.** The old wrong results:
+  | Case | Old result | Right result |
+  |---|---|---|
+  | a failing CDP URL with a space in the certificate, `%20` in the probe | **Skipped** ("not tested from here") | Fail |
+  | a working URL written with `:80` and another host case | **Skipped** | Pass |
+  | the only URL answered with a Warning for the wrong content | **Pass** (a false "clients get it from the first URL") | Fail |
+- Against the current code: 3 passed.
 
 ### Fix log 2: runs
 - Timed full suite before each commit (Pester 5.7.1, Windows PowerShell 5.1): N1 1039 passed; N5 1043; N6 1064 run, 8 red (7 were the
