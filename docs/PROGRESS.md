@@ -224,3 +224,15 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   generation (NTAuth, not AIA). LocalCertificate is defined but filled only by D3; WebEnrollment service entities come with Step 2/D2.
 - Also: an LDAP AIA/CDP URL without an attribute now reads the default attribute (cACertificate / certificateRevocationList /
   deltaRevocationList) instead of failing (false positive in the lab); tests added. Full suite 770 passed before this; touched areas pass.
+
+## Step 2 (2026-11-21): hierarchy health (D1) on the graph
+- New `src/Analyzers/HierarchyHealth.ps1` (stage Analysis:Hierarchy): per CA generation (chain parent, validity vs issuer, key/signature,
+  overlap, current); AIA/CDP published only over LDAP; URLs in the order Windows tries them; NTAuth generation missing from AIA;
+  offline-root CRL lifetime; OCSP responder on a CA host's /ocsp/ that no certificate names (Inferred); HTTPS that closes the TLS
+  handshake (`ServerClosed` in the TLS probe); certificate SAN names with no DNS record (served TLS certificates and LocalMachine\My
+  certificates issued by a discovered CA: read-only, public part only; they become LocalCertificate entities). 19 new tests;
+  full suite 795 passed, 0 failed (after updating three expectations for the new stage, the /ocsp/ request and the hygiene word ban).
+- Lab re-run as the standard user (filtered token): every Warning matches a confirmed lab fact; exit 6 (was 4 from the CDP false positive).
+- Decisions: /ocsp/ is probed only on Enterprise CA hosts (proven PKI, anonymous GET, no redirects, body discarded). SAN names are resolved
+  only when they come from a certificate. results.json is now 1.5 MB in the lab: watch the 2 MB `ConvertFrom-Json` limit of PS 5.1.
+- Next: G1/G2 drill-down on the graph; D2 endpoint identity (PTR, CNAME → `resolvesTo`); NDES via template ACE / SPN route.

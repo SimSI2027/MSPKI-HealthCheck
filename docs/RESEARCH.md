@@ -58,7 +58,7 @@ or on the remote host. Confidence: C = confirmed by direct observation, L = like
 ## Product findings from this research (not yet fixed unless marked)
 1. FIXED: the endpoint stage crashed on every run with a CA that answers (`Cannot convert value "<date>" to type Int32`): analysers read the JSON-safe CA summary
    (string dates) instead of the decoded CRL. Now they receive the live properties (`CAProperties`, not exported). Test added.
-2. A CDP LDAP URL with no attribute part (as the CA writes it) is graded Fail/`RETRIEVAL_FAIL` although Windows accepts it (default attribute). False Fail, exit 4.
+2. FIXED: A CDP LDAP URL with no attribute part (as the CA writes it) is graded Fail/`RETRIEVAL_FAIL` although Windows accepts it (default attribute). False Fail, exit 4.
 3. NDES is reported as "not discovered" although it answers: add the template-ACE/SPN route; report the missing CA database view in words.
-4. alias SAN names with no DNS record, missing PTR records, and an HTTPS port that resets are real, reportable facts (D2).
+4. PARTLY FIXED: SAN names with no DNS record and an HTTPS port that resets are now reported; missing PTR records wait for D2.
 5. `CertificateAuthority.View` is not in-box on clients: CLAUDE.md rule 5 and REQUIREMENTS list it as in-box; they should say "if the management tools are installed".

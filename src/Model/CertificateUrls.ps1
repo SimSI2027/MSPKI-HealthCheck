@@ -78,3 +78,26 @@ function Get-MspkiCertificateUrl {
     }
     return , $out.ToArray()
 }
+
+function Get-MspkiCertificateDnsName {
+    <#
+    .SYNOPSIS
+    The dNSName entries ([2] IA5String, tag 0x82) of a certificate's Subject Alternative Name extension (2.5.29.17), lower-case.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate)
+    $ext = Get-MspkiCertificateExtension -Certificate $Certificate -Oid '2.5.29.17'
+    if ($null -eq $ext) { return @() }
+    $b = [byte[]]$ext.RawData
+    $out = New-Object System.Collections.ArrayList
+    try {
+        $top = Read-MspkiDerElement -Bytes $b -Offset 0
+        foreach ($c in (Get-MspkiDerChild -Bytes $b -Element $top)) {
+            if ($c.Tag -ne 0x82) { continue }
+            $n = ([System.Text.Encoding]::ASCII.GetString((Get-MspkiDerBytes -Bytes $b -Element $c))).Trim().TrimEnd('.').ToLowerInvariant()
+            if ($n -and $out -notcontains $n) { [void]$out.Add($n) }
+        }
+    }
+    catch { Write-MspkiLog -Level Warning -Message ('Subject Alternative Name of {0} could not be read: {1}' -f $Certificate.Thumbprint, $_.Exception.Message) }
+    return $out.ToArray()
+}

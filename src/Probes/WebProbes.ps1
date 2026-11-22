@@ -247,6 +247,7 @@ function Test-MspkiTlsEndpoint {
     $r = [pscustomobject][ordered]@{
         Probe = 'TLS'; Target = ('{0}:{1}' -f $h, $Port); Status = 'Fail'; Code = 'TLS_HANDSHAKE_FAIL'; Protocol = ''
         NameMatch = $null; ChainErrors = @(); Subject = ''; Issuer = ''; Thumbprint = ''; NotAfter = ''; Error = ''; ElapsedMs = 0; FromCache = $false
+        DnsNames = @(); ServerClosed = $false
         OfferedProtocols = ''
     }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -294,6 +295,7 @@ function Test-MspkiTlsEndpoint {
             if ($null -ne $state.Cert) {
                 $r.Subject = $state.Cert.Subject; $r.Issuer = $state.Cert.Issuer; $r.Thumbprint = $state.Cert.Thumbprint
                 $r.NotAfter = $state.Cert.NotAfter.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+                $r.DnsNames = @(Get-MspkiCertificateDnsName -Certificate $state.Cert)
             }
             if ($r.ChainErrors -contains 'UntrustedRoot') { $r.Code = 'TLS_UNTRUSTED_ROOT' }
             elseif ($r.ChainErrors -contains 'PartialChain') { $r.Code = 'TLS_PARTIAL_CHAIN' }
@@ -308,6 +310,14 @@ function Test-MspkiTlsEndpoint {
             $r.Error = $ei.Message
             if ($ei.Class -eq 'Timeout' -or $ei.ExceptionType -like '*IOException') { $r.Code = 'TLS_HANDSHAKE_FAIL' }
             if ($ei.Class -eq 'Timeout') { $r.Code = 'TIMEOUT' }
+            # The server reset or closed the connection during the handshake, before any certificate came back (TCP was open).
+            $sock = $false; $io = $false; $e = $_.Exception
+            while ($null -ne $e) {
+                if ($e -is [System.Net.Sockets.SocketException] -and $e.SocketErrorCode -in @([System.Net.Sockets.SocketError]::ConnectionReset, [System.Net.Sockets.SocketError]::ConnectionAborted)) { $sock = $true }
+                if ($e -is [System.IO.IOException]) { $io = $true }
+                $e = $e.InnerException
+            }
+            if ($ei.Class -ne 'Timeout' -and $null -eq $state.Cert -and ($sock -or $io)) { $r.ServerClosed = $true }
             # This .NET Framework rejects the protocol set itself (for example TLS 1.3 on an older Windows): try once without it.
             if ($attemptNo -lt $attempts.Count -and ($ei.Class -eq 'Unsupported' -or $ei.ExceptionType -like '*ArgumentException')) { $retry = $true; $r.Error = '' }
         }

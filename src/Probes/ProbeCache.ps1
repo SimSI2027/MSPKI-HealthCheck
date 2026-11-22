@@ -31,3 +31,14 @@ function Get-MspkiProbeCacheCount {
     param()
     return $script:MspkiProbeCache.Count
 }
+
+function Get-MspkiProbeCacheEntryList {
+    <#
+    .SYNOPSIS
+    Every cached probe result whose key starts with Prefix (for example 'tls|'), for analysers that summarise what was already probed.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Prefix)
+    $p = $Prefix.ToLowerInvariant()
+    return @($script:MspkiProbeCache.Keys | Where-Object { $_.StartsWith($p) } | Sort-Object | ForEach-Object { $script:MspkiProbeCache[$_] })
+}

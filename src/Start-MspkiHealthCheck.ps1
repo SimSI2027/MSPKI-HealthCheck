@@ -229,6 +229,16 @@ function Start-MspkiHealthCheck {
                     -Target 'StaleReferences' -Sources 'Run' -Action 'reviewing historical and stale references' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Analysis:StaleReferences' -Stopwatch $sw
+            $sw = Start-MspkiStageTimer -Stage 'Analysis:Hierarchy'
+            try {
+                foreach ($f in (Invoke-MspkiHierarchyAnalysis -Discovery $d -Findings @($findings) -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)) { [void]$findings.Add($f) }
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('Hierarchy review stopped: {0} | {1}' -f $_.Exception.Message, (($_.ScriptStackTrace -split "`r?`n" | Select-Object -First 6) -join ' <- '))
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Run' -Role 'Run' `
+                    -Target 'Hierarchy' -Sources 'Run' -Action 'reviewing the CA hierarchy (generations, AIA/CDP design, OCSP, TLS, certificate names)' -Stage 'Run'))
+            }
+            Add-MspkiStageTiming -Stage 'Analysis:Hierarchy' -Stopwatch $sw
             $inventory | Add-Member -NotePropertyName 'Leads'-NotePropertyValue @(Get-MspkiLead | ForEach-Object { ConvertTo-MspkiLeadExport -Lead $_ }) -Force
             $inventory | Add-Member -NotePropertyName 'LeadStatistics' -NotePropertyValue (Get-MspkiLeadStatistic) -Force
         }

@@ -15,10 +15,12 @@ capture, RSAT, PSPKI, Sysinternals) are for understanding on the lab machine; th
   in a capture). The tool now reports it as an Inferred PERMISSION_DENIED with owner steps (`docs/RESEARCH.md`). The CA database view is still
   not in-box on clients.
 - FIXED: a CDP LDAP URL without an attribute part was graded Fail (false positive). Still open: NDES is missed when the CA
-  database view is unavailable (add the template-ACE / SPN route); the HTTPS reset on a CA host is reported without its meaning.
+  database view is unavailable (add the template-ACE / SPN route); the HTTPS reset on a CA host is now reported with its meaning (FIXED).
 
 ## DISCOVERY (top priority)
-- **D1 Full hierarchy health.** Every root, intermediate and issuing CA; every CA certificate generation; every AIA, CDP and OCSP
+- **D1 Full hierarchy health.** STATUS 2026-11-21: DONE for Enterprise hierarchies (generations, AIA/CDP design and order, NTAuth vs AIA,
+  offline-root CRL lifetime, OCSP unused, TLS reset, SAN without DNS); a standalone offline root is graded only from its AD-published certificate.
+  Original scope: Every root, intermediate and issuing CA; every CA certificate generation; every AIA, CDP and OCSP
   URI (HTTP, LDAP, file) actually tested; CRL freshness and publication (AD vs HTTP vs the CA's own CRL); delta CRLs;
   offline-root CRL risk; NTAuth and AIA containers. For anything not working, explain WHY (layered diagnosis).
 - **D2 Endpoint identity.** For every link that responds or issues certificates: resolved IPs, reverse DNS, the CNAME/alias

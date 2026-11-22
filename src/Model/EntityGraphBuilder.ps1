@@ -357,6 +357,7 @@ function Register-MspkiProbeResult {
         $cid = Get-MspkiCrlEntityId -AuthorityKeyId ([string]$crl.AuthorityKeyId) -Issuer $crl.Issuer -CAVersion ([string]$crl.CAVersion) -IsDelta ([bool]$crl.IsDelta)
         [void](Add-MspkiEntity -Type 'CRL' -Id $cid -Name ('{0} CRL of {1}' -f $(if ($crl.IsDelta) { 'Delta' } else { 'Base' }), $crl.Issuer) -Properties @{
             Issuer = $crl.Issuer; IsDelta = [bool]$crl.IsDelta; AuthorityKeyId = [string]$crl.AuthorityKeyId; CAVersion = [string]$crl.CAVersion })
+        Set-MspkiCrlEntityDate -Id $cid -Crl $crl
         Add-MspkiObservation -EntityId $cid -Kind 'Seen' -Source $src -Location $Url -Confidence 'Confirmed' `
             -Detail ('CRL number {0}, this update {1}, next update {2}' -f $crl.CrlNumber, (Format-MspkiGraphDate $crl.ThisUpdate), (Format-MspkiGraphDate $crl.NextUpdate))
         Add-MspkiRelation -From $cid -Type 'publishedAt' -To $eid -Source $src -Confidence 'Confirmed'
@@ -413,6 +414,7 @@ function Register-MspkiCaOwnCrl {
         $cid = Get-MspkiCrlEntityId -AuthorityKeyId ([string]$crl.AuthorityKeyId) -Issuer $crl.Issuer -CAVersion ([string]$crl.CAVersion) -IsDelta ([bool]$crl.IsDelta)
         [void](Add-MspkiEntity -Type 'CRL' -Id $cid -Name ('{0} CRL of {1}' -f $(if ($crl.IsDelta) { 'Delta' } else { 'Base' }), $crl.Issuer) -Properties @{
             Issuer = $crl.Issuer; IsDelta = [bool]$crl.IsDelta; AuthorityKeyId = [string]$crl.AuthorityKeyId; CAVersion = [string]$crl.CAVersion })
+        Set-MspkiCrlEntityDate -Id $cid -Crl $crl
         Add-MspkiObservation -EntityId $cid -Kind 'Seen' -Source 'CA' -Location ([string]$o.Config) -Confidence 'Confirmed' `
             -Detail ('The CA''s own current CRL: number {0}, this update {1}, next update {2}' -f $crl.CrlNumber, (Format-MspkiGraphDate $crl.ThisUpdate), (Format-MspkiGraphDate $crl.NextUpdate))
         foreach ($sig in (Get-MspkiCACertificateIdByKeyId -KeyId ([string]$crl.AuthorityKeyId))) { Add-MspkiRelation -From $cid -Type 'signedBy' -To $sig -Source 'CRL:AuthorityKeyIdentifier' -Confidence 'Confirmed' }
@@ -502,4 +504,16 @@ function Add-MspkiFindingEntityLink {
         $list = [string[]]@($ids | Where-Object { $_ } | Select-Object -Unique)
         $f | Add-Member -NotePropertyName 'EntityIds' -NotePropertyValue $list -Force
     }
+}
+
+function Set-MspkiCrlEntityDate {
+    # Keeps the newest CRL seen (highest CRL number) on the CRL entity: number, this update and next update (UTC, ISO 8601).
+    param([string]$Id, $Crl)
+    $e = Get-MspkiEntity -Id $Id
+    if ($null -eq $e -or $null -eq $Crl) { return }
+    $cur = [string]$e.Properties['CrlNumber']
+    if ($cur -and (Compare-MspkiHexNumber ([string]$Crl.CrlNumber) $cur) -le 0) { return }
+    $e.Properties['CrlNumber'] = [string]$Crl.CrlNumber
+    $e.Properties['ThisUpdate'] = Format-MspkiGraphDate $Crl.ThisUpdate
+    $e.Properties['NextUpdate'] = Format-MspkiGraphDate $Crl.NextUpdate
 }

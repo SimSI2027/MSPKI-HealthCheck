@@ -20,7 +20,7 @@ computer, so two runs can be compared by id. Keys are trimmed and lower-cased.
 | Host | `host` | DNS name without trailing dot | `Addresses` from this run's DNS cache (no extra lookup), `Roles` |
 | Service | `service` | `<kind>:<endpoint id or host>` | kinds: WebEnrollment, CES, CEP, NDES, OCSP, IntuneConnector |
 | Template | `template` | template `cn` | |
-| LocalCertificate | `localcert` | thumbprint | defined now; filled by D3 (local evidence) |
+| LocalCertificate | `localcert` | thumbprint | `LocalMachine\My` certificates issued by a discovered CA (public part only); more with D3 |
 | ADObject | `adobject` | distinguished name | PKI containers and objects |
 
 ## Observations: where an entity exists
@@ -56,7 +56,7 @@ ExpectedMissing is recorded only when the place was really checked:
 | `hostedOn` | CA/Endpoint/Service → Host | |
 | `servedBy` | Endpoint → Service | e.g. an OCSP URL and its responder |
 | `resolvesTo` | Host → Host | DNS alias (CNAME) chain to the real host (D2) |
-| `aliasOf` | Host → Host | a name in a server certificate's SAN for that host (D2) |
+| `aliasOf` | Host → Host | a name in the SAN of a certificate served by (or installed on) that host; ExpectedMissing DNS when it does not resolve |
 | `enrollsVia` | Template/Service → CA | the template is published on the CA; CES enrolls through the CA |
 | `supersedes` | CACertificate → CACertificate | the newer generation of the same CA (by NotBefore; Inferred) |
 | `certificateOf` | CACertificate → CA | the generation belongs to that CA (added; needed to join CA and certificate) |
