@@ -170,6 +170,6 @@ Describe 'Reading this computer' {
             $t = & $script:codeText (Join-Path $script:srcRoot $n)
             $t | Should -Not -Match '(?i)Invoke-Command|CimSession|PSSession|Get-WmiObject|OpenRemoteBaseKey' -Because $n
         }
-        (& $script:codeText (Join-Path $script:srcRoot 'Discovery\IntuneConnector.ps1')) | Should -Match 'OpenFlags \] :: ReadOnly'
+        (& $script:codeText (Join-Path $script:srcRoot 'Discovery\IntuneConnector.ps1')) | Should -Match 'OpenFlags \] ''ReadOnly, OpenExistingOnly'''
     }
 }

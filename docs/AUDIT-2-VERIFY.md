@@ -427,6 +427,7 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 | M8 remainder | Fixed | `d182c51` | `tests/Audit2.BatchE.Tests.ps1` (M8 part, 35 cases: error number to code, real exception, LDAP URL read, retrieval-order check, schema, GUI search, report filter); `tests/Discovery.Tests.ps1` (2) and `tests/Ndes.Tests.ps1` (1) updated to the new codes | against `edc4900`: 17 ran in the new and updated tests, 17 red. Behavioural 11: every case returned `RETRIEVAL_FAIL` where a code of its own was expected (5 error numbers, the real `0x8007203A` exception, 2 LDAP URL reads, the RootDSE failure, the RootDSE guess, the NDES RPC case). Schema 6 (the new code was not allowed yet): 4 schema cases, 2 retrieval-order cases. The GUI search and report filter cases need the new codes too, so they fail on old code for the same schema reason |
 | N3 | Fixed | `5cdbc23` | `tests/Audit2.BatchE.Size.Tests.ps1`: "Audit 2 N3: an AIA download above the size cap is not an Information / Confirmed result" (3) | against `25ae790`: 3 ran, 2 red, both behavioural: the AIA answer above the cap was Information (expected Fail), and the message named the 64 MB CRL limit instead of the 10 MB that applied. The negative case (a 10.6 MB CRL is read under the 64 MB cap) passes on both |
 | N4 | Fixed | `72646fb` | `tests/Audit2.BatchE.N4.Tests.ps1`: "Audit 2 N4: a 200 answer from a CES or CEP is Confirmed only for a valid service response" (9); `tests/EnrollmentServices.Tests.ps1` updated | against `5cdbc23`: 9 ran, 8 red, all behavioural: an HTML portal, XML that only contains the words, `definitions` in the wrong namespace, a cut-off WSDL and a DTD document were all Pass / Confirmed / responding (expected Inferred, not responding); both SOAP faults were a Warning because they contain none of the five words (expected Confirmed); the evidence did not say why. The real WSDL passes on both |
+| N7 | Fixed | `N7_HASH` | `tests/Hygiene.Tests.ps1`: "Audit 2 N7: the hygiene patterns match the rules they guard" (27 tests: 10 certificate-building forms, 1 text pattern, 12 file-writing forms, 1 store-open self-test, 3 scans of src); `tests/IntuneConnector.Tests.ps1` updated | the tests were written before the fix, with the old patterns still in place: 6 red, all behavioural. The old certificate-loading text pattern did not match `[X509Certificate2]::new`; the old write pattern missed `File.Create`, `OpenWrite`, `.Save(` and `Tee-Object` (4 cases); the store scan found `IntuneConnector.ps1` opened without `OpenExistingOnly`. The AST scans of the code files pass from the start (nothing in `src` builds a certificate or redirects to a file outside the allowed places), so they guard against new code, not against old behaviour |
 
 ### N1: what changed
 - `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
@@ -547,6 +548,23 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 - Existing test updated: the `/page/service.svc` fixture of `tests/EnrollmentServices.Tests.ps1` is now a WSDL, and a new
   `/mention/service.svc` HTML page that only mentions the service is a warning.
 - Lab run after N3 and N4 (normal user): 99 findings, exit 6, identical category / status / code / confidence histogram.
+
+### N7 (Batch E): what changed
+- **Certificate loading:** the text pattern now also matches `[X509Certificate2]::<any static member except GetCertContentType>`
+  (`::new`, `CreateFromCertFile`, ...). A new AST scan (`Get-CertificateBuildSite` in `tests/Hygiene.Tests.ps1`) finds every way a certificate
+  can be built from bytes or a path: any static member, `New-Object` (constructor or `-ArgumentList`), a cast, a typed variable, and a
+  **parameter typed `[X509Certificate2]`**, because PowerShell converts a byte array or a path string to that type when a caller passes one.
+  Allowed: all of `src/Model/Certificate.ps1`, the TLS callback copy in `WebProbes.ps1` (its argument is the `$cert` the callback
+  received), and typed parameters in seven listed files (they take certificates that were already built there). A typed parameter anywhere
+  else fails the test, so it becomes a decision made on purpose. Limit: whether a caller passes bytes to such a parameter is not checked.
+- **Write pattern:** the text pattern now also matches `File::Create`, `CreateText`, `OpenWrite`, `AppendText`, `Replace`, `Move`, `Copy`,
+  `Delete`, `SetAttributes`, `.Save(`, `SaveAs(` and `Tee-Object`. An AST scan finds redirection to a file (`>`, `>>`, `2>`, ...) in every
+  code file that is not allowed to write; `> $null` and merges such as `2>&1` are not files, and a string containing `>` is not a redirection.
+  Only `GuiSnapshot.ps1` (allowed) and `OutputFolder.ps1` match today, as before.
+- **Store open:** `src/Discovery/IntuneConnector.ps1` now opens `LocalMachine\My` with `ReadOnly, OpenExistingOnly`. A test finds every
+  `X509Store.Open(...OpenFlags...)` in `src` and requires `OpenExistingOnly`; it was red on that one line.
+- The history check of N7 is item 2 (M14) of this batch.
+- Lab run as a normal user: 99 findings, exit 6, identical histogram.
 
 ### Fix log 2: runs
 - Timed full suite before each commit (Pester 5.7.1, Windows PowerShell 5.1): N1 1039 passed; N5 1043; N6 1064 run, 8 red (7 were the

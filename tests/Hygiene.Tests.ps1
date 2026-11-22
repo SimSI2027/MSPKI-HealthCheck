@@ -52,9 +52,9 @@ BeforeAll {
         # Audit 2 M10: no key may ever be persisted, and certificate bytes are loaded only by src/Model/Certificate.ps1, which checks
         # the content type first and refuses PKCS #12 / PFX (the TLS probe may copy the server certificate it was handed).
         'key persistence'              = '(?i)PersistKeySet|MachineKeySet|UserKeySet'
-        'certificate loading'          = '(?i)\.Import\(|X509Certificate2\s*\('
+        'certificate loading'          = '(?i)\.Import\(|X509Certificate2\s*\(|X509Certificate2\s*\]\s*::\s*(?!GetCertContentType\b)'
     }
-    $script:writePattern = '(?i)WriteAllText|AppendAllText|WriteAllBytes|WriteAllLines|Set-Content|Add-Content|Out-File|New-Item|CreateDirectory|Export-Csv|Export-Clixml|StreamWriter|FileStream|Copy-Item|Move-Item|Rename-Item|Remove-Item|Clear-Content'
+    $script:writePattern = '(?i)WriteAllText|AppendAllText|WriteAllBytes|WriteAllLines|Set-Content|Add-Content|Out-File|New-Item|CreateDirectory|Export-Csv|Export-Clixml|StreamWriter|FileStream|Copy-Item|Move-Item|Rename-Item|Remove-Item|Clear-Content|File\s*\]\s*::\s*(Create|CreateText|OpenWrite|AppendText|Replace|Move|Copy|Delete|SetAttributes)|OpenWrite|\.Save\(|SaveAs\(|Tee-Object'
     # GuiSnapshot.ps1 writes the developer snapshots (PNG) and only after Test-MspkiGuiSnapshotFolder accepted a folder inside out\ (tests\Gui.Tests.ps1).
     $script:writeAllowed = @('OutputFolder.ps1', 'GuiSnapshot.ps1')
 }
@@ -243,4 +243,149 @@ Context 'Audit 2 M14: more of the hard rules are enforced by the hygiene tests' 
         $hits.Count | Should -Be 0 -Because ($hits -join '; ')
     }
 }
+}
+
+Describe 'Audit 2 N7: the hygiene patterns match the rules they guard' {
+    BeforeAll {
+        $script:certTypeRx = '(^|\.)X509Certificate2(\[\])?$'
+        # Files whose functions take an already built certificate as a typed parameter. PowerShell converts a byte array or a path string to
+        # [X509Certificate2] when a caller passes one, which builds a certificate without the content-type check, so a typed parameter
+        # in any other file is a decision to make on purpose, not by accident.
+        $script:typedCertParamFiles = @('CACertificateHealth.ps1', 'EndpointHealth.ps1', 'LocalEvidence.ps1', 'Certificate.ps1', 'CertificateTemplateInfo.ps1', 'CertificateUrls.ps1', 'Signature.ps1')
+
+        function Get-CertificateBuildSite {
+            # Every place that can turn bytes or a path into a certificate object: [X509Certificate2]::new(...) or any static member other than
+            # GetCertContentType, New-Object, a cast or a typed variable, and a parameter typed [X509Certificate2].
+            param([string]$Path)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$null, [ref]$null)
+            $sites = New-Object System.Collections.ArrayList
+            foreach ($n in @($ast.FindAll({ param($x) $x -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $x.Static }, $true))) {
+                if ($n.Expression -is [System.Management.Automation.Language.TypeExpressionAst] -and $n.Expression.TypeName.FullName -match $script:certTypeRx -and [string]$n.Member.Value -ne 'GetCertContentType') {
+                    [void]$sites.Add(@{ Kind = 'static member'; Text = $n.Extent.Text })
+                }
+            }
+            foreach ($n in @($ast.FindAll({ param($x) $x -is [System.Management.Automation.Language.CommandAst] -and $x.GetCommandName() -eq 'New-Object' }, $true))) {
+                if ($n.Extent.Text -match 'X509Certificate2(?!Collection|Ui|Extension|Enumerator)') { [void]$sites.Add(@{ Kind = 'New-Object'; Text = $n.Extent.Text }) }
+            }
+            foreach ($n in @($ast.FindAll({ param($x) $x -is [System.Management.Automation.Language.ConvertExpressionAst] }, $true))) {
+                if ($n.Type.TypeName.FullName -match $script:certTypeRx) { [void]$sites.Add(@{ Kind = 'cast'; Text = $n.Extent.Text }) }
+            }
+            foreach ($n in @($ast.FindAll({ param($x) $x -is [System.Management.Automation.Language.ParameterAst] }, $true))) {
+                foreach ($a in @($n.Attributes | Where-Object { $_ -is [System.Management.Automation.Language.TypeConstraintAst] })) {
+                    if ($a.TypeName.FullName -match $script:certTypeRx) { [void]$sites.Add(@{ Kind = 'typed parameter'; Text = $n.Extent.Text }) }
+                }
+            }
+            return @($sites)
+        }
+
+        function Get-FileRedirectionSite {
+            # Every redirection of output to a file (> and >>), whatever the stream; `> $null` and merges such as 2>&1 are not files.
+            param([string]$Path)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$null, [ref]$null)
+            $sites = @($ast.FindAll({ param($x) $x -is [System.Management.Automation.Language.FileRedirectionAst] }, $true) |
+                Where-Object { $_.Location.Extent.Text -ne '$null' } | ForEach-Object { $_.Extent.Text })
+            return @($sites)
+        }
+
+        function Get-StoreOpenWithoutExistingOnly {
+            # Every X509Store.Open call that does not carry OpenExistingOnly (without it, Open creates a store that does not exist: a write).
+            param([string]$Path)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$null, [ref]$null)
+            $sites = @($ast.FindAll({ param($x) $x -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and [string]$x.Member.Value -eq 'Open' -and $x.Extent.Text -match 'OpenFlags' }, $true) |
+                Where-Object { $_.Extent.Text -notmatch 'OpenExistingOnly' } | ForEach-Object { $_.Extent.Text })
+            return @($sites)
+        }
+
+        $script:plant = {
+            param([string]$Code)
+            $f = Join-Path $TestDrive ('planted{0}.ps1' -f ([guid]::NewGuid().ToString('N')))
+            [System.IO.File]::WriteAllText($f, $Code)
+            return $f
+        }
+        $script:t = 'System.Security.Cryptography.X509Certificates'
+    }
+
+    It 'sees every way of building a certificate from bytes or a path (self-test), and not the safe uses' -TestCases @(
+        @{ Name = 'the .NET constructor'; Code = '$c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($b)'; Hit = $true }
+        @{ Name = 'New-Object with -ArgumentList'; Code = '$c = New-Object -TypeName System.Security.Cryptography.X509Certificates.X509Certificate2 -ArgumentList (,$b)'; Hit = $true }
+        @{ Name = '[X509Certificate2]::new'; Code = '$c = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($b)'; Hit = $true }
+        @{ Name = 'a cast from bytes'; Code = '$c = [System.Security.Cryptography.X509Certificates.X509Certificate2]$b'; Hit = $true }
+        @{ Name = 'a typed variable'; Code = '[System.Security.Cryptography.X509Certificates.X509Certificate2]$c = $b'; Hit = $true }
+        @{ Name = 'a parameter typed X509Certificate2 (PowerShell converts bytes and paths)'; Code = 'function Test-Mspki { param([System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate) }'; Hit = $true }
+        @{ Name = 'a static member such as Import'; Code = '$c = [System.Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromCertFile($p)'; Hit = $true }
+        @{ Name = 'GetCertContentType (reads the type, builds nothing)'; Code = '$t = [System.Security.Cryptography.X509Certificates.X509Certificate2]::GetCertContentType($b)'; Hit = $false }
+        @{ Name = 'an X509Certificate2Collection'; Code = '$c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection'; Hit = $false }
+        @{ Name = 'a parameter of another type'; Code = 'function Test-Mspki { param([byte[]]$Bytes) }'; Hit = $false }
+    ) {
+        param($Name, $Code, $Hit)
+        $sites = @(Get-CertificateBuildSite -Path (& $script:plant $Code))
+        if ($Hit) { $sites.Count | Should -BeGreaterThan 0 } else { $sites.Count | Should -Be 0 }
+    }
+
+    It 'the text scan for certificate loading matches [X509Certificate2]::new and other static members, not only the constructor' {
+        $f = & $script:plant '$a = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($b)'
+        $text = Get-CodeText -Path $f
+        $text | Should -Match $script:forbidden['certificate loading']
+    }
+
+    It 'no code file builds a certificate except through src/Model/Certificate.ps1, apart from the TLS callback copy and the typed parameters of the listed files' {
+        $files = @(Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot 'src') -Recurse -File -Filter '*.ps1') +
+            @(Get-Item -LiteralPath (Join-Path $script:RepoRoot 'Invoke-MspkiHealthCheck.ps1'), (Join-Path $script:RepoRoot 'Start-MspkiHealthCheckGui.ps1'), (Join-Path $script:RepoRoot 'demo\Invoke-MspkiDemo.ps1'))
+        $hits = New-Object System.Collections.ArrayList
+        foreach ($f in $files) {
+            if ($f.Name -eq 'Certificate.ps1') { continue }
+            foreach ($s in @(Get-CertificateBuildSite -Path $f.FullName)) {
+                if ($s.Kind -eq 'typed parameter' -and $script:typedCertParamFiles -contains $f.Name) { continue }
+                # The TLS probe copies the server certificate that the callback handed it (never bytes or a path).
+                if ($f.Name -eq 'WebProbes.ps1' -and $s.Kind -eq 'New-Object' -and $s.Text -match 'X509Certificate2\s*\(\s*\$cert\s*\)') { continue }
+                [void]$hits.Add(('{0}: {1}: {2}' -f $f.Name, $s.Kind, $s.Text))
+            }
+        }
+        $hits.Count | Should -Be 0 -Because ($hits -join '; ')
+    }
+
+    It 'sees every way of writing a file (self-test), and not a comparison, a merge or a redirect to $null' -TestCases @(
+        @{ Name = 'File.Create'; Code = '$s = [System.IO.File]::Create($p)'; Hit = $true }
+        @{ Name = 'File.OpenWrite'; Code = '$s = [System.IO.File]::OpenWrite($p)'; Hit = $true }
+        @{ Name = 'a Save method'; Code = '$img.Save($p)'; Hit = $true }
+        @{ Name = 'Tee-Object'; Code = '$x | Tee-Object -FilePath $p'; Hit = $true }
+        @{ Name = 'a redirect >'; Code = '"text" > $p'; Hit = $true }
+        @{ Name = 'an append >>'; Code = '"text" >> $p'; Hit = $true }
+        @{ Name = 'an error redirect 2>'; Code = 'Get-Item $x 2> $p'; Hit = $true }
+        @{ Name = 'Out-File'; Code = '"x" | Out-File $p'; Hit = $true }
+        @{ Name = 'a comparison'; Code = 'if ($a -gt $b) { 1 }'; Hit = $false }
+        @{ Name = 'a merge 2>&1'; Code = 'Get-Item $x 2>&1'; Hit = $false }
+        @{ Name = 'a redirect to $null'; Code = 'Get-Item $x > $null'; Hit = $false }
+        @{ Name = 'a string with an arrow'; Code = '$m = "a > b"'; Hit = $false }
+    ) {
+        param($Name, $Code, $Hit)
+        $f = & $script:plant $Code
+        $found = ((Get-CodeText -Path $f) -match $script:writePattern) -or (@(Get-FileRedirectionSite -Path $f).Count -gt 0)
+        $found | Should -Be $Hit
+    }
+
+    It 'no code file redirects output to a file, apart from the ones allowed to write' {
+        $files = @(Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot 'src') -Recurse -File -Filter '*.ps1') +
+            @(Get-Item -LiteralPath (Join-Path $script:RepoRoot 'Invoke-MspkiHealthCheck.ps1'), (Join-Path $script:RepoRoot 'Start-MspkiHealthCheckGui.ps1'), (Join-Path $script:RepoRoot 'demo\Invoke-MspkiDemo.ps1'))
+        $hits = New-Object System.Collections.ArrayList
+        foreach ($f in $files) {
+            if ($script:writeAllowed -contains $f.Name) { continue }
+            foreach ($s in @(Get-FileRedirectionSite -Path $f.FullName)) { [void]$hits.Add(('{0}: {1}' -f $f.Name, $s)) }
+        }
+        $hits.Count | Should -Be 0 -Because ($hits -join '; ')
+    }
+
+    It 'sees a store opened without OpenExistingOnly (self-test)' {
+        $bad = & $script:plant ('$s = New-Object {0}.X509Store(''My'', ''LocalMachine''); $s.Open([{0}.OpenFlags]::ReadOnly)' -f $script:t)
+        $good = & $script:plant ('$s = New-Object {0}.X509Store(''My'', ''LocalMachine''); $s.Open([{0}.OpenFlags]''ReadOnly, OpenExistingOnly'')' -f $script:t)
+        @(Get-StoreOpenWithoutExistingOnly -Path $bad).Count | Should -Be 1
+        @(Get-StoreOpenWithoutExistingOnly -Path $good).Count | Should -Be 0
+    }
+
+    It 'every certificate store is opened read-only and existing-only' {
+        $files = @(Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot 'src') -Recurse -File -Filter '*.ps1')
+        $hits = New-Object System.Collections.ArrayList
+        foreach ($f in $files) { foreach ($s in @(Get-StoreOpenWithoutExistingOnly -Path $f.FullName)) { [void]$hits.Add(('{0}: {1}' -f $f.Name, $s)) } }
+        $hits.Count | Should -Be 0 -Because ($hits -join '; ')
+    }
 }

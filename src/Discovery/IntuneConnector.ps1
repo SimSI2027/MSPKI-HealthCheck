@@ -131,7 +131,7 @@ function Get-MspkiLocalCertificateMetadata {
     $list = New-Object System.Collections.ArrayList
     $store = New-Object System.Security.Cryptography.X509Certificates.X509Store('My', [System.Security.Cryptography.X509Certificates.StoreLocation]::LocalMachine)
     try {
-        $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
+        $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]'ReadOnly, OpenExistingOnly')
         foreach ($c in $store.Certificates) {
             $hay = ('{0} {1} {2}' -f $c.Subject, $c.Issuer, $c.FriendlyName)
             if (@($script:MspkiIntuneCertificatePattern | Where-Object { $hay -match $_ }).Count -gt 0) {
