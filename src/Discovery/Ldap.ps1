@@ -6,14 +6,16 @@ function Get-MspkiLdapConnectionSpec {
     <#
     .SYNOPSIS
     The DirectoryEntry path and authentication types for one read: LDAP://host[:port]/DN, with secure sockets layer when -Ssl is given
-    (an ldaps:// location is read over LDAPS, audit 2 L7). The authentication stays the running user's (Secure, plus SSL for LDAPS).
+    (an ldaps:// location is read over LDAPS, audit 2 L7). AuthenticationTypes is '' for a plain read: the caller then uses the default
+    DirectoryEntry constructor. Passing an explicit authentication type, even Secure with no credentials, makes a serverless bind fail with
+    "an operations error occurred" (0x80072020) on a domain-joined computer, which a lab run showed; only LDAPS needs the explicit form.
     #>
     [CmdletBinding()]
     param([string]$Server = '', [Parameter(Mandatory = $true)][string]$BaseDN, [switch]$Ssl, [int]$Port = 0)
     $hostPart = $Server
     if ($Server -and $Port -gt 0) { $hostPart = '{0}:{1}' -f $Server, $Port }
     if ($hostPart) { $path = 'LDAP://{0}/{1}' -f $hostPart, $BaseDN } else { $path = 'LDAP://{0}' -f $BaseDN }
-    $auth = 'Secure'
+    $auth = ''
     if ($Ssl) { $auth = 'Secure, SecureSocketsLayer' }
     return [pscustomobject]@{ Path = $path; AuthenticationTypes = $auth }
 }
@@ -37,7 +39,8 @@ function Get-MspkiLdapObject {
         [int]$Port = 0
     )
     $spec = Get-MspkiLdapConnectionSpec -Server $Server -BaseDN $BaseDN -Ssl:$Ssl -Port $Port
-    $entry = New-Object System.DirectoryServices.DirectoryEntry($spec.Path, $null, $null, [System.DirectoryServices.AuthenticationTypes]$spec.AuthenticationTypes)
+    if ($spec.AuthenticationTypes) { $entry = New-Object System.DirectoryServices.DirectoryEntry($spec.Path, $null, $null, [System.DirectoryServices.AuthenticationTypes]$spec.AuthenticationTypes) }
+    else { $entry = New-Object System.DirectoryServices.DirectoryEntry($spec.Path) }
     $searcher = New-Object System.DirectoryServices.DirectorySearcher($entry)
     $results = $null
     try {

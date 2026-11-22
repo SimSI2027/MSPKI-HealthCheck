@@ -491,7 +491,7 @@ Describe 'Audit 2 L7: an ldaps:// location is read over LDAPS, not plain LDAP' {
         $r.Ssl.Path | Should -Be 'LDAP://dc01.corp.example.test:636/DC=corp,DC=example,DC=test'
         $r.Ssl.AuthenticationTypes | Should -Match 'SecureSocketsLayer'
         $r.Plain.Path | Should -Be 'LDAP://dc01.corp.example.test/DC=corp,DC=example,DC=test'
-        $r.Plain.AuthenticationTypes | Should -Not -Match 'SecureSocketsLayer'
+        $r.Plain.AuthenticationTypes | Should -Be '' -Because 'a plain read uses the default DirectoryEntry constructor; an explicit authentication type breaks serverless binds (found in a lab run)'
         $r.Less.Path | Should -Be 'LDAP://DC=corp,DC=example,DC=test'
     }
     It 'Get-MspkiLdapUrlContent asks for LDAPS when the URL says ldaps, and for plain LDAP when it says ldap' {
@@ -666,5 +666,18 @@ Describe 'Audit 2 L2: the calls that have no timeout of their own are named as a
         $m.Count | Should -Be 1
         $m[0] | Should -Match 'Cancel'
         $m[0] | Should -Match 'SID'
+    }
+}
+
+Describe 'Audit 2 L7 (regression found in a lab run): a plain LDAP read still works against a real directory' {
+    It 'reads the RootDSE of the domain controller of this computer and then an object of the Configuration partition, serverless' -Skip:(-not $env:USERDNSDOMAIN) {
+        $r = InModuleScope MspkiHealthCheck {
+            # The naming context comes from the RootDSE (which cannot be searched); the read under test is the one the tool makes.
+            $cfg = [string]([ADSI]'LDAP://RootDSE').configurationNamingContext
+            $pks = @(Get-MspkiLdapObject -BaseDN ('CN=Public Key Services,CN=Services,{0}' -f $cfg) -Scope Base -Properties @('cn') -TimeoutSeconds 10)
+            [pscustomobject]@{ Cfg = $cfg; Pks = $pks.Count }
+        }
+        $r.Cfg | Should -Match '^CN=Configuration,'
+        $r.Pks | Should -Be 1
     }
 }

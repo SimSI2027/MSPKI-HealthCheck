@@ -388,3 +388,14 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   No new Fail or Warning, no new false positive or negative. The services page now says "Something answers (not confirmed)" for the Web
   Enrollment path that answers 403 and "1 of 6 service types confirmed" (it said "found" before).
 - Next: M14 (tests that hide bugs), the fixture rename to neutral names, then the Low items.
+
+## Audit 2 Batch B, M3-M14 and the Low items (2026-11-22): DONE (1029 tests)
+- Every Medium finding is fixed (M8 with two items explained); the last open part, M11's ESC4 attribute rule, counts only writes that can
+  change what a certificate may be used for (schema IDs read from the lab schema). Fixture host names are neutral (scep-gw01...).
+- Lows: L1, L12-L15 (limits recorded, runspaces disposed, cancel keeps discovery, report opens only interactively), L2-L9, L11, L19 fixed or
+  decided; L10, L16, L17, L18 explained in the Fix log (docs/AUDIT-2.md, "Fix log: Low items").
+- Lab run after the Lows: a regression of my first L7 change (explicit LDAP authentication type) showed only in the lab (exit 5, 18 findings).
+  Fixed and covered by a live-directory regression test; the lab is back at 99 findings, exit 6, as in the baseline. Lesson recorded: after
+  any change to a directory or network read, run the lab, because the unit tests mock those reads.
+- A local pre-commit check against the private lab facts now exists outside the repository (an untracked git hook).
+- Next: the verification audit.
