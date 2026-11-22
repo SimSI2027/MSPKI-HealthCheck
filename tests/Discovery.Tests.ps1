@@ -163,7 +163,7 @@ Describe 'Invoke-MspkiDiscovery' {
         $d = & $script:discover
         $f = $d.Findings | Where-Object { $_.Role -eq 'DomainController' }
         $f.Status | Should -Be 'Fail'
-        $f.StatusCode | Should -Be 'RETRIEVAL_FAIL'
+        $f.StatusCode | Should -Be 'DIRECTORY_UNAVAILABLE'
         $f.Message | Should -Match '0x8007203A'
         $f.Message | Should -Match 'The server is not operational'
         ($f.Evidence -join "`n") | Should -Match 'attempt GlobalCatalog'
@@ -187,6 +187,7 @@ Describe 'Invoke-MspkiDiscovery' {
         $f = $d.Findings | Where-Object { $_.Role -eq 'DomainController' }
         $f.Status | Should -Be 'Warning'
         $f.Confidence | Should -Be 'Inferred'
+        $f.StatusCode | Should -Be 'DC_NOT_FOUND'
         ($f.Evidence -join "`n") | Should -Match 'attempt Serverless: Unreachable'
         ($f.Evidence -join "`n") | Should -Match 'built, not read'
         # The next stage still runs and reports the real failure.

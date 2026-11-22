@@ -58,8 +58,12 @@ the host of the failing hop (`TLS_UNTRUSTED_ROOT`, `TLS_NAME_MISMATCH`, `TLS_PAR
 could not be checked (unsupported algorithm, or a .NET Framework without the APIs) is `UNSUPPORTED`, never `SIGNATURE_INVALID`.
 
 Added by audit 2 M8 so that one code means one cause (the last column of the list above is what each code means now):
-- `RETRIEVAL_FAIL`: an object or answer could not be retrieved from a server (unreachable, no answer, or an answer that could not be read).
-- `RPC_FAIL`: the DCOM/RPC connection to a CA failed after TCP 135 answered (a slow "RPC server unavailable": a firewall on the dynamic RPC ports is the usual cause).
+- `RETRIEVAL_FAIL`: an object or answer could not be retrieved from a server, and nothing says why: an unreachable failure whose error number is not one of those below, or an answer that could not be read.
+- `RPC_FAIL`: an RPC connection failed: "RPC server unavailable" (0x800706BA) or "no endpoint registered, the service is not running" (0x800706D9). For a CA read over DCOM after TCP 135 answered it is the slow case (a firewall on the dynamic RPC ports is the usual cause).
+- `DIRECTORY_UNAVAILABLE`: a directory server could not be contacted: "server is not operational" (0x8007203A) or "domain cannot be contacted" (0x8007054B). Used for an LDAP read of a URL, and for RootDSE when no domain controller answers.
+- `DIRECTORY_ERROR`: an LDAP read failed with an error that no rule classifies (the error number is in the evidence), or the LDAP URL could not be used. It is not a guess at the cause.
+- `DC_NOT_FOUND`: no domain controller answered for RootDSE, so the naming contexts were built from the domain name (Warning, Inferred). Later stages show whether a domain controller serves them.
+- `NETWORK_PATH_FAIL`: the network path was not found (0x80070035).
 - `RETRIEVAL_ORDER`: the AIA or CDP URL list is ordered so that clients try failing URLs first, or none of the URLs works from here.
 - `CONTENT_WRONG_TYPE`: the answer is not the kind of object expected (not a certificate or CRL, not a SCEP capability list, not a service page).
 - `CONTENT_MISMATCH`: the answer is the right kind of object but the wrong one (a certificate for another subject or another key generation, a CRL from another issuer, a base CRL at a delta CRL location).

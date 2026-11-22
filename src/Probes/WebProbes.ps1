@@ -429,7 +429,7 @@ function Get-MspkiLdapUrlContent {
     <#
     .SYNOPSIS
     Reads the attribute an LDAP URL points to (base search). Code: OK, PUBLICATION_FAIL (object or value
-    missing), PERMISSION_DENIED, TIMEOUT, RETRIEVAL_FAIL, or NOT_APPLICABLE with Contacted = $false when the URL names a
+    missing), PERMISSION_DENIED, TIMEOUT, DIRECTORY_UNAVAILABLE, RPC_FAIL, NETWORK_PATH_FAIL, DIRECTORY_ERROR (an error nothing classifies; RETRIEVAL_FAIL when an unreachable failure's number does not say why), or NOT_APPLICABLE with Contacted = $false when the URL names a
     host that may not be contacted (see Test-MspkiLdapHostAllowed): nothing is sent to such a host.
 
     .DESCRIPTION
@@ -497,7 +497,10 @@ function Get-MspkiLdapUrlContent {
             'NotFound' { $r.Code = 'PUBLICATION_FAIL' }
             'PermissionDenied' { $r.Code = 'PERMISSION_DENIED' }
             'Timeout' { $r.Code = 'TIMEOUT' }
-            default { $r.Code = 'RETRIEVAL_FAIL' }
+            # An unreachable directory is named by its error number; an error that no rule classifies is DIRECTORY_ERROR, not a guess at the cause
+            # (audit 2 M8 remainder). A number that does not say what could not be reached stays RETRIEVAL_FAIL.
+            'Unreachable' { $r.Code = (Get-MspkiUnreachableStatusCode -ErrorInfo $ei) }
+            default { $r.Code = 'DIRECTORY_ERROR' }
         }
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds

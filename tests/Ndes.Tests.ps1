@@ -354,7 +354,7 @@ Describe 'NDES evidence: outcomes of reading the CA database' {
         $r.Findings[0].Notes | Should -Match 'Read permission'
         Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript { [pscustomobject]@{ Completed = $true; TimedOut = $false; ElapsedMs = 5; Errors = @(); Output = @(@{ Rows = @(); Errors = @(); Fatal = @{ HResult = '800706BA'; Message = 'The RPC server is unavailable.' } }) } }
         $u = & $script:ev
-        $u.Findings[0].StatusCode | Should -Be 'RETRIEVAL_FAIL'
+        $u.Findings[0].StatusCode | Should -Be 'RPC_FAIL'
         $u.Findings[0].Status | Should -Be 'Warning'
     }
 

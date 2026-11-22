@@ -23,6 +23,32 @@ $script:MspkiHResultClass = @{
     '80040154' = 'Unsupported'        # REGDB_E_CLASSNOTREG (COM class not available)
 }
 
+# Within the Unreachable class the error number says what could not be reached (audit 2 M8 remainder). An unreachable failure whose
+# number is not listed here cannot be told apart and stays RETRIEVAL_FAIL.
+$script:MspkiUnreachableCode = @{
+    '8007203A' = 'DIRECTORY_UNAVAILABLE'   # the directory server is not operational
+    '8007054B' = 'DIRECTORY_UNAVAILABLE'   # the domain cannot be contacted
+    '800706BA' = 'RPC_FAIL'                # RPC server unavailable
+    '800706D9' = 'RPC_FAIL'                # no RPC endpoint registered: the service is not running
+    '80070035' = 'NETWORK_PATH_FAIL'       # the network path was not found
+}
+
+function Get-MspkiUnreachableStatusCode {
+    <#
+    .SYNOPSIS
+    The status code for a failure of the Unreachable class: DIRECTORY_UNAVAILABLE, RPC_FAIL or NETWORK_PATH_FAIL by error number,
+    RETRIEVAL_FAIL when the number does not say what could not be reached.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$ErrorInfo)
+    $hr = ([string]$ErrorInfo.HResult).Trim()
+    if ($hr.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) { $hr = $hr.Substring(2) }
+    $hr = $hr.ToUpperInvariant()
+    if ($script:MspkiUnreachableCode.ContainsKey($hr)) { return $script:MspkiUnreachableCode[$hr] }
+    if ([string]$ErrorInfo.ExceptionType -eq 'System.DirectoryServices.ActiveDirectory.ActiveDirectoryServerDownException') { return 'DIRECTORY_UNAVAILABLE' }
+    return 'RETRIEVAL_FAIL'
+}
+
 function Get-MspkiErrorInfo {
     <#
     .SYNOPSIS

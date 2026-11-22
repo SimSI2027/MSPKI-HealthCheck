@@ -79,7 +79,7 @@ function Get-MspkiRetrievalOutcome {
     #>
     [CmdletBinding()]
     param([AllowEmptyCollection()][object[]]$Findings = @())
-    $failureCode = '^(DNS_FAIL|TCP_FAIL|TIMEOUT|HTTP_|TLS_|CONTENT_|SIGNATURE_INVALID|RETRIEVAL_FAIL|OBJECT_EXPIRED|PUBLICATION_FAIL|CHAIN_)'
+    $failureCode = '^(DNS_FAIL|TCP_FAIL|TIMEOUT|HTTP_|TLS_|CONTENT_|SIGNATURE_INVALID|RETRIEVAL_FAIL|DIRECTORY_UNAVAILABLE|DIRECTORY_ERROR|RPC_FAIL|NETWORK_PATH_FAIL|OBJECT_EXPIRED|PUBLICATION_FAIL|CHAIN_)'
     $state = @{}
     foreach ($f in @($Findings | Where-Object { $_ -and $_.Endpoint -and $_.Category -in @('AIA', 'CDP', 'CRL') })) {
         $k = Get-MspkiRetrievalUrlKey -Url ([string]$f.Endpoint)

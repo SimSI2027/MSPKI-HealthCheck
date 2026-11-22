@@ -431,7 +431,7 @@ function Get-MspkiAdContext {
     if ($found.Constructed) {
         $ctx.ForestSource = 'Constructed'
         [void]$findings.Add((New-MspkiFinding -Category 'ADDependency' -Role 'DomainController' -Target $ctx.Domain `
-            -Status 'Warning' -StatusCode 'RETRIEVAL_FAIL' -Confidence 'Inferred' -Sources 'AD:RootDSE' -Scope 'Local' `
+            -Status 'Warning' -StatusCode 'DC_NOT_FOUND' -Confidence 'Inferred' -Sources 'AD:RootDSE' -Scope 'Local' `
             -Message 'No domain controller answered for RootDSE. The Configuration naming context was built from the domain name; the next stages show whether a domain controller serves it.' `
             -Layers @{ DiscoveryStatus = 'Warning' } -Evidence (@($attemptEvidence) + @(
                 ('configurationNamingContext (built, not read): {0}' -f $root.configurationNamingContext),

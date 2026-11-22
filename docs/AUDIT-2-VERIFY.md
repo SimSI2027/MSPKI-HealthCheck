@@ -424,6 +424,7 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 | H2 (N2) | Fixed | `2b836db` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2 regression (verification N2): ESC3 matches whichever template the broad principals sit on" (18: 7 positive, 11 negative) | against `d8f92f4`: 18 ran, 4 red, all behavioural: probe A (Authenticated Users agent + default User), probe B (Everyone agent + default User), BUILTINUsers agent + default User, and probe D (the schema version 2 case that fired before `59a2f72`) gave no ESC3. The 3 other positives (same group on both, group on the target) and the 11 negatives pass on both, as they should |
 | N8 (new) | Fixed | `1571ee0` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N8: the LDAP host gate gets the forest domains and domain controllers as a list" (3) | against `2b836db`: 3 ran, 2 red, both behavioural: no bind to a host in the second domain of a two-domain forest named by an authoritative source, and no bind to a live DC named outside the forest zones (expected one each). The negative case passes on both |
 | Item 5 | Done | `4ad3a05` | `tests/Credential.Behaviour.Tests.ps1`: "Credential behaviour: no bind, no handshake and no credentials because of an unverified object" (4), with `tests/CredentialHarness.ps1` | against `9b43bb1` (before Batch D): 4 ran, 3 red, all behavioural (`Expected 0, but got 1` binds): forged certificate, unverified CRL, referral chased. The stale DC case **passes on the old code by accident** (N8: the old DC list never reached the gate). Against `9b43bb1` with only the two N8 nesting lines corrected (so the old H1 DC rule works as designed): 4 ran, **4 red, all behavioural**, the stale DC object received a bind |
+| M8 remainder | Fixed | `M8E_HASH` | `tests/Audit2.BatchE.Tests.ps1` (M8 part, 35 cases: error number to code, real exception, LDAP URL read, retrieval-order check, schema, GUI search, report filter); `tests/Discovery.Tests.ps1` (2) and `tests/Ndes.Tests.ps1` (1) updated to the new codes | against `edc4900`: 17 ran in the new and updated tests, 17 red. Behavioural 11: every case returned `RETRIEVAL_FAIL` where a code of its own was expected (5 error numbers, the real `0x8007203A` exception, 2 LDAP URL reads, the RootDSE failure, the RootDSE guess, the NDES RPC case). Schema 6 (the new code was not allowed yet): 4 schema cases, 2 retrieval-order cases. The GUI search and report filter cases need the new codes too, so they fail on old code for the same schema reason |
 
 ### N1: what changed
 - `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
@@ -494,6 +495,30 @@ counts the tests that failed because of the old behaviour; "signature" counts th
   4. stale DC object (no NTDS Settings, no SRV record, name outside the forest zones) named by an authoritative LDAP URL: no bind.
 - **Limits:** the referral is modelled (see N6). DCOM calls to CA hosts are not covered by the harness; they go only to the CA hosts in
   the Enrollment Services objects of AD, unchanged in this batch.
+
+### M8 remainder (Batch E): what changed
+- The three causes that still reported `RETRIEVAL_FAIL` now have codes of their own (`src/Model/ErrorInfo.ps1`, `src/Model/Schema.ps1`):
+  1. **Unreachable class** (server down / service not running / bad network path): `Get-MspkiUnreachableStatusCode` names it by error number.
+     `0x8007203A` (server not operational) and `0x8007054B` (domain cannot be contacted) are `DIRECTORY_UNAVAILABLE`; `0x800706BA` (RPC
+     server unavailable) and `0x800706D9` (no RPC endpoint: service not running) are `RPC_FAIL`; `0x80070035` is `NETWORK_PATH_FAIL`.
+  2. **Unclassified LDAP error** in `Get-MspkiLdapUrlContent`: an unreachable directory gets the code above, any other error is
+     `DIRECTORY_ERROR` ("the directory returned an error that no rule classifies"; the error number stays in the evidence).
+  3. **RootDSE built from the name**: `DC_NOT_FOUND` (Warning, Inferred). When every method fails and nothing can be built, the failure
+     finding gets the unreachable code by error number (the lab-style `0x8007203A` case is `DIRECTORY_UNAVAILABLE`).
+- **What cannot be told apart, and stays `RETRIEVAL_FAIL`:** an Unreachable-class failure whose error number is not one of the five above
+  (for example one built by hand with no number). The class was set by a caller, not by an error number this tool knows, so naming a cause
+  would be a guess. Also unchanged: the three non-directory uses (HTTP probe fallback in `Invoke-MspkiHttpGet`, the NDES transport
+  fallback, an AD container group lookup that failed for a reason other than permission). They are generic "answer could not be read"
+  cases and are what the `RETRIEVAL_FAIL` definition in `docs/REQUIREMENTS.md` now says.
+- `RPC_FAIL` is wider than before (any RPC connection failure, not only a slow CA read); the CA-specific diagnosis in
+  `Get-MspkiCaRpcFailureDiagnosis` is unchanged. NDES evidence now reports an unavailable RPC server as `RPC_FAIL`.
+- The retrieval-order check counts the new codes as failures, as it did `RETRIEVAL_FAIL` (`src/Analyzers/HierarchyHealth.ps1`).
+- **GUI and report:** neither lists status codes by name. The GUI grid finds a finding by its status code in the search box
+  (`SearchText` includes it); the report's status code filter is built from the codes present in the findings. Both are now covered by a
+  test with the new codes. No GUI code change was needed. `docs/REQUIREMENTS.md` documents the four new codes and the narrowed
+  `RETRIEVAL_FAIL` / wider `RPC_FAIL`.
+- Lab run as a normal user: 99 findings, exit 6, and an identical category / status / code / confidence histogram to the previous run. The
+  lab's directory answers, so none of the new codes appears in it.
 
 ### Fix log 2: runs
 - Timed full suite before each commit (Pester 5.7.1, Windows PowerShell 5.1): N1 1039 passed; N5 1043; N6 1064 run, 8 red (7 were the
