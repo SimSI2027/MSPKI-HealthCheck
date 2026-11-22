@@ -3,11 +3,14 @@
 # (Configured); URLs built from the host name of an Enterprise CA with the standard Microsoft paths
 # (ConstructedCandidate, Inferred: only CA hosts, which are already proven to be PKI). Every probe is an anonymous
 # GET on a URL that is in the lead registry. Reachability, authentication, TLS trust, TLS name match and content
-# are reported as separate facts. An HTTP 400, 401 or 405 answer proves that the service is reachable. An HTTP 5xx answer
+# are reported as separate facts. An HTTP 400 or 405 answer (or a 200 with a service page) proves that the service responds. HTTP 401, 403 and
+# 3xx are "reachable, authentication required" and "redirected" (state AuthRequired / Redirected, Information, Referenced), never confirmed. An HTTP 5xx answer
 # proves only that a web server is there: the service behind it is failing (state Failing, Fail, HTTP_500), never Pass.
 
 $script:MspkiEnrollmentAuthVariant = @('Kerberos', 'UsernamePassword', 'Certificate')
-$script:MspkiRespondingStatus = @(200, 400, 401, 403, 405)
+# Only these answers come from the web service itself. 401, 403 and 3xx are what a site-wide rule, a WAF, an IP restriction or "SSL required"
+# gives for every path (even a removed service), so they prove only that something answers (audit 2 M2).
+$script:MspkiRespondingStatus = @(200, 400, 405)
 
 function Get-MspkiEnrollmentOrigin {
     <#
@@ -88,7 +91,7 @@ function Test-MspkiEnrollmentEndpoint {
     Probes one CEP or CES URL (anonymous GET) and reports each layer separately.
 
     .OUTPUTS
-    { Findings, Origin, State (ConfirmedResponding / Unreachable / NotConfirmed / NotTested), Responding, Url, Summary }.
+    { Findings, Origin, State (ConfirmedResponding / AuthRequired / Redirected / Failing / Unreachable / NotConfirmed / NotTested), Responding, Url, Summary }.
     Findings is empty for a constructed candidate that did not answer (the caller reports those together).
     #>
     [CmdletBinding()]
@@ -216,7 +219,35 @@ function Test-MspkiEnrollmentEndpoint {
         }
         return $out
     }
-    if ($script:MspkiRespondingStatus -notcontains $status -and -not ($status -ge 300 -and $status -lt 400)) {
+    if ($status -ge 300 -and $status -lt 400) {
+        # A redirect (followed to the hop limit, or not followed) is an answer, but not proof that this service is behind it.
+        $out.State = 'Redirected'; $out.Summary = ('HTTP {0}' -f $status)
+        $layers['HttpStatus'] = 'Pass'
+        $target = ''
+        if ($null -ne $http.PSObject.Properties['RedirectNotFollowed']) { $target = [string]$http.RedirectNotFollowed }
+        if (-not $target) { $lastHop = @($http.Hops) | Select-Object -Last 1; if ($null -ne $lastHop) { $target = [string]$lastHop.Location } }
+        $to = ''; if ($target) { $to = ' to ' + $target }
+        [void]$ev.Add(('Reachability (HTTP): the host answered with HTTP {0}{1}. A redirect does not show that the service is running.' -f $status, $to))
+        if (-not $constructed) {
+            [void]$out.Findings.Add((& $mk 'Information' 'HTTP_REDIRECT' ('{0} endpoint {1} redirects (HTTP {2}{3}); the service behind the redirect is not confirmed.' -f $label, $n.Host, $status, $to) @()))
+        }
+        return $out
+    }
+    if ($status -eq 401 -or $status -eq 403) {
+        # Reachable, authentication required. A service that wants Windows, certificate or user name authentication answers 401, but so
+        # does a site-wide rule for every path, and 403 is what a WAF or "SSL required" returns: not proof of the service (audit 2 M2).
+        $out.State = 'AuthRequired'; $out.Summary = ('HTTP {0}' -f $status)
+        $layers['HttpStatus'] = 'Pass'
+        [void]$ev.Add(('Reachability (HTTP): the host answered with HTTP {0}. Something answers at this URL; that it is the enrollment service is not confirmed.' -f $status))
+        [void]$ev.Add(('Authentication required: yes (HTTP {0}); expected for an enrollment service that uses Windows, certificate or user name authentication, but a site-wide rule gives the same answer for any path' -f $status))
+        [void]$ev.Add('Content: not checked (no body expected)')
+        if (-not $constructed) {
+            $f = & $mk 'Information' 'HTTP_401_403' ('{0} endpoint {1} is reachable, authentication required (HTTP {2}); the service behind it is not confirmed.' -f $label, $n.Host, $status) @()
+            $f.Notes = 'An anonymous request cannot see the service itself, and the same answer comes from a removed service behind a site-wide rule, a WAF or an IP restriction.'
+            [void]$out.Findings.Add($f)
+        }
+    }
+    elseif ($script:MspkiRespondingStatus -notcontains $status) {
         $out.State = 'NotConfirmed'; $out.Summary = ('HTTP {0}' -f $status)
         $layers['HttpStatus'] = 'Warning'
         if (-not $constructed) {
@@ -224,35 +255,38 @@ function Test-MspkiEnrollmentEndpoint {
         }
         return $out
     }
-
-    # The service answered.
-    $out.State = 'ConfirmedResponding'; $out.Responding = $true; $out.Summary = ('HTTP {0}' -f $status)
-    $layers['HttpStatus'] = 'Pass'
-    $authText = 'no authentication challenge at this URL'
-    if ($status -eq 401 -or $status -eq 403) { $authText = ('yes (HTTP {0}); expected for an enrollment service that uses Windows, certificate or user name authentication' -f $status) }
-    [void]$ev.Add(('Reachability (HTTP): the service answered with HTTP {0}' -f $status))
-    [void]$ev.Add(('Authentication required: {0}' -f $authText))
-    $content = 'not checked (no body expected for HTTP {0})' -f $status
-    $contentStatus = 'NotApplicable'
-    if ($status -eq 200 -and $null -ne $http.Bytes) {
-        $text = [System.Text.Encoding]::UTF8.GetString($http.Bytes, 0, [math]::Min($http.Bytes.Length, 20000))
-        if ($http.ContentType -match '(?i)xml|html|text' -and $text -match '(?i)wsdl|service|svc|policy|enrollment') {
-            $content = 'looks like a web service page ({0}, {1} bytes)' -f $http.ContentType, $http.Bytes.Length; $contentStatus = 'Pass'
+    else {
+        # The web service itself answered (a service page, or the 400/405 its endpoint gives a bare GET).
+        $out.State = 'ConfirmedResponding'; $out.Responding = $true; $out.Summary = ('HTTP {0}' -f $status)
+        $layers['HttpStatus'] = 'Pass'
+        [void]$ev.Add(('Reachability (HTTP): the service answered with HTTP {0}' -f $status))
+        [void]$ev.Add('Authentication required: no authentication challenge at this URL')
+        $content = 'not checked (no body expected for HTTP {0})' -f $status
+        $contentStatus = 'NotApplicable'
+        if ($status -eq 200 -and $null -ne $http.Bytes) {
+            $text = [System.Text.Encoding]::UTF8.GetString($http.Bytes, 0, [math]::Min($http.Bytes.Length, 20000))
+            if ($http.ContentType -match '(?i)xml|html|text' -and $text -match '(?i)wsdl|service|svc|policy|enrollment') {
+                $content = 'looks like a web service page ({0}, {1} bytes)' -f $http.ContentType, $http.Bytes.Length; $contentStatus = 'Pass'
+            }
+            else { $content = 'unexpected content ({0}, {1} bytes)' -f $http.ContentType, $http.Bytes.Length; $contentStatus = 'Warning' }
         }
-        else { $content = 'unexpected content ({0}, {1} bytes)' -f $http.ContentType, $http.Bytes.Length; $contentStatus = 'Warning' }
+        [void]$ev.Add(('Content: {0}' -f $content))
+        $layers['ContentStatus'] = $contentStatus
+        $msg = '{0} endpoint {1} responds (HTTP {2}; reachable). Classification: {3}; ConfirmedResponding.' -f $label, $n.Host, $status, $origin
+        if ($constructed) { $msg += ' A service answers at this constructed URL; that it serves this CA is not confirmed.' }
+        if ($contentStatus -eq 'Warning') {
+            # A 200 that does not look like the service is not proof of it either.
+            $out.State = 'NotConfirmed'; $out.Responding = $false
+            if (-not $constructed) { $conf = 'Referenced' }
+            [void]$out.Findings.Add((& $mk 'Warning' 'CONTENT_WRONG_TYPE' $msg @()))
+        }
+        else {
+            if (-not $constructed) { $conf = 'Confirmed' }
+            [void]$out.Findings.Add((& $mk 'Pass' 'OK' $msg @()))
+        }
     }
-    [void]$ev.Add(('Content: {0}' -f $content))
-    $layers['ContentStatus'] = $contentStatus
-    if (-not $constructed) { $conf = 'Confirmed' }
-    $state = 'ConfirmedResponding'
-    $msg = '{0} endpoint {1} responds (HTTP {2}; {3}). Classification: {4}; {5}.' -f $label, $n.Host, $status, $(if ($status -eq 401 -or $status -eq 403) { 'authentication required, as expected' } else { 'reachable' }), $origin, $state
-    if ($constructed) { $msg += ' A service answers at this constructed URL; that it serves this CA is not confirmed.' }
-    if ($contentStatus -eq 'Warning') {
-        [void]$out.Findings.Add((& $mk 'Warning' 'CONTENT_WRONG_TYPE' $msg @()))
-    }
-    else { [void]$out.Findings.Add((& $mk 'Pass' 'OK' $msg @())) }
 
-    if ($n.Scheme -eq 'http') {
+    if ($n.Scheme -eq 'http' -and $out.State -in @('ConfirmedResponding', 'AuthRequired')) {
         $sev = 'Medium'; $st = 'Warning'
         $authName = ''
         if ($null -ne $info) { $authName = [string]$info.AuthName }

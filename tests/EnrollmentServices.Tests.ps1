@@ -23,6 +23,8 @@ BeforeAll {
     $script:routes['/page/service.svc'] = @{ Status = 200; Body = [System.Text.Encoding]::ASCII.GetBytes('<html>Service - WSDL available</html>'); Headers = @{ 'Content-Type' = 'text/html' } }
     $script:routes['/junk/service.svc'] = @{ Status = 200; Body = [System.Text.Encoding]::ASCII.GetBytes('hello'); Headers = @{ 'Content-Type' = 'application/octet-stream' } }
     $script:routes['/boom/service.svc'] = @{ Status = 500; Body = @() }
+    $script:routes['/forbidden/service.svc'] = @{ Status = 403; Body = [System.Text.Encoding]::ASCII.GetBytes('Forbidden: SSL required') }
+    $script:routes['/moved/service.svc'] = @{ Status = 302; Body = @(); Headers = @{ Location = '/elsewhere/service.svc' } }
 }
 
 AfterAll { Stop-TestHttpServer -Server $script:server }
@@ -131,30 +133,34 @@ Describe 'Registering CEP and CES leads' {
 Describe 'Probing a CEP/CES endpoint: separate layers' {
     BeforeEach { & $script:reset; $script:server.Log.Clear() }
 
-    It 'treats HTTP 401 as reachable with authentication required (Configured CEP), with each layer as its own fact' {
+    It 'treats HTTP 401 as reachable, authentication required, NOT confirmed (audit 2 M2), with each layer as its own fact' {
         $r = & $script:probe ($script:b + '/pol/service.svc')
-        $r.State | Should -Be 'ConfirmedResponding'
+        $r.State | Should -Be 'AuthRequired'
+        $r.Responding | Should -BeFalse
         $r.Origin | Should -Be 'Configured'
-        $f = @($r.Findings | Where-Object { $_.StatusCode -eq 'OK' })
+        $f = @($r.Findings | Where-Object { $_.StatusCode -eq 'HTTP_401_403' })
         $f.Count | Should -Be 1
-        $f[0].Status | Should -Be 'Pass'
+        @($r.Findings | Where-Object { $_.Status -eq 'Pass' -or $_.Confidence -eq 'Confirmed' }).Count | Should -Be 0
+        $f[0].Status | Should -Be 'Information'
+        $f[0].Message | Should -Match 'authentication required'
+        $f[0].Message | Should -Match 'not confirmed'
         $f[0].Category | Should -Be 'CEP'
         $f[0].Role | Should -Be 'CEPEndpoint'
-        $f[0].Confidence | Should -Be 'Confirmed'
+        $f[0].Confidence | Should -Be 'Referenced'
         $f[0].DnsStatus | Should -Be 'Pass'
         $f[0].TcpStatus | Should -Be 'Pass'
         $f[0].HttpStatus | Should -Be 'Pass'
         $ev = $f[0].Evidence -join "`n"
         $ev | Should -Match 'Classification: Configured'
         $ev | Should -Match 'Reachability \(TCP \d+\): connects'
-        $ev | Should -Match 'Reachability \(HTTP\): the service answered with HTTP 401'
+        $ev | Should -Match 'Reachability \(HTTP\): the host answered with HTTP 401'
         $ev | Should -Match 'Authentication required: yes \(HTTP 401\)'
         $ev | Should -Match 'TLS trust: not applicable \(http\)'
         $ev | Should -Match 'TLS name match: not applicable \(http\)'
         $ev | Should -Match 'Content: not checked'
     }
 
-    It 'treats HTTP 400 and 405 as reachable too' {
+    It 'treats HTTP 400 and 405 (the web service itself answers a bare GET that way) as confirmed' {
         foreach ($p in @('/bad/service.svc', '/post/service.svc')) {
             & $script:reset
             $r = & $script:probe ($script:b + $p)
@@ -162,6 +168,25 @@ Describe 'Probing a CEP/CES endpoint: separate layers' {
             $r.Responding | Should -BeTrue
             (@($r.Findings | Where-Object { $_.StatusCode -eq 'OK' })[0].Evidence -join "`n") | Should -Match 'Authentication required: no authentication challenge'
         }
+    }
+
+    It 'treats HTTP 403 like 401: reachable, not confirmed (a WAF, an IP restriction or SSL-required answers 403 for every path)' {
+        $r = & $script:probe ($script:b + '/forbidden/service.svc') 'CES' 'AD:EnrollmentServices:msPKI-Enrollment-Servers'
+        $r.State | Should -Be 'AuthRequired'
+        $r.Responding | Should -BeFalse
+        $f = @($r.Findings | Where-Object { $_.StatusCode -eq 'HTTP_401_403' })
+        $f.Count | Should -Be 1
+        $f[0].Status | Should -Be 'Information'
+        $f[0].Confidence | Should -Not -Be 'Confirmed'
+        @($r.Findings | Where-Object { $_.Status -eq 'Pass' }).Count | Should -Be 0
+    }
+
+    It 'reports a redirect that was not followed as redirected, never as responding (audit 2 M2 with M5)' {
+        # 127.0.0.1 is a trusted host for its own redirect (same host), so the 302 is followed to /elsewhere, which is a 404 here; the
+        # not-followed form is covered in Audit2.Results.Tests.ps1.
+        $r = & $script:probe ($script:b + '/moved/service.svc') 'CES' 'AD:EnrollmentServices:msPKI-Enrollment-Servers'
+        $r.Responding | Should -BeFalse
+        @($r.Findings | Where-Object { $_.Status -eq 'Pass' -or $_.Confidence -eq 'Confirmed' }).Count | Should -Be 0
     }
 
     It 'checks the content of an HTTP 200 answer: a service page passes, other content is a warning' {
@@ -213,12 +238,12 @@ Describe 'Probing a CEP/CES endpoint: separate layers' {
         $risk = @($r.Findings | Where-Object { $_.StatusCode -eq 'CONFIG_RISK' })
         $risk[0].Severity | Should -Be 'High'
         $risk[0].Status | Should -Be 'Fail'
-        $ok = @($r.Findings | Where-Object { $_.StatusCode -eq 'OK' })[0]
+        $ok = @($r.Findings | Where-Object { $_.StatusCode -eq 'HTTP_401_403' })[0]
         ($ok.Evidence -join "`n") | Should -Match 'Authentication type from AD \(msPKI-Enrollment-Servers\): UserName; priority/cost 1; renewal only: no'
     }
 
     It 'keeps a constructed candidate Inferred even when something answers, and says so' {
-        $r = & $script:probe ($script:b + '/pol/service.svc') 'CES' 'Constructed:CAHost' $null -RelatedCA 'Example Issuing CA' -Confidence 'Inferred'
+        $r = & $script:probe ($script:b + '/page/service.svc') 'CES' 'Constructed:CAHost' $null -RelatedCA 'Example Issuing CA' -Confidence 'Inferred'
         $r.Origin | Should -Be 'ConstructedCandidate'
         $r.State | Should -Be 'ConfirmedResponding'
         $f = @($r.Findings | Where-Object { $_.StatusCode -eq 'OK' })[0]
@@ -297,7 +322,7 @@ Describe 'CEP/CES analysis' {
         Mock -ModuleName MspkiHealthCheck Resolve-MspkiDnsName { [pscustomobject]@{ Status = 'Pass'; StatusCode = 'OK'; Error = ''; Addresses = @('127.0.0.1'); ElapsedMs = 0 } }
         Mock -ModuleName MspkiHealthCheck Resolve-MspkiDnsName { [pscustomobject]@{ Status = 'Fail'; StatusCode = 'DNS_FAIL'; Error = 'mock: no such host'; Addresses = @(); ElapsedMs = 0 } } -ParameterFilter { $HostName -eq 'ca01.corp.example.test' }
         $f = InModuleScope MspkiHealthCheck -Parameters @{ D = $disc } { param($D) Invoke-MspkiEnrollmentServiceAnalysis -Discovery $D -TimeoutSeconds 3 }
-        $ok = @($f | Where-Object { $_.Category -eq 'CES' -and $_.StatusCode -eq 'OK' })
+        $ok = @($f | Where-Object { $_.Category -eq 'CES' -and $_.StatusCode -eq 'HTTP_401_403' })
         $ok.Count | Should -Be 1
         $ok[0].Evidence -join "`n" | Should -Match 'Classification: Discovered'
         $sil = @($f | Where-Object { $_.Message -like '*constructed CEP/CES candidate URL(s)*' })
@@ -324,7 +349,7 @@ Describe 'CEP/CES analysis' {
     It 'probes a CEP from policy and attributes it to the policy (Configured)' {
         $inv = [pscustomobject]@{ EnterpriseCAs = @(); CepPolicies = @([pscustomobject]@{ IsWebService = $true; Url = ($script:b + '/pol/service.svc'); Source = 'Policy:CEP:HKCU'; Managed = 'Group Policy (user)'; KeyName = 'k1'; FriendlyName = 'Example'; AuthName = 'Kerberos'; AuthFlags = 2; Cost = 100 }) }
         $f = InModuleScope MspkiHealthCheck -Parameters @{ D = ([pscustomobject]@{ Inventory = $inv }) } { param($D) Invoke-MspkiEnrollmentServiceAnalysis -Discovery $D -TimeoutSeconds 3 }
-        $ok = @($f | Where-Object { $_.Category -eq 'CEP' -and $_.StatusCode -eq 'OK' })
+        $ok = @($f | Where-Object { $_.Category -eq 'CEP' -and $_.StatusCode -eq 'HTTP_401_403' })
         $ok.Count | Should -Be 1
         $ok[0].Sources | Should -Contain 'Policy:CEP:HKCU'
         ($ok[0].Evidence -join "`n") | Should -Match 'Found in: Enrollment policy server on this computer \(Group Policy \(user\)'

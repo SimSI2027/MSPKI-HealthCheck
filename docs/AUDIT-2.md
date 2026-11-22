@@ -421,7 +421,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | M9 | Fixed | `4aa6a91` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M9: a redirect or a TLS handshake never goes to a host that no trusted evidence named" (5 tests); audit 1 test "looks at the host of the failing hop ..." now registers the HTTPS host as a lead first |
 | H2 | Fixed | `59a2f72` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2: ESC3 in a forest modelled on the default templates" (10 tests: default forest does not fire; broad agent template + default User fires; two targets counted; 7 negative cases, one condition each) |
 | M11 | Partially fixed: confidence and Deny ACEs done; the ESC4 rule that counts a WriteProperty on any single attribute is not changed (Batch B) | `3aad084` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 M11: a permission-based template finding is never Confirmed while effective permissions are not computed" (6 tests); two older assertions updated to the new rule and wording |
-| M1 | Fixed | `PENDING` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M1" (2 tests: the old root is known too and the subordinate needs the new key gives KeyMismatch; the new root is still Verified) |
+| M1 | Fixed | `7842317` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M1" (2 tests: the old root is known too and the subordinate needs the new key gives KeyMismatch; the new root is still Verified) |
+| M2 | Fixed | `PENDING` | `tests/EnrollmentServices.Tests.ps1`: 401 and 403 are AuthRequired (Information, Referenced, `HTTP_401_403`), never Pass or Confirmed; a 3xx is not a responding service; 400/405/200-with-service-page stay Confirmed; a 200 with other content is Referenced; the plain-HTTP risk is kept for AuthRequired. 5 tests were red on the old code |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -492,3 +493,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
   thumbprint) proves the key only when no referencing certificate is known; otherwise the signature of a referencing certificate
   must verify with the downloaded key. After a renewal the old CA certificate is known too, so it no longer passes at the
   location of the new one (KeyMismatch, Warning, Confirmed).
+
+### M2 notes (Batch B)
+- `Test-MspkiEnrollmentEndpoint`: only 200 (service page), 400 and 405 are `ConfirmedResponding`. 401 and 403 give state `AuthRequired`
+  (Information, `HTTP_401_403`, Referenced; Inferred for a constructed candidate), a 3xx gives `Redirected` (Information, `HTTP_REDIRECT`).
+  Neither counts as `Responding`. A 200 whose content does not look like the service is a Warning and Referenced. REQUIREMENTS 5.6 says so.

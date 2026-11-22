@@ -189,11 +189,14 @@ Rules:
 ### 5.6 CEP / CES
 - CES: from `msPKI-Enrollment-Servers` (format: priority, auth type, renewal-only, URL) → `Referenced`.
 - CEP: from local policy → `Referenced`. A URL built from a CA's host name is `Inferred` and labelled "constructed candidate".
-- A response such as HTTP 400, 401 or 405 proves the service is reachable. Report reachability, authentication required,
-  TLS trust, TLS name match and content as separate fields.
+- A response of HTTP 400 or 405 (the web service's own answer to a bare GET), or a 200 with a service page, proves that the service responds
+  (`ConfirmedResponding`, Pass, Confirmed). HTTP 401, 403 and 3xx do not: a site-wide rule, a WAF, an IP restriction or "SSL required" gives the
+  same answer for every path, including a service that was removed. They are "reachable, authentication required" (`AuthRequired`,
+  Information, `HTTP_401_403`) and "redirected" (`Redirected`, Information, `HTTP_REDIRECT`), Referenced, never Confirmed. Report reachability,
+  authentication required, TLS trust, TLS name match and content as separate fields.
   An HTTP 5xx answer proves only that a web server is there while the service behind it fails (for example a stopped application
   pool answers 503): the endpoint is `Failing` and the result is `Fail` / `HTTP_500`, never Pass and never Confirmed.
-- Classifications: Configured (policy) · Discovered (AD) · ConstructedCandidate · ConfirmedResponding · Failing · Unreachable.
+- Classifications: Configured (policy) · Discovered (AD) · ConstructedCandidate · ConfirmedResponding · AuthRequired · Redirected · Failing · Unreachable.
 
 ### 5.7 NDES / SCEP
 - Evidence for a candidate host:
