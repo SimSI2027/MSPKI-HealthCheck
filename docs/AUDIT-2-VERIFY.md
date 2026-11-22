@@ -425,7 +425,8 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 | N8 (new) | Fixed | `1571ee0` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N8: the LDAP host gate gets the forest domains and domain controllers as a list" (3) | against `2b836db`: 3 ran, 2 red, both behavioural: no bind to a host in the second domain of a two-domain forest named by an authoritative source, and no bind to a live DC named outside the forest zones (expected one each). The negative case passes on both |
 | Item 5 | Done | `4ad3a05` | `tests/Credential.Behaviour.Tests.ps1`: "Credential behaviour: no bind, no handshake and no credentials because of an unverified object" (4), with `tests/CredentialHarness.ps1` | against `9b43bb1` (before Batch D): 4 ran, 3 red, all behavioural (`Expected 0, but got 1` binds): forged certificate, unverified CRL, referral chased. The stale DC case **passes on the old code by accident** (N8: the old DC list never reached the gate). Against `9b43bb1` with only the two N8 nesting lines corrected (so the old H1 DC rule works as designed): 4 ran, **4 red, all behavioural**, the stale DC object received a bind |
 | M8 remainder | Fixed | `d182c51` | `tests/Audit2.BatchE.Tests.ps1` (M8 part, 35 cases: error number to code, real exception, LDAP URL read, retrieval-order check, schema, GUI search, report filter); `tests/Discovery.Tests.ps1` (2) and `tests/Ndes.Tests.ps1` (1) updated to the new codes | against `edc4900`: 17 ran in the new and updated tests, 17 red. Behavioural 11: every case returned `RETRIEVAL_FAIL` where a code of its own was expected (5 error numbers, the real `0x8007203A` exception, 2 LDAP URL reads, the RootDSE failure, the RootDSE guess, the NDES RPC case). Schema 6 (the new code was not allowed yet): 4 schema cases, 2 retrieval-order cases. The GUI search and report filter cases need the new codes too, so they fail on old code for the same schema reason |
-| N3 | Fixed | `N3_HASH` | `tests/Audit2.BatchE.Size.Tests.ps1`: "Audit 2 N3: an AIA download above the size cap is not an Information / Confirmed result" (3) | against `25ae790`: 3 ran, 2 red, both behavioural: the AIA answer above the cap was Information (expected Fail), and the message named the 64 MB CRL limit instead of the 10 MB that applied. The negative case (a 10.6 MB CRL is read under the 64 MB cap) passes on both |
+| N3 | Fixed | `5cdbc23` | `tests/Audit2.BatchE.Size.Tests.ps1`: "Audit 2 N3: an AIA download above the size cap is not an Information / Confirmed result" (3) | against `25ae790`: 3 ran, 2 red, both behavioural: the AIA answer above the cap was Information (expected Fail), and the message named the 64 MB CRL limit instead of the 10 MB that applied. The negative case (a 10.6 MB CRL is read under the 64 MB cap) passes on both |
+| N4 | Fixed | `N4_HASH` | `tests/Audit2.BatchE.N4.Tests.ps1`: "Audit 2 N4: a 200 answer from a CES or CEP is Confirmed only for a valid service response" (9); `tests/EnrollmentServices.Tests.ps1` updated | against `5cdbc23`: 9 ran, 8 red, all behavioural: an HTML portal, XML that only contains the words, `definitions` in the wrong namespace, a cut-off WSDL and a DTD document were all Pass / Confirmed / responding (expected Inferred, not responding); both SOAP faults were a Warning because they contain none of the five words (expected Confirmed); the evidence did not say why. The real WSDL passes on both |
 
 ### N1: what changed
 - `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
@@ -530,6 +531,22 @@ counts the tests that failed because of the old behaviour; "signature" counts th
   normal" is no longer shown for AIA.
 - The retrieval-order check (M4) counts such an AIA URL as failed (it is a Fail), no longer as not tested.
 - `docs/REQUIREMENTS.md`: `SIZE_LIMIT` says Information for a CRL, Fail for an AIA certificate.
+
+### N4 (Batch E): what changed
+- `Test-MspkiServiceResponseBody` (`src/Analyzers/EnrollmentServices.ps1`) decides whether the body of a 200 answer from a CES or CEP is a
+  valid service response: it must parse completely as XML (a DTD is refused, no resolver is set, nothing is fetched) and its root must be
+  a WSDL `definitions` element, a SOAP 1.1 / 1.2 `Envelope` (a fault included) or an element in the Microsoft enrollment policy /
+  enrollment namespaces. HTML, XML that only contains the old words, a root named `definitions` in another namespace, and cut-off XML are
+  not.
+- Only a valid service response is Pass / OK / **Confirmed** (state ConfirmedResponding). Any other 200 is Warning / `CONTENT_WRONG_TYPE`
+  with **Inferred** confidence (it was Referenced before for a non-match, and Confirmed for a word match), state NotConfirmed,
+  `Responding` false. The evidence says why it was not accepted, and the message no longer says "ConfirmedResponding" for it.
+- The word match (`wsdl|service|svc|policy|enrollment`) is gone. A real WCF help page (HTML) is therefore Inferred, not Confirmed, on a
+  bare anonymous GET; that is deliberate. 400 and 405 still count as the service answering (unchanged, not part of N4).
+- The L9/L17 wording in `docs/AUDIT-2.md` ("still a word match") is corrected below the row it sits in.
+- Existing test updated: the `/page/service.svc` fixture of `tests/EnrollmentServices.Tests.ps1` is now a WSDL, and a new
+  `/mention/service.svc` HTML page that only mentions the service is a warning.
+- Lab run after N3 and N4 (normal user): 99 findings, exit 6, identical category / status / code / confidence histogram.
 
 ### Fix log 2: runs
 - Timed full suite before each commit (Pester 5.7.1, Windows PowerShell 5.1): N1 1039 passed; N5 1043; N6 1064 run, 8 red (7 were the

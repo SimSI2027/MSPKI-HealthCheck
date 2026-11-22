@@ -3,7 +3,7 @@
 # (Configured); URLs built from the host name of an Enterprise CA with the standard Microsoft paths
 # (ConstructedCandidate, Inferred: only CA hosts, which are already proven to be PKI). Every probe is an anonymous
 # GET on a URL that is in the lead registry. Reachability, authentication, TLS trust, TLS name match and content
-# are reported as separate facts. An HTTP 400 or 405 answer (or a 200 with a service page) proves that the service responds. HTTP 401, 403 and
+# are reported as separate facts. An HTTP 400 or 405 answer, or a 200 whose body is a valid service response (a WSDL or a SOAP envelope, audit 2 N4), proves that the service responds. HTTP 401, 403 and
 # 3xx are "reachable, authentication required" and "redirected" (state AuthRequired / Redirected, Information, Referenced), never confirmed. An HTTP 5xx answer
 # proves only that a web server is there: the service behind it is failing (state Failing, Fail, HTTP_500), never Pass.
 
@@ -12,6 +12,42 @@ $script:MspkiEnrollmentAuthVariant = @('Kerberos', 'UsernamePassword', 'Certific
 # gives for every path (even a removed service), so they prove only that something answers (audit 2 M2).
 $script:MspkiRespondingStatus = @(200, 400, 405)
 
+function Test-MspkiServiceResponseBody {
+    <#
+    .SYNOPSIS
+    Is the body of an HTTP 200 answer a valid response of a web service: a WSDL document, a SOAP envelope (a fault included) or an XML
+    document in the Microsoft enrollment policy / enrollment namespaces? A word in a page proves nothing (audit 2 N4).
+    .DESCRIPTION
+    The body must parse as XML (DTDs are refused and no resolver is used, so nothing is fetched) and its root element must be one of the
+    above, by namespace and name. HTML, text, XML with the right words but another root, and truncated XML are not.
+    #>
+    [CmdletBinding()]
+    param([AllowNull()][byte[]]$Bytes)
+    $no = { param($why) [pscustomobject]@{ Valid = $false; Kind = ''; Reason = $why } }
+    if ($null -eq $Bytes -or $Bytes.Length -eq 0) { return (& $no 'the body is empty') }
+    $ms = $null; $reader = $null
+    try {
+        $settings = New-Object System.Xml.XmlReaderSettings
+        $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+        $settings.XmlResolver = $null
+        $settings.MaxCharactersInDocument = 20000000
+        $ms = New-Object System.IO.MemoryStream(, $Bytes)
+        $reader = [System.Xml.XmlReader]::Create($ms, $settings)
+        while ($reader.Read() -and $reader.NodeType -ne [System.Xml.XmlNodeType]::Element) { }
+        if ($reader.NodeType -ne [System.Xml.XmlNodeType]::Element) { return (& $no 'the body has no XML root element') }
+        $ns = [string]$reader.NamespaceURI; $name = [string]$reader.LocalName
+        $kind = ''
+        if ($name -eq 'definitions' -and $ns -eq 'http://schemas.xmlsoap.org/wsdl/') { $kind = 'WSDL' }
+        elseif ($name -eq 'Envelope' -and ($ns -eq 'http://schemas.xmlsoap.org/soap/envelope/' -or $ns -eq 'http://www.w3.org/2003/05/soap-envelope')) { $kind = 'SOAP' }
+        elseif ($ns -like 'http://schemas.microsoft.com/windows/pki/2009/01/enrollment*') { $kind = 'EnrollmentXml' }
+        if (-not $kind) { return (& $no ('the XML root element is {0} in namespace "{1}"' -f $name, $ns)) }
+        # The whole document must be well-formed, not only its first element: a cut-off body is not a response.
+        while ($reader.Read()) { }
+        return [pscustomobject]@{ Valid = $true; Kind = $kind; Reason = '' }
+    }
+    catch { return (& $no 'the body is not well-formed XML (or has a DTD, which is refused)') }
+    finally { if ($null -ne $reader) { $reader.Close() }; if ($null -ne $ms) { $ms.Dispose() } }
+}
 function Get-MspkiEnrollmentOrigin {
     <#
     .SYNOPSIS
@@ -264,20 +300,25 @@ function Test-MspkiEnrollmentEndpoint {
         $content = 'not checked (no body expected for HTTP {0})' -f $status
         $contentStatus = 'NotApplicable'
         if ($status -eq 200 -and $null -ne $http.Bytes) {
-            $text = [System.Text.Encoding]::UTF8.GetString($http.Bytes, 0, [math]::Min($http.Bytes.Length, 20000))
-            if ($http.ContentType -match '(?i)xml|html|text' -and $text -match '(?i)wsdl|service|svc|policy|enrollment') {
-                $content = 'looks like a web service page ({0}, {1} bytes)' -f $http.ContentType, $http.Bytes.Length; $contentStatus = 'Pass'
+            # Only a valid service response is proof. A page that mentions "service" or "policy" can be any portal (audit 2 N4).
+            $sr = Test-MspkiServiceResponseBody -Bytes $http.Bytes
+            if ($sr.Valid) {
+                $content = 'valid service response: {0} ({1}, {2} bytes)' -f $sr.Kind, $http.ContentType, $http.Bytes.Length; $contentStatus = 'Pass'
             }
-            else { $content = 'unexpected content ({0}, {1} bytes)' -f $http.ContentType, $http.Bytes.Length; $contentStatus = 'Warning' }
+            else {
+                $content = 'not a valid service response: {0} ({1}, {2} bytes). Only a WSDL, a SOAP envelope or enrollment XML proves the service; a page that mentions the service does not.' -f $sr.Reason, $http.ContentType, $http.Bytes.Length
+                $contentStatus = 'Warning'
+            }
         }
         [void]$ev.Add(('Content: {0}' -f $content))
         $layers['ContentStatus'] = $contentStatus
         $msg = '{0} endpoint {1} responds (HTTP {2}; reachable). Classification: {3}; ConfirmedResponding.' -f $label, $n.Host, $status, $origin
         if ($constructed) { $msg += ' A service answers at this constructed URL; that it serves this CA is not confirmed.' }
         if ($contentStatus -eq 'Warning') {
-            # A 200 that does not look like the service is not proof of it either.
+            # A 200 that is not a valid service response is not proof of the service: something answers, nothing more (inferred).
             $out.State = 'NotConfirmed'; $out.Responding = $false
-            if (-not $constructed) { $conf = 'Referenced' }
+            $conf = 'Inferred'
+            $msg = '{0} endpoint {1} answers HTTP {2}, but the answer is not a valid service response (WSDL or SOAP), so the service is not confirmed. Classification: {3}.' -f $label, $n.Host, $status, $origin
             [void]$out.Findings.Add((& $mk 'Warning' 'CONTENT_WRONG_TYPE' $msg @()))
         }
         else {

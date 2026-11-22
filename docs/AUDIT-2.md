@@ -360,7 +360,7 @@ REQUIREMENTS §3 says to keep status codes separate.
   against the chain. PEM CRLs are rejected (`src/Model/Crl.ps1:13-24`). There is no CRL `Unknown` state. (A future-dated CRL is now
   `CLOCK_SKEW`, which is better.)
 - **L8c:** the v4 format of `msPKI-RA-Application-Policies` is still not parsed separately.
-- **L9:** the CES/CEP content check is still a word match (`src/Analyzers/EnrollmentServices.ps1:237-243`).
+- **L9:** the CES/CEP content check was a word match; since audit 2 verification N4 a 200 is Confirmed only for a WSDL, a SOAP envelope or enrollment XML (see docs/AUDIT-2-VERIFY.md, Fix log 2).
 
 ### L18 Reading the Lifecycle logs may need an interactive logon
 - They were readable for a normal interactive user in the lab. Under a scheduled task or a remote session the channel access may
@@ -610,7 +610,7 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | L10 | Not changed | - | The GUI work measured about 1 s for a 1.7 MB results file on the UI thread, which is fine today; it grows with the PKI. Moving the load and the view-model build to a background step and a virtualised log is a larger change that this batch does not need |
 | L11 | Fixed | `0d3f56e` | `tests/Audit2.Results.Tests.ps1` "Audit 2 L11": every `Button` in MainWindow.xaml has `AutomationProperties.Name` (text or binding), and the status and severity tiles name their count (`AccessibleName`). Not checked with a screen reader |
 | L16 | No action | - | Information only: no forbidden AV/EDR pattern was found; the README already tells operators to warn their security team |
-| L17 | Not changed | - | Older low items: `EXPECTED_OFFLINE` is never emitted, the CA path length is not checked against the chain, PEM CRLs are rejected, the v4 `msPKI-RA-Application-Policies` format is not parsed separately, and the CES/CEP content check is a word match. Each needs a feature decision; none is a wrong result today (the content check is no longer the proof for Confirmed after M2) |
+| L17 | Not changed | - | Older low items: `EXPECTED_OFFLINE` is never emitted, the CA path length is not checked against the chain, PEM CRLs are rejected, the v4 `msPKI-RA-Application-Policies` format is not parsed separately, and (until audit 2 verification N4) the CES/CEP content check was a word match; a 200 is now Confirmed only for a WSDL, a SOAP envelope or enrollment XML. Each needs a feature decision; none is a wrong result today (the content check is no longer the proof for Confirmed after M2) |
 | L18 | Not tested | - | Reading the Lifecycle logs under a scheduled task or remote session was not tested; if the channel denies the read the result is PERMISSION_DENIED (exit code 6), which is the honest outcome |
 | L19 | Fixed (the broken dash); paths kept | `0d3f56e` | `docs/PROGRESS.md` line 13 reads correctly. The dev-machine paths in CLAUDE.md and PROGRESS.md are kept: they are generic local folder names and tell a new session where the private facts live |
 

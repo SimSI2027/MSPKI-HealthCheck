@@ -20,7 +20,8 @@ BeforeAll {
     $script:routes['/pol/service.svc'] = @{ Status = 401; Body = @(); Headers = @{ 'WWW-Authenticate' = 'Negotiate' } }
     $script:routes['/bad/service.svc'] = @{ Status = 400; Body = [System.Text.Encoding]::ASCII.GetBytes('Bad Request') }
     $script:routes['/post/service.svc'] = @{ Status = 405; Body = @() }
-    $script:routes['/page/service.svc'] = @{ Status = 200; Body = [System.Text.Encoding]::ASCII.GetBytes('<html>Service - WSDL available</html>'); Headers = @{ 'Content-Type' = 'text/html' } }
+    $script:routes['/page/service.svc'] = @{ Status = 200; Body = [System.Text.Encoding]::ASCII.GetBytes('<?xml version="1.0"?><wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"><wsdl:types/></wsdl:definitions>'); Headers = @{ 'Content-Type' = 'text/xml' } }
+    $script:routes['/mention/service.svc'] = @{ Status = 200; Body = [System.Text.Encoding]::ASCII.GetBytes('<html>Service - WSDL available</html>'); Headers = @{ 'Content-Type' = 'text/html' } }
     $script:routes['/junk/service.svc'] = @{ Status = 200; Body = [System.Text.Encoding]::ASCII.GetBytes('hello'); Headers = @{ 'Content-Type' = 'application/octet-stream' } }
     $script:routes['/boom/service.svc'] = @{ Status = 500; Body = @() }
     $script:routes['/forbidden/service.svc'] = @{ Status = 403; Body = [System.Text.Encoding]::ASCII.GetBytes('Forbidden: SSL required') }
@@ -189,7 +190,7 @@ Describe 'Probing a CEP/CES endpoint: separate layers' {
         @($r.Findings | Where-Object { $_.Status -eq 'Pass' -or $_.Confidence -eq 'Confirmed' }).Count | Should -Be 0
     }
 
-    It 'checks the content of an HTTP 200 answer: a service page passes, other content is a warning' {
+    It 'checks the content of an HTTP 200 answer: a service response (WSDL) passes, other content, a page that only mentions the service included, is a warning' {
         $ok = & $script:probe ($script:b + '/page/service.svc')
         @($ok.Findings | Where-Object { $_.StatusCode -eq 'OK' })[0].ContentStatus | Should -Be 'Pass'
         & $script:reset
@@ -198,6 +199,10 @@ Describe 'Probing a CEP/CES endpoint: separate layers' {
         $w.Count | Should -Be 1
         $w[0].Status | Should -Be 'Warning'
         $w[0].ContentStatus | Should -Be 'Warning'
+        & $script:reset
+        $m = & $script:probe ($script:b + '/mention/service.svc')
+        $m.Responding | Should -BeFalse
+        @($m.Findings | Where-Object { $_.StatusCode -eq 'CONTENT_WRONG_TYPE' -and $_.Confidence -eq 'Inferred' }).Count | Should -Be 1
     }
 
     It 'reports HTTP 404 on a referenced URL as a failure (Unreachable), not as a responding service' {
