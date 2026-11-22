@@ -83,16 +83,31 @@ function Test-MspkiSidContains {
     <#
     .SYNOPSIS
     True when the well-known group Outer contains the principal Inner, or both are the same SID. Only the fixed containments of the
-    broad groups are known without a directory lookup: Everyone contains every principal; Authenticated Users contains itself,
-    Domain Users and Domain Computers (of any domain). Nothing else is assumed.
+    broad groups are known without a directory lookup: Everyone contains every principal; BUILTIN\Users contains Authenticated Users
+    (a member by default) and so everything that contains; Authenticated Users contains Domain Users and Domain Computers (of any
+    domain). Nothing else is assumed.
     #>
     [CmdletBinding()]
     param([AllowEmptyString()][string]$Outer, [AllowEmptyString()][string]$Inner)
     if (-not $Outer -or -not $Inner) { return $false }
     if ($Outer -eq $Inner) { return $true }
     if ($Outer -eq 'S-1-1-0') { return $true }
-    if ($Outer -eq 'S-1-5-11') { return ($Inner -match '^S-1-5-21-\d+-\d+-\d+-(513|515)$') }
+    $domainGroup = ($Inner -match '^S-1-5-21-\d+-\d+-\d+-(513|515)$')
+    if ($Outer -eq 'S-1-5-32-545') { return ($Inner -eq 'S-1-5-11' -or $domainGroup) }
+    if ($Outer -eq 'S-1-5-11') { return $domainGroup }
     return $false
+}
+
+function Test-MspkiSidOverlap {
+    <#
+    .SYNOPSIS
+    True when two principals can have a member in common as far as the fixed containments of the broad groups show
+    (Test-MspkiSidContains in either direction): Authenticated Users and Domain Users overlap whichever is on which template; Domain
+    Users and Domain Computers, or the Domain Users groups of two domains, do not.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$A, [AllowEmptyString()][string]$B)
+    return ((Test-MspkiSidContains -Outer $A -Inner $B) -or (Test-MspkiSidContains -Outer $B -Inner $A))
 }
 
 function Get-MspkiBroadAce {
@@ -222,8 +237,10 @@ function Get-MspkiTemplatePatternMatch {
     # Pattern ESC3 (audit 2 H2: every condition on both templates).
     # Agent template: a broad group can enroll, Certificate Request Agent EKU, no manager approval, no authorised signatures.
     # Target template (another published one): accepts an enrollment agent's signature (schema version 1, or version 2+ with the
-    # Certificate Request Agent signature policy), allows client authentication, no manager approval, and the agent's principals
-    # may enroll for it (the same broad group, or Everyone / Authenticated Users, which contain every broad group).
+    # Certificate Request Agent signature policy), allows client authentication, no manager approval, and a principal that may enroll
+    # for the agent template may enroll for it too: a broad group on one template overlaps a broad group on the other when either
+    # contains the other (audit 2 verification N2: Authenticated Users on the agent and Domain Users on the User template is the
+    # commonest case, and the broad group can sit on either template).
     if ($f.BroadEnroll.Count -gt 0 -and $f.AgentEku -and -not $f.ManagerApproval -and $f.RaSignatures -eq 0) {
         $agentSids = @($f.BroadEnroll | Where-Object { -not $_.Denied } | ForEach-Object { $_.Sid })
         $others = New-Object System.Collections.ArrayList
@@ -232,7 +249,7 @@ function Get-MspkiTemplatePatternMatch {
             if (-not $Published.ContainsKey($k)) { continue }
             $o = $AllFacts[$k]
             if (-not ($o.Facts.AcceptsAgentSig -and $o.Facts.ClientAuthCapable -and -not $o.Facts.ManagerApproval)) { continue }
-            $shared = @($o.Facts.BroadEnroll | Where-Object { -not $_.Denied -and ($agentSids -contains $_.Sid -or $_.Sid -eq 'S-1-1-0' -or $_.Sid -eq 'S-1-5-11') })
+            $shared = @($o.Facts.BroadEnroll | Where-Object { $t = $_; -not $t.Denied -and @($agentSids | Where-Object { Test-MspkiSidOverlap -A $_ -B $t.Sid }).Count -gt 0 })
             if ($shared.Count -eq 0) { continue }
             [void]$others.Add([pscustomobject]@{ Entry = $o; Shared = $shared })
         }

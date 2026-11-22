@@ -497,6 +497,89 @@ Describe 'Audit 2 H2: ESC3 in a forest modelled on the default templates' {
     }
 }
 
+Describe 'Audit 2 H2 regression (verification N2): ESC3 matches whichever template the broad principals sit on' {
+    BeforeAll {
+        $script:efs = '1.3.6.1.4.1.311.10.3.4'
+        $script:email = '1.3.6.1.5.5.7.3.4'
+        $script:au = 'S-1-5-11'; $script:anon = 'S-1-5-7'
+        $script:duOther = 'S-1-5-21-4444-5555-6666-513'
+        # The default User template (schema version 1, Domain Users may enroll) and Machine template (Domain Computers).
+        $script:userV1 = { param([hashtable]$o = @{}) $h = @{ SchemaVersion = 1; Eku = @($script:efs, $script:email, $script:clientAuth); EnrollmentFlag = [int64]0x29
+                NameFlag = [int64]0xA6000000; Oid = '1.3.6.1.4.1.311.21.8.200.1'; Acl = @((& $script:adminAce), (& $script:enrollAce $script:du)) }
+            foreach ($k in $o.Keys) { $h[$k] = $o[$k] }; & $script:tpl 'User' $h }
+        $script:machineV1 = { & $script:tpl 'Machine' @{ SchemaVersion = 1; Eku = @($script:clientAuth, $script:serverAuth); EnrollmentFlag = [int64]0x20
+                NameFlag = [int64]0x18000000; Oid = '1.3.6.1.4.1.311.21.8.200.2'; Acl = @((& $script:adminAce), (& $script:enrollAce $script:dc)) } }
+        # Agent template: Certificate Request Agent EKU, no approval, no signatures, Enroll for the given principal.
+        $script:agentFor = { param([string]$Sid, [hashtable]$o = @{}) $h = @{ SchemaVersion = 2; Eku = @($script:agentEku); ApplicationPolicies = @($script:agentEku)
+                Oid = '1.3.6.1.4.1.311.21.8.200.3'; Acl = @((& $script:adminAce), (& $script:enrollAce $Sid)) }
+            foreach ($k in $o.Keys) { $h[$k] = $o[$k] }; & $script:tpl 'BroadAgent' $h }
+        # Schema version 2 target that requires one signature with the Certificate Request Agent policy (probe D of the verification).
+        $script:targetV2 = { param([string]$Sid, [hashtable]$o = @{}) $h = @{ SchemaVersion = 2; Eku = @($script:clientAuth); ApplicationPolicies = @($script:clientAuth)
+                RaSignature = 1; RaApplicationPolicies = @($script:agentEku); Oid = '1.3.6.1.4.1.311.21.8.200.4'; Acl = @((& $script:adminAce), (& $script:enrollAce $Sid)) }
+            foreach ($k in $o.Keys) { $h[$k] = $o[$k] }; & $script:tpl 'OnBehalfLogon' $h }
+        $script:esc3 = { param([object[]]$Templates, $Published = $null) @(& $script:hits (& $script:run (& $script:inv $Templates $Published)) 'ESC3') }
+    }
+
+    It 'fires for an agent template open to <Who> and the default User template (schema version 1, Domain Users)' -ForEach @(
+        @{ Who = 'Authenticated Users (probe A)'; Sid = 'S-1-5-11' }
+        @{ Who = 'Everyone (probe B)'; Sid = 'S-1-1-0' }
+        @{ Who = 'BUILTIN Users'; Sid = 'S-1-5-32-545' }
+        @{ Who = 'Domain Users'; Sid = 'S-1-5-21-1111-2222-3333-513' }
+    ) {
+        $h = @(& $script:esc3 @((& $script:userV1), (& $script:agentFor $Sid)))
+        $h.Count | Should -Be 1
+        $h[0].Target | Should -Be 'BroadAgent'
+        ($h[0].Evidence -join "`n") | Should -Match 'User \(schema version 1'
+    }
+
+    It 'fires when the broad group sits on the target instead: agent for Domain Users, schema 1 target open to Authenticated Users (probe C)' {
+        $h = @(& $script:esc3 @((& $script:userV1 @{ Acl = @((& $script:adminAce), (& $script:enrollAce $script:au)) }), (& $script:agentFor $script:du)))
+        $h.Count | Should -Be 1
+    }
+
+    It 'fires for an agent open to Domain Computers and the default Machine template (Domain Computers)' {
+        $h = @(& $script:esc3 @((& $script:machineV1), (& $script:agentFor $script:dc)))
+        $h.Count | Should -Be 1
+        ($h[0].Evidence -join "`n") | Should -Match 'Machine \(schema version 1'
+    }
+
+    It 'fires again for the schema version 2 case that matched before the H2 fix: agent for Authenticated Users, target with the agent signature policy for Domain Users (probe D)' {
+        $h = @(& $script:esc3 @((& $script:targetV2 $script:du), (& $script:agentFor $script:au)))
+        $h.Count | Should -Be 1
+        ($h[0].Evidence -join "`n") | Should -Match 'OnBehalfLogon \(schema version 2: msPKI-RA-Signature = 1 with the Certificate Request Agent application policy'
+    }
+
+    It 'must not fire when <Why>' -ForEach @(
+        @{ Why = 'the agent and target principals are disjoint (Domain Computers agent, User template for Domain Users only)'; Case = 'disjointDcDu' }
+        @{ Why = 'the Domain Users groups are of two different domains'; Case = 'otherDomain' }
+        @{ Why = 'the agent is open to Anonymous Logon only and the target to Domain Users'; Case = 'anonymous' }
+        @{ Why = 'the agent template needs manager approval (Authenticated Users agent)'; Case = 'agentApproval' }
+        @{ Why = 'the agent template needs an authorised signature (Authenticated Users agent)'; Case = 'agentSig' }
+        @{ Why = 'the agent template has no Certificate Request Agent EKU'; Case = 'agentNoEku' }
+        @{ Why = 'the only target needs manager approval'; Case = 'targetApproval' }
+        @{ Why = 'the only target does not allow client authentication'; Case = 'targetNoLogon' }
+        @{ Why = 'the only target is not published'; Case = 'targetUnpublished' }
+        @{ Why = 'the schema version 2 target requires a signature with another application policy'; Case = 'targetV2OtherPolicy' }
+        @{ Why = 'the target denies Enroll to the shared group'; Case = 'targetDeny' }
+    ) {
+        $agent = & $script:agentFor $script:au; $target = & $script:userV1; $pub = $null
+        switch ($Case) {
+            'disjointDcDu' { $agent = & $script:agentFor $script:dc }
+            'otherDomain' { $agent = & $script:agentFor $script:duOther }
+            'anonymous' { $agent = & $script:agentFor $script:anon }
+            'agentApproval' { $agent = & $script:agentFor $script:au @{ EnrollmentFlag = [int64]0x2 } }
+            'agentSig' { $agent = & $script:agentFor $script:au @{ RaSignature = 1; RaApplicationPolicies = @($script:agentEku) } }
+            'agentNoEku' { $agent = & $script:agentFor $script:au @{ Eku = @($script:clientAuth); ApplicationPolicies = @($script:clientAuth) } }
+            'targetApproval' { $target = & $script:userV1 @{ EnrollmentFlag = [int64]0x2B } }
+            'targetNoLogon' { $target = & $script:userV1 @{ Eku = @($script:efs, $script:email) } }
+            'targetUnpublished' { $pub = @('BroadAgent') }
+            'targetV2OtherPolicy' { $target = & $script:targetV2 $script:du @{ RaApplicationPolicies = @($script:clientAuth) } }
+            'targetDeny' { $target = & $script:userV1 @{ Acl = @((& $script:adminAce), (& $script:enrollAce $script:du), (& $script:ace $script:du 0x100 $script:enrollGuid 'Deny')) } }
+        }
+        @(& $script:esc3 @($target, $agent) $pub).Count | Should -Be 0
+    }
+}
+
 Describe 'Audit 2 M11: a permission-based template finding is never Confirmed while effective permissions are not computed' {
     BeforeAll {
         # Published by the CA's own list as well (the strongest publication evidence the review has).

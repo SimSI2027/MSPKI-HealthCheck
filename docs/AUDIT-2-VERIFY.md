@@ -420,7 +420,8 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 |---|---|---|---|---|
 | N1 | Fixed | `eccbc02` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N1: a downloaded CA certificate is trusted only as an authoritative copy or by its own verified signature" (6), "Audit 2 N1: a forged certificate at an AIA location is not followed" (4) | against `9b43bb1`: 10 ran, 8 red. Behavioural 2: the forged certificate was Pass / **Confirmed** (expected Referenced), and the forged self-signed root was **Pass** (expected Fail / SIGNATURE_INVALID). Signature 6: `Test-MspkiDownloadedCertificateTrust` did not exist. The 2 positive cases (exact root copy, proven subordinate) pass on both, as they should |
 | N5 | Fixed | `204c0cc` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N5: the forest domain controller list holds live domain controllers only" (4); `tests/Audit2.Security.Tests.ps1` "reads the forest domain controllers ..." updated (two reads now) | against `eccbc02`: 5 ran, 5 red. Behavioural 1: "reports the server objects that were not counted" got all three server objects (a stale one without NTDS Settings and one without an SRV record included), expected one. Signature 4: `Get-MspkiLiveDomainControllerName` did not exist |
-| N6 | Fixed | (this commit) | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N6: LDAP referrals are never chased" (3), with the credential harness `tests/CredentialHarness.ps1` | against `204c0cc`: 3 ran, 3 red. Behavioural 2: the searcher kept `ReferralChasing` External, and the referral was chased (one bind recorded to the referred server). Signature 1: `Test-MspkiLdapReferralError` did not exist |
+| N6 | Fixed | `d8f92f4` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N6: LDAP referrals are never chased" (3), with the credential harness `tests/CredentialHarness.ps1` | against `204c0cc`: 3 ran, 3 red. Behavioural 2: the searcher kept `ReferralChasing` External, and the referral was chased (one bind recorded to the referred server). Signature 1: `Test-MspkiLdapReferralError` did not exist |
+| H2 (N2) | Fixed | (this commit) | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2 regression (verification N2): ESC3 matches whichever template the broad principals sit on" (18: 7 positive, 11 negative) | against `d8f92f4`: 18 ran, 4 red, all behavioural: probe A (Authenticated Users agent + default User), probe B (Everyone agent + default User), BUILTINUsers agent + default User, and probe D (the schema version 2 case that fired before `59a2f72`) gave no ESC3. The 3 other positives (same group on both, group on the target) and the 11 negatives pass on both, as they should |
 
 ### N1: what changed
 - `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
@@ -458,3 +459,11 @@ counts the tests that failed because of the old behaviour; "signature" counts th
   with 0x8007202B for `None`, `External` and `All` alike. So a live chase could not be shown here; with `External` ADSI chases only
   referrals that come back inside a search. The harness models that documented search preference: with External it follows the
   referral (and records the bind), with None it throws 0x8007202B.
+
+### H2 (N2): what changed
+- `Test-MspkiSidOverlap` (`src/Analyzers/TemplateSecurity.ps1`): two broad principals share members when either contains the other
+  (`Test-MspkiSidContains` in both directions). ESC3 now counts a target when any non-denied broad principal on it overlaps any
+  non-denied broad principal on the agent template, whichever template the larger group sits on.
+- `Test-MspkiSidContains` knows that BUILTIN\Users contains Authenticated Users and, through it, Domain Users and Domain Computers
+  (the L5 statement in `SecurityDescriptor.ps1`). A Deny for BUILTIN\Users therefore also marks those grants as possibly cancelled.
+- Still not matched: Domain Users vs Domain Computers, the Domain Users groups of two domains, Anonymous Logon vs Domain Users.

@@ -418,3 +418,5 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   DNS lookup. Lab: 2 DCs counted, 0 excluded, 99 findings, exit 6.
 - N6: every directory search sets ReferralChasing = None; a referral (0x8007202B) is a Warning with evidence, never a second bind. Disposal
   after a failed bind no longer hides the first error. Credential harness added (tests/CredentialHarness.ps1). Lab: 99 findings, exit 6.
+- H2 regression (N2): ESC3 shares principals when either broad group contains the other (Everyone ⊇ BUILTIN\Users ⊇ Authenticated Users
+  ⊇ Domain Users / Domain Computers), whichever template they sit on; probes A, B, D fire again, 11 negatives stay silent. Lab unchanged.
