@@ -256,15 +256,13 @@ function Test-MspkiLeadEndpoint {
     # Content: is it the right kind of object, and the expected one?
     if ($Lead.Kind -eq 'AIA') {
         $cert = $null
-        try { $cert = New-MspkiCertificate -Bytes $bytes } catch { }
-        if ($null -eq $cert) {
-            try {
-                $col = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
-                $col.Import($bytes)
-                if ($col.Count -gt 0) { $cert = $col[0]; [void]$ev.Add(('PKCS #7 with {0} certificate(s); the first is checked.' -f $col.Count)) }
-            }
-            catch { }
+        # The content type is checked before any certificate object is built: a PKCS #12 / PFX is refused (audit 2 M10).
+        $read = ConvertFrom-MspkiCertificateBytes -Bytes $bytes
+        if (@($read.Certificates).Count -gt 0) {
+            $cert = @($read.Certificates)[0]
+            if ($read.ContentType -eq 'Pkcs7') { [void]$ev.Add(('PKCS #7 with {0} certificate(s); the first is checked.' -f @($read.Certificates).Count)) }
         }
+        elseif ($read.Error) { [void]$ev.Add(('Content type: {0}. {1}' -f $read.ContentType, $read.Error)) }
         if ($null -eq $cert) {
             $layers['ContentStatus'] = 'Fail'
             [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Fail' -Code 'CONTENT_WRONG_TYPE' -Layers $layers -Evidence @($ev) `

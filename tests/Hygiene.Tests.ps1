@@ -44,6 +44,10 @@ BeforeAll {
         'default credentials'          = '(?i)UseDefaultCredentials\s*=\s*\$true|DefaultNetworkCredentials'
         'PS7-only -Parallel'           = '(?i)-Parallel\b'
         'private keys'                 = '(?i)PrivateKey|ExportPkcs12|\.Export\('
+        # Audit 2 M10: no key may ever be persisted, and certificate bytes are loaded only by src/Model/Certificate.ps1, which checks
+        # the content type first and refuses PKCS #12 / PFX (the TLS probe may copy the server certificate it was handed).
+        'key persistence'              = '(?i)PersistKeySet|MachineKeySet|UserKeySet'
+        'certificate loading'          = '(?i)\.Import\(|X509Certificate2\s*\('
     }
     $script:writePattern = '(?i)WriteAllText|AppendAllText|WriteAllBytes|WriteAllLines|Set-Content|Add-Content|Out-File|New-Item|CreateDirectory|Export-Csv|Export-Clixml|StreamWriter|FileStream|Copy-Item|Move-Item|Rename-Item|Remove-Item|Clear-Content'
     # GuiSnapshot.ps1 writes the developer snapshots (PNG) and only after Test-MspkiGuiSnapshotFolder accepted a folder inside out\ (tests\Gui.Tests.ps1).
@@ -65,6 +69,12 @@ Describe 'Code file <Name>' -ForEach $script:codeFiles {
             if ($k -eq 'Base64 decoding' -and $Name -eq 'BinaryData.ps1') { continue }
             # The NDES request table is the one place that may name the admin path (anonymous GET only; see tests/Ndes.Tests.ps1).
             if ($k -eq 'credentials to mscep_admin' -and $Name -eq 'NdesProbe.ps1') { continue }
+            if ($k -eq 'certificate loading' -and $Name -eq 'Certificate.ps1') { continue }
+            if ($k -eq 'certificate loading' -and $Name -eq 'WebProbes.ps1') {
+                # Only the copy of the X509Certificate that the TLS callback receives (never bytes).
+                ($text -replace '(?i)X509Certificate2\s*\(\s*\$cert\s*\)', '') | Should -Not -Match $script:forbidden[$k]
+                continue
+            }
             $t = $text
             # The JSON reader may load the in-box System.Web.Extensions assembly (JavaScriptSerializer); no other file may.
             if ($k -eq 'Add-Type' -and $Name -eq 'JsonReader.ps1') { $t = $t -replace '(?i)Add-Type\s+-AssemblyName\s+System\.Web\.Extensions\b', '' }

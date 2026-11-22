@@ -36,7 +36,7 @@ function Read-MspkiLocalStore {
     try {
         $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]'ReadOnly, OpenExistingOnly')
         $list = New-Object System.Collections.ArrayList
-        foreach ($c in $store.Certificates) { [void]$list.Add((New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(, $c.RawData))) }
+        foreach ($c in $store.Certificates) { [void]$list.Add((New-MspkiCertificate -Bytes $c.RawData)) }
         $out.Certificates = $list.ToArray()
     }
     catch { $out.Error = Get-MspkiStoreReadError $_ }

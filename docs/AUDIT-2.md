@@ -416,7 +416,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 
 | ID | Status | Commit | Tests |
 |---|---|---|---|
-| H1 | Fixed | see `git log --grep "Audit 2 H1"` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 H1: links in a downloaded CRL are followed only when its signature verified" (3 tests) and "Audit 2 H1: an LDAP bind goes only to hosts proven by authoritative discovery" (12 tests); updated audit 1 cases in `tests/Audit.Probes.Tests.ps1` |
+| H1 | Fixed | `3b4c3af` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 H1: links in a downloaded CRL are followed only when its signature verified" (3 tests) and "Audit 2 H1: an LDAP bind goes only to hosts proven by authoritative discovery" (12 tests); updated audit 1 cases in `tests/Audit.Probes.Tests.ps1` |
+| M10 | Fixed | see the M10 commit (`git log --grep "Audit 2 M10"`) | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M10: downloaded bytes never create a private key on disk" (5 tests: content type, New-MspkiCertificate, AIA endpoint, NDES reader, PKCS #7 still read); new Hygiene patterns "key persistence" and "certificate loading" |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -434,3 +435,13 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
   anonymous (`UseDefaultCredentials = $false`, `Credentials = $null`, no pre-authentication); TLS handshakes send no client
   certificate. Redirect and TLS targets are covered by M9 below. Still open: the Windows chain engine's own fetches during TLS
   validation (L1).
+
+### M10 notes
+- All certificate bytes are loaded in one file, `src/Model/Certificate.ps1`. `Get-MspkiCertificateContentType` asks
+  `X509Certificate2::GetCertContentType` first (it only identifies the data). Only `Cert` (one certificate) and `Pkcs7` are
+  loaded; PKCS #12 / PFX and every other type is refused before any certificate object is built, and the finding says why.
+- Loading uses `EphemeralKeySet` where the .NET Framework has it (4.7.2 and later), otherwise `DefaultKeySet`; no persisting flag
+  is used anywhere (Hygiene test). Certificates copied from local stores and from discovered CA certificates also go through
+  `New-MspkiCertificate`.
+- The tests snapshot the user and machine key folders under `%APPDATA%\Microsoft\Crypto` and `%ProgramData%\Microsoft\Crypto`
+  before and after each call. On the old code one key file appeared per PFX load.

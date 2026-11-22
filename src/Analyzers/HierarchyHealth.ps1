@@ -348,7 +348,7 @@ function Get-MspkiLocalIssuedCertificate {
     try {
         $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]'ReadOnly, OpenExistingOnly')
         foreach ($c in $store.Certificates) {
-            $pub = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(, $c.RawData)
+            $pub = New-MspkiCertificate -Bytes $c.RawData
             $aki = ConvertTo-MspkiKeyIdHex (Get-MspkiCertificateAuthorityKeyId -Certificate $pub)
             if ($aki -and $keys -contains $aki) { [void]$list.Add($pub) }
         }

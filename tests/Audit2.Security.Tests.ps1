@@ -133,3 +133,85 @@ Describe 'Audit 2 H1: an LDAP bind goes only to hosts proven by authoritative di
             $BaseDN -eq 'CN=Sites,CN=Configuration,DC=corp,DC=example,DC=test' -and $Scope -eq 'Subtree' -and $Server -eq 'dc01.corp.example.test' }
     }
 }
+
+Describe 'Audit 2 M10: downloaded bytes never create a private key on disk' {
+    BeforeAll {
+        # A PFX with no password (what a changed AIA file could be). Export does not write a key; importing it would.
+        $c = New-TestCertificate -Subject 'CN=Example Root CA, DC=example, DC=test' -DaysValid 100
+        $script:pfx = $c.Full.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx)
+        $col = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+        [void]$col.Add($script:root.Public)
+        $script:p7b = $col.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pkcs7)
+        # Every place where Windows writes a user key container (CAPI RSA/DSS and CNG), and the machine key folders.
+        $script:keyFiles = {
+            $dirs = @((Join-Path $env:APPDATA 'Microsoft\Crypto'), (Join-Path $env:ProgramData 'Microsoft\Crypto\RSA\MachineKeys'), (Join-Path $env:ProgramData 'Microsoft\Crypto\Keys'))
+            @(foreach ($d in $dirs) { if (Test-Path -LiteralPath $d) { Get-ChildItem -LiteralPath $d -Recurse -Force -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName } } }) | Sort-Object
+        }
+        $script:routes = [hashtable]::Synchronized(@{})
+        $script:server = Start-TestHttpServer -Routes $script:routes
+        $script:routes['/planted.crt'] = @{ Status = 200; Body = $script:pfx }
+        $script:routes['/root.p7b'] = @{ Status = 200; Body = $script:p7b }
+        $script:keep = New-Object System.Collections.ArrayList
+    }
+    AfterAll {
+        Stop-TestHttpServer -Server $script:server
+        # If a key was created (red run), remove it again.
+        foreach ($o in @($script:keep)) { try { if ($o -is [System.Security.Cryptography.X509Certificates.X509Certificate2]) { $o.Reset() } } catch { } }
+    }
+
+    It 'names the content type of certificate bytes, and refuses PKCS #12 before any certificate object is built' {
+        InModuleScope MspkiHealthCheck -Parameters @{ Pfx = $script:pfx; P7 = $script:p7b; Der = $script:root.Public.RawData } { param($Pfx, $P7, $Der)
+            Get-MspkiCertificateContentType -Bytes $Der | Should -Be 'Cert'
+            Get-MspkiCertificateContentType -Bytes $P7 | Should -Be 'Pkcs7'
+            Get-MspkiCertificateContentType -Bytes $Pfx | Should -Be 'Pkcs12'
+            Get-MspkiCertificateContentType -Bytes ([System.Text.Encoding]::ASCII.GetBytes('hello')) | Should -Be 'Unknown'
+        }
+    }
+
+    It 'New-MspkiCertificate refuses a passwordless PFX and no key file or container is created' {
+        $before = & $script:keyFiles
+        $res = InModuleScope MspkiHealthCheck -Parameters @{ Pfx = $script:pfx } { param($Pfx)
+            $out = [pscustomobject]@{ Cert = $null; Error = '' }
+            try { $out.Cert = New-MspkiCertificate -Bytes $Pfx } catch { $out.Error = $_.Exception.Message }
+            $out }
+        if ($null -ne $res.Cert) { [void]$script:keep.Add($res.Cert) }
+        $after = & $script:keyFiles
+        $res.Cert | Should -BeNullOrEmpty
+        $res.Error | Should -Match 'PKCS #12'
+        @(Compare-Object -ReferenceObject @($before) -DifferenceObject @($after) | Where-Object SideIndicator -eq '=>').Count | Should -Be 0
+    }
+
+    It 'an AIA location that serves a PFX is CONTENT_WRONG_TYPE, nothing is loaded and no key file is created' {
+        $before = & $script:keyFiles
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ U = "$($script:server.Base)/planted.crt" } { param($U)
+            [void](Initialize-MspkiRun); Reset-MspkiLeadRegistry
+            $lead = Add-MspkiLead -Url $U -Kind AIA -Source 'test' -Origin 'test'
+            Test-MspkiLeadEndpoint -Lead $lead -Url $U }
+        if ($null -ne $r.Certificate) { [void]$script:keep.Add($r.Certificate) }
+        $after = & $script:keyFiles
+        $r.Certificate | Should -BeNullOrEmpty
+        @($r.Findings)[0].StatusCode | Should -Be 'CONTENT_WRONG_TYPE'
+        (@($r.Findings)[0].Evidence -join "`n") | Should -Match 'PKCS #12'
+        @(Compare-Object -ReferenceObject @($before) -DifferenceObject @($after) | Where-Object SideIndicator -eq '=>').Count | Should -Be 0
+    }
+
+    It 'the NDES GetCACert reader refuses a PFX and creates no key file' {
+        $before = & $script:keyFiles
+        # The reader returns its list with the unary comma; unroll it to count the entries.
+        $certs = @(InModuleScope MspkiHealthCheck -Parameters @{ Pfx = $script:pfx } { param($Pfx) ConvertFrom-MspkiNdesCaCertificate -Bytes $Pfx | ForEach-Object { $_ } })
+        foreach ($c in $certs) { [void]$script:keep.Add($c) }
+        $after = & $script:keyFiles
+        $certs.Count | Should -Be 0
+        @(Compare-Object -ReferenceObject @($before) -DifferenceObject @($after) | Where-Object SideIndicator -eq '=>').Count | Should -Be 0
+    }
+
+    It 'still reads a PKCS #7 at an AIA location' {
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ U = "$($script:server.Base)/root.p7b" } { param($U)
+            [void](Initialize-MspkiRun); Reset-MspkiLeadRegistry
+            $lead = Add-MspkiLead -Url $U -Kind AIA -Source 'test' -Origin 'test'
+            Test-MspkiLeadEndpoint -Lead $lead -Url $U }
+        $r.Certificate | Should -Not -BeNullOrEmpty
+        $r.Certificate.Thumbprint | Should -Be $script:root.Public.Thumbprint
+        $r.Certificate.HasPrivateKey | Should -BeFalse
+    }
+}

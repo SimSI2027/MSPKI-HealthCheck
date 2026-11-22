@@ -28,16 +28,8 @@ function ConvertFrom-MspkiNdesCaCertificate {
     param([AllowNull()][byte[]]$Bytes, [DateTime]$Now = [DateTime]::UtcNow)
     $out = New-Object System.Collections.ArrayList
     if ($null -eq $Bytes -or $Bytes.Length -eq 0) { return , $out.ToArray() }
-    $certs = @()
-    try { $certs = @(New-MspkiCertificate -Bytes $Bytes) } catch { }
-    if ($certs.Count -eq 0) {
-        try {
-            $col = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
-            $col.Import($Bytes)
-            $certs = @($col | ForEach-Object { $_ })
-        }
-        catch { }
-    }
+    # Only a certificate or a PKCS #7 is read; a PKCS #12 / PFX is refused before any object is built (audit 2 M10).
+    $certs = @((ConvertFrom-MspkiCertificateBytes -Bytes $Bytes).Certificates)
     foreach ($c in $certs) {
         $na = $c.NotAfter.ToUniversalTime()
         $isCA = $false

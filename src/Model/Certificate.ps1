@@ -22,8 +22,81 @@ function New-MspkiCertificate {
         [Parameter(Mandatory = $true, ParameterSetName = 'Text')][string]$Text
     )
     if ($PSCmdlet.ParameterSetName -eq 'Text') { $Bytes = ConvertFrom-MspkiBase64Data -Text $Text }
-    $c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(, $Bytes)
+    # Only a single certificate is ever built (audit 2 M10). The content type is checked first: the byte[] constructor also
+    # accepts a PKCS #12 / PFX and then writes its private key to a key container in the user profile.
+    $type = Get-MspkiCertificateContentType -Bytes $Bytes
+    if ($type -ne 'Cert') { throw (Get-MspkiRefusedContentText -ContentType $type) }
+    $c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($Bytes, [string]$null, (Get-MspkiNoPersistKeyFlag))
     return $c
+}
+
+function Get-MspkiCertificateContentType {
+    <#
+    .SYNOPSIS
+    Names what certificate-shaped bytes are, without building any certificate object: Cert (one DER/Base64 certificate), Pkcs7,
+    Pkcs12 (PKCS #12 / PFX), another X509ContentType name (SerializedCert, SerializedStore, Authenticode), or Unknown.
+    #>
+    [CmdletBinding()]
+    param([AllowNull()][byte[]]$Bytes)
+    if ($null -eq $Bytes -or $Bytes.Length -eq 0) { return 'Unknown' }
+    try { $t = [System.Security.Cryptography.X509Certificates.X509Certificate2]::GetCertContentType($Bytes) }
+    catch { return 'Unknown' }
+    # Pfx and Pkcs12 share one value, so the value is compared, not the name.
+    switch ([int]$t) {
+        1 { return 'Cert' }
+        3 { return 'Pkcs12' }
+        5 { return 'Pkcs7' }
+        0 { return 'Unknown' }
+        default { return [string]$t }
+    }
+}
+
+function Get-MspkiRefusedContentText {
+    [CmdletBinding()]
+    param([string]$ContentType)
+    if ($ContentType -eq 'Pkcs12') {
+        return 'The data is a PKCS #12 / PFX file, not a certificate. It was refused before any certificate object was built: loading it could write a private key to this computer.'
+    }
+    return ('The data is not a single certificate (content type {0}); only a DER or Base64 certificate, or a PKCS #7 with certificates, is read.' -f $ContentType)
+}
+
+function Get-MspkiNoPersistKeyFlag {
+    <#
+    .SYNOPSIS
+    Key storage flags for loading downloaded certificate data: EphemeralKeySet (.NET Framework 4.7.2 and later) so that no key can
+    ever be written to disk, otherwise DefaultKeySet. Only Cert and Pkcs7 content, which never carries a key, is loaded anyway.
+    #>
+    [CmdletBinding()]
+    param()
+    $t = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]
+    if ([Enum]::GetNames($t) -contains 'EphemeralKeySet') { return [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]'EphemeralKeySet' }
+    return [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::DefaultKeySet
+}
+
+function ConvertFrom-MspkiCertificateBytes {
+    <#
+    .SYNOPSIS
+    Reads downloaded certificate data (AIA file, NDES GetCACert answer): one certificate, or the certificates of a PKCS #7. The
+    content type is checked before any object is built; PKCS #12 / PFX and every other type is refused, so downloaded bytes can
+    never create a key on disk.
+
+    .OUTPUTS
+    { ContentType; Certificates (X509Certificate2[]); Error ('' when read) }
+    #>
+    [CmdletBinding()]
+    param([AllowNull()][byte[]]$Bytes)
+    $out = [pscustomobject]@{ ContentType = (Get-MspkiCertificateContentType -Bytes $Bytes); Certificates = @(); Error = '' }
+    try {
+        if ($out.ContentType -eq 'Cert') { $out.Certificates = @(New-MspkiCertificate -Bytes $Bytes) }
+        elseif ($out.ContentType -eq 'Pkcs7') {
+            $col = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+            $col.Import($Bytes, [string]$null, (Get-MspkiNoPersistKeyFlag))
+            $out.Certificates = @($col | ForEach-Object { $_ })
+        }
+        else { $out.Error = Get-MspkiRefusedContentText -ContentType $out.ContentType }
+    }
+    catch { $out.Error = (Get-MspkiErrorInfo $_).Message; $out.Certificates = @() }
+    return $out
 }
 
 function ConvertTo-MspkiHex {

@@ -337,3 +337,10 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Red then green: `tests/Audit2.Security.Tests.ps1` (H1 blocks). Normal-user lab run: 99 findings, exit 6, no difference from the
   WP8 baseline; 2 forest DCs read; all LDAP locations still read.
 - Next: M10 (PFX), M9 (redirects/TLS), H2 (ESC3), M11 (template confidence). Fix log in docs/AUDIT-2.md.
+
+## Audit 2 Batch A, M10 (2026-11-22): no key from downloaded bytes - DONE (906 tests)
+- Certificate bytes are loaded only in `src/Model/Certificate.ps1`: content type first (`GetCertContentType`), only Cert and
+  PKCS #7 are loaded, PKCS #12 / PFX is refused before any object exists; `EphemeralKeySet` where available. AIA and NDES readers
+  use it; Hygiene forbids key-persisting flags and certificate loading elsewhere.
+- Red then green (red shown in a worktree of the H1 commit: one key file per PFX load). Lab run (normal user): 99 findings, exit 6,
+  no difference from the baseline. Next: M9.
