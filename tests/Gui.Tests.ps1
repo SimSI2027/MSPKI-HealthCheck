@@ -776,7 +776,7 @@ Describe 'GUI window (single-threaded runspace)' {
         $r.Tab5 | Should -BeTrue
         $r.Services | Should -Be 6
         $r.Tab6 | Should -BeTrue
-        $r.SvcSummary | Should -BeLike "* of 6 service types found*"
+        $r.SvcSummary | Should -BeLike "* of 6 service types confirmed*"
         $r.SvcEntity | Should -Be "Entity"
         $r.SvcFinding | Should -Be "Finding"
     }

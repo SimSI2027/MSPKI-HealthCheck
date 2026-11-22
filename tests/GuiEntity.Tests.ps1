@@ -210,3 +210,43 @@ Describe 'Object views' {
         (Get-MspkiGuiEntityPane -Index $ix -Id 'service:ndes:ndes01.corp.example.test').TypeText | Should -Be 'NDES / SCEP'
     }
 }
+
+Describe 'Audit 2 M7: the PKI services page never shows an Inferred service as found' {
+    BeforeAll {
+        $script:graphJson = @'
+{ "Entities": [
+    { "Id": "service:web:ca01.corp.example.test", "Type": "Service", "Name": "Web Enrollment on ca01.corp.example.test", "Properties": { "Kind": "WebEnrollment", "HostName": "ca01.corp.example.test" } },
+    { "Id": "service:ndes:scep-gw01.example.test", "Type": "Service", "Name": "NDES / SCEP on scep-gw01.example.test", "Properties": { "Kind": "NDES", "HostName": "scep-gw01.example.test" } },
+    { "Id": "service:ndes:scep-gw02.example.test", "Type": "Service", "Name": "NDES / SCEP on scep-gw02.example.test", "Properties": { "Kind": "NDES", "HostName": "scep-gw02.example.test" } }
+  ],
+  "Observations": [
+    { "EntityId": "service:web:ca01.corp.example.test", "Kind": "Seen", "Source": "HTTP", "Location": "ca01.corp.example.test", "Confidence": "Inferred", "Detail": "HTTP 403 at the standard path", "Timestamp": "2026-11-22T00:00:00Z" },
+    { "EntityId": "service:ndes:scep-gw01.example.test", "Kind": "Seen", "Source": "HTTP", "Location": "scep-gw01.example.test", "Confidence": "Confirmed", "Detail": "Answers GetCACaps / GetCACert", "Timestamp": "2026-11-22T00:00:00Z" },
+    { "EntityId": "service:ndes:scep-gw02.example.test", "Kind": "Seen", "Source": "HTTP", "Location": "scep-gw02.example.test", "Confidence": "Inferred", "Detail": "HTTP 403", "Timestamp": "2026-11-22T00:00:00Z" }
+  ],
+  "Relations": [] }
+'@
+    }
+    It 'says "something answers, not confirmed" for an Inferred-only kind, in a tone that is not Good' {
+        $ix = New-MspkiGuiGraphIndex -Graph (ConvertFrom-MspkiJson -Text $script:graphJson) -Findings @()
+        $by = @{}; foreach ($x in @(Get-MspkiGuiServiceSection -Index $ix -Rows @())) { $by[$x.Kind] = $x }
+        $by.WebEnrollment.StatePill.Text | Should -Not -Match 'found'
+        $by.WebEnrollment.StatePill.Text | Should -Match 'not confirmed'
+        $by.WebEnrollment.StatePill.Tone | Should -Not -Be 'Good'
+        $by.WebEnrollment.InstancesTitle | Should -Not -Match '^Found'
+        $by.WebEnrollment.Instances[0].StatePill.Text | Should -Not -Be 'Answers'
+        $by.WebEnrollment.Instances[0].StatePill.Tone | Should -Not -Be 'Good'
+        $by.WebEnrollment.Instances[0].ConfidencePill.Text | Should -Be 'Inferred'
+    }
+    It 'counts only Confirmed instances as found, and names the Inferred one separately' {
+        $ix = New-MspkiGuiGraphIndex -Graph (ConvertFrom-MspkiJson -Text $script:graphJson) -Findings @()
+        $by = @{}; foreach ($x in @(Get-MspkiGuiServiceSection -Index $ix -Rows @())) { $by[$x.Kind] = $x }
+        $by.NDES.StatePill.Text | Should -Be '1 found'
+        $by.NDES.StatePill.Tone | Should -Be 'Good'
+        $by.NDES.StateWhy | Should -Match '1 more.*not confirmed'
+        $ok = @($by.NDES.Instances | Where-Object { $_.Name -match 'gw01' })[0]
+        $ok.StatePill.Text | Should -Be 'Answers'
+        $inf = @($by.NDES.Instances | Where-Object { $_.Name -match 'gw02' })[0]
+        $inf.StatePill.Tone | Should -Not -Be 'Good'
+    }
+}

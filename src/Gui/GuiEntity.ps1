@@ -432,7 +432,10 @@ function Get-MspkiGuiServiceSection {
             $conf = 'Referenced'
             if (@($seen | Where-Object { $_.Confidence -eq 'Confirmed' }).Count -gt 0) { $conf = 'Confirmed' } elseif ($seen.Count -gt 0) { $conf = 'Inferred' }
             elseif (@($obs | Where-Object { $_.Confidence -eq 'Inferred' }).Count -gt 0) { $conf = 'Inferred' }
-            $state = $(if ($seen.Count -gt 0) { New-MspkiGuiPill -Text 'Answers' -Tone Good -Code 0xE73E } else { New-MspkiGuiPill -Text 'Named, not confirmed' -Tone Info -Code 0xE946 })
+            # "Answers" (green) only for a Confirmed observation; something that answers at a standard path is Inferred (audit 2 M7).
+            $state = $(if ($conf -eq 'Confirmed') { New-MspkiGuiPill -Text 'Answers' -Tone Good -Code 0xE73E }
+                elseif ($seen.Count -gt 0) { New-MspkiGuiPill -Text 'Something answers (not confirmed)' -Tone Warn -Code 0xE946 }
+                else { New-MspkiGuiPill -Text 'Named, not confirmed' -Tone Info -Code 0xE946 })
             $hostId = ''
             if ($Index.Out.ContainsKey($id)) { $hostId = @($Index.Out[$id] | Where-Object { $_.Type -eq 'hostedOn' } | ForEach-Object { [string]$_.To }) | Select-Object -First 1 }
             $hostName = $(if ($hostId) { Get-MspkiGuiEntityName -Index $Index -Id $hostId } elseif ($s.Properties.HostName) { [string]$s.Properties.HostName } else { '' })
@@ -450,7 +453,13 @@ function Get-MspkiGuiServiceSection {
         # Overall state of the kind: found / named only / looked for and not there / could not look / not looked for.
         $codes = @($mine | ForEach-Object { [string]$_.Finding.StatusCode })
         $cannot = @($mine | Where-Object { [string]$_.Status -eq 'Skipped' -or @('UNSUPPORTED', 'PERMISSION_DENIED', 'ERROR', 'TIMEOUT') -contains [string]$_.Finding.StatusCode }).Count -gt 0
-        if (@($inst | Where-Object { $_.StatePill.Text -eq 'Answers' }).Count -gt 0) { $st = New-MspkiGuiPill -Text ('{0} found' -f $inst.Count) -Tone Good -Code 0xE73E; $why = '' }
+        $confirmedN = @($inst | Where-Object { $_.StatePill.Text -eq 'Answers' }).Count
+        $answeringN = @($inst | Where-Object { $_.StatePill.Text -like 'Something answers*' }).Count
+        if ($confirmedN -gt 0) {
+            $st = New-MspkiGuiPill -Text ('{0} found' -f $confirmedN) -Tone Good -Code 0xE73E; $why = ''
+            if ($answeringN -gt 0) { $why = '{0} more answer at a standard path but are not confirmed to be this service.' -f $answeringN }
+        }
+        elseif ($answeringN -gt 0) { $st = New-MspkiGuiPill -Text 'Something answers (not confirmed)' -Tone Warn -Code 0xE946; $why = 'Something answers at the standard path, but nothing confirms that it is this service (an IP restriction or a site-wide rule gives the same answer).' }
         elseif ($inst.Count -gt 0) { $st = New-MspkiGuiPill -Text 'Named, not confirmed' -Tone Info -Code 0xE946; $why = 'Something names this service, but it did not answer this run.' }
         elseif (@($codes | Where-Object { $_ -in @('NOT_DISCOVERED', 'NOT_CONFIGURED') }).Count -gt 0) {
             $st = New-MspkiGuiPill -Text $k.NotFound -Tone Neutral -Code 0xE711
@@ -463,10 +472,10 @@ function Get-MspkiGuiServiceSection {
             Kind = $kind; Label = $k.Label; Glyph = [string][char]$k.Glyph; About = $k.About; Scope = $k.Scope
             StatePill = $st; StateWhy = $why; HasStateWhy = [bool]$why
             Instances = [object[]]$inst; HasInstances = ($inst.Count -gt 0)
-            InstancesTitle = $(if (@($inst | Where-Object { $_.StatePill.Text -eq 'Answers' }).Count -gt 0) { 'Found in this run' } else { 'Named in this run (not confirmed)' })
+            InstancesTitle = $(if ($confirmedN -gt 0) { 'Found in this run' } elseif ($answeringN -gt 0) { 'Answers at the standard path (not confirmed)' } else { 'Named in this run (not confirmed)' })
             Findings = [object[]]@($mine | Select-Object -First 5); FindingCount = $mine.Count; HasFindings = ($mine.Count -gt 0)
             MoreText = $(if ($mine.Count -gt 5) { 'and {0} more on the Findings page' -f ($mine.Count - 5) } else { '' })
-            RiskCount = $risk.Count; Found = ($inst.Count -gt 0)
+            RiskCount = $risk.Count; Found = ($confirmedN -gt 0)
         })
     }
     return $out.ToArray()

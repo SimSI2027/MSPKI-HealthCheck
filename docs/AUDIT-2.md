@@ -422,7 +422,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | H2 | Fixed | `59a2f72` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2: ESC3 in a forest modelled on the default templates" (10 tests: default forest does not fire; broad agent template + default User fires; two targets counted; 7 negative cases, one condition each) |
 | M11 | Partially fixed: confidence and Deny ACEs done; the ESC4 rule that counts a WriteProperty on any single attribute is not changed (Batch B) | `3aad084` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 M11: a permission-based template finding is never Confirmed while effective permissions are not computed" (6 tests); two older assertions updated to the new rule and wording |
 | M1 | Fixed | `7842317` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M1" (2 tests: the old root is known too and the subordinate needs the new key gives KeyMismatch; the new root is still Verified) |
-| M2 | Fixed | `PENDING` | `tests/EnrollmentServices.Tests.ps1`: 401 and 403 are AuthRequired (Information, Referenced, `HTTP_401_403`), never Pass or Confirmed; a 3xx is not a responding service; 400/405/200-with-service-page stay Confirmed; a 200 with other content is Referenced; the plain-HTTP risk is kept for AuthRequired. 5 tests were red on the old code |
+| M2 | Fixed | `d1f7f55` | `tests/EnrollmentServices.Tests.ps1`: 401 and 403 are AuthRequired (Information, Referenced, `HTTP_401_403`), never Pass or Confirmed; a 3xx is not a responding service; 400/405/200-with-service-page stay Confirmed; a 200 with other content is Referenced; the plain-HTTP risk is kept for AuthRequired. 5 tests were red on the old code |
+| M7 | Fixed | `PENDING` | `tests/GuiEntity.Tests.ps1`: "Audit 2 M7" (2 tests): an Inferred-only kind shows "Something answers (not confirmed)" in a Warn tone and the list is titled "Answers at the standard path (not confirmed)"; with one Confirmed and one Inferred instance the heading counts 1 found and says "1 more ... not confirmed". The summary line counts confirmed kinds |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -498,3 +499,9 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 - `Test-MspkiEnrollmentEndpoint`: only 200 (service page), 400 and 405 are `ConfirmedResponding`. 401 and 403 give state `AuthRequired`
   (Information, `HTTP_401_403`, Referenced; Inferred for a constructed candidate), a 3xx gives `Redirected` (Information, `HTTP_REDIRECT`).
   Neither counts as `Responding`. A 200 whose content does not look like the service is a Warning and Referenced. REQUIREMENTS 5.6 says so.
+
+### M7 notes (Batch B)
+- `Get-MspkiGuiServiceSection`: the green "Answers" pill and the "N found" heading need a Confirmed observation. Something that answers
+  at a standard path (Inferred) is "Something answers (not confirmed)" in the Warn tone, the confidence pill stays visible, and the
+  heading of a mixed kind counts only the confirmed instances and says how many more are not confirmed. The page summary now reads
+  "N of M service types confirmed in this run".

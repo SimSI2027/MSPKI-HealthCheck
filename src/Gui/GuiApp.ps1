@@ -662,7 +662,7 @@ function Show-MspkiGuiResult {
     $ui.SvcList.ItemsSource = $svc
     $found = @($svc | Where-Object { $_.Found }).Count
     $notes = @($svc | Where-Object { $_.RiskCount -gt 0 }).Count
-    $ui.TxtSvcSummary.Text = '{0} of {1} service types found in this run{2}{3}.' -f $found, $svc.Count, $script:MspkiGuiDot, $(if ($notes -gt 0) { '{0} with findings that need attention' -f $notes } else { 'no service has a finding that needs attention' })
+    $ui.TxtSvcSummary.Text = '{0} of {1} service types confirmed in this run{2}{3}.' -f $found, $svc.Count, $script:MspkiGuiDot, $(if ($notes -gt 0) { '{0} with findings that need attention' -f $notes } else { 'no service has a finding that needs attention' })
     if ($null -eq $g.Index) { $ui.TxtSvcSummary.Text += ' These results have no object graph (older version), so only the findings are shown.' }
     $ui.TxtSvcEmpty.Visibility = 'Collapsed'
 
