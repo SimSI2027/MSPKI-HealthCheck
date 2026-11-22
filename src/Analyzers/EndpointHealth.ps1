@@ -7,6 +7,9 @@ $script:MspkiLeadRole = @{ AIA = 'AIAEndpoint'; CDP = 'CDPEndpoint'; FreshestCRL
 # A base CRL of a large PKI is 10-50 MB, so CRL downloads have their own, larger cap than the 10 MB general one (audit 2 M3). A CRL
 # above this cap is not read: it is reported with its own code (SIZE_LIMIT), never as a failure.
 $script:MspkiCrlMaxBytes = 67108864
+# The size cap of every other download of this stage (AIA certificates, the default of Invoke-MspkiHttpGet). It is passed explicitly, so the
+# limit named in a message is the one that applied. A CA certificate is a few KB; an answer above this is not a certificate.
+$script:MspkiGeneralMaxBytes = 10485760
 
 function New-MspkiEndpointFinding {
     [CmdletBinding()]
@@ -374,7 +377,7 @@ function Test-MspkiLeadEndpoint {
             }
         }
         if ($Lead.Kind -in @('CDP', 'FreshestCRL')) { $http = Invoke-MspkiHttpGet -Url $Url -TimeoutMs $ms -MaxBytes $script:MspkiCrlMaxBytes }
-        else { $http = Invoke-MspkiHttpGet -Url $Url -TimeoutMs $ms }
+        else { $http = Invoke-MspkiHttpGet -Url $Url -TimeoutMs $ms -MaxBytes $script:MspkiGeneralMaxBytes }
         [void]$ev.Add(('HTTP proxy: {0}' -f $http.ProxyMode))
         foreach ($h in $http.Hops) { [void]$ev.Add(('HTTP hop: {0} -> {1} {2} {3}' -f $h.Url, $h.HttpStatus, $h.Location, $h.Error).Trim()) }
         $notFollowed = ''
@@ -397,6 +400,16 @@ function Test-MspkiLeadEndpoint {
                 -Notes 'Recorded separately from the download result. Check that every client that fetches this URL follows redirects.'))
         }
         else { $layers['RedirectStatus'] = 'Pass' }
+        if ($http.Code -eq 'SIZE_LIMIT' -and $Lead.Kind -notin @('CDP', 'FreshestCRL')) {
+            # An AIA answer above the general cap (10 MB) is not a CA certificate, which is a few KB: the location serves something else
+            # (audit 2 verification N3). It was not read. It is a failure of the location, with the limit that applied, and the finding
+            # makes no claim beyond what was seen, so it is not graded Confirmed.
+            $layers['HttpStatus'] = 'Pass'; $layers['ContentStatus'] = 'Fail'
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Fail' -Code 'SIZE_LIMIT' -Layers $layers -Evidence @($ev) `
+                -Message ('The {0} location {1} answered with more than {2} MB, the limit for this download. A CA certificate is a few KB, so this is not a certificate; it was not read.' -f $what, $Url, [int]($script:MspkiGeneralMaxBytes / 1MB)) `
+                -Notes 'The server answered with HTTP 200, but the body is far larger than any CA certificate. The location may serve a CRL, an installer or a portal page instead of the certificate.'))
+            return $out
+        }
         if ($http.Code -eq 'SIZE_LIMIT') {
             # The object is larger than the cap, so it was not read. That is a limit of this tool, not a failed download: the server answered
             # and a CRL of this size is normal for a large PKI. Its freshness and signature were not checked.

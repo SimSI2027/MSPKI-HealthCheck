@@ -425,6 +425,7 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 | N8 (new) | Fixed | `1571ee0` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N8: the LDAP host gate gets the forest domains and domain controllers as a list" (3) | against `2b836db`: 3 ran, 2 red, both behavioural: no bind to a host in the second domain of a two-domain forest named by an authoritative source, and no bind to a live DC named outside the forest zones (expected one each). The negative case passes on both |
 | Item 5 | Done | `4ad3a05` | `tests/Credential.Behaviour.Tests.ps1`: "Credential behaviour: no bind, no handshake and no credentials because of an unverified object" (4), with `tests/CredentialHarness.ps1` | against `9b43bb1` (before Batch D): 4 ran, 3 red, all behavioural (`Expected 0, but got 1` binds): forged certificate, unverified CRL, referral chased. The stale DC case **passes on the old code by accident** (N8: the old DC list never reached the gate). Against `9b43bb1` with only the two N8 nesting lines corrected (so the old H1 DC rule works as designed): 4 ran, **4 red, all behavioural**, the stale DC object received a bind |
 | M8 remainder | Fixed | `d182c51` | `tests/Audit2.BatchE.Tests.ps1` (M8 part, 35 cases: error number to code, real exception, LDAP URL read, retrieval-order check, schema, GUI search, report filter); `tests/Discovery.Tests.ps1` (2) and `tests/Ndes.Tests.ps1` (1) updated to the new codes | against `edc4900`: 17 ran in the new and updated tests, 17 red. Behavioural 11: every case returned `RETRIEVAL_FAIL` where a code of its own was expected (5 error numbers, the real `0x8007203A` exception, 2 LDAP URL reads, the RootDSE failure, the RootDSE guess, the NDES RPC case). Schema 6 (the new code was not allowed yet): 4 schema cases, 2 retrieval-order cases. The GUI search and report filter cases need the new codes too, so they fail on old code for the same schema reason |
+| N3 | Fixed | `N3_HASH` | `tests/Audit2.BatchE.Size.Tests.ps1`: "Audit 2 N3: an AIA download above the size cap is not an Information / Confirmed result" (3) | against `25ae790`: 3 ran, 2 red, both behavioural: the AIA answer above the cap was Information (expected Fail), and the message named the 64 MB CRL limit instead of the 10 MB that applied. The negative case (a 10.6 MB CRL is read under the 64 MB cap) passes on both |
 
 ### N1: what changed
 - `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
@@ -519,6 +520,16 @@ counts the tests that failed because of the old behaviour; "signature" counts th
   `RETRIEVAL_FAIL` / wider `RPC_FAIL`.
 - Lab run as a normal user: 99 findings, exit 6, and an identical category / status / code / confidence histogram to the previous run. The
   lab's directory answers, so none of the new codes appears in it.
+
+### N3 (Batch E): what changed
+- `src/Analyzers/EndpointHealth.ps1`: the `SIZE_LIMIT` Information / Confirmed result is kept for CRL kinds only (CDP, Freshest CRL), where
+  the cap is 64 MB and a large base CRL is normal. An **AIA** answer above the general cap is **Fail / `SIZE_LIMIT`**, ContentStatus Fail,
+  not Confirmed (Referenced, the lead's usual grade). A CA certificate is a few KB, so such an answer is not a certificate.
+- The message states the limit that applied (10 MB). The general cap is now one named value (`$script:MspkiGeneralMaxBytes`) passed
+  explicitly to `Invoke-MspkiHttpGet`, so the number in the message cannot drift from the cap used. The note about "a large base CRL is
+  normal" is no longer shown for AIA.
+- The retrieval-order check (M4) counts such an AIA URL as failed (it is a Fail), no longer as not tested.
+- `docs/REQUIREMENTS.md`: `SIZE_LIMIT` says Information for a CRL, Fail for an AIA certificate.
 
 ### Fix log 2: runs
 - Timed full suite before each commit (Pester 5.7.1, Windows PowerShell 5.1): N1 1039 passed; N5 1043; N6 1064 run, 8 red (7 were the

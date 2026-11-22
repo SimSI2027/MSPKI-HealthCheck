@@ -67,7 +67,7 @@ Added by audit 2 M8 so that one code means one cause (the last column of the lis
 - `RETRIEVAL_ORDER`: the AIA or CDP URL list is ordered so that clients try failing URLs first, or none of the URLs works from here.
 - `CONTENT_WRONG_TYPE`: the answer is not the kind of object expected (not a certificate or CRL, not a SCEP capability list, not a service page).
 - `CONTENT_MISMATCH`: the answer is the right kind of object but the wrong one (a certificate for another subject or another key generation, a CRL from another issuer, a base CRL at a delta CRL location).
-- `SIZE_LIMIT`: the answer is larger than the size limit of the request (10 MB in general, 64 MB for CRLs); it was not read.
+- `SIZE_LIMIT`: the answer is larger than the size limit of the request (10 MB in general, 64 MB for CRLs); it was not read. For a CRL it is Information; for an AIA certificate (a few KB in reality) it is a Fail, because the location serves something else.
 - `CONFIG_MISMATCH`: also used when AD names a CA that the CA host does not answer for ("no CA of that name").
 - `ENROLLMENT_FAIL`: certificate enrollment on this computer reported an error (an event in the Application log).
 - `CHAIN_INVALID`: also used for a TLS handshake that completed but whose certificate chain has an error other than an untrusted root, a partial chain or an expired certificate; `TLS_HANDSHAKE_FAIL` is only a handshake that did not complete.
