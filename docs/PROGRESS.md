@@ -377,3 +377,14 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   status and Location. M3: CRLs up to 64 MB are read; larger ones are Information / SIZE_LIMIT, not Fail.
 - Red then green for each (tests/Audit2.Results.Tests.ps1, EnrollmentServices, GuiEntity). Fix log in docs/AUDIT-2.md.
 - Next: M6 (GUI crash safety), M8 (status codes), M12, M13, M14, fixture rename, then the Lows. Lab run after M8/M12.
+
+## Audit 2 Batch B, M6, M8, M12, M13 (2026-11-22): DONE (984 tests); lab check after items 1-8
+- M6: GUI catch-all (Dispatcher and AppDomain) logs, shows one message, keeps the window alive and cancels a run cleanly; a throwing timer
+  tick no longer stops the timer. M8: one status code per cause (RPC_FAIL, RETRIEVAL_ORDER, CONTENT_MISMATCH, ENROLLMENT_FAIL, CHAIN_INVALID,
+  SIZE_LIMIT; docs updated). M12: member accounts of NDES groups and gMSAs are entities (memberOf, mayUse) and identify the hosts they name.
+  M13: both entry points detect Constrained Language Mode first and stop with exit code 5 and a plain explanation.
+- Lab run as a normal (non-elevated) user after items 1-8: 99 findings, exit 6, the same set and shape as the baseline and as the lab facts
+  (LDAP-only AIA/CDP warnings, unreferenced OCSP responder, filtered or reset HTTPS, NDES confirmed, 12 constructed CEP/CES candidates silent).
+  No new Fail or Warning, no new false positive or negative. The services page now says "Something answers (not confirmed)" for the Web
+  Enrollment path that answers 403 and "1 of 6 service types confirmed" (it said "found" before).
+- Next: M14 (tests that hide bugs), the fixture rename to neutral names, then the Low items.
