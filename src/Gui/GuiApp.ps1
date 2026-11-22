@@ -60,6 +60,111 @@ function Show-MspkiGuiMessage {
     else { [void][System.Windows.MessageBox]::Show($Text, $Title, 'OK', $Icon) }
 }
 
+function Write-MspkiGuiErrorFile {
+    <#
+    .SYNOPSIS
+    Appends one line to gui-error.log in the output folder (only if that folder exists and the file is inside it). Never throws.
+    #>
+    [CmdletBinding()]
+    param([string]$Line)
+    try {
+        $g = $script:MspkiGui
+        if ($null -eq $g -or -not $g.OutputRoot -or -not (Test-Path -LiteralPath $g.OutputRoot -PathType Container)) { return }
+        $root = [System.IO.Path]::GetFullPath([string]$g.OutputRoot).TrimEnd('\') + '\'
+        $file = [System.IO.Path]::GetFullPath((Join-Path $g.OutputRoot 'gui-error.log'))
+        if (-not $file.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { return }
+        # Through the output-folder guard like every other write of this tool.
+        $mod = Get-Module -Name MspkiHealthCheck
+        & $mod {
+            param($f, $text)
+            [void](Use-MspkiOutputFolder -Path (Split-Path -Parent $f))
+            Write-MspkiOutputFile -Path $f -Content $text -Append
+        } $file (('{0} {1}{2}' -f [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'), $Line, [Environment]::NewLine))
+    }
+    catch { }
+}
+
+function Invoke-MspkiGuiUnhandledError {
+    <#
+    .SYNOPSIS
+    The one place where an unexpected error in the window ends up (audit 2 M6): it is written to the Run log (and gui-error.log), shown
+    once in a message, and the window stays alive. A run in progress is cancelled cleanly (partial results are still written). Never throws.
+    .OUTPUTS
+    $true (the error is handled), so a Dispatcher handler can set Handled.
+    #>
+    [CmdletBinding()]
+    param([AllowNull()]$Exception, [string]$Source = 'window', [switch]$Fatal)
+    try {
+        $text = Format-MspkiGuiErrorText -Exception $Exception
+        $g = $script:MspkiGui
+        $line = 'Unexpected error in the window ({0}): {1}' -f $Source, $text
+        if ($null -ne $Exception) { $line += ' [{0}]' -f $Exception.GetType().FullName }
+        try { if ($null -ne $g) { Add-MspkiGuiLogRow -Row (New-MspkiGuiLogRow -Text $line -Level 'Error'); Update-MspkiGuiLogView } } catch { }
+        Write-MspkiGuiErrorFile -Line $line
+        $runNote = ''
+        if ($null -ne $g -and $null -ne $g.Run) {
+            $run = $g.Run
+            $engineDone = $false
+            try { $engineDone = [bool]$run.Handle.IsCompleted } catch { }
+            if (-not $engineDone) {
+                # Cancel through the same flag the Cancel button sets: the engine stops at the next probe and writes partial results.
+                try { $run.Control['Cancel'] = $true; if ($null -eq $run.CancelRequested) { $run.CancelRequested = [DateTime]::Now } } catch { }
+                try { $g.Ui.BtnCancel.IsEnabled = $false } catch { }
+                try { Set-MspkiGuiState -Text 'An error occurred in the window; the run is being cancelled (partial results are still written).' -State Warn } catch { }
+                $runNote = ' The run in progress is being cancelled; partial results are still written.'
+            }
+            else {
+                # The engine already finished, so the error is in showing the results. After repeated errors give the run up, so the
+                # timer does not raise the same error forever; results.json and the report are already on disk.
+                $g.CrashRepeats = 1 + [int]$g.CrashRepeats
+                if ($g.CrashRepeats -ge 3) {
+                    try { $g.Timer.Stop() } catch { }
+                    try { Stop-MspkiGuiRunspace -Run $run } catch { }
+                    $g.Run = $null
+                    try { Set-MspkiGuiBusy -Busy $false } catch { }
+                    try { Set-MspkiGuiState -Text ('The results could not be shown (see the Run log). The run finished; its files are in {0}. Use Open results to try again.' -f $g.OutputRoot) -State Warn } catch { }
+                    $runNote = ' The run had finished; its files are in the output folder.'
+                }
+            }
+            # A handled exception can leave a DispatcherTimer silent: arm it again.
+            try { if ($null -ne $g.Run -and $null -ne $g.Timer) { $g.Timer.Stop(); $g.Timer.Start() } } catch { }
+        }
+        # One message per distinct error and at most three per session, so a repeating error cannot bury the window in dialogs.
+        if ($null -ne $g) {
+            if ($null -eq $g.CrashShown) { $g.CrashShown = @{} }
+            $first = -not $g.CrashShown.ContainsKey($text)
+            if ($first) { $g.CrashShown[$text] = $true }
+            if ($first -and $g.CrashShown.Count -le 3) {
+                $msg = 'Something unexpected went wrong in this window, but it is still open.{0}{0}{1}{0}{0}Details are in the Run log page.{2}' -f [Environment]::NewLine, $text, $runNote
+                if ($Fatal) { $msg += ' This error could not be recovered; please save anything you need and restart the program.' }
+                if ($null -ne $script:MspkiGuiErrorNotifier) { & $script:MspkiGuiErrorNotifier $msg }
+                else { Show-MspkiGuiMessage -Text $msg -Title 'MSPKI Health Check' -Icon 'Warning' }
+            }
+        }
+    }
+    catch { }
+    return $true
+}
+
+function Register-MspkiGuiCrashGuard {
+    <#
+    .SYNOPSIS
+    Installs the catch-all handlers (audit 2 M6): the window's Dispatcher (an exception in any event handler or timer tick is handled
+    instead of ending ShowDialog) and the AppDomain (an error on another thread is logged). Call once per window.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Window)
+    $Window.Dispatcher.add_UnhandledException({
+        param($sender, $e)
+        $e.Handled = [bool](Invoke-MspkiGuiUnhandledError -Exception $e.Exception -Source 'Dispatcher')
+    })
+    # Only a log entry is possible here: the runtime ends the process after this event for an error on a non-UI thread.
+    [System.AppDomain]::CurrentDomain.add_UnhandledException({
+        param($sender, $e)
+        [void](Invoke-MspkiGuiUnhandledError -Exception ([System.Exception]$e.ExceptionObject) -Source 'AppDomain' -Fatal:([bool]$e.IsTerminating))
+    })
+}
+
 function Get-MspkiGuiBrush {
     <#
     .SYNOPSIS
@@ -1103,6 +1208,7 @@ function Initialize-MspkiGuiApplication {
     }
     $g = $script:MspkiGui
     $ui = $g.Ui
+    Register-MspkiGuiCrashGuard -Window $g.Window
 
     # Run Log list with its filter
     $ui.LogList.ItemsSource = $g.LogRows
@@ -1129,7 +1235,8 @@ function Initialize-MspkiGuiApplication {
 
     $g.Timer = New-Object System.Windows.Threading.DispatcherTimer
     $g.Timer.Interval = [TimeSpan]::FromMilliseconds(200)
-    $g.Timer.Add_Tick({ Receive-MspkiGuiProgress })
+    # An exception in a tick stops a DispatcherTimer for good, so the tick catches its own errors (audit 2 M6).
+    $g.Timer.Add_Tick({ try { Receive-MspkiGuiProgress } catch { [void](Invoke-MspkiGuiUnhandledError -Exception $_.Exception -Source 'timer') } })
 
     # Title bar caption buttons (in-box SystemCommands; the title bar itself is the WindowChrome caption area)
     $ui.BtnMin.Add_Click({ [System.Windows.SystemCommands]::MinimizeWindow($script:MspkiGui.Window) })

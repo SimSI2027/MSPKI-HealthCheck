@@ -821,3 +821,89 @@ Describe 'GUI window (single-threaded runspace)' {
         [System.Text.Encoding]::ASCII.GetString($bytes, 1, 3) | Should -Be 'PNG'
     }
 }
+
+Describe 'Audit 2 M6: an unexpected error in the window never closes it' {
+
+    It 'turns an exception and its inner exceptions into one line without a stack trace' {
+        $inner = New-Object System.InvalidOperationException('inner problem')
+        $outer = New-Object System.Exception('outer problem', $inner)
+        $t = Format-MspkiGuiErrorText -Exception $outer
+        $t | Should -Be 'outer problem | inner problem'
+        Format-MspkiGuiErrorText -Exception $null | Should -Be 'An unknown error.'
+    }
+
+    It 'logs the error, shows it once, cancels a run in progress and handles it (the window stays alive)' {
+        $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, $TestDrive) -Script {
+            param($folder, $module, $outRoot)
+            Import-Module $module -Force
+            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiEntity.ps1'); . (Join-Path $folder 'GuiApp.ps1')
+            Import-MspkiGuiAssembly
+            $win = Initialize-MspkiGuiApplication -ModulePath $module -XamlPath (Join-Path $folder 'MainWindow.xaml') -OutputPath $outRoot
+            $g = $script:MspkiGui
+            $script:notified = New-Object System.Collections.ArrayList
+            $script:MspkiGuiErrorNotifier = { param($t) [void]$script:notified.Add($t) }
+            $ctl = [hashtable]::Synchronized(@{ Cancel = $false })
+            $g.Run = [pscustomobject]@{ Control = $ctl; Handle = [pscustomobject]@{ IsCompleted = $false }; CancelRequested = $null; Started = [DateTime]::Now }
+            $ex = New-Object System.InvalidOperationException('boom in a handler')
+            $r1 = Invoke-MspkiGuiUnhandledError -Exception $ex -Source 'test'
+            $r2 = Invoke-MspkiGuiUnhandledError -Exception $ex -Source 'test'
+            [pscustomobject]@{
+                Handled = [bool]$r1 -and [bool]$r2; Cancel = [bool]$ctl['Cancel']; Notified = $script:notified.Count; Msg = [string]$script:notified[0]
+                ErrorRows = @($g.LogRows | Where-Object { $_.Level -eq 'Error' -and $_.Text -match 'boom in a handler' }).Count
+                File = (Test-Path -LiteralPath (Join-Path $outRoot 'gui-error.log'))
+                Alive = ($null -ne $g.Window)
+            }
+        }
+        $r = $out[0]
+        $r.Handled | Should -BeTrue
+        $r.Cancel | Should -BeTrue
+        $r.Notified | Should -Be 1 -Because 'the same error is shown once'
+        $r.Msg | Should -Match 'boom in a handler'
+        $r.Msg | Should -Match 'still open'
+        $r.Msg | Should -Match 'cancelled'
+        $r.ErrorRows | Should -Be 2
+        $r.File | Should -BeTrue
+        $r.Alive | Should -BeTrue
+    }
+
+    It 'survives a throwing handler and a throwing timer tick inside the real dispatcher loop, and the timer keeps ticking' {
+        $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, $TestDrive) -Script {
+            param($folder, $module, $outRoot)
+            Import-Module $module -Force
+            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiEntity.ps1'); . (Join-Path $folder 'GuiApp.ps1')
+            Import-MspkiGuiAssembly
+            $win = Initialize-MspkiGuiApplication -ModulePath $module -XamlPath (Join-Path $folder 'MainWindow.xaml') -OutputPath $outRoot
+            $g = $script:MspkiGui
+            $script:notified = New-Object System.Collections.ArrayList
+            $script:MspkiGuiErrorNotifier = { param($t) [void]$script:notified.Add($t) }
+            $script:ticks = 0
+            # The progress timer's tick calls this function: make it throw every time.
+            function Receive-MspkiGuiProgress { $script:ticks++; throw ('tick failure {0}' -f $script:ticks) }
+            # A second timer stands in for any event handler: a delegate raised by WPF that throws.
+            $script:h = 0
+            $handlerTimer = New-Object System.Windows.Threading.DispatcherTimer
+            $handlerTimer.Interval = [TimeSpan]::FromMilliseconds(30)
+            $handlerTimer.Add_Tick({ $script:h++; $script:handlerTimer.Stop(); throw 'handler failure' })
+            $script:handlerTimer = $handlerTimer
+            $g.Timer.Interval = [TimeSpan]::FromMilliseconds(40)
+            $g.Timer.Start(); $handlerTimer.Start()
+            $disp = $win.Dispatcher
+            $stop = New-Object System.Windows.Threading.DispatcherTimer
+            $stop.Interval = [TimeSpan]::FromMilliseconds(900)
+            $stop.Add_Tick({ $script:g2 = $true; $script:disp2.InvokeShutdown() })
+            $script:disp2 = $disp
+            $stop.Start()
+            [System.Windows.Threading.Dispatcher]::Run()
+            $g.Timer.Stop()
+            [pscustomobject]@{ Ticks = $script:ticks; H = $script:h; Rows = @($g.LogRows | Where-Object { $_.Level -eq 'Error' }).Count
+                HandlerLogged = @($g.LogRows | Where-Object { $_.Text -match 'handler failure' }).Count; Notified = $script:notified.Count }
+        }
+        $r = $out[0]
+        $r.Ticks | Should -BeGreaterOrEqual 3 -Because 'a tick that throws must not stop the timer'
+        $r.H | Should -Be 1
+        $r.HandlerLogged | Should -Be 1 -Because 'an exception in a WPF-raised handler reaches the dispatcher hook'
+        $r.Rows | Should -BeGreaterOrEqual 4
+        $r.Notified | Should -BeGreaterOrEqual 2
+        $r.Notified | Should -BeLessOrEqual 3
+    }
+}

@@ -151,6 +151,27 @@ function New-MspkiGuiLogRow {
     return [pscustomobject][ordered]@{ Text = $Text; Level = $Level; Tag = $tag; Search = $Text.ToLowerInvariant() }
 }
 
+function Format-MspkiGuiErrorText {
+    <#
+    .SYNOPSIS
+    One readable line for an exception: its message and the messages of its inner exceptions (no stack trace, no file paths).
+    #>
+    [CmdletBinding()]
+    param([AllowNull()]$Exception)
+    if ($null -eq $Exception) { return 'An unknown error.' }
+    $parts = New-Object System.Collections.ArrayList
+    $e = $Exception
+    $depth = 0
+    while ($null -ne $e -and $depth -lt 5) {
+        $m = ([string]$e.Message).Trim()
+        if ($m -and -not $parts.Contains($m)) { [void]$parts.Add($m) }
+        $e = $e.InnerException
+        $depth++
+    }
+    if ($parts.Count -eq 0) { return ('An error of type {0}.' -f $Exception.GetType().Name) }
+    return ($parts -join ' | ')
+}
+
 function ConvertTo-MspkiGuiLogRow {
     <#
     .SYNOPSIS
