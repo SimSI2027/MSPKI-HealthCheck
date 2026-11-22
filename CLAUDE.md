@@ -24,9 +24,12 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
    page creates a challenge password when requested, which would be a write to a remote system, rule 1). It never follows a
    redirect and never sends credentials. `tests/Ndes.Tests.ps1` enforces this with static checks and a loopback server that
    records every request.
-   *Clarification:* an LDAP URL that names a host is contacted only when the host is the selected domain controller or in this
-   forest's own DNS domains (never with `-SkipNetwork` unless it is the selected domain controller), because a directory bind sends
-   the running user's Windows credentials. HTTP probes connect directly with no proxy unless `-UseSystemProxy` is given.
+   *Clarification:* an LDAP URL that names a host is contacted only when the host is the selected domain controller, a domain
+   controller of the forest (server objects in the Configuration partition), or a host in this forest's own DNS domains named by
+   trusted evidence (AD, CA properties, or a downloaded certificate or CRL whose signature was verified with a discovered CA
+   certificate); never with `-SkipNetwork` unless it is the selected domain controller, because a directory bind sends the running
+   user's Windows credentials. A DNS name in the forest zone alone is not proof. Links inside a downloaded CRL are followed only
+   when its signature verified. HTTP probes connect directly with no proxy unless `-UseSystemProxy` is given.
 5. **Windows PowerShell 5.1 and .NET Framework 4.x only.** No PS7-only syntax (`? :`, `??`, `&&`, `||`,
    `-Parallel`). No external runtime modules (no RSAT ActiveDirectory module, no PSPKI, no ImportExcel).
    Use `System.DirectoryServices`, `System.Security.Cryptography.X509Certificates`, `System.Net` and

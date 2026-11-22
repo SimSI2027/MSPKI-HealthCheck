@@ -2,14 +2,21 @@
 # leads are ever probed. URLs are normalised before de-duplication and duplicates merge their sources.
 
 $script:MspkiLeads = [ordered]@{}
-$script:MspkiLeadSettings = @{ MaxLeads = 1000; MaxDepth = 5; LocalDomains = @(); TrustedDomains = @(); Dropped = 0; DepthDropped = 0; Seq = 0 }
+$script:MspkiLeadSettings = @{ MaxLeads = 1000; MaxDepth = 5; LocalDomains = @(); TrustedDomains = @(); DomainControllers = @(); Dropped = 0; DepthDropped = 0; Seq = 0 }
 $script:MspkiLeadKinds = @('AIA', 'CDP', 'FreshestCRL', 'OCSP', 'CES', 'CEP', 'NDES')
+# How far the evidence behind a lead can be trusted (audit 2 H1). Authoritative: AD, CA properties, local policy, or a certificate
+# discovered from them. Verified: a downloaded object whose signature or key was proven with a discovered CA certificate.
+# Unverified: anything else. Only Authoritative and Verified leads can lead to a directory bind (Test-MspkiLdapHostAllowed), and
+# only their hosts count as known hosts for redirects (Test-MspkiTrustedLeadHost).
+$script:MspkiLeadTrustRank = @{ Unverified = 0; Verified = 1; Authoritative = 2 }
 
 function Reset-MspkiLeadRegistry {
     [CmdletBinding()]
     param(
         [string[]]$LocalDomains = @(),
         [string[]]$TrustedDomains = @(),
+        # The forest's domain controllers (server objects under CN=Sites of the Configuration partition).
+        [string[]]$DomainControllers = @(),
         [ValidateRange(1, 10000)][int]$MaxLeads = 1000,
         [ValidateRange(0, 10)][int]$MaxDepth = 5
     )
@@ -17,6 +24,7 @@ function Reset-MspkiLeadRegistry {
     $script:MspkiLeadSettings = @{
         MaxLeads = $MaxLeads; MaxDepth = $MaxDepth; Dropped = 0; DepthDropped = 0; Seq = 0
         LocalDomains = @($LocalDomains | Where-Object { $_ }); TrustedDomains = @($TrustedDomains | Where-Object { $_ })
+        DomainControllers = @($DomainControllers | ForEach-Object { ConvertTo-MspkiHostName $_ } | Where-Object { $_ } | Select-Object -Unique)
     }
 }
 
@@ -85,7 +93,9 @@ function Add-MspkiLead {
         [int]$Depth = 0,
         [string]$RelatedCA = '',
         [string]$Confidence = 'Referenced',
-        [string[]]$Carrier = @()
+        [string[]]$Carrier = @(),
+        # See $script:MspkiLeadTrustRank. Discovery sources are Authoritative; links in downloaded objects pass Verified.
+        [ValidateSet('Authoritative', 'Verified', 'Unverified')][string]$Trust = 'Authoritative'
     )
     $n = ConvertTo-MspkiNormalizedUrl -Url $Url
     if (-not $n.Valid) {
@@ -111,6 +121,7 @@ function Add-MspkiLead {
         foreach ($c in $Carrier) { if ($c -and -not $l.Carriers.Contains($c)) { [void]$l.Carriers.Add($c) } }
         if (-not $l.Variants.Contains($n.Url)) { [void]$l.Variants.Add($n.Url) }
         if ($Depth -lt $l.Depth) { $l.Depth = $Depth }
+        if ($script:MspkiLeadTrustRank[$Trust] -gt $script:MspkiLeadTrustRank[[string]$l.Trust]) { $l.Trust = $Trust }
         return $l
     }
     if ($script:MspkiLeads.Count -ge $s.MaxLeads) {
@@ -134,6 +145,7 @@ function Add-MspkiLead {
         Scope      = $scope
         Depth      = $Depth
         Confidence = $Confidence
+        Trust      = $Trust
         Variants   = (New-Object System.Collections.ArrayList)
         Sources    = (New-Object System.Collections.ArrayList)
         Origins    = (New-Object System.Collections.ArrayList)
@@ -297,6 +309,34 @@ function Get-MspkiLeadLocalDomain {
     [CmdletBinding()]
     param()
     return , @($script:MspkiLeadSettings.LocalDomains)
+}
+
+function Get-MspkiLeadDomainController {
+    <#
+    .SYNOPSIS
+    The forest's domain controllers as given to the lead registry: besides the selected domain controller, the only named hosts an
+    LDAP URL may reach without other proof (Test-MspkiLdapHostAllowed).
+    #>
+    [CmdletBinding()]
+    param()
+    return , @($script:MspkiLeadSettings.DomainControllers)
+}
+
+function Test-MspkiTrustedLeadHost {
+    <#
+    .SYNOPSIS
+    True when a host is already known from trusted evidence: it is a forest domain controller, or an Authoritative or Verified
+    lead names it. Used before a redirect hop or a TLS handshake goes to a host that the request itself did not name (audit 2 M9).
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$HostName)
+    $h = ConvertTo-MspkiHostName $HostName
+    if (-not $h) { return $false }
+    if (@($script:MspkiLeadSettings.DomainControllers) -contains $h) { return $true }
+    foreach ($l in $script:MspkiLeads.Values) {
+        if ($l.Host -eq $h -and ($l.Trust -eq 'Authoritative' -or $l.Trust -eq 'Verified')) { return $true }
+    }
+    return $false
 }
 
 function Register-MspkiDiscoveredLead {

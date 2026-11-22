@@ -108,8 +108,8 @@ The window only shows and filters what the engine found; it checks nothing itsel
   anonymous request to the admin page is sent only with `-IncludeNdesAdminProbe`, because an admin page that is wrongly
   open to anonymous users creates a one-time challenge password when it is requested (a write on a remote server). The
   response body is never read. It never enrolls and never follows a redirect.
-- LDAP locations named in certificates are contacted only when they are the selected domain controller or in one of this
-  forest's own DNS domains: a directory bind sends the Windows credentials of the user running the tool, so it is never
+- LDAP locations named in certificates are contacted only when they are the selected domain controller, a domain controller
+  of the forest, or a host in this forest's own DNS domains named by AD, the CA or a verified download: a directory bind sends the Windows credentials of the user running the tool, so it is never
   sent to a host named by a (possibly downloaded) certificate. With `-SkipNetwork` only the selected domain controller is used.
 - Links inside a certificate that was downloaded from an AIA location are followed only when that certificate is proven to
   be the expected issuer (the signature of the certificate that references it verifies with its key).

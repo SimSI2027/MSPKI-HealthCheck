@@ -157,10 +157,13 @@ function Test-MspkiLeadEndpoint {
     $ev = New-Object System.Collections.ArrayList
     if ($n.UrlType -eq 'Ldap') {
         $layers = @{ DnsStatus = 'NotApplicable'; TcpStatus = 'NotApplicable'; HttpStatus = 'NotApplicable'; RedirectStatus = 'NotApplicable' }
-        # The bind uses the running user's Windows credentials, so only the selected domain controller and hosts in this
-        # forest's own domains are contacted, and with -SkipNetwork only the selected domain controller.
+        # The bind uses the running user's Windows credentials, so only the selected domain controller, the forest's domain
+        # controllers and forest hosts named by trusted evidence are contacted; with -SkipNetwork only the selected domain controller.
+        $trust = ''
+        if ($null -ne $Lead.PSObject.Properties['Trust']) { $trust = [string]$Lead.Trust }
         $r = Get-MspkiLdapUrlContent -Url $Url -DefaultServer $DomainController -TimeoutSeconds ([math]::Max(10, $TimeoutSeconds * 3)) `
-            -LocalDomains @(Get-MspkiLeadLocalDomain) -SkipNetwork:$SkipNetwork -DefaultAttribute (Get-MspkiLdapDefaultAttribute -Kind $Lead.Kind)
+            -LocalDomains @(Get-MspkiLeadLocalDomain) -DomainControllers @(Get-MspkiLeadDomainController) -Trust $trust `
+            -SkipNetwork:$SkipNetwork -DefaultAttribute (Get-MspkiLdapDefaultAttribute -Kind $Lead.Kind)
         [void]$ev.Add(('LDAP server: {0}' -f $(if ($r.Server) { $r.Server } else { '(default)' })))
         if ($r.AttributeDefaulted) { [void]$ev.Add(('The URL names no attribute; read {0}, the attribute Windows clients use for this kind of object. A URL without an attribute is valid.' -f $r.Attribute)) }
         if (-not $r.Contacted) {
@@ -316,6 +319,48 @@ function Test-MspkiLeadEndpoint {
     return $out
 }
 
+function Test-MspkiCrlIssuerSignature {
+    <#
+    .SYNOPSIS
+    Finds the issuer of a CRL among the given CA certificates (name, then Authority Key Identifier) and checks the CRL's signature.
+
+    .OUTPUTS
+    { Issuer (certificate or $null); Valid ($true verified, $false checked and does not verify, $null could not be checked); Text }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$Crl,
+        [AllowEmptyCollection()][object[]]$Certificates = @()
+    )
+    $issuer = $null; $sigText = 'issuer certificate not found among the discovered certificates'; $sigOk = $null
+    $named = @($Certificates | Where-Object { $null -ne $_ -and (ConvertTo-MspkiHex $_.SubjectName.RawData) -eq $Crl.IssuerRawHex } | Sort-Object NotAfter -Descending)
+    # When the CRL names the key that signed it (Authority Key Identifier), only a certificate with that key can be its issuer.
+    $cands = $named
+    if ($Crl.AuthorityKeyId -and $named.Count -gt 0) {
+        $byKey = @($named | Where-Object { (Get-MspkiCertificateSubjectKeyId -Certificate $_) -eq $Crl.AuthorityKeyId })
+        $noKey = @($named | Where-Object { -not (Get-MspkiCertificateSubjectKeyId -Certificate $_) })
+        if ($byKey.Count -gt 0) { $cands = $byKey }
+        elseif ($noKey.Count -gt 0) { $cands = $noKey }
+        else {
+            $cands = @()
+            $sigText = ('issuer certificate with key identifier {0} not found: {1} certificate(s) named {2} were discovered, but they carry other keys (another key generation of the CA)' -f $Crl.AuthorityKeyId, $named.Count, $Crl.Issuer)
+        }
+    }
+    $anyFalse = $false; $anyNull = $false; $lastReason = ''
+    foreach ($c in $cands) {
+        $v = Test-MspkiSignature -SignedBytes $Crl.Bytes -Issuer $c
+        if ($v.Valid -eq $true) { $issuer = $c; $sigOk = $true; $sigText = ('verified with {0} [{1}]' -f $c.Subject, $c.Thumbprint); $anyFalse = $false; $anyNull = $false; break }
+        if ($v.Valid -eq $false) { $anyFalse = $true } else { $anyNull = $true }
+        $lastReason = $v.Reason
+    }
+    if ($null -eq $issuer -and $cands.Count -gt 0) {
+        # "could not be checked" (Valid is $null) is not "invalid": only a signature that was really checked and does not verify is a failure.
+        if ($anyNull) { $sigOk = $null; $sigText = ('could not be checked with the certificate(s) named {0}: {1}' -f $Crl.Issuer, $lastReason) }
+        elseif ($anyFalse) { $sigOk = $false; $sigText = ('does not verify with any certificate named {0} ({1})' -f $Crl.Issuer, $lastReason) }
+    }
+    return [pscustomobject]@{ Issuer = $issuer; Valid = $sigOk; Text = $sigText }
+}
+
 function Test-MspkiCrlHealth {
     <#
     .SYNOPSIS
@@ -332,32 +377,8 @@ function Test-MspkiCrlHealth {
     $t = Get-MspkiThreshold -Override $Thresholds
     $crl = $Record.Crl
     $lead = $Record.Lead
-    $issuer = $null; $sigText = 'issuer certificate not found among the discovered certificates'; $sigOk = $null
-    $named = @($Certificates | Where-Object { $null -ne $_ -and (ConvertTo-MspkiHex $_.SubjectName.RawData) -eq $crl.IssuerRawHex } | Sort-Object NotAfter -Descending)
-    # When the CRL names the key that signed it (Authority Key Identifier), only a certificate with that key can be its issuer.
-    $cands = $named
-    if ($crl.AuthorityKeyId -and $named.Count -gt 0) {
-        $byKey = @($named | Where-Object { (Get-MspkiCertificateSubjectKeyId -Certificate $_) -eq $crl.AuthorityKeyId })
-        $noKey = @($named | Where-Object { -not (Get-MspkiCertificateSubjectKeyId -Certificate $_) })
-        if ($byKey.Count -gt 0) { $cands = $byKey }
-        elseif ($noKey.Count -gt 0) { $cands = $noKey }
-        else {
-            $cands = @()
-            $sigText = ('issuer certificate with key identifier {0} not found: {1} certificate(s) named {2} were discovered, but they carry other keys (another key generation of the CA)' -f $crl.AuthorityKeyId, $named.Count, $crl.Issuer)
-        }
-    }
-    $anyFalse = $false; $anyNull = $false; $lastReason = ''
-    foreach ($c in $cands) {
-        $v = Test-MspkiSignature -SignedBytes $crl.Bytes -Issuer $c
-        if ($v.Valid -eq $true) { $issuer = $c; $sigOk = $true; $sigText = ('verified with {0} [{1}]' -f $c.Subject, $c.Thumbprint); $anyFalse = $false; $anyNull = $false; break }
-        if ($v.Valid -eq $false) { $anyFalse = $true } else { $anyNull = $true }
-        $lastReason = $v.Reason
-    }
-    if ($null -eq $issuer -and $cands.Count -gt 0) {
-        # "could not be checked" (Valid is $null) is not "invalid": only a signature that was really checked and does not verify is a failure.
-        if ($anyNull) { $sigOk = $null; $sigText = ('could not be checked with the certificate(s) named {0}: {1}' -f $crl.Issuer, $lastReason) }
-        elseif ($anyFalse) { $sigOk = $false; $sigText = ('does not verify with any certificate named {0} ({1})' -f $crl.Issuer, $lastReason) }
-    }
+    $sig = Test-MspkiCrlIssuerSignature -Crl $crl -Certificates $Certificates
+    $issuer = $sig.Issuer; $sigOk = $sig.Valid; $sigText = $sig.Text
     $isRoot = $false
     if ($null -ne $issuer) { $isRoot = ((ConvertTo-MspkiHex $issuer.SubjectName.RawData) -eq (ConvertTo-MspkiHex $issuer.IssuerName.RawData)) }
     if ($isRoot) { $warn = $t.RootCrlWarningPercent; $crit = $t.RootCrlCriticalPercent; $kind = 'root CA' }
@@ -378,6 +399,9 @@ function Test-MspkiCrlHealth {
         ('Revoked entries: {0}' -f $crl.RevokedCount)
     )
     if ($crl.CAVersion) { $ev += ('CA version: {0}' -f $crl.CAVersion) }
+    if ($Record.PSObject.Properties['LinksNotFollowed'] -and @($Record.LinksNotFollowed).Count -gt 0) {
+        $ev += ('Links in this CRL not followed (its signature was not verified with a discovered CA certificate): {0}' -f (@($Record.LinksNotFollowed) -join ', '))
+    }
     if (-not $crl.IsDelta) {
         if (@($crl.FreshestCrlUrls).Count -gt 0) { $ev += ('Delta CRLs: published ({0})' -f ($crl.FreshestCrlUrls -join ', ')) }
         else { $ev += 'Delta CRLs: not referenced (no Freshest CRL extension) - a configuration fact, not an error.' }
@@ -472,6 +496,7 @@ function Invoke-MspkiEndpointAnalysis {
     )
     $findings = New-Object System.Collections.ArrayList
     $records = New-Object System.Collections.ArrayList
+    $crlLinkQueue = New-Object System.Collections.ArrayList
     $certMap = @{}
     foreach ($k in $Discovery.Certificates.Keys) { $certMap[$k] = $Discovery.Certificates[$k] }
     $caCerts = @(Get-MspkiDiscoveredCertificateEntry -Discovery $Discovery)
@@ -507,23 +532,41 @@ function Invoke-MspkiEndpointAnalysis {
                     foreach ($u in (Get-MspkiCertificateUrl -Certificate $c)) {
                         if ($u.Kind -eq 'Error') { continue }
                         [void](Add-MspkiLead -Url $u.Url -Kind $u.Kind -Source ('Cert:{0}:{1}' -f $c.Thumbprint, $u.Kind) `
-                            -Origin ('certificate {0} downloaded from {1}' -f $c.Subject, $url) -Depth ($lead.Depth + 1))
+                            -Origin ('certificate {0} downloaded from {1}' -f $c.Subject, $url) -Depth ($lead.Depth + 1) -Trust 'Verified')
                     }
                 }
                 elseif ($null -ne $r.Certificate) {
                     Write-MspkiLog -Level Warning -Message ('Certificate {0} downloaded from {1} was not proven to be the expected issuer; its links are not followed.' -f $r.Certificate.Subject, $url)
                 }
                 if ($null -ne $r.Crl) {
-                    [void]$records.Add([pscustomobject]@{ Url = $url; Lead = $lead; Crl = $r.Crl; ExpectedIssuer = $expected; ReviewOnly = $grade.ReviewOnly; ReviewReason = $grade.Reason })
-                    foreach ($u in @($r.Crl.FreshestCrlUrls)) {
-                        [void](Add-MspkiLead -Url $u -Kind 'FreshestCRL' -Source ('Crl:{0}:FreshestCRL' -f $r.Crl.Sha1) `
-                            -Origin ('CRL of {0} downloaded from {1}' -f $r.Crl.Issuer, $url) -Depth ($lead.Depth + 1) -RelatedCA (@($lead.RelatedCAs) -join ', '))
-                    }
+                    $rec = [pscustomobject]@{ Url = $url; Lead = $lead; Crl = $r.Crl; ExpectedIssuer = $expected; ReviewOnly = $grade.ReviewOnly; ReviewReason = $grade.Reason
+                        LinksFollowed = $false; LinksNotFollowed = @() }
+                    [void]$records.Add($rec)
+                    if (@($r.Crl.FreshestCrlUrls).Count -gt 0) { [void]$crlLinkQueue.Add($rec) }
                 }
+            }
+        }
+        # Links inside a downloaded CRL (Freshest CRL) are followed only when the CRL's signature verified with a discovered CA
+        # certificate (audit 2 H1): an unsigned or changed CRL, served over plain http, must not choose where this tool connects
+        # next. This runs after each round, so a CA certificate proven in this round can verify a CRL of the same round.
+        # Other CRL extensions (Issuing Distribution Point) are read as facts only and never followed.
+        $verifyWith = @($certMap.Values)
+        foreach ($rec in @($crlLinkQueue)) {
+            $sig = Test-MspkiCrlIssuerSignature -Crl $rec.Crl -Certificates $verifyWith
+            if ($sig.Valid -ne $true) { continue }
+            $rec.LinksFollowed = $true
+            [void]$crlLinkQueue.Remove($rec)
+            foreach ($u in @($rec.Crl.FreshestCrlUrls)) {
+                [void](Add-MspkiLead -Url $u -Kind 'FreshestCRL' -Source ('Crl:{0}:FreshestCRL' -f $rec.Crl.Sha1) -Trust 'Verified' `
+                    -Origin ('CRL of {0} downloaded from {1} (signature verified)' -f $rec.Crl.Issuer, $rec.Url) -Depth ($rec.Lead.Depth + 1) -RelatedCA (@($rec.Lead.RelatedCAs) -join ', '))
             }
         }
         $round++
     } while ($pending.Count -gt 0 -and $round -lt 10)
+    foreach ($rec in @($crlLinkQueue)) {
+        $rec.LinksNotFollowed = @($rec.Crl.FreshestCrlUrls)
+        Write-MspkiLog -Level Warning -Message ('CRL of {0} downloaded from {1}: its signature was not verified with a discovered CA certificate, so its {2} Freshest CRL link(s) were not followed.' -f $rec.Crl.Issuer, $rec.Url, @($rec.Crl.FreshestCrlUrls).Count)
+    }
     $left = @(Get-MspkiLead | Where-Object { $kinds -contains $_.Kind -and -not $done.ContainsKey($_.Key) })
     if ($left.Count -gt 0) {
         Write-MspkiLog -Level Warning -Message ('Stopped after {0} rounds of link following; {1} lead(s) were not probed.' -f $round, $left.Count)

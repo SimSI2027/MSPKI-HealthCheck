@@ -40,6 +40,25 @@ function Get-MspkiRootDse {
     return [pscustomobject]$out
 }
 
+function Get-MspkiForestDomainController {
+    <#
+    .SYNOPSIS
+    The DNS names of the forest's domain controllers: the server objects (with a dNSHostName) under CN=Sites of the Configuration
+    partition, read with one subtree search on the selected domain controller. Read-only. These are the only named hosts, besides
+    the selected domain controller, that an LDAP URL may reach without other proof (audit 2 H1).
+    #>
+    [CmdletBinding()]
+    param([string]$Server = '', [Parameter(Mandatory = $true)][string]$ConfigNC, [int]$TimeoutSeconds = 15)
+    $recs = @(Get-MspkiLdapObject -Server $Server -BaseDN ('CN=Sites,{0}' -f $ConfigNC) -Scope Subtree `
+        -Filter '(&(objectClass=server)(dNSHostName=*))' -Properties @('dNSHostName') -TimeoutSeconds $TimeoutSeconds)
+    $out = @()
+    foreach ($r in $recs) {
+        $h = ConvertTo-MspkiHostName ([string](Get-MspkiLdapValue -Record $r -Name 'dNSHostName'))
+        if ($h -and $out -notcontains $h) { $out += $h }
+    }
+    return , $out
+}
+
 function Get-MspkiDomainControllerName {
     <#
     .SYNOPSIS
@@ -245,6 +264,7 @@ function Get-MspkiAdContext {
         ForestMode     = ''
         Domain         = ''
         ForestDomains  = @()
+        DomainControllers = @()
         Trusts         = @()
         TrustedDomains = @()
         Site           = ''
@@ -365,6 +385,28 @@ function Get-MspkiAdContext {
             -Notes 'The forest name below comes from RootDSE (rootDomainNamingContext). Scope checks only know the current domain.'))
         Add-MspkiRunLimit -Text 'Forest domains and trusts were not read: hosts in other forest domains may show as External.'
     }
+
+    # 3b. The forest's domain controllers (Configuration partition). Only these and the selected domain controller may receive a
+    # directory bind for an LDAP URL that names a host, unless a verified object names it (audit 2 H1).
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    if ($found.Constructed) {
+        # No domain controller answered: there is nothing to read the list from, and no LDAP URL that names a host is contacted.
+        Add-MspkiMethodOutcome -Method 'AD:Sites:Servers' -Outcome 'Skipped' -Detail 'no domain controller answered for RootDSE'
+    }
+    else { try {
+        $ctx.DomainControllers = @(Get-MspkiForestDomainController -Server $ctx.DomainController -ConfigNC $ctx.ConfigNC -TimeoutSeconds $ldapTimeout)
+        if ($ctx.DomainController -and $ctx.DomainControllers -notcontains $ctx.DomainController) { $ctx.DomainControllers = @($ctx.DomainControllers) + $ctx.DomainController }
+        Add-MspkiMethodOutcome -Method 'AD:Sites:Servers' -Outcome 'Success' -Detail ('{0} domain controller(s)' -f @($ctx.DomainControllers).Count) -ElapsedMs $sw.ElapsedMilliseconds
+    }
+    catch {
+        $ei = Get-MspkiErrorInfo $_
+        Add-MspkiMethodOutcome -Method 'AD:Sites:Servers' -Outcome $ei.Class -Detail $ei.Message -ElapsedMs $sw.ElapsedMilliseconds
+        $ctx.DomainControllers = @($ctx.DomainController | Where-Object { $_ })
+        [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo $ei -Category 'ADDependency' -Role 'DomainController' -Target $ctx.Forest `
+            -Sources 'AD:Sites:Servers' -Action 'reading the forest''s domain controllers from the Configuration partition' -Scope 'Local' `
+            -Notes 'LDAP URLs that name a domain controller other than the selected one are not contacted in this run.'))
+        Add-MspkiRunLimit -Text 'The forest''s domain controllers were not read: LDAP URLs that name another domain controller were not contacted.'
+    } }
 
     # 4. AD site of this computer.
     $sw = [System.Diagnostics.Stopwatch]::StartNew()

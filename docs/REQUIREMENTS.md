@@ -91,8 +91,12 @@ Rules:
   `ReviewRequired`, and the Evidence says so and what the uncapped status would have been. (A PKI that publishes its
   CDP/AIA/OCSP under a DNS name outside the forest's domains therefore gets review items for those hosts, not failures.)
 - **LDAP locations:** an LDAP bind sends the Windows credentials of the user running the tool, so a host named in an LDAP
-  URL is contacted only when it is the selected domain controller or in one of the forest's own DNS domains, and with
-  `-SkipNetwork` only when it is the selected domain controller. A serverless URL goes to the selected domain controller.
+  URL is contacted only when it is the selected domain controller, a domain controller of the forest (server objects under
+  CN=Sites of the Configuration partition), or a host in one of the forest's own DNS domains named by an Authoritative or
+  Verified lead (AD, CA properties, or a downloaded object whose signature was verified); with `-SkipNetwork` only when it is
+  the selected domain controller. A name in the forest's DNS zone alone is not proof (audit 2 H1).
+- **Links in downloaded CRLs** (Freshest CRL) are followed only when the CRL's signature verified with a discovered CA
+  certificate. IDP is read as a fact and never followed. Every lead records its trust: Authoritative, Verified or Unverified. A serverless URL goes to the selected domain controller.
   Any other LDAP URL is reported as `Skipped` / `NOT_APPLICABLE` ("not contacted") with the reason.
 - **Following links:** a certificate downloaded from an AIA location contributes its own links, and counts as an issuer for
   signature checks, only when it is the expected issuer AND its key is proven (the signature of a referencing certificate

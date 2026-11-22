@@ -118,7 +118,9 @@ function Start-MspkiHealthCheck {
             $sw = Start-MspkiStageTimer -Stage 'Analysis:CACertificates'
             try {
                 $ctx = $d.Inventory.AdContext
-                Reset-MspkiLeadRegistry -LocalDomains @($ctx.ForestDomains) -TrustedDomains @($ctx.TrustedDomains)
+                $dcs = @()
+                if ($null -ne $ctx.PSObject.Properties['DomainControllers']) { $dcs = @($ctx.DomainControllers) }
+                Reset-MspkiLeadRegistry -LocalDomains @($ctx.ForestDomains) -TrustedDomains @($ctx.TrustedDomains) -DomainControllers $dcs
                 Register-MspkiDiscoveredLead -Discovery $d
                 $entries = @(Get-MspkiDiscoveredCertificateEntry -Discovery $d)
                 foreach ($f in (Test-MspkiCACertificateHealth -Entries $entries -Thresholds $thresholds)) { [void]$findings.Add($f) }

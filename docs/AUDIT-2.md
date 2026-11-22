@@ -408,3 +408,29 @@ REQUIREMENTS §3 says to keep status codes separate.
 2. H2, M1, M2, M3, M4 and M5, each with a test that fails on today's code. Fix the masking tests in M14 first.
 3. M6 and M7 (GUI), M8 (status codes), M11 and M12.
 4. M13, then the Low items. Run the hygiene name scan over history as well.
+
+## Fix log
+
+Batch A (security-critical items). Each fix started with a test that failed on the code before it, then the fix, then the
+test passing. Commits are listed under the fix; the commit of a fix is the one that carries its tests.
+
+| ID | Status | Commit | Tests |
+|---|---|---|---|
+| H1 | Fixed | see `git log --grep "Audit 2 H1"` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 H1: links in a downloaded CRL are followed only when its signature verified" (3 tests) and "Audit 2 H1: an LDAP bind goes only to hosts proven by authoritative discovery" (12 tests); updated audit 1 cases in `tests/Audit.Probes.Tests.ps1` |
+
+### H1 notes
+- Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
+  proven by key after download). The check runs after each round, so a CA certificate proven in the same round counts. A CRL that
+  does not verify, or whose issuer was not discovered, keeps its links unfollowed; the CRL finding and run.log say so. The
+  Issuing Distribution Point is read as a fact only and was never followed.
+- Every lead now carries a trust level (Authoritative, Verified, Unverified; the strongest wins on merge). Links from downloaded
+  certificates and CRLs are Verified, because they are followed only after proof.
+- LDAP binds: the forest's domain controllers are read from the server objects under CN=Sites of the Configuration partition
+  (one subtree search on the selected DC). An LDAP URL that names a host is contacted only for the selected DC, a forest DC, or a
+  host in the forest's own DNS domains named by an Authoritative or Verified lead. A name in the forest zone alone is no longer
+  enough. The rule 4 clarification in CLAUDE.md, REQUIREMENTS 4.2 and the README now say so.
+- Review of every place where credentials or a handshake can go out: LDAP binds (the selected DC for all discovery reads,
+  serverless for a group in another domain, URL hosts as above); DCOM to CAs (hosts from Enrollment Services in AD); HTTP is
+  anonymous (`UseDefaultCredentials = $false`, `Credentials = $null`, no pre-authentication); TLS handshakes send no client
+  certificate. Redirect and TLS targets are covered by M9 below. Still open: the Windows chain engine's own fetches during TLS
+  validation (L1).

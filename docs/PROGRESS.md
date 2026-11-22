@@ -329,3 +329,11 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   version 1 targets. Several Medium false Pass / Confirmed results survive because unit tests compare a value with itself.
 - No real names or personal details in the tree or the 39 commits (also checked against the private lab facts, counts only).
 - Next: fix in the order at the end of AUDIT-2.md, each with a test that fails on today's code.
+
+## Audit 2 Batch A, H1 (2026-11-22): CRL links and LDAP binds - DONE (901 tests)
+- Freshest CRL links are followed only from CRLs whose signature verified with a discovered CA certificate; leads carry a trust
+  level (Authoritative / Verified / Unverified). LDAP binds go only to the selected DC, a forest DC (new: server objects under
+  CN=Sites, one subtree search) or a forest-zone host named by trusted evidence. CLAUDE.md rule 4, REQUIREMENTS 4.2, README updated.
+- Red then green: `tests/Audit2.Security.Tests.ps1` (H1 blocks). Normal-user lab run: 99 findings, exit 6, no difference from the
+  WP8 baseline; 2 forest DCs read; all LDAP locations still read.
+- Next: M10 (PFX), M9 (redirects/TLS), H2 (ESC3), M11 (template confidence). Fix log in docs/AUDIT-2.md.

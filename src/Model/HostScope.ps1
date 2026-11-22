@@ -75,11 +75,16 @@ function Test-MspkiLdapHostAllowed {
     Decides whether an LDAP URL that names a host may be contacted. Pure function (no network access).
 
     .DESCRIPTION
-    An LDAP bind sends the running user's Windows credentials to the server. A URL taken from a certificate, and above
-    all from a downloaded one, can name any host, so only these are contacted: a serverless URL (the selected domain
-    controller is used), the selected domain controller itself, and a host whose DNS suffix is one of this forest's own
-    domains. With -SkipNetwork only the serverless URL and the selected domain controller are allowed, because no DNS
-    check can be made. Everything else is reported as "not contacted" with the reason.
+    An LDAP bind sends the running user's Windows credentials to the server, so a host is contacted only when authoritative
+    discovery proved it (audit 2 H1). A name in one of this forest's DNS zones is not proof on its own: in a default
+    AD-integrated zone any authenticated user can create a record. Allowed are:
+    - a serverless URL (the selected domain controller is used);
+    - the selected domain controller;
+    - a domain controller of the forest (-DomainControllers, server objects in the Configuration partition);
+    - a host in one of this forest's own DNS domains named by an Authoritative or Verified lead (-Trust): an AD object, a CA
+      property, or a downloaded object whose signature was verified with a discovered CA certificate.
+    With -SkipNetwork only the serverless URL and the selected domain controller are allowed. Everything else is reported
+    as "not contacted" with the reason.
 
     .OUTPUTS
     { Allowed (bool); Reason (text) }
@@ -89,6 +94,9 @@ function Test-MspkiLdapHostAllowed {
         [AllowEmptyString()][string]$HostName,
         [AllowEmptyString()][string]$DefaultServer = '',
         [string[]]$LocalDomains = @(),
+        [AllowEmptyCollection()][string[]]$DomainControllers = @(),
+        # Trust of the lead that carries the URL; '' (not known) counts as Unverified.
+        [AllowEmptyString()][string]$Trust = '',
         [switch]$SkipNetwork
     )
     # A port in the URL (host:389) is not part of the name that is checked.
@@ -99,9 +107,18 @@ function Test-MspkiLdapHostAllowed {
     if ($SkipNetwork) {
         return [pscustomobject]@{ Allowed = $false; Reason = 'the URL names a host other than the selected domain controller and -SkipNetwork was used' }
     }
+    $dcs = @($DomainControllers | ForEach-Object { ConvertTo-MspkiHostName $_ } | Where-Object { $_ })
+    if ($dcs -contains $h) { return [pscustomobject]@{ Allowed = $true; Reason = 'the host is a domain controller of this forest (server object in the Configuration partition)' } }
     $scope = Get-MspkiHostScope -HostName $h -LocalDomains $LocalDomains
-    if ($scope -eq 'Local') { return [pscustomobject]@{ Allowed = $true; Reason = 'the host is in one of this forest''s own DNS domains' } }
-    return [pscustomobject]@{ Allowed = $false; Reason = ('the URL names host {0}, which is not in one of this forest''s own DNS domains (scope {1}); a directory bind would send the Windows credentials of the user running this tool to it' -f $h, $scope) }
+    if ($scope -ne 'Local') {
+        return [pscustomobject]@{ Allowed = $false; Reason = ('the URL names host {0}, which is not in one of this forest''s own DNS domains (scope {1}); a directory bind would send the Windows credentials of the user running this tool to it' -f $h, $scope) }
+    }
+    if ($Trust -eq 'Authoritative' -or $Trust -eq 'Verified') {
+        return [pscustomobject]@{ Allowed = $true; Reason = ('the host is in one of this forest''s own DNS domains and the URL comes from {0} evidence' -f $Trust.ToLowerInvariant()) }
+    }
+    $t = $Trust
+    if (-not $t) { $t = 'not known' }
+    return [pscustomobject]@{ Allowed = $false; Reason = ('the URL names host {0}, which is not a domain controller of this forest, and the object that named it was not verified (trust: {1}); a name in the forest''s DNS zone is not proof, and a directory bind would send the Windows credentials of the user running this tool to it' -f $h, $t) }
 }
 
 function Set-MspkiScopeCap {

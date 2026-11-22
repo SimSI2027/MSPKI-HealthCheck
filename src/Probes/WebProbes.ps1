@@ -376,8 +376,9 @@ function Get-MspkiLdapUrlContent {
 
     .DESCRIPTION
     A directory bind authenticates with the Windows credentials of the user running the tool, so a host named in an LDAP URL
-    is contacted only when it is the selected domain controller or in one of this forest's own DNS domains (-LocalDomains),
-    and never with -SkipNetwork. A serverless URL goes to the selected domain controller (-DefaultServer).
+    is contacted only when it is the selected domain controller, a forest domain controller (-DomainControllers), or a host in
+    one of this forest's own DNS domains named by an Authoritative or Verified lead (-Trust); never with -SkipNetwork unless it
+    is the selected domain controller. A serverless URL goes to the selected domain controller (-DefaultServer).
     #>
     [CmdletBinding()]
     param(
@@ -385,11 +386,14 @@ function Get-MspkiLdapUrlContent {
         [string]$DefaultServer = '',
         [int]$TimeoutSeconds = 15,
         [string[]]$LocalDomains = @(),
+        [AllowEmptyCollection()][string[]]$DomainControllers = @(),
+        [AllowEmptyString()][string]$Trust = '',
         [switch]$SkipNetwork,
         # Used when the URL names no attribute (valid: Windows then reads the attribute that holds the object type it wants).
         [string]$DefaultAttribute = ''
     )
-    $key = 'ldapurl|' + $Url + '|' + $DefaultAttribute
+    # The trust is part of the key: a "not contacted" answer for an unverified lead must not be reused for a trusted one.
+    $key = 'ldapurl|' + $Url + '|' + $DefaultAttribute + '|' + $Trust
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { return $cached }
     Assert-MspkiNotCancelled
@@ -399,7 +403,8 @@ function Get-MspkiLdapUrlContent {
     try {
         $p = ConvertFrom-MspkiLdapUrl -Url $Url
         $r.Server = $p.Host
-        $allowed = Test-MspkiLdapHostAllowed -HostName $p.Host -DefaultServer $DefaultServer -LocalDomains $LocalDomains -SkipNetwork:$SkipNetwork
+        $allowed = Test-MspkiLdapHostAllowed -HostName $p.Host -DefaultServer $DefaultServer -LocalDomains $LocalDomains `
+            -DomainControllers $DomainControllers -Trust $Trust -SkipNetwork:$SkipNetwork
         if (-not $allowed.Allowed) {
             $r.Contacted = $false; $r.Code = 'NOT_APPLICABLE'; $r.Error = ('Not contacted: {0}.' -f $allowed.Reason)
             Set-MspkiProbeCacheEntry -Key $key -Value $r

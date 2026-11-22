@@ -70,7 +70,8 @@ Describe 'H1: an LDAP URL never sends the credentials of the user running the to
     ) {
         param($Name, $HostName, $Skip, $Allowed)
         $d = InModuleScope MspkiHealthCheck -Parameters @{ H = $HostName; S = $Skip } { param($H, $S)
-            Test-MspkiLdapHostAllowed -HostName $H -DefaultServer 'dc01.corp.example.test' -LocalDomains @('corp.example.test') -SkipNetwork:$S }
+            # Audit 2 H1: a forest-zone name is allowed only with trusted evidence (here: an Authoritative lead).
+            Test-MspkiLdapHostAllowed -HostName $H -DefaultServer 'dc01.corp.example.test' -LocalDomains @('corp.example.test') -Trust 'Authoritative' -SkipNetwork:$S }
         $d.Allowed | Should -Be $Allowed
         $d.Reason | Should -Not -BeNullOrEmpty
     }
@@ -90,7 +91,7 @@ Describe 'H1: an LDAP URL never sends the credentials of the user running the to
         Mock -ModuleName MspkiHealthCheck Get-MspkiLdapObject { @{ cacertificate = @(, [byte[]](1, 2, 3)) } }
         $r = InModuleScope MspkiHealthCheck {
             Reset-MspkiProbeCache
-            Get-MspkiLdapUrlContent -Url 'ldap://dc02.corp.example.test/CN=x,DC=example,DC=test?cACertificate?base?objectClass=*' -DefaultServer 'dc01.corp.example.test' -LocalDomains @('corp.example.test') }
+            Get-MspkiLdapUrlContent -Url 'ldap://dc02.corp.example.test/CN=x,DC=example,DC=test?cACertificate?base?objectClass=*' -DefaultServer 'dc01.corp.example.test' -LocalDomains @('corp.example.test') -DomainControllers @('dc02.corp.example.test') }
         $r.Contacted | Should -BeTrue
         $r.Code | Should -Be 'OK'
         Should -Invoke -ModuleName MspkiHealthCheck Get-MspkiLdapObject -Times 1 -Exactly -ParameterFilter { $Server -eq 'dc02.corp.example.test' }

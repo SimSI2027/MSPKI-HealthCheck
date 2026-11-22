@@ -12,7 +12,7 @@ function Get-MspkiLdapObject {
         [string]$Server = '',
         [Parameter(Mandatory = $true)][string]$BaseDN,
         [string]$Filter = '(objectClass=*)',
-        [ValidateSet('Base', 'OneLevel')][string]$Scope = 'OneLevel',
+        [ValidateSet('Base', 'OneLevel', 'Subtree')][string]$Scope = 'OneLevel',
         [string[]]$Properties = @('distinguishedName'),
         [ValidateRange(1, 600)][int]$TimeoutSeconds = 30,
         [switch]$IncludeDacl
