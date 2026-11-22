@@ -201,8 +201,17 @@ function Invoke-MspkiHttpGet {
                     $r.Error = ('Redirect to {0} not followed: no authoritative source or verified object named host {1}.' -f $next.AbsoluteUri, $nextHost)
                     break
                 }
+                if ($hop -eq $MaxRedirects) {
+                    # The redirect is not followed (redirects are off, or the hop limit is reached). It is still an answer: the status and the
+                    # Location come from this hop, never "no answer" (audit 2 M5).
+                    $r.Code = 'HTTP_REDIRECT'
+                    $r.HttpStatus = $sc
+                    $r.FinalUrl = $current
+                    if ($MaxRedirects -eq 0) { $r.Error = ('HTTP {0} redirect to {1}; this request does not follow redirects.' -f $sc, $loc) }
+                    else { $r.Error = ('More than {0} redirect(s); the last answer was HTTP {1} with Location {2}.' -f $MaxRedirects, $sc, $loc) }
+                    break
+                }
                 $current = $next.AbsoluteUri
-                if ($hop -eq $MaxRedirects) { $r.Code = 'HTTP_REDIRECT'; $r.Error = ('More than {0} redirects.' -f $MaxRedirects) }
                 continue
             }
             $r.FinalUrl = $current

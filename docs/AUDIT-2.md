@@ -424,7 +424,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | M1 | Fixed | `7842317` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M1" (2 tests: the old root is known too and the subordinate needs the new key gives KeyMismatch; the new root is still Verified) |
 | M2 | Fixed | `d1f7f55` | `tests/EnrollmentServices.Tests.ps1`: 401 and 403 are AuthRequired (Information, Referenced, `HTTP_401_403`), never Pass or Confirmed; a 3xx is not a responding service; 400/405/200-with-service-page stay Confirmed; a 200 with other content is Referenced; the plain-HTTP risk is kept for AuthRequired. 5 tests were red on the old code |
 | M7 | Fixed | `2a2bf0c` | `tests/GuiEntity.Tests.ps1`: "Audit 2 M7" (2 tests): an Inferred-only kind shows "Something answers (not confirmed)" in a Warn tone and the list is titled "Answers at the standard path (not confirmed)"; with one Confirmed and one Inferred instance the heading counts 1 found and says "1 more ... not confirmed". The summary line counts confirmed kinds |
-| M4 | Fixed | `PENDING` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M4" (9 tests, red on the old code): a URL with a space (%20 in the probe), an explicit :80 and a different host case are found; http and https stay apart; a Warning for a wrong issuer, a wrong key, a scope-capped failure or an unfollowed redirect is not a working URL; an age Warning still is; an expired CRL is not; the message says how many URLs were tested and is not Confirmed when some were not. `tests/HierarchyHealth.Tests.ps1` updated to the new parameter |
+| M4 | Fixed | `dce392b` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M4" (9 tests, red on the old code): a URL with a space (%20 in the probe), an explicit :80 and a different host case are found; http and https stay apart; a Warning for a wrong issuer, a wrong key, a scope-capped failure or an unfollowed redirect is not a working URL; an age Warning still is; an expired CRL is not; the message says how many URLs were tested and is not Confirmed when some were not. `tests/HierarchyHealth.Tests.ps1` updated to the new parameter |
+| M5 | Fixed | `PENDING` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M5" (5 tests, 3 red on the old code): a 302 through `Invoke-MspkiHttpGet -MaxRedirects 0` has HttpStatus 302, the Location and an explanatory Error; the hop limit takes the last hop's status; redirects within the limit are still followed; Web Enrollment state and finding exist for a redirecting host |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -513,3 +514,9 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
   retrieval failure when its code names a retrieval, content or TLS problem (this also covers failures that the scope rule reduced to a
   Warning); a Warning about the age of the object still counts as retrieved. `Test-MspkiRetrievalOrder` counts only URLs that really
   failed as "failing", names how many URLs could be tested, and is Referenced (not Confirmed) when some were not tested.
+
+### M5 notes (Batch B)
+- `Invoke-MspkiHttpGet`: when a redirect is not followed because redirects are off (`-MaxRedirects 0`, as for the NDES and Web
+  Enrollment probes) or the hop limit is reached, `HttpStatus` is the status of that hop (not 0), `FinalUrl` is the redirecting URL, and
+  `Error` names the status and the Location. A Web Enrollment host that only redirects is therefore "present" (Inferred, with the
+  redirect in the evidence) instead of "no web server answered", and NDES shows "HTTP 302 ... (redirect not followed)".

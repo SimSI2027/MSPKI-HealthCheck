@@ -98,3 +98,58 @@ Describe 'Audit 2 M4: the retrieval-order check matches URLs after normalisation
         $all.Confidence | Should -Be 'Confirmed'
     }
 }
+
+Describe 'Audit 2 M5: a redirect that is not followed is an answer (status and Location), never "no answer"' {
+    BeforeAll {
+        $script:routes5 = [hashtable]::Synchronized(@{})
+        $script:server5 = Start-TestHttpServer -Routes $script:routes5
+        $script:b5 = $script:server5.Base
+        $script:routes5['/start'] = @{ Status = 302; Body = @(); Headers = @{ Location = '/next' } }
+        $script:routes5['/next'] = @{ Status = 301; Body = @(); Headers = @{ Location = '/last' } }
+        $script:routes5['/last'] = @{ Status = 200; Body = [System.Text.Encoding]::ASCII.GetBytes('ok') }
+        $script:get5 = {
+            param([string]$Path, [int]$Max = 0)
+            InModuleScope MspkiHealthCheck -Parameters @{ U = ($script:b5 + $Path); M = $Max } {
+                param($U, $M) Reset-MspkiProbeCache; Invoke-MspkiHttpGet -Url $U -TimeoutMs 3000 -MaxRedirects $M -DiscardBody }
+        }
+    }
+    AfterAll { Stop-TestHttpServer -Server $script:server5 }
+
+    It 'takes HttpStatus and the Location from the redirect when redirects are turned off' {
+        $r = & $script:get5 '/start' 0
+        $r.HttpStatus | Should -Be 302
+        $r.Code | Should -Be 'HTTP_REDIRECT'
+        $r.Redirected | Should -BeTrue
+        @($r.Hops)[-1].HttpStatus | Should -Be 302
+        @($r.Hops)[-1].Location | Should -Be '/next'
+        $r.Error | Should -Match 'redirect'
+        $r.Error | Should -Match '/next'
+    }
+    It 'takes HttpStatus from the last hop when the hop limit is reached' {
+        $r = & $script:get5 '/start' 1
+        $r.HttpStatus | Should -Be 301
+        $r.Code | Should -Be 'HTTP_REDIRECT'
+        $r.Error | Should -Match 'More than 1 redirect'
+    }
+    It 'still follows redirects within the limit' {
+        $r = & $script:get5 '/start' 5
+        $r.HttpStatus | Should -Be 200
+        $r.Code | Should -Be 'OK'
+    }
+    It 'is present Web Enrollment evidence: the state is not $null and says it redirects' {
+        $r = & $script:get5 '/start' 0
+        $s = InModuleScope MspkiHealthCheck -Parameters @{ R = $r } { param($R) Get-MspkiWebEnrollmentState -Http $R }
+        $s | Should -Not -BeNullOrEmpty
+        $s.HttpStatus | Should -Be 302
+        $s.Meaning | Should -Match 'redirects \(HTTP 302\) to /next'
+    }
+    It 'gives a Web Enrollment finding (Inferred) with the redirect in its evidence when http redirects and https was not reachable' {
+        $r = & $script:get5 '/start' 0
+        $f = @(InModuleScope MspkiHealthCheck -Parameters @{ R = $r } { param($R) Test-MspkiWebEnrollment -HostName 'ca01.corp.example.test' -Http $R })
+        $f.Count | Should -Be 1
+        $f[0].StatusCode | Should -Be 'OK'
+        $f[0].Confidence | Should -Be 'Inferred'
+        ($f[0].Evidence -join "`n") | Should -Match 'HTTP 302, redirects \(HTTP 302\) to /next'
+        ($f[0].Evidence -join "`n") | Should -Not -Match 'no answer'
+    }
+}
