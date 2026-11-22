@@ -74,6 +74,34 @@ function ConvertFrom-MspkiTemplateRecord {
     }
 }
 
+function ConvertTo-MspkiTemplateExport {
+    <#
+    .SYNOPSIS
+    The form of a template that goes into results.json (audit 2 L3): the facts the views and reports use, without the parsed ACL and the
+    owner SID. The security descriptor of every template is detail that is not needed afterwards, and the SIDs and rights of named accounts
+    are sensitive. What stays: AclRead (was it read), and BroadAcl and OwnerBroad (the rights of the broad groups, by label), which is what
+    the findings are about. The live object is not changed (the analysers use it before the export).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Template)
+    $o = [ordered]@{}
+    foreach ($p in $Template.psobject.Properties) {
+        if ($p.Name -in @('Acl', 'OwnerSid', 'Owner')) { continue }
+        $o[$p.Name] = $p.Value
+    }
+    $broad = New-Object System.Collections.ArrayList
+    foreach ($a in @($Template.Acl | Where-Object { $null -ne $_ })) {
+        $label = Get-MspkiBroadPrincipal -Sid ([string]$a.Sid)
+        if ($label) { [void]$broad.Add([pscustomobject][ordered]@{ Principal = $label; Type = [string]$a.Type; Rights = @($a.Rights) }) }
+    }
+    $o['AclRead'] = ($null -ne $Template.Acl -and -not [string]$Template.AclError)
+    $o['BroadAcl'] = @($broad)
+    $ownerBroad = ''
+    if ($Template.OwnerSid) { $ownerBroad = Get-MspkiBroadPrincipal -Sid ([string]$Template.OwnerSid) }
+    $o['OwnerBroad'] = $ownerBroad
+    return [pscustomobject]$o
+}
+
 function Get-MspkiTemplateObject {
     <#
     .SYNOPSIS

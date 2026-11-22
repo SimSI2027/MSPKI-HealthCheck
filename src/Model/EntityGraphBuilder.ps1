@@ -493,8 +493,11 @@ function Add-MspkiFindingEntityLink {
             $hit = @(Get-MspkiEntityList -Type 'ADObject' | Where-Object { $_.Name -eq $t -or $_.Properties['DistinguishedName'] -eq $t }) | Select-Object -First 1
             if ($null -ne $hit) { [void]$ids.Add($hit.Id) }
             $tl = $t.ToLowerInvariant()
-            $hit = @(Get-MspkiEntityList -Type 'Host' | Where-Object { $_.Name -eq $tl -or ($_.Name -split '\.')[0] -eq $tl }) | Select-Object -First 1
-            if ($null -ne $hit) { [void]$ids.Add($hit.Id) }
+            # The full name matches exactly; a short name matches only when exactly one host has that first label (audit 2 L9: it used to take
+            # the first host called pki.<anything>).
+            $hostHits = @(Get-MspkiEntityList -Type 'Host' | Where-Object { $_.Name -eq $tl })
+            if ($hostHits.Count -eq 0) { $hostHits = @(Get-MspkiEntityList -Type 'Host' | Where-Object { ($_.Name -split '\.')[0] -eq $tl }) }
+            if ($hostHits.Count -eq 1) { [void]$ids.Add($hostHits[0].Id) }
             $did = Get-MspkiEntityId -Type 'Domain' -Key $t
             if ($f.Category -eq 'ADDependency' -and (Test-MspkiEntity -Id $did)) { [void]$ids.Add($did) }
         }

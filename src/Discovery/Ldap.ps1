@@ -2,6 +2,22 @@
 # explicit attribute lists and time limits. Results are plain hashtables (lower-case attribute name ->
 # array of values) so that the rest of the tool never holds live directory objects.
 
+function Get-MspkiLdapConnectionSpec {
+    <#
+    .SYNOPSIS
+    The DirectoryEntry path and authentication types for one read: LDAP://host[:port]/DN, with secure sockets layer when -Ssl is given
+    (an ldaps:// location is read over LDAPS, audit 2 L7). The authentication stays the running user's (Secure, plus SSL for LDAPS).
+    #>
+    [CmdletBinding()]
+    param([string]$Server = '', [Parameter(Mandatory = $true)][string]$BaseDN, [switch]$Ssl, [int]$Port = 0)
+    $hostPart = $Server
+    if ($Server -and $Port -gt 0) { $hostPart = '{0}:{1}' -f $Server, $Port }
+    if ($hostPart) { $path = 'LDAP://{0}/{1}' -f $hostPart, $BaseDN } else { $path = 'LDAP://{0}' -f $BaseDN }
+    $auth = 'Secure'
+    if ($Ssl) { $auth = 'Secure, SecureSocketsLayer' }
+    return [pscustomobject]@{ Path = $path; AuthenticationTypes = $auth }
+}
+
 function Get-MspkiLdapObject {
     <#
     .SYNOPSIS
@@ -15,10 +31,13 @@ function Get-MspkiLdapObject {
         [ValidateSet('Base', 'OneLevel', 'Subtree')][string]$Scope = 'OneLevel',
         [string[]]$Properties = @('distinguishedName'),
         [ValidateRange(1, 600)][int]$TimeoutSeconds = 30,
-        [switch]$IncludeDacl
+        [switch]$IncludeDacl,
+        # LDAPS (an ldaps:// location) and an explicit port; the default is plain LDAP on the default port.
+        [switch]$Ssl,
+        [int]$Port = 0
     )
-    if ($Server) { $path = 'LDAP://{0}/{1}' -f $Server, $BaseDN } else { $path = 'LDAP://{0}' -f $BaseDN }
-    $entry = New-Object System.DirectoryServices.DirectoryEntry($path)
+    $spec = Get-MspkiLdapConnectionSpec -Server $Server -BaseDN $BaseDN -Ssl:$Ssl -Port $Port
+    $entry = New-Object System.DirectoryServices.DirectoryEntry($spec.Path, $null, $null, [System.DirectoryServices.AuthenticationTypes]$spec.AuthenticationTypes)
     $searcher = New-Object System.DirectoryServices.DirectorySearcher($entry)
     $results = $null
     try {

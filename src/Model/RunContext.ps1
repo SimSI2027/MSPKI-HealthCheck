@@ -61,6 +61,9 @@ function Initialize-MspkiRun {
         Methods        = New-Object System.Collections.ArrayList
         Limits         = New-Object System.Collections.ArrayList
     }
+    # Audit 2 L2: some directory calls have no timeout parameter (forest and domain controller locator, trusts, the directory bind, SID translation).
+    # They run on the calling thread, so a domain controller that stops answering mid-call can delay the run, and Cancel acts only between calls.
+    Add-MspkiRunLimit -Text 'Some Active Directory calls have no timeout of their own (forest and domain controller discovery, trusts, the directory bind, SID translation). A domain controller that stops answering in the middle of one of them can delay the run, and Cancel takes effect only between calls.'
     if (-not [bool]$Parameters['SkipNetwork']) {
         # CryptoAPI builds the certificate chain of a TLS server certificate itself and may fetch missing intermediate certificates from its AIA
         # (audit 2 L1). Those fetches are not bounded, cached or logged by this tool; with -SkipNetwork no TLS handshake is made.

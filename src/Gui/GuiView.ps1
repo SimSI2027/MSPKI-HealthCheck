@@ -481,6 +481,7 @@ function Get-MspkiGuiSummary {
         [pscustomobject][ordered]@{
             Status = $s; Count = @($all | Where-Object { $_.Status -eq $s }).Count
             Label = $p.Text; Tone = $p.Tone; Glyph = $p.Glyph; Tag = $s
+            AccessibleName = ('{0}: {1}' -f $p.Text, @($all | Where-Object { $_.Status -eq $s }).Count)
         }
     })
     $sevTiles = @(foreach ($s in @('High', 'Medium', 'Low', 'ReviewRequired', 'Information')) {
@@ -488,6 +489,7 @@ function Get-MspkiGuiSummary {
         [pscustomobject][ordered]@{
             Status = $s; Count = @($all | Where-Object { $_.Severity -eq $s }).Count
             Label = $p.Text; Tone = $p.Tone; Glyph = $p.Glyph; Tag = $s
+            AccessibleName = ('{0}: {1}' -f $p.Text, @($all | Where-Object { $_.Severity -eq $s }).Count)
         }
     })
 

@@ -422,3 +422,249 @@ Describe 'Audit 2 L12: a probe runspace that timed out is disposed once its call
         $r.State | Should -Be 'Closed'
     }
 }
+
+Describe 'Audit 2 L8: the cross-location CRL comparison trusts only CRLs whose signature verified' {
+    BeforeAll {
+        $script:l8root = New-TestCertificate -Subject 'CN=Example Root CA, DC=example, DC=test' -DaysBefore 800 -DaysValid 3650
+        $script:l8other = New-TestCertificate -Subject 'CN=Example Root CA, DC=example, DC=test' -DaysValid 100
+        $script:l8lead = { param($u) [pscustomobject]@{ Url = $u; Sources = @('AD:test'); Scope = 'Local'; RelatedCAs = @('Example Root CA'); Kind = 'CDP' } }
+        $script:l8run = {
+            param($Crls, [bool]$WithCerts = $true)
+            InModuleScope MspkiHealthCheck -Parameters @{ C = $Crls; K = @($script:l8root.Public); W = $WithCerts; Lead = $script:l8lead } {
+                param($C, $K, $W, $Lead)
+                $recs = @(foreach ($c in $C) { $l = & $Lead $c.Url; [pscustomobject]@{ Url = $c.Url; Lead = $l; Crl = (ConvertFrom-MspkiCrl -Bytes $c.Bytes); ExpectedIssuer = @() } })
+                if ($W) { @(Test-MspkiCrlConsistency -Records $recs -Certificates $K) } else { @(Test-MspkiCrlConsistency -Records $recs) }
+            }
+        }
+    }
+    It 'does not let a CRL with an invalid signature and a higher number mark the good locations as stale' {
+        $forged = New-TestCrl -Issuer $script:l8root -SigningKey $script:l8other.Key -Number 9
+        $good1 = New-TestCrl -Issuer $script:l8root -Number 8
+        $good2 = New-TestCrl -Issuer $script:l8root -Number 8
+        $f = & $script:l8run @(@{ Url = 'http://pki.example.test/forged.crl'; Bytes = $forged }, @{ Url = 'http://pki.example.test/a.crl'; Bytes = $good1 }, @{ Url = 'http://pki.example.test/b.crl'; Bytes = $good2 })
+        @($f | Where-Object { $_.Endpoint -like '*/a.crl' -or $_.Endpoint -like '*/b.crl' }).Count | Should -Be 0
+    }
+    It 'still reports a verified older CRL as stale, Confirmed' {
+        $old = New-TestCrl -Issuer $script:l8root -Number 5
+        $new = New-TestCrl -Issuer $script:l8root -Number 7
+        $f = & $script:l8run @(@{ Url = 'http://pki.example.test/old.crl'; Bytes = $old }, @{ Url = 'http://pki.example.test/new.crl'; Bytes = $new })
+        $f.Count | Should -Be 1
+        $f[0].StatusCode | Should -Be 'STALE_DATA'
+        $f[0].Confidence | Should -Be 'Confirmed'
+    }
+    It 'is only Referenced when no signature could be verified at all (no issuer certificate known)' {
+        $old = New-TestCrl -Issuer $script:l8root -Number 5
+        $new = New-TestCrl -Issuer $script:l8root -Number 7
+        $f = & $script:l8run @(@{ Url = 'http://pki.example.test/old.crl'; Bytes = $old }, @{ Url = 'http://pki.example.test/new.crl'; Bytes = $new }) -WithCerts $false
+        $f.Count | Should -Be 1
+        $f[0].Confidence | Should -Be 'Referenced'
+        ($f[0].Evidence -join "`n") | Should -Match 'not verified'
+    }
+}
+
+Describe 'Audit 2 L7: an ldaps:// location is read over LDAPS, not plain LDAP' {
+    It 'keeps the scheme and the port of an LDAP URL' {
+        $r = InModuleScope MspkiHealthCheck {
+            [pscustomobject]@{
+                S = ConvertFrom-MspkiLdapUrl -Url 'ldaps://dc01.corp.example.test/CN=Example%20CA,CN=CDP,DC=corp,DC=example,DC=test?certificateRevocationList?base'
+                P = ConvertFrom-MspkiLdapUrl -Url 'ldap://dc01.corp.example.test:3268/CN=x,DC=corp,DC=example,DC=test?cACertificate'
+                N = ConvertFrom-MspkiLdapUrl -Url 'ldap:///CN=x,DC=corp,DC=example,DC=test?cACertificate'
+            }
+        }
+        $r.S.Scheme | Should -Be 'ldaps'
+        $r.S.Port | Should -Be 636
+        $r.S.Host | Should -Be 'dc01.corp.example.test'
+        $r.P.Scheme | Should -Be 'ldap'
+        $r.P.Port | Should -Be 3268
+        $r.P.Host | Should -Be 'dc01.corp.example.test'
+        $r.N.Scheme | Should -Be 'ldap'
+        $r.N.Port | Should -Be 0
+    }
+    It 'builds an LDAPS connection (port 636, secure sockets layer) for ldaps and a plain one otherwise' {
+        $r = InModuleScope MspkiHealthCheck {
+            [pscustomobject]@{
+                Ssl = Get-MspkiLdapConnectionSpec -Server 'dc01.corp.example.test' -BaseDN 'DC=corp,DC=example,DC=test' -Ssl -Port 636
+                Plain = Get-MspkiLdapConnectionSpec -Server 'dc01.corp.example.test' -BaseDN 'DC=corp,DC=example,DC=test'
+                Less = Get-MspkiLdapConnectionSpec -Server '' -BaseDN 'DC=corp,DC=example,DC=test'
+            }
+        }
+        $r.Ssl.Path | Should -Be 'LDAP://dc01.corp.example.test:636/DC=corp,DC=example,DC=test'
+        $r.Ssl.AuthenticationTypes | Should -Match 'SecureSocketsLayer'
+        $r.Plain.Path | Should -Be 'LDAP://dc01.corp.example.test/DC=corp,DC=example,DC=test'
+        $r.Plain.AuthenticationTypes | Should -Not -Match 'SecureSocketsLayer'
+        $r.Less.Path | Should -Be 'LDAP://DC=corp,DC=example,DC=test'
+    }
+    It 'Get-MspkiLdapUrlContent asks for LDAPS when the URL says ldaps, and for plain LDAP when it says ldap' {
+        $r = InModuleScope MspkiHealthCheck {
+            Reset-MspkiProbeCache
+            $script:l7calls = New-Object System.Collections.ArrayList
+            Mock Get-MspkiLdapObject { [void]$script:l7calls.Add(@{ Ssl = [bool]$Ssl; Port = $Port }); @(@{ 'cacertificate' = @(, [byte[]](1, 2, 3)) }) }
+            [void](Get-MspkiLdapUrlContent -Url 'ldaps:///CN=a,DC=corp,DC=example,DC=test?cACertificate?base' -DefaultServer 'dc01.corp.example.test')
+            [void](Get-MspkiLdapUrlContent -Url 'ldap:///CN=b,DC=corp,DC=example,DC=test?cACertificate?base' -DefaultServer 'dc01.corp.example.test')
+            @($script:l7calls)
+        }
+        $r.Count | Should -Be 2
+        $r[0].Ssl | Should -BeTrue
+        $r[0].Port | Should -Be 636
+        $r[1].Ssl | Should -BeFalse
+    }
+}
+
+Describe 'Audit 2 L6: a missing AD object is recognised by its error code, never by message text' {
+    It 'a COMException with the NO_SUCH_OBJECT code is NotFound whatever its (localised) message says' {
+        $r = InModuleScope MspkiHealthCheck {
+            Mock Get-MspkiLdapObject { throw (New-Object System.Runtime.InteropServices.COMException('Es gibt kein solches Objekt auf dem Server.', -2147016656)) }
+            Read-MspkiNdesAccount -Sid 'S-1-5-21-1-2-3-1001' -Server 'dc01.corp.example.test'
+        }
+        $r.Status | Should -Be 'NotFound'
+    }
+    It 'an exception without that code is an error even when its message contains the English words' {
+        $r = InModuleScope MspkiHealthCheck {
+            Mock Get-MspkiLdapObject { throw (New-Object System.InvalidOperationException('there is no such object in the cache')) }
+            Read-MspkiNdesAccount -Sid 'S-1-5-21-1-2-3-1001' -Server 'dc01.corp.example.test'
+        }
+        $r.Status | Should -Be 'Error'
+    }
+}
+
+Describe 'Audit 2 L5 (audit 1 L8b): BUILTIN\Users and Anonymous Logon are broad principals' {
+    It 'labels them by SID' {
+        $r = InModuleScope MspkiHealthCheck { [pscustomobject]@{ U = Get-MspkiBroadPrincipal -Sid 'S-1-5-32-545'; A = Get-MspkiBroadPrincipal -Sid 'S-1-5-7'; N = Get-MspkiBroadPrincipal -Sid 'S-1-5-32-544'; D = Get-MspkiBroadPrincipal -Sid 'S-1-5-21-1-2-3-512' } }
+        $r.U | Should -Be 'BUILTIN\Users'
+        $r.A | Should -Be 'Anonymous Logon'
+        $r.N | Should -Be ''
+        $r.D | Should -Be ''
+    }
+    It 'a template that BUILTIN\Users may enroll for is a broad enroll (ESC1-style review), and one it may write is ESC4' {
+        $tpl = {
+            param($Sid, [int64]$Mask, $Obj = '')
+            [pscustomobject]@{ Name = 'T'; DisplayName = 'T'; Oid = '1.3.6.1.4.1.311.21.8.1.1'; SchemaVersion = 2; Eku = @('1.3.6.1.5.5.7.3.2'); EnrollmentFlag = [int64]0; NameFlag = [int64]1; RaSignature = 0; Acl = @([pscustomobject]@{ Sid = $Sid; Principal = ''; Type = 'Allow'; Mask = $Mask; ObjectType = $Obj; InheritOnly = $false; Rights = @() }); OwnerSid = ''; Owner = '' }
+        }
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ T = (& $tpl 'S-1-5-32-545' 0x40000); E = (& $tpl 'S-1-5-32-545' 0x130 '0e10c968-78fb-11d2-90d4-00c04f79dc55') } {
+            param($T, $E)
+            [pscustomobject]@{ Write = @(Get-MspkiBroadAce -Template $T -Right Write).Count; Enroll = @(Get-MspkiBroadAce -Template $E -Right Enroll).Count }
+        }
+        $r.Write | Should -Be 1
+        $r.Enroll | Should -Be 1
+    }
+    It 'the NDES account list counts them as broad (they name no host), not as candidates' {
+        $acl = @([pscustomobject]@{ Sid = 'S-1-5-32-545'; Principal = ''; Type = 'Allow'; Mask = 0x130; ObjectType = '0e10c968-78fb-11d2-90d4-00c04f79dc55'; InheritOnly = $false; Rights = @('Enroll') },
+            [pscustomobject]@{ Sid = 'S-1-5-7'; Principal = ''; Type = 'Allow'; Mask = 0x130; ObjectType = '0e10c968-78fb-11d2-90d4-00c04f79dc55'; InheritOnly = $false; Rights = @('Enroll') })
+        $tpl = [pscustomobject]@{ Name = 'CEPEncryption'; DisplayName = 'CEP Encryption'; Oid = '1.3.6.1.4.1.311.21.8.1'; Eku = @('1.3.6.1.4.1.311.20.2.1'); ApplicationPolicies = @(); NameFlag = [int64]1; Acl = $acl; AclError = '' }
+        $p = InModuleScope MspkiHealthCheck -Parameters @{ T = $tpl } { param($T) Get-MspkiNdesTemplatePrincipal -Templates @($T) -PublishedNames @('CEPEncryption') }
+        @($p.Principals | Where-Object { $_.Class -eq 'Candidate' }).Count | Should -Be 0
+        @($p.Principals | Where-Object { $_.Class -eq 'Broad' }).Count | Should -Be 2
+    }
+}
+
+Describe 'Audit 2 L4: a permission verdict from timing says that timing is all it rests on' {
+    It 'names a network device that resets the dynamic RPC port at once as another cause with the same timing, and keeps the result Inferred' {
+        $d = InModuleScope MspkiHealthCheck { Get-MspkiCaRpcFailureDiagnosis -HResult '800706BA' -ElapsedMs 1200 -HostName 'ca01.corp.example.test' }
+        $d.Kind | Should -Be 'RejectedQuickly'
+        $d.Confidence | Should -Be 'Inferred'
+        $d.Notes | Should -Match 'network device|firewall'
+        $d.Notes | Should -Match 'timing'
+        ($d.Evidence -join "`n") | Should -Match 'timing alone|rests on the timing'
+        $d.Message | Should -Match 'most likely'
+    }
+}
+
+Describe 'Audit 2 L3: results.json does not export every template''s parsed ACL and owner SID' {
+    BeforeAll {
+        $script:l3inv = [pscustomobject]@{
+            TemplatesRead = $true
+            Templates = @([pscustomobject]@{
+                Name = 'ExampleWebServer'; DisplayName = 'Example Web Server'; SchemaVersion = 2; Eku = @('1.3.6.1.5.5.7.3.1'); NameFlag = [int64]1; EnrollmentFlag = [int64]0
+                OwnerSid = 'S-1-5-21-1111-2222-3333-1119'; Owner = ''
+                AclError = ''; AclErrorClass = ''
+                Acl = @(
+                    [pscustomobject]@{ Sid = 'S-1-5-21-1111-2222-3333-513'; Principal = 'Domain Users'; Type = 'Allow'; Mask = 0x130; ObjectType = '0e10c968-78fb-11d2-90d4-00c04f79dc55'; InheritOnly = $false; Rights = @('Enroll') }
+                    [pscustomobject]@{ Sid = 'S-1-5-21-1111-2222-3333-4242'; Principal = 'Example Web Admins'; Type = 'Allow'; Mask = 0xF01FF; ObjectType = ''; InheritOnly = $false; Rights = @('FullControl') })
+            })
+        }
+    }
+    It 'writes no SID of a named principal, no owner SID and no ACE list; keeps the broad-group rights and the facts the views use' {
+        $text = InModuleScope MspkiHealthCheck -Parameters @{ I = $script:l3inv; D = $TestDrive } {
+            param($I, $D)
+            Set-MspkiOutputFolder -Path $D
+            $p = Join-Path $D 'l3-results.json'
+            [void](Export-MspkiJson -Path $p -RunInfo ([pscustomobject]@{ Tool = 'test' }) -Inventory $I -Findings @() -ExitCode 0)
+            [System.IO.File]::ReadAllText($p)
+        }
+        $text | Should -Not -Match '1119' -Because 'the owner SID is not exported'
+        $text | Should -Not -Match '4242' -Because 'the SID of a named (non-broad) principal is not exported'
+        $text | Should -Not -Match 'Example Web Admins'
+        $text | Should -Not -Match '"Acl"'
+        $text | Should -Match 'ExampleWebServer'
+        $text | Should -Match 'BroadAcl'
+        $text | Should -Match 'Domain Users'
+        $text | Should -Match '"AclRead":\s*true'
+    }
+    It 'does not change the live inventory (the analysers that run before the export still see the ACL)' {
+        $n = InModuleScope MspkiHealthCheck -Parameters @{ I = $script:l3inv; D = $TestDrive } {
+            param($I, $D)
+            Set-MspkiOutputFolder -Path $D
+            [void](Export-MspkiJson -Path (Join-Path $D 'l3b.json') -RunInfo ([pscustomobject]@{ Tool = 'test' }) -Inventory $I -Findings @() -ExitCode 0)
+            @($I.Templates[0].Acl).Count
+        }
+        $n | Should -Be 2
+    }
+}
+
+Describe 'Audit 2 L9: a finding is linked to a host by its short name only when that name is unambiguous' {
+    BeforeAll {
+        $script:l9 = {
+            param([string[]]$Hosts, [string]$Target)
+            InModuleScope MspkiHealthCheck -Parameters @{ Names = $Hosts; T = $Target } {
+                param($Names, $T)
+                Reset-MspkiEntityGraph
+                foreach ($n in $Names) { [void](Add-MspkiHostEntity -HostName $n) }
+                $f = [pscustomobject]@{ Id = 'F1'; Category = 'Hierarchy'; Target = $T; Endpoint = ''; RelatedCA = ''; Message = 'm'; EntityIds = @() }
+                Add-MspkiFindingEntityLink -Findings @($f)
+                [pscustomobject]@{ Ids = @($f.EntityIds); HostIds = @($Names | ForEach-Object { Get-MspkiEntityId -Type 'Host' -Key $_ }) }
+            }
+        }
+    }
+    It 'links the short name when exactly one host has that first label' {
+        $r = & $script:l9 @('pki.corp.example.test', 'ca01.corp.example.test') 'pki'
+        $r.Ids | Should -Contain $r.HostIds[0]
+        $r.Ids | Should -Not -Contain $r.HostIds[1]
+    }
+    It 'links to no host when two hosts share the first label (it is ambiguous), instead of the first one found' {
+        $r = & $script:l9 @('pki.a.example.test', 'pki.b.example.test') 'pki'
+        $r.Ids | Should -Not -Contain $r.HostIds[0]
+        $r.Ids | Should -Not -Contain $r.HostIds[1]
+    }
+    It 'links the full name exactly, even when the first label is shared' {
+        $r = & $script:l9 @('pki.a.example.test', 'pki.b.example.test') 'pki.b.example.test'
+        $r.Ids | Should -Contain $r.HostIds[1]
+        $r.Ids | Should -Not -Contain $r.HostIds[0]
+    }
+}
+
+Describe 'Audit 2 L11: every button of the window has an accessible name, and a count tile names its count' {
+    It 'every Button in MainWindow.xaml has AutomationProperties.Name' {
+        [xml]$x = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'src\Gui\MainWindow.xaml'), [System.Text.Encoding]::UTF8)
+        $ns = New-Object System.Xml.XmlNamespaceManager($x.NameTable)
+        $ns.AddNamespace('p', 'http://schemas.microsoft.com/winfx/2006/xaml/presentation')
+        $missing = @($x.SelectNodes('//p:Button', $ns) | Where-Object { -not $_.GetAttribute('AutomationProperties.Name') } |
+            ForEach-Object { $n = $_.GetAttribute('Name', 'http://schemas.microsoft.com/winfx/2006/xaml'); if ($n) { $n } else { 'unnamed: ' + $_.GetAttribute('ToolTip') } })
+        $missing.Count | Should -Be 0 -Because ($missing -join '; ')
+    }
+    It 'the status and severity tiles carry an accessible name that includes the number' {
+        $xaml = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'src\Gui\MainWindow.xaml') -Raw
+        $xaml | Should -Match 'AutomationProperties\.Name="\{Binding AccessibleName\}"'
+        $view = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'src\Gui\GuiView.ps1') -Raw
+        $view | Should -Match "AccessibleName = \('\{0\}: \{1\}'"
+    }
+}
+
+Describe 'Audit 2 L2: the calls that have no timeout of their own are named as a limit of every run' {
+    It 'lists the Active Directory calls without a timeout and says that Cancel acts only between calls' {
+        $l = InModuleScope MspkiHealthCheck { [void](Initialize-MspkiRun -Parameters @{ SkipNetwork = $true }); @($script:MspkiRun.Limits) }
+        $m = @($l | Where-Object { $_ -match 'no timeout of their own' })
+        $m.Count | Should -Be 1
+        $m[0] | Should -Match 'Cancel'
+        $m[0] | Should -Match 'SID'
+    }
+}

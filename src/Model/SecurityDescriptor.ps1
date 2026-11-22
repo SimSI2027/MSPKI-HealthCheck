@@ -120,7 +120,7 @@ function Get-MspkiBroadPrincipal {
     Returns the broad-group label for a SID, or '' when the SID is not a broad group.
 
     .DESCRIPTION
-    Broad groups (REQUIREMENTS 5.5): Everyone, Authenticated Users, Domain Users and Domain Computers. The
+    Broad groups (REQUIREMENTS 5.5): Everyone, Authenticated Users, BUILTIN\Users, Anonymous Logon, Domain Users and Domain Computers. The
     last two are recognised by their RID (513, 515) under any domain SID, so the Domain Users and Domain
     Computers groups of every domain in the forest (and of trusted domains) count. Decided by SID, never by name.
     #>
@@ -128,6 +128,8 @@ function Get-MspkiBroadPrincipal {
     param([AllowEmptyString()][string]$Sid)
     if ($Sid -eq 'S-1-1-0') { return 'Everyone' }
     if ($Sid -eq 'S-1-5-11') { return 'Authenticated Users' }
+    if ($Sid -eq 'S-1-5-32-545') { return 'BUILTIN\Users' }   # contains Authenticated Users and Domain Users (audit 2 L5)
+    if ($Sid -eq 'S-1-5-7') { return 'Anonymous Logon' }
     if ($Sid -match '^S-1-5-21-\d+-\d+-\d+-513$') { return 'Domain Users' }
     if ($Sid -match '^S-1-5-21-\d+-\d+-\d+-515$') { return 'Domain Computers' }
     return ''

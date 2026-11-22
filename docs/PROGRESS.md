@@ -10,7 +10,7 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Found, not fixed: false Fail for a CDP LDAP URL with no attribute; NDES missed without the CA database view (`CertificateAuthority.View` is not in-box on clients); `runas /trustlevel` is not a standard-user test for a domain admin.
 - Next: D2 endpoint identity (A/PTR/CNAME/TLS names/server header), D3 local evidence, D4 NDES via template ACE + SPN, then the false-Fail fix. Push: this account has no GitHub credentials (commits stay local until someone runs `gh auth login`).
 
-## GUI look rebuilt (enterprise style) + developer snapshots â€” done (744 tests)
+## GUI look rebuilt (enterprise style) + developer snapshots - done (744 tests)
 - Look: `src\Gui\Theme.xaml` (palette and shapes from the old window, see `docs\GUI-DESIGN.md`) and a new `MainWindow.xaml`: two-row header (title, context strip with forest / domain / DC / user,
   Administrator or Standard user badge), toolbar with Segoe MDL2 icons (Run is the accent button), collapsible options with a one-line summary, status bar (state icon + text, target, elapsed, findings, output path),
   welcome state, health banner, KPI tiles, status and severity tiles that open the Findings tab filtered, CA cards, top issues, discovery coverage (problems first, successes under an expander), split Findings view

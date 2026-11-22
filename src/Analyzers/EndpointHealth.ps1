@@ -476,27 +476,34 @@ function Test-MspkiCrlConsistency {
     <#
     .SYNOPSIS
     Across locations: a location that serves an older CRL (lower CRL number) than another location for the
-    same issuer and type is reported as STALE_DATA.
+    same issuer and type is reported as STALE_DATA. Only CRLs whose signature verified with a discovered CA certificate can set the newest
+    number (a forged or damaged CRL with a high number must not mark the good locations as stale); when no signature could be verified at all
+    the comparison is Referenced, not Confirmed (audit 2 L8).
     #>
     [CmdletBinding()]
-    param([AllowEmptyCollection()][object[]]$Records = @(), [string[]]$ExcludeUrl = @())
+    param([AllowEmptyCollection()][object[]]$Records = @(), [string[]]$ExcludeUrl = @(), [AllowEmptyCollection()][object[]]$Certificates = @())
     $out = New-Object System.Collections.ArrayList
+    $verified = @{}
+    foreach ($r in @($Records)) { $verified[[string]$r.Url] = ($null -ne $r.Crl -and (Test-MspkiCrlIssuerSignature -Crl $r.Crl -Certificates $Certificates).Valid -eq $true) }
     $groups = @($Records | Group-Object { '{0}|{1}|{2}' -f $_.Crl.IssuerRawHex, $_.Crl.IsDelta, $_.Crl.CAVersion })
     foreach ($g in $groups) {
         if ($g.Count -lt 2) { continue }
+        $trusted = @($g.Group | Where-Object { $verified[[string]$_.Url] })
+        $basis = 'Confirmed'
+        if ($trusted.Count -eq 0) { $trusted = @($g.Group); $basis = 'Referenced' }
         $max = ''
-        foreach ($r in $g.Group) { if (-not $max -or (Compare-MspkiHexNumber $r.Crl.CrlNumber $max) -gt 0) { $max = $r.Crl.CrlNumber } }
-        $newest = @($g.Group | Where-Object { (Compare-MspkiHexNumber $_.Crl.CrlNumber $max) -eq 0 } | ForEach-Object { $_.Url })
+        foreach ($r in $trusted) { if (-not $max -or (Compare-MspkiHexNumber $r.Crl.CrlNumber $max) -gt 0) { $max = $r.Crl.CrlNumber } }
+        $newest = @($trusted | Where-Object { (Compare-MspkiHexNumber $_.Crl.CrlNumber $max) -eq 0 } | ForEach-Object { $_.Url })
         foreach ($r in $g.Group) {
             if ($ExcludeUrl -contains $r.Url) { continue }
             if ((Compare-MspkiHexNumber $r.Crl.CrlNumber $max) -lt 0) {
                 $type = 'base'
                 if ($r.Crl.IsDelta) { $type = 'delta' }
                 $sf = New-MspkiFinding -Stage 'Analysis' -Category 'CRL' -Role 'CDPEndpoint' -Target $r.Crl.Issuer -Endpoint $r.Url `
-                    -RelatedCA (@($r.Lead.RelatedCAs) -join ', ') -Status 'Warning' -StatusCode 'STALE_DATA' -Confidence 'Confirmed' `
+                    -RelatedCA (@($r.Lead.RelatedCAs) -join ', ') -Status 'Warning' -StatusCode 'STALE_DATA' -Confidence $basis `
                     -Sources @($r.Lead.Sources) -Scope $r.Lead.Scope -Layers @{ ContentStatus = 'Warning' } `
                     -Message ('{0} serves {1} CRL number {2}; another location serves the newer number {3}.' -f $r.Url, $type, $r.Crl.CrlNumber, $max) `
-                    -Evidence @(('Newest at: {0}' -f ($newest -join ', ')), ('This update here: {0}' -f $r.Crl.ThisUpdate.ToString('yyyy-MM-ddTHH:mm:ssZ'))) `
+                    -Evidence (@(('Newest at: {0}' -f ($newest -join ', ')), ('This update here: {0}' -f $r.Crl.ThisUpdate.ToString('yyyy-MM-ddTHH:mm:ssZ'))) + $(if ($basis -ne 'Confirmed') { @('Signatures: not verified for any of these CRLs (no issuer certificate was discovered or the signature could not be checked), so the comparison rests on the CRL numbers alone.') } else { @() })) `
                     -Notes 'Publication to this location may have stopped or be delayed.'
                 if ($r.PSObject.Properties['ReviewOnly'] -and $r.ReviewOnly) { $sf = ConvertTo-MspkiReviewFinding -Finding $sf -Reason $r.ReviewReason }
                 [void]$out.Add($sf)
@@ -612,6 +619,6 @@ function Invoke-MspkiEndpointAnalysis {
         foreach ($f in $pub.Findings) { [void]$findings.Add($f) }
         $judgedUrls = @($pub.JudgedUrls)
     }
-    foreach ($f in (Test-MspkiCrlConsistency -Records @($records) -ExcludeUrl $judgedUrls)) { [void]$findings.Add($f) }
+    foreach ($f in (Test-MspkiCrlConsistency -Records @($records) -ExcludeUrl $judgedUrls -Certificates $allCerts)) { [void]$findings.Add($f) }
     return , $findings.ToArray()
 }

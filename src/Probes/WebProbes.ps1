@@ -407,8 +407,17 @@ function ConvertFrom-MspkiLdapUrl {
         $filter = [System.Uri]::UnescapeDataString($parts[3])
         if (-not $filter.StartsWith('(')) { $filter = '(' + $filter + ')' }
     }
+    $scheme = $(if ($Url -match '^(?i)ldaps:') { 'ldaps' } else { 'ldap' })
+    $hostPart = [System.Uri]::UnescapeDataString($m.Groups[1].Value)
+    $port = 0
+    $pm = [regex]::Match($hostPart, '^(.*):(\d{1,5})$')
+    if ($pm.Success) { $hostPart = $pm.Groups[1].Value; $port = [int]$pm.Groups[2].Value }
+    elseif ($scheme -eq 'ldaps') { $port = 636 }
+    if ($scheme -eq 'ldaps' -and $port -eq 0) { $port = 636 }
     return [pscustomobject]@{
-        Host      = ConvertTo-MspkiHostName ([System.Uri]::UnescapeDataString($m.Groups[1].Value))
+        Scheme    = $scheme
+        Port      = $port
+        Host      = ConvertTo-MspkiHostName $hostPart
         DN        = [System.Uri]::UnescapeDataString($parts[0])
         Attribute = $attr
         Scope     = $scope
@@ -464,7 +473,7 @@ function Get-MspkiLdapUrlContent {
         if (-not $p.Attribute -and $DefaultAttribute) { $p.Attribute = $DefaultAttribute; $r.AttributeDefaulted = $true }
         $r.Attribute = $p.Attribute
         if (-not $p.Attribute) { throw 'The LDAP URL names no attribute and no default is known for this kind of object.' }
-        $recs = @(Get-MspkiLdapObject -Server $r.Server -BaseDN $p.DN -Scope Base -Filter $p.Filter -Properties @($p.Attribute) -TimeoutSeconds $TimeoutSeconds)
+        $recs = @(Get-MspkiLdapObject -Server $r.Server -BaseDN $p.DN -Scope Base -Filter $p.Filter -Properties @($p.Attribute) -TimeoutSeconds $TimeoutSeconds -Ssl:($p.Scheme -eq 'ldaps') -Port $p.Port)
         if ($recs.Count -eq 0) { $r.Code = 'PUBLICATION_FAIL'; $r.Error = 'The object does not match the URL filter.' }
         else {
             $vals = Get-MspkiLdapValues -Record $recs[0] -Name $p.Attribute

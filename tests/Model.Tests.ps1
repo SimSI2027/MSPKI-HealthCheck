@@ -201,7 +201,7 @@ Describe 'Run context and log' {
             $r.Methods.Count | Should -Be 1
             $r.Methods[0].Outcome | Should -Be 'PermissionDenied'
             $r.StageTimings.Count | Should -Be 1
-            $r.Limits.Count | Should -Be 1
+            @($r.Limits | Where-Object { $_ -eq 'limit' }).Count | Should -Be 1   # added twice, listed once
             (Get-MspkiLogLine | Where-Object { $_ -like '*AD:RootDSE*' }).Count | Should -Be 1
             Set-MspkiRunValue -Name Forest -Value 'corp.example.test'
             (New-MspkiFinding -Category Run -Target t -Status Pass -StatusCode OK -Sources s -Message m).Forest | Should -Be 'corp.example.test'

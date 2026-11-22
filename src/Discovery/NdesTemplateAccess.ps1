@@ -150,7 +150,7 @@ function Read-MspkiNdesAccount {
         $hr = 0
         while ($null -ne $e) { if ($e -is [System.Runtime.InteropServices.COMException]) { $hr = $e.ErrorCode }; $e = $e.InnerException }
         $msg = (Get-MspkiErrorInfo $_).Message
-        if ($hr -eq -2147016656 -or $msg -match '(?i)no such object') { return [pscustomobject]@{ Account = $null; Status = 'NotFound'; Error = 'There is no such object on the server.' } }
+        if ($hr -eq -2147016656) { return [pscustomobject]@{ Account = $null; Status = 'NotFound'; Error = 'There is no such object on the server.' } }
         return [pscustomobject]@{ Account = $null; Status = 'Error'; Error = $msg }
     }
 }

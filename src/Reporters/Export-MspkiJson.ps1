@@ -41,6 +41,11 @@ function Export-MspkiJson {
         [int]$ExitCode = 0,
         [AllowNull()]$Graph = $null
     )
+    # The parsed ACL and the owner SID of every template stay out of the file (audit 2 L3); the live inventory is not changed.
+    if ($null -ne $Inventory -and $null -ne $Inventory.PSObject.Properties['Templates'] -and @($Inventory.Templates).Count -gt 0) {
+        $Inventory = $Inventory.psobject.Copy()
+        $Inventory.Templates = @($Inventory.Templates | ForEach-Object { ConvertTo-MspkiTemplateExport -Template $_ })
+    }
     $doc = [ordered]@{
         Schema        = $script:MspkiJsonSchema
         SchemaVersion = $script:MspkiGraphSchemaVersion

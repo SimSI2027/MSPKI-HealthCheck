@@ -225,6 +225,11 @@ Rules:
     it is requested, which would be a write to a remote system, so by default this request is not sent. A 401 or 403 never
     confirms an endpoint (IIS answers 401 for every path below a site that requires Windows authentication, and a WAF or an IP
     restriction answers 403 for every path). **Never send credentials there**: an authenticated request generates a challenge password.
+- Candidates from principals (audit 2 L5): a host named by an account that holds Enroll on an NDES RA template counts as a candidate, because the evidence is
+  in AD (the template ACL in the Configuration partition, and the account's own dNSHostName or HTTP/ SPNs). The same holds for the hosts of the members
+  of such a group (one level, at most 25 members) and for the computers allowed to use such a gMSA: the group or gMSA is the authoritative
+  evidence, the member is the account that names the host, and the graph links the host from that member. These hosts get only the two
+  anonymous GETs of this section. BUILTIN\Users and Anonymous Logon are broad principals (they name no host and are not read as candidates).
 - Classifications: ConfirmedEndpoint · ReferencedEndpoint · ProbableCandidate · UnconfirmedCandidate · NotDiscovered.
   `ConfirmedEndpoint` needs a SCEP capability list from GetCACaps or a certificate from GetCACert. `NotDiscovered` is `Inferred` when a CA
   database was read and `Unknown` when none could be read; it is never `Confirmed`.
