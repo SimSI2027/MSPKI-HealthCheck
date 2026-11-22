@@ -364,3 +364,8 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   evidence); Deny ACEs for a containing well-known group (Everyone, Authenticated Users) make a match an Inferred review item.
 - Red then green: "Audit 2 M11" block in tests/TemplateSecurity.Tests.ps1. Lab run (normal user): 99 findings, exit 6, no difference.
 - Open from M11: the ESC4 single-attribute WriteProperty rule (Batch B). Batch A is complete; next is Batch B (AUDIT-2.md order).
+
+## Audit 2 Batch B, M1 (2026-11-22): AIA serving the old CA certificate - DONE (929 tests)
+- Identity with a known CA certificate counts as proof of the key only when no referencing certificate is known; with a
+  referencing certificate its signature must verify (KeyMismatch otherwise). Red then green: "Audit 2 M1" in tests/Audit2.Results.Tests.ps1.
+- Next in Batch B: M2 (CES/CEP 401/403/3xx), M7 (GUI Inferred), M4, M5, M3, M6, M8, M12, M13, M14, fixture rename, Lows.

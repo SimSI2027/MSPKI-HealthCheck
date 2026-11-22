@@ -421,6 +421,7 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | M9 | Fixed | `4aa6a91` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M9: a redirect or a TLS handshake never goes to a host that no trusted evidence named" (5 tests); audit 1 test "looks at the host of the failing hop ..." now registers the HTTPS host as a lead first |
 | H2 | Fixed | `59a2f72` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2: ESC3 in a forest modelled on the default templates" (10 tests: default forest does not fire; broad agent template + default User fires; two targets counted; 7 negative cases, one condition each) |
 | M11 | Partially fixed: confidence and Deny ACEs done; the ESC4 rule that counts a WriteProperty on any single attribute is not changed (Batch B) | `3aad084` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 M11: a permission-based template finding is never Confirmed while effective permissions are not computed" (6 tests); two older assertions updated to the new rule and wording |
+| M1 | Fixed | `PENDING` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M1" (2 tests: the old root is known too and the subordinate needs the new key gives KeyMismatch; the new root is still Verified) |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -485,3 +486,9 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
   one.
 - Still open from M11 (Batch B): the ESC4 write check counts a `WriteProperty` limited to one harmless attribute as a write.
   REQUIREMENTS 5.5 now states the confidence rule and the full ESC3 conditions (from H2).
+
+### M1 notes (Batch B)
+- `Test-MspkiAiaCertificateMatch` now collects the referencing certificates first. Identity with a known CA certificate (same
+  thumbprint) proves the key only when no referencing certificate is known; otherwise the signature of a referencing certificate
+  must verify with the downloaded key. After a renewal the old CA certificate is known too, so it no longer passes at the
+  location of the new one (KeyMismatch, Warning, Confirmed).

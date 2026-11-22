@@ -61,16 +61,18 @@ function Test-MspkiAiaCertificateMatch {
         [void]$lines.Add(('Expected subject: {0}' -f ($ExpectedIssuer -join ' | ')))
         return [pscustomobject]@{ Result = 'NameMismatch'; Lines = @($lines) }
     }
-    if ($KnownCertificates.ContainsKey($Downloaded.Thumbprint)) {
-        [void]$lines.Add('Key check: identical to a CA certificate that is known from Active Directory or from the CA (same thumbprint).')
-        return [pscustomobject]@{ Result = 'Verified'; Lines = @($lines) }
-    }
     $refs = New-Object System.Collections.ArrayList
     foreach ($s in @($Lead.Sources)) {
         if ($s -match '^Cert:(?<tp>[0-9A-Fa-f]+):') {
             $tp = $Matches['tp'].ToUpperInvariant()
             if ($KnownCertificates.ContainsKey($tp)) { [void]$refs.Add($KnownCertificates[$tp]) }
         }
+    }
+    # Identity with a known CA certificate proves the key only when no referencing certificate is known. Every key generation of a
+    # CA is "known", so after a renewal the old CA certificate would otherwise pass at the location of the new one (audit 2 M1).
+    if ($refs.Count -eq 0 -and $KnownCertificates.ContainsKey($Downloaded.Thumbprint)) {
+        [void]$lines.Add('Key check: identical to a CA certificate that is known from Active Directory or from the CA (same thumbprint).')
+        return [pscustomobject]@{ Result = 'Verified'; Lines = @($lines) }
     }
     $verified = $false; $bad = 0; $unknown = 0
     foreach ($ref in $refs) {
