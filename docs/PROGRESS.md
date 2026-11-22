@@ -321,3 +321,11 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - README (Objects, PKI services, known limitations) and docs/TESTING.md (checks 6-8) updated. ROADMAP: every work package DONE.
 - Open: this Claude terminal runs elevated (High integrity); normal-user runs were made with `runas /trustlevel:0x20000`. One full test run
   earlier today had a flaky LocalEvidence failure that never repeated.
+
+## Audit 2 after WP1-WP8 (docs/AUDIT-2.md) - done, no code changed (886 tests pass)
+- Whole-project audit at commit `50a26a2`: 2 High, 14 Medium, 19 Low, each with file and line. Two defects confirmed at runtime
+  (a 3xx with redirects off is recorded as "no answer"; the retrieval-order check misses URLs spelled differently in the certificate).
+- High: Freshest CRL links in unverified downloaded CRLs become leads (LDAP binds to any forest-zone name); ESC3 ignores schema
+  version 1 targets. Several Medium false Pass / Confirmed results survive because unit tests compare a value with itself.
+- No real names or personal details in the tree or the 39 commits (also checked against the private lab facts, counts only).
+- Next: fix in the order at the end of AUDIT-2.md, each with a test that fails on today's code.
