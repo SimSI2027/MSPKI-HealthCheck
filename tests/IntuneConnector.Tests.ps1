@@ -60,7 +60,7 @@ Describe 'Matching local data against the signatures' {
             $svc = @([pscustomobject]@{ Name = 'Other'; DisplayName = 'Other'; State = 'Running'; StartMode = 'Auto'; ExecutablePath = 'C:\Program Files\Microsoft Intune\NDESConnector\x.exe' })
             $prod = @([pscustomobject]@{ DisplayName = 'Certificate Connector for Microsoft Intune'; DisplayVersion = '6.0.1'; Publisher = 'Example'; InstallLocation = '' },
                       [pscustomobject]@{ DisplayName = 'Example Editor'; DisplayVersion = '1.0'; Publisher = 'Example'; InstallLocation = 'C:\Example' })
-            $crt = @([pscustomobject]@{ Subject = 'CN=NDES01-MSCEP-RA, O=Example'; Issuer = 'CN=Example Issuing CA'; Thumbprint = 'AA11'; NotAfter = '2027-01-01T00:00:00Z'; FriendlyName = '' },
+            $crt = @([pscustomobject]@{ Subject = 'CN=SCEP-GW01-MSCEP-RA, O=Example'; Issuer = 'CN=Example Issuing CA'; Thumbprint = 'AA11'; NotAfter = '2027-01-01T00:00:00Z'; FriendlyName = '' },
                      [pscustomobject]@{ Subject = 'CN=www.example.test'; Issuer = 'CN=Example Issuing CA'; Thumbprint = 'BB22'; NotAfter = '2027-01-01T00:00:00Z'; FriendlyName = '' })
             $x = Find-MspkiIntuneConnectorEvidence -Services $svc -Products $prod -Certificates $crt; $x }
         @($r).Count | Should -Be 3
@@ -96,7 +96,7 @@ Describe 'Intune connector findings' {
     }
 
     It 'does not call weak matches a detected connector (Inferred, "possible")' {
-        $ev = @([pscustomobject]@{ Kind = 'Certificate'; Strength = 'Pattern'; Text = 'Certificate CN=NDES01-MSCEP-RA [AA11]'; Basis = 'weak' })
+        $ev = @([pscustomobject]@{ Kind = 'Certificate'; Strength = 'Pattern'; Text = 'Certificate CN=SCEP-GW01-MSCEP-RA [AA11]'; Basis = 'weak' })
         $f = & $script:run (& $script:local $ev)
         $f[0].Confidence | Should -Be 'Inferred'
         $f[0].Message | Should -Match 'Possible'
@@ -120,11 +120,11 @@ Describe 'Intune connector findings' {
     }
 
     It 'reports an NDES host other than this computer as UNSUPPORTED with the Microsoft Graph note, and does not assume it is a connector host' {
-        $ndes = @([pscustomobject]@{ Host = 'ndes01.corp.example.test'; Classification = 'ConfirmedEndpoint'; Confirmed = $true })
+        $ndes = @([pscustomobject]@{ Host = 'scep-gw01.corp.example.test'; Classification = 'ConfirmedEndpoint'; Confirmed = $true })
         $f = & $script:run (& $script:local) $ndes
         $u = @($f | Where-Object { $_.StatusCode -eq 'UNSUPPORTED' })
         $u.Count | Should -Be 1
-        $u[0].Target | Should -Be 'ndes01.corp.example.test'
+        $u[0].Target | Should -Be 'scep-gw01.corp.example.test'
         $u[0].Status | Should -Be 'Skipped'
         $u[0].Message | Should -Match 'remote connector discovery is not reliable without Microsoft Graph'
         $u[0].Notes | Should -Match 'not assumed to be a connector host'
@@ -133,7 +133,7 @@ Describe 'Intune connector findings' {
 
     It 'does not report UNSUPPORTED for this computer or for NDES candidates that are not probable' {
         $ndes = @([pscustomobject]@{ Host = 'examplehost01.corp.example.test'; Classification = 'ConfirmedEndpoint'; Confirmed = $true },
-                  [pscustomobject]@{ Host = 'ndes09'; Classification = 'UnconfirmedCandidate'; Confirmed = $false })
+                  [pscustomobject]@{ Host = 'scep-gw09'; Classification = 'UnconfirmedCandidate'; Confirmed = $false })
         $f = & $script:run (& $script:local) $ndes
         @($f | Where-Object { $_.StatusCode -eq 'UNSUPPORTED' }).Count | Should -Be 0
         ($f[0].Evidence -join "`n") | Should -Match 'This computer is also an NDES host \(ConfirmedEndpoint\)'

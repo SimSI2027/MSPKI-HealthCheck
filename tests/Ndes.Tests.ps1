@@ -58,16 +58,16 @@ Describe 'NDES requests: the table and its gate' {
 
     It 'builds the URLs itself from a validated host, scheme and port' {
         InModuleScope MspkiHealthCheck {
-            New-MspkiNdesRequestUrl -Name GetCACaps -HostName 'NDES01.Corp.Example.Test' -Scheme https | Should -Be 'https://ndes01.corp.example.test/certsrv/mscep/mscep.dll?operation=GetCACaps'
-            New-MspkiNdesRequestUrl -Name GetCACert -HostName 'ndes01.corp.example.test' -Scheme http -Port 8080 | Should -Be 'http://ndes01.corp.example.test:8080/certsrv/mscep/mscep.dll?operation=GetCACert'
-            New-MspkiNdesRequestUrl -Name AdminAnonymous -HostName 'ndes01.corp.example.test' -Scheme https -Port 443 | Should -Be 'https://ndes01.corp.example.test/certsrv/mscep_admin/'
+            New-MspkiNdesRequestUrl -Name GetCACaps -HostName 'SCEP-GW01.Corp.Example.Test' -Scheme https | Should -Be 'https://scep-gw01.corp.example.test/certsrv/mscep/mscep.dll?operation=GetCACaps'
+            New-MspkiNdesRequestUrl -Name GetCACert -HostName 'scep-gw01.corp.example.test' -Scheme http -Port 8080 | Should -Be 'http://scep-gw01.corp.example.test:8080/certsrv/mscep/mscep.dll?operation=GetCACert'
+            New-MspkiNdesRequestUrl -Name AdminAnonymous -HostName 'scep-gw01.corp.example.test' -Scheme https -Port 443 | Should -Be 'https://scep-gw01.corp.example.test/certsrv/mscep_admin/'
         }
     }
 
     It 'refuses every request name that is not in the table (the enrolling operation and all others)' {
         foreach ($name in @('PKIOperation', 'GetNextCACert', 'GetCert', 'GetCRL', 'GetCACaps/../x', 'getcacaps ', '', 'admin')) {
-            { InModuleScope MspkiHealthCheck -Parameters @{ N = $name } { param($N) New-MspkiNdesRequestUrl -Name $N -HostName 'ndes01.corp.example.test' } } | Should -Throw -Because ("'{0}'" -f $name)
-            { InModuleScope MspkiHealthCheck -Parameters @{ N = $name } { param($N) Send-MspkiNdesRequest -Name $N -HostName 'ndes01.corp.example.test' } } | Should -Throw -Because ("'{0}'" -f $name)
+            { InModuleScope MspkiHealthCheck -Parameters @{ N = $name } { param($N) New-MspkiNdesRequestUrl -Name $N -HostName 'scep-gw01.corp.example.test' } } | Should -Throw -Because ("'{0}'" -f $name)
+            { InModuleScope MspkiHealthCheck -Parameters @{ N = $name } { param($N) Send-MspkiNdesRequest -Name $N -HostName 'scep-gw01.corp.example.test' } } | Should -Throw -Because ("'{0}'" -f $name)
         }
     }
 
@@ -85,8 +85,8 @@ Describe 'NDES requests: the table and its gate' {
 
     It 'recognises URLs that point at a SCEP path' {
         InModuleScope MspkiHealthCheck {
-            Test-MspkiNdesUrl 'http://ndes01.corp.example.test/certsrv/mscep/mscep.dll' | Should -BeTrue
-            Test-MspkiNdesUrl 'https://ndes01.corp.example.test/CertSrv/mscep_admin/' | Should -BeTrue
+            Test-MspkiNdesUrl 'http://scep-gw01.corp.example.test/certsrv/mscep/mscep.dll' | Should -BeTrue
+            Test-MspkiNdesUrl 'https://scep-gw01.corp.example.test/CertSrv/mscep_admin/' | Should -BeTrue
             Test-MspkiNdesUrl 'http://pki.corp.example.test/CertEnroll/ca.crl' | Should -BeFalse
         }
     }
@@ -277,31 +277,31 @@ Describe 'NDES requests: what a server really receives' {
 Describe 'NDES evidence from the CA database' {
     It 'derives host candidates from computer accounts and RA certificate names, and builds the DNS name from AD' {
         $rows = @(
-            @{ RequestID = '11'; RequesterName = 'CORP\NDES01$'; CommonName = 'NDES01-MSCEP-RA'; CertificateTemplate = 'EnrollmentAgentOffline'; NotAfter = '2027-01-01T00:00:00Z'; TemplateKey = 'EnrollmentAgentOffline' },
-            @{ RequestID = '12'; RequesterName = 'CORP\NDES01$'; CommonName = 'NDES01-MSCEP-RA'; CertificateTemplate = 'CEPEncryption'; NotAfter = '2027-02-01T00:00:00Z'; TemplateKey = 'CEPEncryption' },
-            @{ RequestID = '13'; RequesterName = 'CORP\svc-ndes'; CommonName = 'NDES02-MSCEP-RA (2)'; CertificateTemplate = 'CEPEncryption'; NotAfter = '2026-12-01T00:00:00Z'; TemplateKey = 'CEPEncryption' },
+            @{ RequestID = '11'; RequesterName = 'CORP\SCEP-GW01$'; CommonName = 'SCEP-GW01-MSCEP-RA'; CertificateTemplate = 'EnrollmentAgentOffline'; NotAfter = '2027-01-01T00:00:00Z'; TemplateKey = 'EnrollmentAgentOffline' },
+            @{ RequestID = '12'; RequesterName = 'CORP\SCEP-GW01$'; CommonName = 'SCEP-GW01-MSCEP-RA'; CertificateTemplate = 'CEPEncryption'; NotAfter = '2027-02-01T00:00:00Z'; TemplateKey = 'CEPEncryption' },
+            @{ RequestID = '13'; RequesterName = 'CORP\svc-ndes'; CommonName = 'SCEP-GW02-MSCEP-RA (2)'; CertificateTemplate = 'CEPEncryption'; NotAfter = '2026-12-01T00:00:00Z'; TemplateKey = 'CEPEncryption' },
             @{ RequestID = '14'; RequesterName = 'CORP\alice'; CommonName = 'alice'; CertificateTemplate = 'CEPEncryption'; NotAfter = '2026-12-01T00:00:00Z'; TemplateKey = 'CEPEncryption' })
         $c = InModuleScope MspkiHealthCheck -Parameters @{ R = $rows } { param($R) $x = Get-MspkiNdesHostCandidate -Rows $R -CaName 'Example Issuing CA' -DomainMap @{ CORP = 'corp.example.test' } -ForestDomains @('corp.example.test', 'child.corp.example.test'); $x }
         @($c).Count | Should -Be 2
-        $n1 = @($c | Where-Object { $_.ShortName -eq 'NDES01' })[0]
-        $n1.Fqdn | Should -Be 'ndes01.corp.example.test'
+        $n1 = @($c | Where-Object { $_.ShortName -eq 'SCEP-GW01' })[0]
+        $n1.Fqdn | Should -Be 'scep-gw01.corp.example.test'
         $n1.DomainSource | Should -Match 'crossRef'
         $n1.Rows | Should -Be 2
         @($n1.Signals).Count | Should -Be 2
         @($n1.Templates) | Should -Contain 'CEPEncryption'
         @($n1.Templates) | Should -Contain 'EnrollmentAgentOffline'
         $n1.LatestNotAfter | Should -Be '2027-02-01T00:00:00Z'
-        $n2 = @($c | Where-Object { $_.ShortName -eq 'NDES02' })[0]
+        $n2 = @($c | Where-Object { $_.ShortName -eq 'SCEP-GW02' })[0]
         @($n2.Signals).Count | Should -Be 1
-        $n2.Fqdn | Should -Be 'ndes02.corp.example.test'
+        $n2.Fqdn | Should -Be 'scep-gw02.corp.example.test'
     }
 
     It 'builds no DNS name when the domain cannot be determined (several domains, no crossRef match)' {
-        $rows = @(@{ RequestID = '1'; RequesterName = 'OTHER\NDES03$'; CommonName = 'NDES03-MSCEP-RA'; TemplateKey = 'CEPEncryption' })
+        $rows = @(@{ RequestID = '1'; RequesterName = 'OTHER\SCEP-GW03$'; CommonName = 'SCEP-GW03-MSCEP-RA'; TemplateKey = 'CEPEncryption' })
         $c = InModuleScope MspkiHealthCheck -Parameters @{ R = $rows } { param($R) $x = Get-MspkiNdesHostCandidate -Rows $R -DomainMap @{ CORP = 'corp.example.test' } -ForestDomains @('corp.example.test', 'child.corp.example.test'); $x }
         @($c)[0].Fqdn | Should -Be ''
         $one = InModuleScope MspkiHealthCheck -Parameters @{ R = $rows } { param($R) $x = Get-MspkiNdesHostCandidate -Rows $R -DomainMap @{} -ForestDomains @('corp.example.test'); $x }
-        @($one)[0].Fqdn | Should -Be 'ndes03.corp.example.test'
+        @($one)[0].Fqdn | Should -Be 'scep-gw03.corp.example.test'
     }
 
     It 'returns no candidate for rows that show no NDES signal' {
@@ -336,11 +336,11 @@ Describe 'NDES evidence: outcomes of reading the CA database' {
     }
 
     It 'returns the rows and an information finding when the database could be read' {
-        Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript { [pscustomobject]@{ Completed = $true; TimedOut = $false; ElapsedMs = 5; Errors = @(); Output = @(@{ Rows = (New-Object System.Collections.ArrayList (, @(@{ 'request.requestername' = 'CORP\NDES01$'; commonname = 'NDES01-MSCEP-RA'; TemplateKey = 'CEPEncryption' }))); Errors = @(); Fatal = $null }) } }
+        Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript { [pscustomobject]@{ Completed = $true; TimedOut = $false; ElapsedMs = 5; Errors = @(); Output = @(@{ Rows = (New-Object System.Collections.ArrayList (, @(@{ 'request.requestername' = 'CORP\SCEP-GW01$'; commonname = 'SCEP-GW01-MSCEP-RA'; TemplateKey = 'CEPEncryption' }))); Errors = @(); Fatal = $null }) } }
         $r = & $script:ev
         $r.Read | Should -BeTrue
         @($r.Rows).Count | Should -Be 1
-        $r.Rows[0].Requester | Should -Be 'CORP\NDES01$'
+        $r.Rows[0].Requester | Should -Be 'CORP\SCEP-GW01$'
         $r.Findings[0].Status | Should -Be 'Information'
         $r.Findings[0].Notes | Should -Match 'only its own requests'
     }
@@ -419,19 +419,19 @@ Describe 'NDES analysis' {
     }
 
     It 'classifies a CA-database candidate whose name resolves as ProbableCandidate and probes it only through its lead' {
-        $rows = @([pscustomobject]@{ RequestId = '1'; Requester = 'CORP\NDES01$'; CommonName = 'NDES01-MSCEP-RA'; Template = 'CEPEncryption'; NotBefore = ''; NotAfter = '2027-01-01T00:00:00Z'; TemplateKey = 'CEPEncryption' })
+        $rows = @([pscustomobject]@{ RequestId = '1'; Requester = 'CORP\SCEP-GW01$'; CommonName = 'SCEP-GW01-MSCEP-RA'; Template = 'CEPEncryption'; NotBefore = ''; NotAfter = '2027-01-01T00:00:00Z'; TemplateKey = 'CEPEncryption' })
         Mock -ModuleName MspkiHealthCheck Get-MspkiNdesCaEvidence { [pscustomobject]@{ Rows = $rows; Read = $true; Findings = @() } }
         Mock -ModuleName MspkiHealthCheck Resolve-MspkiDnsName { [pscustomobject]@{ Status = 'Pass'; StatusCode = 'OK'; Error = ''; Addresses = @('192.0.2.50'); ElapsedMs = 0 } }
         Mock -ModuleName MspkiHealthCheck Test-MspkiTcpPort { [pscustomobject]@{ Status = 'Fail'; StatusCode = 'TCP_FAIL'; Error = 'refused'; ElapsedMs = 0 } }
         $r = & $script:run (& $script:disc @($script:caObj))
-        $r.Hosts[0].Host | Should -Be 'ndes01.corp.example.test'
+        $r.Hosts[0].Host | Should -Be 'scep-gw01.corp.example.test'
         $r.Hosts[0].Classification | Should -Be 'ProbableCandidate'
-        $f = @($r.Findings | Where-Object { $_.Target -eq 'ndes01.corp.example.test' })[0]
+        $f = @($r.Findings | Where-Object { $_.Target -eq 'scep-gw01.corp.example.test' })[0]
         $f.Status | Should -Be 'Information'
         $f.Confidence | Should -Be 'Inferred'
         $f.TcpStatus | Should -Be 'Fail'
         ($f.Evidence -join "`n") | Should -Match 'CA database: 1 issued certificate\(s\) from CEPEncryption'
-        ($f.Evidence -join "`n") | Should -Match 'Signal: requester is the computer account CORP\\NDES01\$'
+        ($f.Evidence -join "`n") | Should -Match 'Signal: requester is the computer account CORP\\SCEP-GW01\$'
         ($f.Evidence -join "`n") | Should -Match 'a constructed name'
         $leads = @(InModuleScope MspkiHealthCheck { Get-MspkiLead -Kind NDES })
         $leads.Count | Should -Be 1
@@ -440,14 +440,14 @@ Describe 'NDES analysis' {
     }
 
     It 'sends nothing to a candidate whose constructed name does not resolve (UnconfirmedCandidate)' {
-        $rows = @([pscustomobject]@{ RequestId = '1'; Requester = 'CORP\NDES01$'; CommonName = 'NDES01-MSCEP-RA'; Template = 'CEPEncryption'; NotBefore = ''; NotAfter = ''; TemplateKey = 'CEPEncryption' })
+        $rows = @([pscustomobject]@{ RequestId = '1'; Requester = 'CORP\SCEP-GW01$'; CommonName = 'SCEP-GW01-MSCEP-RA'; Template = 'CEPEncryption'; NotBefore = ''; NotAfter = ''; TemplateKey = 'CEPEncryption' })
         Mock -ModuleName MspkiHealthCheck Get-MspkiNdesCaEvidence { [pscustomobject]@{ Rows = $rows; Read = $true; Findings = @() } }
         Mock -ModuleName MspkiHealthCheck Resolve-MspkiDnsName { [pscustomobject]@{ Status = 'Fail'; StatusCode = 'DNS_FAIL'; Error = 'no such host'; Addresses = @(); ElapsedMs = 0 } }
         Mock -ModuleName MspkiHealthCheck Test-MspkiTcpPort { throw 'must not be called' }
         Mock -ModuleName MspkiHealthCheck Invoke-MspkiHttpGet { throw 'must not be called' }
         $r = & $script:run (& $script:disc @($script:caObj))
         $r.Hosts[0].Classification | Should -Be 'UnconfirmedCandidate'
-        $f = @($r.Findings | Where-Object { $_.Target -eq 'ndes01.corp.example.test' })[0]
+        $f = @($r.Findings | Where-Object { $_.Target -eq 'scep-gw01.corp.example.test' })[0]
         $f.StatusCode | Should -Be 'DNS_FAIL'
         $f.Status | Should -Be 'Information'
         $f.Message | Should -Match 'Nothing was sent'
@@ -455,18 +455,18 @@ Describe 'NDES analysis' {
     }
 
     It 'sends nothing to a candidate for which no DNS name can be built' {
-        $rows = @([pscustomobject]@{ RequestId = '1'; Requester = 'OTHER\NDES09$'; CommonName = 'NDES09-MSCEP-RA'; Template = 'CEPEncryption'; NotBefore = ''; NotAfter = ''; TemplateKey = 'CEPEncryption' })
+        $rows = @([pscustomobject]@{ RequestId = '1'; Requester = 'OTHER\SCEP-GW09$'; CommonName = 'SCEP-GW09-MSCEP-RA'; Template = 'CEPEncryption'; NotBefore = ''; NotAfter = ''; TemplateKey = 'CEPEncryption' })
         Mock -ModuleName MspkiHealthCheck Get-MspkiNdesCaEvidence { [pscustomobject]@{ Rows = $rows; Read = $true; Findings = @() } }
         Mock -ModuleName MspkiHealthCheck Invoke-MspkiHttpGet { throw 'must not be called' }
         $r = & $script:run (& $script:disc @($script:caObj) @('corp.example.test', 'child.corp.example.test'))
         $r.Hosts[0].Classification | Should -Be 'UnconfirmedCandidate'
-        $f = @($r.Findings | Where-Object { $_.Target -eq 'NDES09' })[0]
+        $f = @($r.Findings | Where-Object { $_.Target -eq 'SCEP-GW09' })[0]
         $f.StatusCode | Should -Be 'NOT_DISCOVERED'
         $f.Confidence | Should -Be 'Inferred'
     }
 
     It 'never presents a candidate as Confirmed' {
-        $rows = @([pscustomobject]@{ RequestId = '1'; Requester = 'CORP\NDES01$'; CommonName = 'NDES01-MSCEP-RA'; Template = 'CEPEncryption'; NotBefore = ''; NotAfter = ''; TemplateKey = 'CEPEncryption' })
+        $rows = @([pscustomobject]@{ RequestId = '1'; Requester = 'CORP\SCEP-GW01$'; CommonName = 'SCEP-GW01-MSCEP-RA'; Template = 'CEPEncryption'; NotBefore = ''; NotAfter = ''; TemplateKey = 'CEPEncryption' })
         Mock -ModuleName MspkiHealthCheck Get-MspkiNdesCaEvidence { [pscustomobject]@{ Rows = $rows; Read = $true; Findings = @() } }
         Mock -ModuleName MspkiHealthCheck Resolve-MspkiDnsName { [pscustomobject]@{ Status = 'Fail'; StatusCode = 'DNS_FAIL'; Error = 'no such host'; Addresses = @(); ElapsedMs = 0 } }
         $r = & $script:run (& $script:disc @($script:caObj))

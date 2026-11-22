@@ -45,25 +45,25 @@ Describe 'NDES RA templates' {
 Describe 'NDES accounts and the hosts they name' {
     It 'reads a service account with two HTTP SPNs as two separate values and keeps the full name only' {
         $rec = @{ objectclass = @('top', 'person', 'organizationalPerson', 'user'); samaccountname = @('svc-ndes'); distinguishedname = @('CN=svc-ndes,OU=Service,DC=corp,DC=example,DC=test')
-            serviceprincipalname = @('HTTP/ndes01.corp.example.test', 'HTTP/NDES01'); useraccountcontrol = @(66048) }
+            serviceprincipalname = @('HTTP/scep-gw01.corp.example.test', 'HTTP/SCEP-GW01'); useraccountcontrol = @(66048) }
         $a = InModuleScope MspkiHealthCheck -Parameters @{ R = $rec } { param($R) ConvertFrom-MspkiNdesAccountRecord -Record $R }
         $a.Class | Should -Be 'user'
         $a.Domain | Should -Be 'corp.example.test'
         $a.Spns.Count | Should -Be 2
-        $a.HttpSpnHosts | Should -Be @('ndes01.corp.example.test', 'ndes01')
+        $a.HttpSpnHosts | Should -Be @('scep-gw01.corp.example.test', 'scep-gw01')
         $h = @(InModuleScope MspkiHealthCheck -Parameters @{ A = $a } { param($A) Get-MspkiNdesAccountHostName -Account $A })
         $h.Count | Should -Be 1
-        $h[0].Host | Should -Be 'ndes01.corp.example.test'
+        $h[0].Host | Should -Be 'scep-gw01.corp.example.test'
         $h[0].Constructed | Should -BeFalse
     }
 
     It 'completes a short SPN with the account domain (constructed), uses dNSHostName of a computer, and gives nothing without SPN' {
         InModuleScope MspkiHealthCheck {
-            $short = [pscustomobject]@{ Class = 'user'; SamAccountName = 'svc'; Domain = 'corp.example.test'; DnsHostName = ''; HttpSpnHosts = @('ndes02') }
+            $short = [pscustomobject]@{ Class = 'user'; SamAccountName = 'svc'; Domain = 'corp.example.test'; DnsHostName = ''; HttpSpnHosts = @('scep-gw02') }
             $h = @(Get-MspkiNdesAccountHostName -Account $short)
-            $h[0].Host | Should -Be 'ndes02.corp.example.test'
+            $h[0].Host | Should -Be 'scep-gw02.corp.example.test'
             $h[0].Constructed | Should -BeTrue
-            $pc = [pscustomobject]@{ Class = 'computer'; SamAccountName = 'NDES03$'; Domain = 'corp.example.test'; DnsHostName = 'ndes03.corp.example.test'; HttpSpnHosts = @() }
+            $pc = [pscustomobject]@{ Class = 'computer'; SamAccountName = 'SCEP-GW03$'; Domain = 'corp.example.test'; DnsHostName = 'scep-gw03.corp.example.test'; HttpSpnHosts = @() }
             (@(Get-MspkiNdesAccountHostName -Account $pc))[0].How | Should -Match 'dNSHostName'
             $none = [pscustomobject]@{ Class = 'user'; SamAccountName = 'ra'; Domain = 'corp.example.test'; DnsHostName = ''; HttpSpnHosts = @() }
             @(Get-MspkiNdesAccountHostName -Account $none).Count | Should -Be 0
@@ -84,16 +84,16 @@ Describe 'NDES accounts and the hosts they name' {
         $r = InModuleScope MspkiHealthCheck -Parameters @{ I = $inv; D = $script:dom } {
             param($I, $D)
             Mock Read-MspkiNdesAccount {
-                if ($Sid -like '*-1119') { return [pscustomobject]@{ Status = 'Found'; Error = ''; Account = [pscustomobject]@{ Class = 'user'; SamAccountName = 'svc-ndes'; Domain = 'corp.example.test'; DnsHostName = ''; HttpSpnHosts = @('ndes01.corp.example.test'); Spns = @('HTTP/ndes01.corp.example.test'); Members = @(); AllowedSids = @(); Disabled = $false; DistinguishedName = 'CN=svc-ndes,DC=corp,DC=example,DC=test' } } }
-                if ($Sid -like '*-1400') { return [pscustomobject]@{ Status = 'Found'; Error = ''; Account = [pscustomobject]@{ Class = 'group'; SamAccountName = 'NDES Servers'; Domain = 'corp.example.test'; DnsHostName = ''; HttpSpnHosts = @(); Spns = @(); Members = @('CN=NDES02,OU=Servers,DC=corp,DC=example,DC=test'); AllowedSids = @(); Disabled = $false; DistinguishedName = 'CN=NDES Servers,DC=corp,DC=example,DC=test' } } }
-                if ($DistinguishedName -like 'CN=NDES02*') { return [pscustomobject]@{ Status = 'Found'; Error = ''; Account = [pscustomobject]@{ Class = 'computer'; SamAccountName = 'NDES02$'; Domain = 'corp.example.test'; DnsHostName = 'ndes02.corp.example.test'; HttpSpnHosts = @(); Spns = @(); Members = @(); AllowedSids = @(); Disabled = $false; DistinguishedName = 'CN=NDES02,OU=Servers,DC=corp,DC=example,DC=test' } } }
+                if ($Sid -like '*-1119') { return [pscustomobject]@{ Status = 'Found'; Error = ''; Account = [pscustomobject]@{ Class = 'user'; SamAccountName = 'svc-ndes'; Domain = 'corp.example.test'; DnsHostName = ''; HttpSpnHosts = @('scep-gw01.corp.example.test'); Spns = @('HTTP/scep-gw01.corp.example.test'); Members = @(); AllowedSids = @(); Disabled = $false; DistinguishedName = 'CN=svc-ndes,DC=corp,DC=example,DC=test' } } }
+                if ($Sid -like '*-1400') { return [pscustomobject]@{ Status = 'Found'; Error = ''; Account = [pscustomobject]@{ Class = 'group'; SamAccountName = 'NDES Servers'; Domain = 'corp.example.test'; DnsHostName = ''; HttpSpnHosts = @(); Spns = @(); Members = @('CN=SCEP-GW02,OU=Servers,DC=corp,DC=example,DC=test'); AllowedSids = @(); Disabled = $false; DistinguishedName = 'CN=NDES Servers,DC=corp,DC=example,DC=test' } } }
+                if ($DistinguishedName -like 'CN=SCEP-GW02*') { return [pscustomobject]@{ Status = 'Found'; Error = ''; Account = [pscustomobject]@{ Class = 'computer'; SamAccountName = 'SCEP-GW02$'; Domain = 'corp.example.test'; DnsHostName = 'scep-gw02.corp.example.test'; HttpSpnHosts = @(); Spns = @(); Members = @(); AllowedSids = @(); Disabled = $false; DistinguishedName = 'CN=SCEP-GW02,OU=Servers,DC=corp,DC=example,DC=test' } } }
                 return [pscustomobject]@{ Status = 'NotFound'; Error = 'There is no such object on the server.'; Account = $null }
             }
             Mock Get-MspkiLdapObject { throw 'no direct searches' }
             Find-MspkiNdesTemplateAccountHost -Inventory $I -TimeoutSeconds 3
         }
-        @($r.Hosts | ForEach-Object { $_.Host }) | Should -Be @('ndes01.corp.example.test', 'ndes02.corp.example.test')
-        ($r.Hosts | Where-Object { $_.Host -eq 'ndes02.corp.example.test' }).How[0] | Should -Match 'member of the group NDES Servers'
+        @($r.Hosts | ForEach-Object { $_.Host }) | Should -Be @('scep-gw01.corp.example.test', 'scep-gw02.corp.example.test')
+        ($r.Hosts | Where-Object { $_.Host -eq 'scep-gw02.corp.example.test' }).How[0] | Should -Match 'member of the group NDES Servers'
         ($r.Principals | Where-Object { $_.Sid -like '*-1135' }).Lookup | Should -Be 'NotFound'
         $r.Lookups | Should -Be 4
         $r.Server | Should -Be 'dc01.corp.example.test'
@@ -124,21 +124,21 @@ Describe 'NDES analysis through template permissions' {
                 EnterpriseCAs = @([pscustomobject]@{ Name = 'Example Issuing CA'; Config = 'ca01.corp.example.test\Example Issuing CA'; Templates = @('ExampleNdesSigning'); Properties = $null }) } }
         $r = InModuleScope MspkiHealthCheck -Parameters @{ D = $d } {
             param($D)
-            Mock Read-MspkiNdesAccount { [pscustomobject]@{ Status = 'Found'; Error = ''; Account = [pscustomobject]@{ Class = 'user'; SamAccountName = 'svc-ndes'; Domain = 'corp.example.test'; DnsHostName = ''; HttpSpnHosts = @('ndes01.corp.example.test'); Spns = @('HTTP/ndes01.corp.example.test'); Members = @(); AllowedSids = @(); Disabled = $false; DistinguishedName = 'CN=svc-ndes,DC=corp,DC=example,DC=test' } } }
+            Mock Read-MspkiNdesAccount { [pscustomobject]@{ Status = 'Found'; Error = ''; Account = [pscustomobject]@{ Class = 'user'; SamAccountName = 'svc-ndes'; Domain = 'corp.example.test'; DnsHostName = ''; HttpSpnHosts = @('scep-gw01.corp.example.test'); Spns = @('HTTP/scep-gw01.corp.example.test'); Members = @(); AllowedSids = @(); Disabled = $false; DistinguishedName = 'CN=svc-ndes,DC=corp,DC=example,DC=test' } } }
             Mock Get-MspkiNetBiosDomainMap { @{} }
             Mock Invoke-MspkiHttpGet { throw 'must not be called' }
             Invoke-MspkiNdesAnalysis -Discovery $D -TimeoutSeconds 3 -SkipNetwork
         }
         @($r.Hosts).Count | Should -Be 1
-        $r.Hosts[0].Host | Should -Be 'ndes01.corp.example.test'
+        $r.Hosts[0].Host | Should -Be 'scep-gw01.corp.example.test'
         $r.Hosts[0].Classification | Should -Be 'ProbableCandidate'
         @($r.Findings | Where-Object { $_.Message -like 'Classification NotDiscovered*' }).Count | Should -Be 0
-        $sk = @($r.Findings | Where-Object { $_.Target -eq 'ndes01.corp.example.test' })
+        $sk = @($r.Findings | Where-Object { $_.Target -eq 'scep-gw01.corp.example.test' })
         $sk[0].Status | Should -Be 'Skipped'
-        ($sk[0].Evidence -join "`n") | Should -Match 'SPN HTTP/ndes01.corp.example.test'
+        ($sk[0].Evidence -join "`n") | Should -Match 'SPN HTTP/scep-gw01.corp.example.test'
         InModuleScope MspkiHealthCheck {
             @(Get-MspkiRelation | Where-Object { $_.Type -eq 'mayEnroll' -and $_.To -eq 'template:examplendessigning' }).Count | Should -Be 1
-            @(Get-MspkiRelation | Where-Object { $_.Type -eq 'identifies' -and $_.To -eq 'host:ndes01.corp.example.test' -and $_.Confidence -eq 'Inferred' }).Count | Should -Be 1
+            @(Get-MspkiRelation | Where-Object { $_.Type -eq 'identifies' -and $_.To -eq 'host:scep-gw01.corp.example.test' -and $_.Confidence -eq 'Inferred' }).Count | Should -Be 1
         }
     }
 
@@ -165,7 +165,7 @@ Describe 'RA certificates from GetCACert' {
         $oid = [System.Security.Cryptography.CryptoConfig]::EncodeOID('1.3.6.1.4.1.311.21.8.1.2')
         $v2 = New-TestDer 0x30 (Join-TestBytes @($oid, (ConvertTo-TestDerInteger 100), (ConvertTo-TestDerInteger 0)))
         $ext = New-Object System.Security.Cryptography.X509Certificates.X509Extension('1.3.6.1.4.1.311.21.7', $v2, $false)
-        $script:ra = New-TestCertificate -Subject 'CN=NDES01-MSCEP-RA, O=Example, C=US' -Signer $script:issuing.Full -IsCA $false -WithAki -Eku @('1.3.6.1.4.1.311.20.2.1') -Extensions @($ext)
+        $script:ra = New-TestCertificate -Subject 'CN=SCEP-GW01-MSCEP-RA, O=Example, C=US' -Signer $script:issuing.Full -IsCA $false -WithAki -Eku @('1.3.6.1.4.1.311.20.2.1') -Extensions @($ext)
         $col = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
         [void]$col.Add($script:issuing.Public); [void]$col.Add($script:root.Public); [void]$col.Add($script:ra.Public)
         $script:p7 = $col.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pkcs7)
@@ -210,25 +210,25 @@ Describe 'RA certificates from GetCACert' {
                 Add-MspkiRelation -From $cid -Type 'certificateOf' -To $caId -Source 'test'
             }
             $certs = @(ConvertFrom-MspkiNdesCaCertificate -Bytes $B | ForEach-Object { $_ })
-            $res = [pscustomobject]@{ Host = 'ndes01.corp.example.test'; Confirmed = $true; Classification = 'ConfirmedEndpoint'; Certificates = $certs; CertUrl = 'https://ndes01.corp.example.test/scep?GetCACert' }
-            Add-MspkiNdesResultToGraph -Result $res -Lead ([pscustomobject]@{ Url = 'https://ndes01.corp.example.test/scep' })
-            $via = @(Get-MspkiRelation | Where-Object { $_.Type -eq 'enrollsVia' -and $_.From -eq 'service:ndes:ndes01.corp.example.test' })
+            $res = [pscustomobject]@{ Host = 'scep-gw01.corp.example.test'; Confirmed = $true; Classification = 'ConfirmedEndpoint'; Certificates = $certs; CertUrl = 'https://scep-gw01.corp.example.test/scep?GetCACert' }
+            Add-MspkiNdesResultToGraph -Result $res -Lead ([pscustomobject]@{ Url = 'https://scep-gw01.corp.example.test/scep' })
+            $via = @(Get-MspkiRelation | Where-Object { $_.Type -eq 'enrollsVia' -and $_.From -eq 'service:ndes:scep-gw01.corp.example.test' })
             $via.Count | Should -Be 1
             $via[0].To | Should -Be 'ca:ca01.corp.example.test\example issuing ca'
             $ra = @(Get-MspkiEntityList -Type 'RACertificate')
             $ra.Count | Should -Be 1
             @(Get-MspkiRelation | Where-Object { $_.From -eq $ra[0].Id -and $_.Type -eq 'certificateOf' }).Count | Should -Be 1
             @(Get-MspkiRelation | Where-Object { $_.From -eq $ra[0].Id -and $_.Type -eq 'issuedBy' -and $_.To -eq (Get-MspkiEntityId -Type 'CACertificate' -Key $I.Thumbprint) }).Count | Should -Be 1
-            (@(Get-MspkiObservation | Where-Object { $_.EntityId -eq 'service:ndes:ndes01.corp.example.test' -and $_.Kind -eq 'Seen' })).Count | Should -Be 1
+            (@(Get-MspkiObservation | Where-Object { $_.EntityId -eq 'service:ndes:scep-gw01.corp.example.test' -and $_.Kind -eq 'Seen' })).Count | Should -Be 1
         }
     }
 
     It 'does not mark an unconfirmed NDES candidate as seen' {
         InModuleScope MspkiHealthCheck {
             Reset-MspkiEntityGraph
-            Add-MspkiNdesResultToGraph -Result ([pscustomobject]@{ Host = 'ndes09.corp.example.test'; Confirmed = $false; Classification = 'ProbableCandidate'; Certificates = @(); CertUrl = '' }) -Lead ([pscustomobject]@{ Url = 'https://ndes09.corp.example.test/scep' })
-            @(Get-MspkiObservation | Where-Object { $_.EntityId -eq 'service:ndes:ndes09.corp.example.test' -and $_.Kind -eq 'Seen' }).Count | Should -Be 0
-            (Get-MspkiEntity -Id 'host:ndes09.corp.example.test').Properties['Roles'] | Should -Be 'NDESCandidate'
+            Add-MspkiNdesResultToGraph -Result ([pscustomobject]@{ Host = 'scep-gw09.corp.example.test'; Confirmed = $false; Classification = 'ProbableCandidate'; Certificates = @(); CertUrl = '' }) -Lead ([pscustomobject]@{ Url = 'https://scep-gw09.corp.example.test/scep' })
+            @(Get-MspkiObservation | Where-Object { $_.EntityId -eq 'service:ndes:scep-gw09.corp.example.test' -and $_.Kind -eq 'Seen' }).Count | Should -Be 0
+            (Get-MspkiEntity -Id 'host:scep-gw09.corp.example.test').Properties['Roles'] | Should -Be 'NDESCandidate'
         }
     }
 }
@@ -258,10 +258,10 @@ Describe 'Audit 2 M12: hosts found through a group or a gMSA link to the member 
                 $script:m12acct = { param($cls, $sam, $dn, $hostName, $sid, $members = @(), $allowed = @())
                     [pscustomobject]@{ Status = 'Found'; Error = ''; Account = [pscustomobject]@{ Class = $cls; SamAccountName = $sam; Domain = 'corp.example.test'; DnsHostName = $hostName; HttpSpnHosts = @(); Spns = @(); Members = @($members); AllowedSids = @($allowed); Disabled = $false; DistinguishedName = $dn; Sid = $sid } } }
                 Mock Read-MspkiNdesAccount {
-                    if ($Sid -like '*-1400') { return (& $script:m12acct 'group' 'NDES Servers' 'CN=NDES Servers,DC=corp,DC=example,DC=test' '' "$($script:m12dom)-1400" @('CN=NDES02,OU=Servers,DC=corp,DC=example,DC=test')) }
+                    if ($Sid -like '*-1400') { return (& $script:m12acct 'group' 'NDES Servers' 'CN=NDES Servers,DC=corp,DC=example,DC=test' '' "$($script:m12dom)-1400" @('CN=SCEP-GW02,OU=Servers,DC=corp,DC=example,DC=test')) }
                     if ($Sid -like '*-1500') { return (& $script:m12acct 'gmsa' 'svc-ndes$' 'CN=svc-ndes,CN=Managed Service Accounts,DC=corp,DC=example,DC=test' '' "$($script:m12dom)-1500" @() @("$($script:m12dom)-3003")) }
-                    if ($Sid -like '*-3003') { return (& $script:m12acct 'computer' 'NDES03$' 'CN=NDES03,OU=Servers,DC=corp,DC=example,DC=test' 'ndes03.corp.example.test' "$($script:m12dom)-3003") }
-                    if ($DistinguishedName -like 'CN=NDES02*') { return (& $script:m12acct 'computer' 'NDES02$' 'CN=NDES02,OU=Servers,DC=corp,DC=example,DC=test' 'ndes02.corp.example.test' "$($script:m12dom)-3002") }
+                    if ($Sid -like '*-3003') { return (& $script:m12acct 'computer' 'SCEP-GW03$' 'CN=SCEP-GW03,OU=Servers,DC=corp,DC=example,DC=test' 'scep-gw03.corp.example.test' "$($script:m12dom)-3003") }
+                    if ($DistinguishedName -like 'CN=SCEP-GW02*') { return (& $script:m12acct 'computer' 'SCEP-GW02$' 'CN=SCEP-GW02,OU=Servers,DC=corp,DC=example,DC=test' 'scep-gw02.corp.example.test' "$($script:m12dom)-3002") }
                     return [pscustomobject]@{ Status = 'NotFound'; Error = 'no'; Account = $null }
                 }
                 $r = Find-MspkiNdesTemplateAccountHost -Inventory $I -TimeoutSeconds 3
@@ -280,11 +280,11 @@ Describe 'Audit 2 M12: hosts found through a group or a gMSA link to the member 
     It 'makes the member computer of a group an Account entity, links it memberOf the group, and lets the member (not the group) identify the host' {
         $r = & $script:findM12 @((& $script:ace "$($script:dom)-1400"))
         $group = $r.GroupId
-        $member = @($r.Entities | Where-Object { $_.Name -eq 'NDES02$' })
+        $member = @($r.Entities | Where-Object { $_.Name -eq 'SCEP-GW02$' })
         $member.Count | Should -Be 1 -Because 'a member account is an entity'
         $member[0].Class | Should -Be 'computer'
         @($r.Rels | Where-Object { $_.Type -eq 'memberOf' -and $_.From -eq $member[0].Id -and $_.To -eq $group }).Count | Should -Be 1
-        @($r.Rels | Where-Object { $_.Type -eq 'identifies' -and $_.From -eq $member[0].Id -and $_.To -eq 'host:ndes02.corp.example.test' }).Count | Should -Be 1
+        @($r.Rels | Where-Object { $_.Type -eq 'identifies' -and $_.From -eq $member[0].Id -and $_.To -eq 'host:scep-gw02.corp.example.test' }).Count | Should -Be 1
         @($r.Rels | Where-Object { $_.Type -eq 'identifies' -and $_.From -eq $group }).Count | Should -Be 0 -Because 'the group names no host itself'
         $r.Seen | Should -Contain $member[0].Id
     }
@@ -292,16 +292,16 @@ Describe 'Audit 2 M12: hosts found through a group or a gMSA link to the member 
     It 'does the same for the computers allowed to use a gMSA (mayUse)' {
         $r = & $script:findM12 @((& $script:ace "$($script:dom)-1500"))
         $gmsa = $r.GmsaId
-        $c = @($r.Entities | Where-Object { $_.Name -eq 'NDES03$' })
+        $c = @($r.Entities | Where-Object { $_.Name -eq 'SCEP-GW03$' })
         $c.Count | Should -Be 1
         @($r.Rels | Where-Object { $_.Type -eq 'mayUse' -and $_.From -eq $c[0].Id -and $_.To -eq $gmsa }).Count | Should -Be 1
-        @($r.Rels | Where-Object { $_.Type -eq 'identifies' -and $_.From -eq $c[0].Id -and $_.To -eq 'host:ndes03.corp.example.test' }).Count | Should -Be 1
+        @($r.Rels | Where-Object { $_.Type -eq 'identifies' -and $_.From -eq $c[0].Id -and $_.To -eq 'host:scep-gw03.corp.example.test' }).Count | Should -Be 1
         @($r.Rels | Where-Object { $_.Type -eq 'identifies' -and $_.From -eq $gmsa }).Count | Should -Be 0
     }
 
     It 'keeps the host list and its "how" text (the lead registration still gets the hosts)' {
         $r = & $script:findM12 @((& $script:ace "$($script:dom)-1400"))
-        @($r.Result.Hosts | ForEach-Object { $_.Host }) | Should -Be @('ndes02.corp.example.test')
-        ($r.Result.Hosts | Where-Object { $_.Host -eq 'ndes02.corp.example.test' }).How[0] | Should -Match 'member of the group NDES Servers'
+        @($r.Result.Hosts | ForEach-Object { $_.Host }) | Should -Be @('scep-gw02.corp.example.test')
+        ($r.Result.Hosts | Where-Object { $_.Host -eq 'scep-gw02.corp.example.test' }).How[0] | Should -Match 'member of the group NDES Servers'
     }
 }
