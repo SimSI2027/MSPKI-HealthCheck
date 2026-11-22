@@ -352,3 +352,9 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Test helper fix: an issued test certificate is clamped to its issuer's validity (the old race failed LocalEvidence.Tests in
   about half of the runs). Runner note: a loopback server runspace can keep a finished test process alive; force-exit after results.
 - Red then green (M9 block in tests/Audit2.Security.Tests.ps1). Lab run (normal user): 99 findings, exit 6, no difference.
+
+## Audit 2 Batch A, H2 (2026-11-22): ESC3 counts schema version 1 targets - DONE (921 tests)
+- Schema version 1 templates (the default User template) are ESC3 targets; every condition is required on both templates
+  (agent: no signatures; target: no approval, client authentication, agent principals may enroll).
+- Red then green: "Audit 2 H2" block in tests/TemplateSecurity.Tests.ps1 (default-forest model, positive and negative cases).
+  Lab run (normal user): 99 findings, exit 6, no difference (the lab has no broad agent template). Next: M11.

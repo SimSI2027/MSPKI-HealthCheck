@@ -418,7 +418,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 |---|---|---|---|
 | H1 | Fixed | `3b4c3af` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 H1: links in a downloaded CRL are followed only when its signature verified" (3 tests) and "Audit 2 H1: an LDAP bind goes only to hosts proven by authoritative discovery" (12 tests); updated audit 1 cases in `tests/Audit.Probes.Tests.ps1` |
 | M10 | Fixed | `a95e566` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M10: downloaded bytes never create a private key on disk" (5 tests: content type, New-MspkiCertificate, AIA endpoint, NDES reader, PKCS #7 still read); new Hygiene patterns "key persistence" and "certificate loading" |
-| M9 | Fixed | see the M9 commit (`git log --grep "Audit 2 M9"`) | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M9: a redirect or a TLS handshake never goes to a host that no trusted evidence named" (5 tests); audit 1 test "looks at the host of the failing hop ..." now registers the HTTPS host as a lead first |
+| M9 | Fixed | `4aa6a91` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M9: a redirect or a TLS handshake never goes to a host that no trusted evidence named" (5 tests); audit 1 test "looks at the host of the failing hop ..." now registers the HTTPS host as a lead first |
+| H2 | Fixed | see the H2 commit (`git log --grep "Audit 2 H2"`) | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2: ESC3 in a forest modelled on the default templates" (10 tests: default forest does not fire; broad agent template + default User fires; two targets counted; 7 negative cases, one condition each) |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -459,3 +460,14 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 - Test helper: `New-TestCertificate` now clamps an issued certificate to its issuer's validity. The old race (child created a
   second after the issuer with the same lifetime) made `LocalEvidence.Tests.ps1` fail in about half of the runs (the "flaky
   LocalEvidence failure" in PROGRESS); 8 of 8 runs pass now.
+
+### H2 notes
+- Agent template conditions: a broad group can enroll, Certificate Request Agent EKU, no manager approval, and (new) no
+  authorised signatures.
+- Target template conditions, all required: published, accepts an enrollment agent's signature (new: every schema version 1
+  template; version 2+ only with msPKI-RA-Signature >= 1 and the Certificate Request Agent signature policy), allows client
+  authentication, (new) no manager approval, and (new) the agent's principals may enroll for it (the same broad group, or
+  Everyone / Authenticated Users). The evidence counts the targets and lists each with its schema version and reason.
+- The fixtures model a new forest: User (schema 1, Domain Users), Machine (schema 1, Domain Computers) and EnrollmentAgent
+  (schema 1, administrators only). That forest gives no ESC3; adding a broad, approval-free agent template gives one, with User
+  as the target and Machine excluded.

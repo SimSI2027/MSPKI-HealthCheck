@@ -101,6 +101,16 @@ function Get-MspkiTemplateFact {
     if (($nf -band $script:MspkiTemplateFlagBit.EnrolleeSuppliesSubjectAltName) -ne 0) { $supplies += 'subject alternative name (CT_FLAG_ENROLLEE_SUPPLIES_SUBJECT_ALT_NAME)' }
     $raApp = @($Template.RaApplicationPolicies | Where-Object { $_ })
     $clientAuth = ($noEku -or @($eku | Where-Object { $script:MspkiClientAuthEku -contains $_ }).Count -gt 0)
+    # Which templates accept a request signed by an enrollment agent on behalf of another user (audit 2 H2): a schema version 1
+    # template accepts it from any enrollment agent (it has no issuance requirements to check); a template of schema version 2 or
+    # later accepts it when it requires an authorised signature with the Certificate Request Agent application policy.
+    $schema = 0
+    if ($null -ne $Template.PSObject.Properties['SchemaVersion']) { $schema = [int]$Template.SchemaVersion }
+    $acceptsAgent = $false; $agentWhy = ''
+    if ($schema -eq 1) { $acceptsAgent = $true; $agentWhy = 'a schema version 1 template accepts a request signed by any enrollment agent' }
+    elseif ([int]$Template.RaSignature -ge 1 -and $raApp -contains $script:MspkiAgentEku) {
+        $acceptsAgent = $true; $agentWhy = ('msPKI-RA-Signature = {0} with the Certificate Request Agent application policy' -f [int]$Template.RaSignature)
+    }
     return [pscustomobject][ordered]@{
         Eku               = $eku
         NoEku             = $noEku
@@ -111,7 +121,9 @@ function Get-MspkiTemplateFact {
         Supplies          = $supplies
         ManagerApproval   = (($ef -band $script:MspkiTemplateFlagBit.PendAllRequests) -ne 0)
         RaSignatures      = [int]$Template.RaSignature
-        AcceptsAgentSig   = ([int]$Template.RaSignature -ge 1 -and $raApp -contains $script:MspkiAgentEku)
+        SchemaVersion     = $schema
+        AcceptsAgentSig   = $acceptsAgent
+        AgentSigWhy       = $agentWhy
         NoSecurityExt     = (($ef -band $script:MspkiTemplateFlagBit.NoSecurityExtension) -ne 0)
         BroadEnroll       = (Get-MspkiBroadAce -Template $Template -Right Enroll)
         BroadWrite        = (Get-MspkiBroadAce -Template $Template -Right Write)
@@ -162,23 +174,32 @@ function Get-MspkiTemplatePatternMatch {
             Conditions = @((& $enrollText), ('EKU is Any Purpose or absent: {0}' -f $f.EkuText), $noApprovalText, $noSigText)
             Notes = 'A certificate valid for any purpose can also act as a certificate request agent or a subordinate CA certificate, depending on its other settings.' })
     }
-    # Pattern ESC3: broad enroll for the Certificate Request Agent EKU without approval, AND another published template that
-    # accepts enrollment-agent signatures and is usable to sign in.
-    if ($f.BroadEnroll.Count -gt 0 -and $f.AgentEku -and -not $f.ManagerApproval) {
+    # Pattern ESC3 (audit 2 H2: every condition on both templates).
+    # Agent template: a broad group can enroll, Certificate Request Agent EKU, no manager approval, no authorised signatures.
+    # Target template (another published one): accepts an enrollment agent's signature (schema version 1, or version 2+ with the
+    # Certificate Request Agent signature policy), allows client authentication, no manager approval, and the agent's principals
+    # may enroll for it (the same broad group, or Everyone / Authenticated Users, which contain every broad group).
+    if ($f.BroadEnroll.Count -gt 0 -and $f.AgentEku -and -not $f.ManagerApproval -and $f.RaSignatures -eq 0) {
+        $agentSids = @($f.BroadEnroll | Where-Object { -not $_.Denied } | ForEach-Object { $_.Sid })
         $others = New-Object System.Collections.ArrayList
         foreach ($k in ($AllFacts.Keys | Sort-Object)) {
             if ($k -eq $Template.Name.ToLowerInvariant()) { continue }
             if (-not $Published.ContainsKey($k)) { continue }
             $o = $AllFacts[$k]
-            if ($o.Facts.AcceptsAgentSig -and $o.Facts.ClientAuthCapable) { [void]$others.Add($o) }
+            if (-not ($o.Facts.AcceptsAgentSig -and $o.Facts.ClientAuthCapable -and -not $o.Facts.ManagerApproval)) { continue }
+            $shared = @($o.Facts.BroadEnroll | Where-Object { -not $_.Denied -and ($agentSids -contains $_.Sid -or $_.Sid -eq 'S-1-1-0' -or $_.Sid -eq 'S-1-5-11') })
+            if ($shared.Count -eq 0) { continue }
+            [void]$others.Add([pscustomobject]@{ Entry = $o; Shared = $shared })
         }
         if ($others.Count -gt 0) {
-            $oc = @($others | ForEach-Object {
-                'Another published template accepts enrollment-agent signatures and allows client authentication: {0} (msPKI-RA-Signature = {1}; manager approval: {2}; broad enroll: {3})' -f `
-                    $_.Template.Name, $_.Facts.RaSignatures, $(if ($_.Facts.ManagerApproval) { 'required' } else { 'not required' }), $(if ($_.Facts.BroadEnroll.Count -gt 0) { 'yes' } else { 'no' }) })
+            $oc = @(('{0} published template(s) accept this agent''s signature on behalf of another user and allow client authentication' -f $others.Count))
+            $oc += @($others | ForEach-Object {
+                'Another published template accepts enrollment-agent signatures and allows client authentication: {0} (schema version {1}: {2}; manager approval: not required; the agent''s principals may enroll through: {3})' -f `
+                    $_.Entry.Template.Name, $_.Entry.Facts.SchemaVersion, $_.Entry.Facts.AgentSigWhy, ((@($_.Shared) | ForEach-Object { '{0} [{1}]' -f $_.Principal, $_.Label }) -join ', ') })
             [void]$found.Add([pscustomobject]@{ Rule = 'ESC3'; Principals = $f.BroadEnroll; Severity = 'High'
                 Title = 'a broad group can enroll for a Certificate Request Agent certificate without approval, and another published template accepts that agent''s signature'
-                Conditions = @((& $enrollText), ('EKU includes Certificate Request Agent: {0}' -f $f.EkuText), $noApprovalText, ('Authorised signatures on this template: {0}' -f $f.RaSignatures)) + $oc
+                Conditions = @((& $enrollText), ('EKU includes Certificate Request Agent: {0}' -f $f.EkuText), $noApprovalText,
+                    ('No authorised signatures required on the agent template (msPKI-RA-Signature = {0})' -f $f.RaSignatures)) + $oc
                 Notes = 'Enrollment agent restrictions configured on the CA cannot be read from here and may limit this.' })
         }
     }

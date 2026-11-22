@@ -391,3 +391,78 @@ Describe 'Template review: every finding is evidence-based and review-only' {
         }
     }
 }
+
+Describe 'Audit 2 H2: ESC3 in a forest modelled on the default templates' {
+    BeforeAll {
+        $script:efs = '1.3.6.1.4.1.311.10.3.4'
+        $script:email = '1.3.6.1.5.5.7.3.4'
+        $script:smartcard = '1.3.6.1.4.1.311.20.2.2'
+        # The default templates as a new forest has them: schema version 1, no application policies, no RA settings.
+        $script:userTpl = { param([hashtable]$o = @{}) $h = @{ SchemaVersion = 1; Eku = @($script:efs, $script:email, $script:clientAuth); EnrollmentFlag = [int64]0x29
+                NameFlag = [int64]0xA6000000; Oid = '1.3.6.1.4.1.311.21.8.100.11'; Acl = @((& $script:adminAce), (& $script:enrollAce $script:du)) }
+            foreach ($k in $o.Keys) { $h[$k] = $o[$k] }; & $script:tpl 'User' $h }
+        $script:machineTpl = { & $script:tpl 'Machine' @{ SchemaVersion = 1; Eku = @($script:clientAuth, $script:serverAuth); EnrollmentFlag = [int64]0x20
+                NameFlag = [int64]0x18000000; Oid = '1.3.6.1.4.1.311.21.8.100.12'; Acl = @((& $script:adminAce), (& $script:enrollAce $script:dc)) } }
+        # The default EnrollmentAgent template: only administrators may enroll.
+        $script:defaultAgentTpl = { & $script:tpl 'EnrollmentAgent' @{ SchemaVersion = 1; Eku = @($script:agentEku); EnrollmentFlag = [int64]0x20
+                NameFlag = [int64]0x82000000; Oid = '1.3.6.1.4.1.311.21.8.100.13'; Acl = @((& $script:adminAce), (& $script:enrollAce $script:da)) } }
+        # The misconfiguration: a copy of the agent template that Domain Users may enroll for, without approval or signatures.
+        $script:broadAgentTpl = { param([hashtable]$o = @{}) $h = @{ SchemaVersion = 2; Eku = @($script:agentEku); ApplicationPolicies = @($script:agentEku)
+                Oid = '1.3.6.1.4.1.311.21.8.100.14'; Acl = @((& $script:adminAce), (& $script:enrollAce $script:du)) }
+            foreach ($k in $o.Keys) { $h[$k] = $o[$k] }; & $script:tpl 'BroadAgent' $h }
+        $script:defaultForest = { @((& $script:userTpl), (& $script:machineTpl), (& $script:defaultAgentTpl)) }
+    }
+
+    It 'does not fire in a default forest (only administrators can get an enrollment agent certificate)' {
+        $f = & $script:run (& $script:inv (& $script:defaultForest))
+        @(& $script:hits $f 'ESC3').Count | Should -Be 0
+    }
+
+    It 'fires when a broad group can get an agent certificate and the default User template (schema version 1) is published' {
+        $f = & $script:run (& $script:inv (@(& $script:defaultForest) + (& $script:broadAgentTpl)))
+        $h = @(& $script:hits $f 'ESC3')
+        $h.Count | Should -Be 1
+        $h[0].Target | Should -Be 'BroadAgent'
+        $ev = $h[0].Evidence -join "`n"
+        $ev | Should -Match 'Condition met: .*User .*schema version 1'
+        $ev | Should -Match 'Condition met: No authorised signatures required on the agent template'
+        $ev | Should -Match '1 published template\(s\) accept'
+        # The Machine template is not a target: only Domain Computers may enroll for it, and the agent principals are Domain Users.
+        $ev | Should -Not -Match 'Machine \(schema'
+    }
+
+    It 'counts every target: two schema version 1 templates that the agent principals may enroll for' {
+        $sc = & $script:tpl 'SmartcardLogon' @{ SchemaVersion = 1; Eku = @($script:smartcard, $script:clientAuth); Oid = '1.3.6.1.4.1.311.21.8.100.15'
+            Acl = @((& $script:adminAce), (& $script:enrollAce 'S-1-5-11')) }
+        $f = & $script:run (& $script:inv (@(& $script:defaultForest) + (& $script:broadAgentTpl) + $sc))
+        $h = @(& $script:hits $f 'ESC3')
+        $h.Count | Should -Be 1
+        $ev = $h[0].Evidence -join "`n"
+        $ev | Should -Match '2 published template\(s\) accept'
+        $ev | Should -Match 'SmartcardLogon'
+        $ev | Should -Match 'User'
+    }
+
+    It 'must not fire when <Why>' -ForEach @(
+        @{ Why = 'the User template is not published'; Setup = 'userUnpublished' }
+        @{ Why = 'the User template needs manager approval'; Setup = 'userApproval' }
+        @{ Why = 'only administrators may enroll for the User template'; Setup = 'userAdminsOnly' }
+        @{ Why = 'the User template does not allow client authentication'; Setup = 'userNoLogon' }
+        @{ Why = 'the agent template needs an authorised signature'; Setup = 'agentSig' }
+        @{ Why = 'the agent template needs manager approval'; Setup = 'agentApproval' }
+        @{ Why = 'the target is a schema version 2 template with no agent signature requirement'; Setup = 'targetV2NoSig' }
+    ) {
+        $user = & $script:userTpl; $agent = & $script:broadAgentTpl; $pub = $null
+        switch ($Setup) {
+            'userUnpublished' { $pub = @('Machine', 'EnrollmentAgent', 'BroadAgent') }
+            'userApproval' { $user = & $script:userTpl @{ EnrollmentFlag = [int64]0x2B } }
+            'userAdminsOnly' { $user = & $script:userTpl @{ Acl = @((& $script:adminAce), (& $script:enrollAce $script:da)) } }
+            'userNoLogon' { $user = & $script:userTpl @{ Eku = @($script:efs, $script:email) } }
+            'agentSig' { $agent = & $script:broadAgentTpl @{ RaSignature = 1; RaApplicationPolicies = @($script:agentEku) } }
+            'agentApproval' { $agent = & $script:broadAgentTpl @{ EnrollmentFlag = [int64]0x2 } }
+            'targetV2NoSig' { $user = & $script:userTpl @{ SchemaVersion = 2; ApplicationPolicies = @($script:clientAuth) } }
+        }
+        $f = & $script:run (& $script:inv @($user, (& $script:machineTpl), (& $script:defaultAgentTpl), $agent) $pub)
+        @(& $script:hits $f 'ESC3').Count | Should -Be 0
+    }
+}
