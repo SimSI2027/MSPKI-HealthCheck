@@ -274,13 +274,19 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Lab (standard user): both Lifecycle logs readable; origins of both machine certificates match the lab facts. 2 adversarial rounds.
 - Tests: `tests/LocalEvidence.Tests.ps1` (10). Next: WP5 GUI drill-down (G1, G2, G4).
 
-## WP5 (2026-11-22): GUI drill-down (G1, G2, G4) - IN PROGRESS
-- Done: `src/Gui/GuiEntity.ps1` (pure view models): graph index, object details pane (Kind `Entity`: what it is (G5 note per type), properties,
-  "where this exists" with Seen / Named and EXPECTED-BUT-MISSING apart, related objects both directions as `ent:<id>` links, findings, breadcrumbs,
-  Back), host identity rows (IPs, PTR, alias chain, TLS names, Server header), entity links for other panes, Objects page list. Tests:
-  `tests/GuiEntity.Tests.ps1` (4).
-- Next (not started): load GuiEntity.ps1 in GuiApp / Gui tests; `EntityPane` DataTemplate + PaneHost trigger in MainWindow.xaml; an Objects tab
-  (index 4, Ctrl+5) with a searchable list grouped by type; "Related objects" links in the Finding and Discovery map panes; click routing for
-  `ent:` / `crumb:` / Back; snapshots of the new views. Then WP6.
-- Note: a full Pester run started in the foreground with a 600 s limit moved to the background and never exited (a test HTTP server runspace);
-  it held 1.5 GB and later runs failed with OutOfMemoryException (looked like a product bug at first). Start full runs in the background instead.
+## WP5 (2026-11-22): GUI drill-down (G1, G2, G4, G5) - DONE
+- `src/Gui/GuiEntity.ps1` (pure view models): graph index, object details (what it is and why it matters per type, properties, host identity,
+  "where this exists" with the expected-but-missing places in their own amber block, related objects both ways, findings, breadcrumbs, Back),
+  Objects list (worst-status and missing pills, needs-attention flag), filter, type choices, trail steps, map item -> object mapping.
+- Window: new Objects page (Ctrl+5, grouped by type, search, type filter, "only objects that need attention"); `EntityPane` template; every
+  details pane (Findings, Discovery map, Objects) routes `ent:` / `crumb:` / finding / Back / Copy through `Invoke-MspkiGuiPaneCommand`;
+  findings and map items list their objects; KPI tiles open the Objects page for their type; CA cards open their CA. A live run reads the
+  graph back from results.json. Endpoint names are shown decoded (%20 -> space); ids are unchanged.
+- New fixture `tests/fixtures/demo-results-v2.json` (format 2, example.test only, built from the demo fixture by the module's own graph
+  builder). Lesson: the builder adds THIS computer as a host, so the generator must set `$env:COMPUTERNAME` to the fixture's name first
+  (caught by the LAB-FACTS grep before any commit).
+- Tests: `tests/GuiEntity.Tests.ps1` (9), a new window test in `tests/Gui.Tests.ps1` (Objects page, tiles, cards, panes, trail, Back).
+  Snapshots 32-33 and 70-74 cover the new views. Pester 5.7.1 is at `C:\ClaudeCode\tools\pester571` (not on this user's module path).
+- Full suite 884 passed, 0 failed. Open: one earlier full run had 10 LocalEvidence failures with empty messages that did not repeat (file
+  alone, files in order, and a second full run all pass): watch for a flaky test there.
+- Next: WP6 PKI Services page (G3). Then WP7 polish (minimum size of the Objects page and the details pane not yet judged).

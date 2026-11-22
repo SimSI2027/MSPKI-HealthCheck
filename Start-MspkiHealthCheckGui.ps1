@@ -74,6 +74,7 @@ try {
     Import-Module $modulePath -Force -ErrorAction Stop
     . (Join-Path $guiFolder 'GuiModel.ps1')
     . (Join-Path $guiFolder 'GuiView.ps1')
+    . (Join-Path $guiFolder 'GuiEntity.ps1')
     . (Join-Path $guiFolder 'GuiApp.ps1')
     . (Join-Path $guiFolder 'GuiSnapshot.ps1')
     Import-MspkiGuiAssembly

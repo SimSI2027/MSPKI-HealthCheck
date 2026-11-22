@@ -428,6 +428,26 @@
       </Setter.Value>
     </Setter>
   </Style>
+  <!-- A whole card that is also a button (KPI tiles, CA cards): card radius 8, hover darkens the stroke. -->
+  <Style x:Key="CardButton" TargetType="Button">
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Foreground" Value="{StaticResource B.Text}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Bd" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="1" CornerRadius="8" SnapsToDevicePixels="True">
+            <ContentPresenter/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.BorderStrong}"/><Setter TargetName="Bd" Property="Background" Value="#FCFCFC"/></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Hover}"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
   <Style x:Key="LinkButton" TargetType="Button">
     <Setter Property="Foreground" Value="{StaticResource B.Accent}"/>
     <Setter Property="Cursor" Value="Hand"/>

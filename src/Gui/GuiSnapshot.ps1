@@ -188,15 +188,42 @@ function Invoke-MspkiGuiSnapshot {
                 if ($n.Type -eq 'CA') { $pick = $n }
                 else { foreach ($c in @($n.Children)) { $stack.Push($c) } }
             }
-            if ($null -ne $pick) { $g.MapPane = Get-MspkiGuiNodePane -Node $pick -RowById $g.RowById; $ui.MapHost.Content = $g.MapPane }
+            if ($null -ne $pick) { Show-MspkiGuiNodePane -Node $pick }
             & $shot '30-map'
             $first = $null
             if ($null -ne $g.MapPane) { $first = @($g.MapPane.Findings | Where-Object { $_ }) | Select-Object -First 1 }
             if ($null -ne $first -and $g.RowById.ContainsKey([string]$first.Id)) {
-                $ui.MapHost.Content = Get-MspkiGuiFindingDetail -Finding $g.RowById[[string]$first.Id].Finding -CanGoBack $true
+                Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag ([string]$first.Id)
                 & $shot '31-map-finding'
-                $ui.MapHost.Content = $g.MapPane
+                Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag 'Back'
             }
+            # Drill-down from the map item: its object, then two related objects (breadcrumbs and Back), then back to the item.
+            $obj = $null
+            if ($null -ne $g.MapPane -and $g.MapPane.HasObjects) { $obj = @($g.MapPane.Objects)[0] }
+            if ($null -ne $obj) {
+                Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag ([string]$obj.Tag)
+                & $shot '32-map-object'
+                foreach ($k in 1..2) {
+                    $next = @($ui.MapHost.Content.Related | Where-Object { $_.Known }) | Select-Object -First 1
+                    if ($null -eq $next) { break }
+                    Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag ([string]$next.Tag)
+                }
+                & $shot '33-map-object-trail'
+                Show-MspkiGuiNodePane -Node $pick
+            }
+            # Objects page: the full list, a host (identity), an object that is expected but missing somewhere, and a filter with no match.
+            & $page $ui.TabObjects
+            & $shot '70-objects'
+            $hostRow = @($g.ObjRows | Where-Object { $_.Type -eq 'Host' }) | Select-Object -First 1
+            if ($null -ne $hostRow) { Show-MspkiGuiObject -Id $hostRow.Id; Wait-MspkiGuiIdle -Rounds 3; & $shot '71-objects-host' }
+            $missRow = @($g.ObjRows | Where-Object { $_.HasMissing }) | Select-Object -First 1
+            if ($null -ne $missRow) { Show-MspkiGuiObject -Id $missRow.Id; Wait-MspkiGuiIdle -Rounds 3; & $shot '72-objects-missing' }
+            $ui.ChkObjAttention.IsChecked = $true; Update-MspkiGuiObjectFilter
+            & $shot '73-objects-attention'
+            $ui.FltObj.Text = 'no-such-object-text'
+            Update-MspkiGuiObjectFilter
+            & $shot '74-objects-nomatch'
+            Clear-MspkiGuiObjectFilter
             & $page $ui.TabLog
             & $shot '40-log'
 

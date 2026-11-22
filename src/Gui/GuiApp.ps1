@@ -296,9 +296,172 @@ function Show-MspkiGuiFindingPane {
     #>
     [CmdletBinding()]
     param([AllowNull()]$Finding)
-    $ui = $script:MspkiGui.Ui
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    Reset-MspkiGuiPaneNav -HostName 'FindingHost'
     if ($null -eq $Finding) { $ui.FindingHost.Content = Get-MspkiGuiEmptyPane; return }
-    $ui.FindingHost.Content = Get-MspkiGuiFindingDetail -Finding $Finding
+    $ui.FindingHost.Content = Add-MspkiGuiPaneObject -Pane (Get-MspkiGuiFindingDetail -Finding $Finding) -Index $g.Index -Ids @($Finding.EntityIds | Where-Object { $_ })
+}
+
+function Show-MspkiGuiNodePane {
+    <#
+    .SYNOPSIS
+    Fills the details pane of the Discovery map for one tree item, with links to the objects behind it.
+    #>
+    [CmdletBinding()]
+    param([AllowNull()]$Node)
+    $g = $script:MspkiGui
+    Reset-MspkiGuiPaneNav -HostName 'MapHost'
+    $p = Get-MspkiGuiNodePane -Node $Node -RowById $g.RowById
+    if ($null -ne $Node) { $p = Add-MspkiGuiPaneObject -Pane $p -Index $g.Index -Ids (Get-MspkiGuiNodeEntityId -Index $g.Index -Node $Node -RowById $g.RowById) }
+    $g.MapPane = $p
+    $g.Ui.MapHost.Content = $p
+}
+
+function Reset-MspkiGuiPaneNav {
+    <#
+    .SYNOPSIS
+    Forgets the object trail of one details pane (FindingHost, MapHost, ObjHost): called when the list or tree next to it changes selection.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$HostName)
+    $script:MspkiGui.Nav[$HostName] = @{ Trail = [string[]]@(); Origin = $null; Return = $null }
+}
+
+function Show-MspkiGuiEntityPane {
+    <#
+    .SYNOPSIS
+    Shows the object at the end of a pane's trail, with breadcrumbs and a Back link (to the previous object, or to the finding or map item
+    the user came from).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$HostName)
+    $g = $script:MspkiGui
+    $nav = $g.Nav[$HostName]
+    $t = @($nav.Trail)
+    if ($t.Count -eq 0) { return }
+    $origin = ''
+    if ($null -ne $nav.Origin) {
+        $origin = 'Back'
+        if ($nav.Origin.Kind -eq 'Finding') { $origin = 'Back to the finding' }
+        elseif ($nav.Origin.Kind -eq 'Node') { $origin = 'Back to the map item' }
+    }
+    $g.Ui[$HostName].Content = Get-MspkiGuiEntityPane -Index $g.Index -Id $t[$t.Count - 1] -RowById $g.RowById -Trail ([string[]]$t) -OriginText $origin
+}
+
+function Invoke-MspkiGuiPaneCommand {
+    <#
+    .SYNOPSIS
+    Handles a click inside a details pane by the button's Tag: Copy, Back, "ent:<id>" (open a related object), "crumb:<n>" (jump back
+    along the trail) or a finding id (open the finding in the same pane, with Back to where the user was).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$HostName, [AllowEmptyString()][string]$Tag)
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $c = $ui[$HostName].Content
+    if (-not $Tag -or $null -eq $c) { return }
+    if (-not $g.Nav.ContainsKey($HostName)) { Reset-MspkiGuiPaneNav -HostName $HostName }
+    $nav = $g.Nav[$HostName]
+    if ($Tag -eq 'Copy') { if ($c.CopyText) { [void](Set-MspkiGuiClipboard -Text $c.CopyText) }; return }
+    if ($Tag -eq 'Back') {
+        if ($null -ne $nav.Return) { $ui[$HostName].Content = $nav.Return; $nav.Return = $null; return }
+        if (@($nav.Trail).Count -gt 1) { $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Back; Show-MspkiGuiEntityPane -HostName $HostName; return }
+        if ($null -ne $nav.Origin) { $ui[$HostName].Content = $nav.Origin; $nav.Origin = $null; $nav.Trail = [string[]]@() }
+        return
+    }
+    if ($Tag.StartsWith('ent:')) {
+        if (@($nav.Trail).Count -eq 0 -and $c.Kind -ne 'Entity') { $nav.Origin = $c }
+        $nav.Return = $null
+        $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Push -Id $Tag.Substring(4)
+        Show-MspkiGuiEntityPane -HostName $HostName
+        return
+    }
+    if ($Tag.StartsWith('crumb:')) {
+        $nav.Return = $null
+        $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Crumb -Index ([int]$Tag.Substring(6))
+        Show-MspkiGuiEntityPane -HostName $HostName
+        return
+    }
+    if ($g.RowById.ContainsKey($Tag)) {
+        $back = 'Back'
+        if ($c.Kind -eq 'Entity') { $back = 'Back to {0}' -f $c.Title }
+        elseif ($c.Kind -eq 'Node') { $back = 'Back to the map item' }
+        $nav.Return = $c
+        $f = $g.RowById[$Tag].Finding
+        $ui[$HostName].Content = Add-MspkiGuiPaneObject -Pane (Get-MspkiGuiFindingDetail -Finding $f -CanGoBack $true -BackText $back) -Index $g.Index -Ids @($f.EntityIds | Where-Object { $_ })
+    }
+}
+
+function Update-MspkiGuiObjectFilter {
+    <#
+    .SYNOPSIS
+    Applies the search box, type filter and "needs attention" switch of the Objects page and updates its count and empty text.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    if ($null -eq $g.ObjView) { $ui.TxtObjShowing.Text = ''; return }
+    $g.ObjFilter.Text = [string]$ui.FltObj.Text
+    $g.ObjFilter.Type = [string]$ui.FltObjType.SelectedItem
+    $g.ObjFilter.Attention = [bool]$ui.ChkObjAttention.IsChecked
+    $g.ObjView.Refresh()
+    $shown = $ui.ObjList.Items.Count
+    $total = @($g.ObjRows).Count
+    $ui.TxtObjShowing.Text = 'Showing {0} of {1}' -f $shown, (Format-MspkiGuiCount -Count $total -Singular 'object')
+    if ($shown -eq 0 -and $total -gt 0) { $ui.TxtObjEmpty.Text = 'No object matches the search and filters. Clear the filters to see every object.'; $ui.TxtObjEmpty.Visibility = 'Visible' }
+    elseif ($total -gt 0) { $ui.TxtObjEmpty.Visibility = 'Collapsed' }
+}
+
+function Clear-MspkiGuiObjectFilter {
+    [CmdletBinding()]
+    param()
+    $ui = $script:MspkiGui.Ui
+    $ui.FltObj.Text = ''
+    if ($null -ne $ui.FltObjType.Items -and $ui.FltObjType.Items.Count -gt 0) { $ui.FltObjType.SelectedIndex = 0 }
+    $ui.ChkObjAttention.IsChecked = $false
+    Update-MspkiGuiObjectFilter
+}
+
+function Show-MspkiGuiObject {
+    <#
+    .SYNOPSIS
+    Opens one object on the Objects page: selects it in the list (clearing the filters when they hide it) and shows its details.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Id)
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $ui.Tabs.SelectedItem = $ui.TabObjects
+    $row = @($g.ObjRows | Where-Object { $_.Id -eq $Id }) | Select-Object -First 1
+    if ($null -ne $row) {
+        $f = $g.ObjFilter
+        if (-not (Test-MspkiGuiObjectFilter -Row $row -Text $f.Text -Type $f.Type -AttentionOnly:([bool]$f.Attention))) { Clear-MspkiGuiObjectFilter }
+        $ui.ObjList.SelectedItem = $row
+        $ui.ObjList.ScrollIntoView($row)
+        return
+    }
+    Reset-MspkiGuiPaneNav -HostName 'ObjHost'
+    $g.Nav.ObjHost.Trail = [string[]]@($Id)
+    Show-MspkiGuiEntityPane -HostName 'ObjHost'
+}
+
+function Show-MspkiGuiObjectsOfType {
+    <#
+    .SYNOPSIS
+    From an Overview tile: the Objects page filtered to one object type (an entity type name such as CA or Template).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Type)
+    $ui = $script:MspkiGui.Ui
+    Clear-MspkiGuiObjectFilter
+    $label = (Get-MspkiGuiEntityTypeInfo -Type $Type).Label
+    $idx = @($ui.FltObjType.Items).IndexOf($label)
+    if ($idx -ge 0) { $ui.FltObjType.SelectedIndex = $idx }
+    Update-MspkiGuiObjectFilter
+    $ui.Tabs.SelectedItem = $ui.TabObjects
+    if ($ui.ObjList.Items.Count -gt 0) { $ui.ObjList.SelectedIndex = 0 }
 }
 
 function Clear-MspkiGuiResult {
@@ -317,6 +480,16 @@ function Clear-MspkiGuiResult {
     $ui.MapTree.ItemsSource = $null
     $ui.MapHost.Content = Get-MspkiGuiEmptyPane -Text 'Select an item in the tree to see what was found and why.'
     $ui.FindingHost.Content = Get-MspkiGuiEmptyPane
+    foreach ($h in @('FindingHost', 'MapHost', 'ObjHost')) { Reset-MspkiGuiPaneNav -HostName $h }
+    $g.Index = $null; $g.ObjRows = @(); $g.ObjView = $null
+    $ui.ObjList.ItemsSource = $null
+    $ui.ObjHost.Content = Get-MspkiGuiEmptyPane -Text 'Select an object to see where it exists, where it is missing and what it is linked to.'
+    $ui.FltObj.Text = ''
+    $ui.FltObjType.ItemsSource = @('All'); $ui.FltObjType.SelectedIndex = 0
+    $ui.ChkObjAttention.IsChecked = $false
+    $ui.TxtObjShowing.Text = ''
+    $ui.TxtObjEmpty.Text = 'There are no objects yet. Run a health check, or open an earlier results.json.'
+    $ui.TxtObjEmpty.Visibility = 'Visible'
     foreach ($n in @('KpiList', 'TileList', 'SevTileList', 'CaList', 'TopList', 'CoverageList', 'CoverageOkList')) { $ui[$n].ItemsSource = $null }
     $ui.TxtNoSeverity.Visibility = 'Collapsed'
     $ui.ExpCoverageOk.Visibility = 'Collapsed'
@@ -358,6 +531,9 @@ function Show-MspkiGuiResult {
     Clear-MspkiGuiResult
     $g.Data = $Data
     $findings = @($Data.Findings | Where-Object { $null -ne $_ })
+    $graph = $null
+    if ($null -ne $Data.PSObject.Properties['Graph']) { $graph = $Data.Graph }
+    $g.Index = New-MspkiGuiGraphIndex -Graph $graph -Findings $findings
 
     # Summary
     $s = Get-MspkiGuiSummary -RunInfo $Data.RunInfo -Inventory $Data.Inventory -Findings $findings -ExitCode $Data.ExitCode
@@ -379,6 +555,10 @@ function Show-MspkiGuiResult {
     $hasSeverity = (@($s.SeverityTiles | Where-Object { $_.Status -ne 'Information' -and $_.Count -gt 0 }).Count -gt 0)
     $ui.SevTileList.Visibility = $(if ($hasSeverity) { 'Visible' } else { 'Collapsed' })
     $ui.TxtNoSeverity.Visibility = $(if ($hasSeverity) { 'Collapsed' } else { 'Visible' })
+    foreach ($card in @($s.CAs)) {
+        $cid = @(Find-MspkiGuiEntityId -Index $g.Index -Name ([string]$card.Name) -Type 'CA') | Select-Object -First 1
+        $card | Add-Member -NotePropertyName Tag -NotePropertyValue $(if ($cid) { 'ent:' + $cid } else { '' }) -Force
+    }
     $ui.CaList.ItemsSource = @($s.CAs)
     $ui.TxtNoCa.Visibility = $(if (@($s.CAs).Count -eq 0) { 'Visible' } else { 'Collapsed' })
     $ui.TopList.ItemsSource = @($s.TopIssues)
@@ -427,11 +607,33 @@ function Show-MspkiGuiResult {
     $root = ConvertTo-MspkiGuiTreeNode -Node $tree
     $ui.MapTree.ItemsSource = @($root)
     $ui.TxtMapCount.Text = Format-MspkiGuiCount -Count (Get-MspkiGuiNodeCount -Node $root) -Singular 'item'
-    $g.MapPane = Get-MspkiGuiNodePane -Node $root -RowById $g.RowById
-    $ui.MapHost.Content = $g.MapPane
+    Show-MspkiGuiNodePane -Node $root
     $ui.MapTree.UpdateLayout()
     $rc = $ui.MapTree.ItemContainerGenerator.ContainerFromIndex(0)
     if ($null -ne $rc) { $rc.IsSelected = $true }
+
+    # Objects (the entity graph; results written before format 2 have none)
+    $g.ObjRows = @(Get-MspkiGuiObjectList -Index $g.Index -RowById $g.RowById)
+    $ui.ObjList.ItemsSource = $g.ObjRows
+    $g.ObjView = [System.Windows.Data.CollectionViewSource]::GetDefaultView($ui.ObjList.ItemsSource)
+    if ($null -ne $g.ObjView) {
+        $g.ObjView.Filter = [System.Predicate[object]]{
+            param($row)
+            $f = $script:MspkiGui.ObjFilter
+            return (Test-MspkiGuiObjectFilter -Row $row -Text $f.Text -Type $f.Type -AttentionOnly:([bool]$f.Attention))
+        }
+        $g.ObjView.GroupDescriptions.Clear()
+        [void]$g.ObjView.GroupDescriptions.Add((New-Object System.Windows.Data.PropertyGroupDescription('TypeText')))
+    }
+    $ui.FltObjType.ItemsSource = @(Get-MspkiGuiObjectTypeChoice -Rows $g.ObjRows)
+    $ui.FltObjType.SelectedIndex = 0
+    if ($g.ObjRows.Count -eq 0) {
+        $ui.TxtObjEmpty.Text = $(if ($null -eq $g.Index) { 'These results were written by an older version of the tool, without the object graph. Run the health check again to see every object.' } else { 'This run recorded no objects.' })
+        $ui.TxtObjEmpty.Visibility = 'Visible'
+    }
+    else { $ui.TxtObjEmpty.Visibility = 'Collapsed' }
+    Update-MspkiGuiObjectFilter
+    if ($g.ObjRows.Count -gt 0) { $ui.ObjList.SelectedIndex = 0 }
 
     # Buttons, folder and notes
     $ui.BtnOpenReport.IsEnabled = [bool]$Data.ReportPath
@@ -671,8 +873,14 @@ function Complete-MspkiGuiRun {
     if ($null -ne $result -and $null -ne $result.Findings) {
         $log = ''
         if ($result.OutputFolder) { $log = Join-Path $result.OutputFolder 'run.log' }
+        # The object graph is read back from results.json, so a live run and an opened file show exactly the same objects.
+        $graph = $null
+        if ($result.ResultsPath -and (Test-Path -LiteralPath ([string]$result.ResultsPath) -PathType Leaf)) {
+            try { $graph = (Read-MspkiGuiResults -Path ([string]$result.ResultsPath)).Graph }
+            catch { Add-MspkiGuiLogRow -Row (New-MspkiGuiLogRow -Text ('WARNING The object graph could not be read back from results.json: {0}' -f $_.Exception.Message) -Level 'Warning') }
+        }
         $data = [pscustomobject][ordered]@{
-            RunInfo = $result.RunInfo; Inventory = $result.Inventory; Findings = @($result.Findings); ExitCode = $result.ExitCode
+            RunInfo = $result.RunInfo; Inventory = $result.Inventory; Findings = @($result.Findings); ExitCode = $result.ExitCode; Graph = $graph
             OutputFolder = [string]$result.OutputFolder; ResultsPath = [string]$result.ResultsPath; ReportPath = [string]$result.ReportPath; LogPath = $log
         }
         Show-MspkiGuiResult -Data $data
@@ -834,7 +1042,7 @@ function Select-MspkiGuiTab {
     [CmdletBinding()]
     param([int]$Index)
     $ui = $script:MspkiGui.Ui
-    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabLog)
+    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabLog, $ui.TabObjects)
     if ($Index -ge 0 -and $Index -lt $tabs.Count) { $ui.Tabs.SelectedItem = $tabs[$Index] }
 }
 
@@ -855,6 +1063,7 @@ function Initialize-MspkiGuiApplication {
         Window = $w.Window; Ui = $w.Ui; ModulePath = $ModulePath; OutputRoot = $OutputPath
         Run = $null; Timer = $null; Data = $null; Summary = $null; Rows = (New-Object 'System.Collections.Generic.List[object]'); View = $null; RowById = @{}
         Chips = @(); MapPane = $null; LastExport = ''
+        Index = $null; ObjRows = @(); ObjView = $null; ObjFilter = @{ Text = ''; Type = ''; Attention = $false }; Nav = @{}
         Filter = @{ Text = ''; Status = @(); Category = ''; Confidence = ''; Severity = '' }
         LogFilter = @{ Text = ''; Level = '' }
         LogRows = (New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'); LogView = $null
@@ -978,30 +1187,30 @@ function Initialize-MspkiGuiApplication {
     $ui.SevTileList.AddHandler($btnClick, $tileHandler)
     $ui.TopList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFinding -Id $t } })
 
-    # Details pane of the Findings tab: Copy
-    $ui.FindingHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{
-        param($s, $e)
-        $t = (& $script:MspkiGuiTagOf $e)
-        $c = $script:MspkiGui.Ui.FindingHost.Content
-        if ($t -eq 'Copy' -and $null -ne $c -and $c.CopyText) { [void](Set-MspkiGuiClipboard -Text $c.CopyText) }
-    })
+    # Overview: KPI tiles open the Objects page for their type, CA cards open the CA object
+    $ui.KpiList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t -and $t.StartsWith('type:')) { Show-MspkiGuiObjectsOfType -Type $t.Substring(5) } })
+    $ui.CaList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t -and $t.StartsWith('ent:')) { Show-MspkiGuiObject -Id $t.Substring(4) } })
 
-    # Discovery Map: selection, details pane, drill into a finding and back, expand/collapse
-    $ui.MapTree.Add_SelectedItemChanged({
+    # Details panes (Findings, Discovery map, Objects): Copy, Back, related objects, breadcrumbs, findings. One handler each.
+    $ui.FindingHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'FindingHost' -Tag (& $script:MspkiGuiTagOf $e) })
+    $ui.MapHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag (& $script:MspkiGuiTagOf $e) })
+    $ui.ObjHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'ObjHost' -Tag (& $script:MspkiGuiTagOf $e) })
+
+    # Discovery Map: selection, expand/collapse
+    $ui.MapTree.Add_SelectedItemChanged({ Show-MspkiGuiNodePane -Node $script:MspkiGui.Ui.MapTree.SelectedItem })
+
+    # Objects page: search, type filter, needs-attention switch, selection
+    $ui.FltObj.Add_TextChanged({ Update-MspkiGuiObjectFilter })
+    $ui.FltObjType.Add_SelectionChanged({ Update-MspkiGuiObjectFilter })
+    $ui.ChkObjAttention.Add_Click({ Update-MspkiGuiObjectFilter })
+    $ui.BtnObjClear.Add_Click({ Clear-MspkiGuiObjectFilter })
+    $ui.ObjList.Add_SelectionChanged({
         $s = $script:MspkiGui
-        $node = $s.Ui.MapTree.SelectedItem
-        $s.MapPane = Get-MspkiGuiNodePane -Node $node -RowById $s.RowById
-        $s.Ui.MapHost.Content = $s.MapPane
-    })
-    $ui.MapHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{
-        param($s, $e)
-        $t = (& $script:MspkiGuiTagOf $e)
-        $st = $script:MspkiGui
-        $c = $st.Ui.MapHost.Content
-        if (-not $t -or $null -eq $c) { return }
-        if ($t -eq 'Copy') { if ($c.CopyText) { [void](Set-MspkiGuiClipboard -Text $c.CopyText) }; return }
-        if ($t -eq 'Back') { if ($null -ne $st.MapPane) { $st.Ui.MapHost.Content = $st.MapPane }; return }
-        if ($st.RowById.ContainsKey($t)) { $st.Ui.MapHost.Content = Get-MspkiGuiFindingDetail -Finding $st.RowById[$t].Finding -CanGoBack $true }
+        $row = $s.Ui.ObjList.SelectedItem
+        if ($null -eq $row) { return }
+        Reset-MspkiGuiPaneNav -HostName 'ObjHost'
+        $s.Nav.ObjHost.Trail = [string[]]@([string]$row.Id)
+        Show-MspkiGuiEntityPane -HostName 'ObjHost'
     })
     $ui.BtnExpandAll.Add_Click({ $t = $script:MspkiGui.Ui.MapTree; Set-MspkiGuiTreeExpansion -Parent $t -Expand $true })
     $ui.BtnCollapseAll.Add_Click({ $t = $script:MspkiGui.Ui.MapTree; Set-MspkiGuiTreeExpansion -Parent $t -Expand $false })
@@ -1032,7 +1241,7 @@ function Initialize-MspkiGuiApplication {
         if ($e.Key -eq 'F5' -and $u.BtnRun.IsEnabled) { Start-MspkiGuiRun; $e.Handled = $true; return }
         if ($e.Key -eq 'Escape') {
             $f = [System.Windows.Input.Keyboard]::FocusedElement
-            if (($f -eq $u.FltText -and $u.FltText.Text) -or ($f -eq $u.FltLog -and $u.FltLog.Text)) { $f.Text = ''; $e.Handled = $true; return }
+            if (($f -eq $u.FltText -and $u.FltText.Text) -or ($f -eq $u.FltLog -and $u.FltLog.Text) -or ($f -eq $u.FltObj -and $u.FltObj.Text)) { $f.Text = ''; $e.Handled = $true; return }
             if ($null -ne $s.Run) { Request-MspkiGuiCancel; $e.Handled = $true }
             return
         }
@@ -1042,10 +1251,12 @@ function Initialize-MspkiGuiApplication {
                 'D2' { Select-MspkiGuiTab -Index 1; $e.Handled = $true }
                 'D3' { Select-MspkiGuiTab -Index 2; $e.Handled = $true }
                 'D4' { Select-MspkiGuiTab -Index 3; $e.Handled = $true }
+                'D5' { Select-MspkiGuiTab -Index 4; $e.Handled = $true }
                 'O' { if ($u.BtnOpenResults.IsEnabled) { Invoke-MspkiGuiOpenDialog }; $e.Handled = $true }
                 'F' {
                     if ($u.Tabs.SelectedItem -eq $u.TabFindings) { [void]$u.FltText.Focus(); $e.Handled = $true }
                     elseif ($u.Tabs.SelectedItem -eq $u.TabLog) { [void]$u.FltLog.Focus(); $e.Handled = $true }
+                    elseif ($u.Tabs.SelectedItem -eq $u.TabObjects) { [void]$u.FltObj.Focus(); $e.Handled = $true }
                 }
             }
         }

@@ -147,7 +147,7 @@ function Get-MspkiGuiFindingDetail {
     Empty values show as a dash so that no field looks forgotten.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Finding, [bool]$CanGoBack = $false)
+    param([Parameter(Mandatory = $true)]$Finding, [bool]$CanGoBack = $false, [string]$BackText = 'Back to the item')
     $f = $Finding
     $dash = [string][char]0x2014
     $fieldNames = @('Id', 'Timestamp', 'Stage', 'Category', 'Role', 'Target', 'Endpoint', 'RelatedCA', 'Confidence', 'Status', 'Severity', 'StatusCode', 'Scope', 'Forest', 'Domain')
@@ -194,6 +194,7 @@ function Get-MspkiGuiFindingDetail {
         Notes          = [string]$f.Notes
         HasNotes       = [bool]$f.Notes
         CanGoBack      = $CanGoBack
+        BackText       = $BackText
         CopyText       = ($copy -join "`r`n")
     }
 }
@@ -525,10 +526,10 @@ function Get-MspkiGuiSummary {
     $epSub = 'none with problems'
     if ($epProblems -gt 0) { $epSub = '{0} with problems' -f $epProblems }
     $kpis = @(
-        [pscustomobject][ordered]@{ Label = 'Certification authorities'; Value = $caCount; Sub = 'Enterprise CAs found in Active Directory'; Glyph = [string][char]0xE83D }
-        [pscustomobject][ordered]@{ Label = 'CA certificates'; Value = $certs.Count; Sub = $certSub; Glyph = [string][char]0xEB95 }
-        [pscustomobject][ordered]@{ Label = 'Endpoints'; Value = $leadCount; Sub = ('AIA, CDP, OCSP and enrollment URLs; {0}' -f $epSub); Glyph = [string][char]0xE71B }
-        [pscustomobject][ordered]@{ Label = 'Certificate templates'; Value = $published.Count; Sub = $tplSub; Glyph = [string][char]0xE8A5 }
+        [pscustomobject][ordered]@{ Label = 'Certification authorities'; Value = $caCount; Sub = 'Enterprise CAs found in Active Directory'; Glyph = [string][char]0xE83D; Tag = 'type:CA' }
+        [pscustomobject][ordered]@{ Label = 'CA certificates'; Value = $certs.Count; Sub = $certSub; Glyph = [string][char]0xEB95; Tag = 'type:CACertificate' }
+        [pscustomobject][ordered]@{ Label = 'Endpoints'; Value = $leadCount; Sub = ('AIA, CDP, OCSP and enrollment URLs; {0}' -f $epSub); Glyph = [string][char]0xE71B; Tag = 'type:Endpoint' }
+        [pscustomobject][ordered]@{ Label = 'Certificate templates'; Value = $published.Count; Sub = $tplSub; Glyph = [string][char]0xE8A5; Tag = 'type:Template' }
     )
 
     $coverage = Get-MspkiGuiCoverage -RunInfo $RunInfo

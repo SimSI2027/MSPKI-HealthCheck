@@ -41,8 +41,18 @@ function New-MspkiGuiGraphIndex {
     [CmdletBinding()]
     param([AllowNull()]$Graph, [AllowEmptyCollection()][object[]]$Findings = @())
     if ($null -eq $Graph) { return $null }
-    $ix = @{ Entities = @{}; Out = @{}; In = @{}; Obs = @{}; Findings = @{} }
-    foreach ($e in @($Graph.Entities | Where-Object { $null -ne $_ -and $_.Id })) { $ix.Entities[[string]$e.Id] = $e }
+    $ix = @{ Entities = @{}; Out = @{}; In = @{}; Obs = @{}; Findings = @{}; ByName = @{} }
+    foreach ($e in @($Graph.Entities | Where-Object { $null -ne $_ -and $_.Id })) {
+        $ix.Entities[[string]$e.Id] = $e
+        # Lower-cased name (and the URL of an endpoint) -> ids, to find the object behind a Discovery map item or a CA card.
+        $names = @([string]$e.Name)
+        if ($null -ne $e.Properties -and $null -ne $e.Properties.PSObject.Properties['Url']) { $names += [string]$e.Properties.Url }
+        if ([string]$e.Type -eq 'Endpoint') { $names += @($names | ForEach-Object { try { [System.Uri]::UnescapeDataString($_) } catch { $_ } }) }
+        foreach ($n in @($names | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLowerInvariant() } | Select-Object -Unique)) {
+            if (-not $ix.ByName.ContainsKey($n)) { $ix.ByName[$n] = New-Object System.Collections.ArrayList }
+            [void]$ix.ByName[$n].Add([string]$e.Id)
+        }
+    }
     foreach ($r in @($Graph.Relations | Where-Object { $null -ne $_ })) {
         foreach ($pair in @(@('Out', [string]$r.From), @('In', [string]$r.To))) {
             if (-not $ix[$pair[0]].ContainsKey($pair[1])) { $ix[$pair[0]][$pair[1]] = New-Object System.Collections.ArrayList }
@@ -77,7 +87,14 @@ function ConvertTo-MspkiGuiValueText {
 
 function Get-MspkiGuiEntityName {
     param($Index, [string]$Id)
-    if ($null -ne $Index -and $Index.Entities.ContainsKey($Id)) { $e = $Index.Entities[$Id]; if ($e.Name) { return [string]$e.Name } }
+    if ($null -ne $Index -and $Index.Entities.ContainsKey($Id)) {
+        $e = $Index.Entities[$Id]
+        if ($e.Name) {
+            # URLs are stored percent-encoded (as the certificate carries them); people read them decoded.
+            if ([string]$e.Type -eq 'Endpoint') { try { return [System.Uri]::UnescapeDataString([string]$e.Name) } catch { } }
+            return [string]$e.Name
+        }
+    }
     return $Id
 }
 
@@ -117,12 +134,22 @@ function Get-MspkiGuiEntityPane {
     objects (both directions, clickable), its findings and the breadcrumb trail. An unknown id gives a plain "not in this run" view.
     #>
     [CmdletBinding()]
-    param($Index, [Parameter(Mandatory = $true)][string]$Id, [hashtable]$RowById = @{}, [AllowEmptyCollection()][string[]]$Trail = @())
-    $crumbs = @(for ($i = 0; $i -lt @($Trail).Count; $i++) { [pscustomobject]@{ Name = (Get-MspkiGuiEntityName -Index $Index -Id $Trail[$i]); Tag = ('crumb:{0}' -f $i); IsLast = ($i -eq @($Trail).Count - 1) } })
+    param($Index, [Parameter(Mandatory = $true)][string]$Id, [hashtable]$RowById = @{}, [AllowEmptyCollection()][string[]]$Trail = @(),
+        [string]$OriginText = '')
+    # Back goes to the previous object of the trail, or (at the first object) to what the user came from: a finding or a map item.
+    $n = @($Trail).Count
+    $crumbs = @(for ($i = 0; $i -lt $n; $i++) { [pscustomobject]@{ Name = (Get-MspkiGuiEntityName -Index $Index -Id $Trail[$i]); Tag = ('crumb:{0}' -f $i); IsLast = ($i -eq $n - 1); NotLast = ($i -lt $n - 1); NotFirst = ($i -gt 0) } })
+    $backText = ''
+    if ($n -gt 1) { $backText = 'Back to {0}' -f (Get-MspkiGuiEntityName -Index $Index -Id $Trail[$n - 2]) }
+    elseif ($OriginText) { $backText = $OriginText }
+    $nav = @{ Breadcrumbs = $crumbs; ShowCrumbs = ($n -gt 1); CanGoBack = [bool]$backText; BackText = $backText }
     if ($null -eq $Index -or -not $Index.Entities.ContainsKey($Id)) {
-        return [pscustomobject][ordered]@{ Kind = 'Entity'; Known = $false; Title = $Id; TypeText = 'Not in this run'; TypeGlyph = [string][char]0xE783; About = 'This object is not in the results of this run (or the results were written by an older version without the object graph).'
-            Properties = @(); HostFacts = @(); HasHostFacts = $false; Seen = @(); Missing = @(); HasMissing = $false; NoSeen = $true; Related = @(); NoRelated = $true; Findings = @(); FindingCount = 0; NoFindings = $true
-            Breadcrumbs = $crumbs; CanGoBack = (@($Trail).Count -gt 1); Id = $Id; CopyText = $Id }
+        $why = 'This object is not in the results of this run.'
+        if ($null -eq $Index) { $why = 'These results were written by an older version of the tool, without the object graph. Run the health check again to see objects.' }
+        return [pscustomobject][ordered]@{ Kind = 'Entity'; Known = $false; Title = $Id; TypeText = 'Not in this run'; TypeGlyph = [string][char]0xE783; About = $why; HasAbout = $true
+            Facts = @(); HasProperties = $false; HostFacts = @(); HasHostFacts = $false; Seen = @(); SeenCount = 0; Missing = @(); MissingCount = 0; HasMissing = $false; NoSeen = $true
+            Related = @(); RelatedCount = 0; NoRelated = $true; Findings = @(); FindingCount = 0; NoFindings = $true; MissingBadge = ''; SeenBadge = 'Not in this run'; FindingBadge = '0 findings'
+            Breadcrumbs = $nav.Breadcrumbs; ShowCrumbs = $nav.ShowCrumbs; CanGoBack = $nav.CanGoBack; BackText = $nav.BackText; Id = $Id; CopyText = $Id }
     }
     $e = $Index.Entities[$Id]
     $ti = Get-MspkiGuiEntityTypeInfo -Type ([string]$e.Type)
@@ -135,8 +162,9 @@ function Get-MspkiGuiEntityPane {
         param($o)
         $missing = ([string]$o.Kind -eq 'ExpectedMissing')
         [pscustomobject][ordered]@{
-            KindText = $(switch ([string]$o.Kind) { 'Seen' { 'Seen here' } 'Referenced' { 'Named here' } default { 'Expected here, but MISSING' } })
-            Source = [string]$o.Source; Location = [string]$o.Location; Detail = [string]$o.Detail; Time = [string]$o.Timestamp; IsMissing = $missing
+            KindText = $(switch ([string]$o.Kind) { 'Seen' { 'Seen here' } 'Referenced' { 'Named here' } default { 'Missing' } })
+            Source = [string]$o.Source; Location = [string]$o.Location; Detail = [string]$o.Detail; HasDetail = [bool]$o.Detail; Time = [string]$o.Timestamp; IsMissing = $missing
+            TimeText = $(if ($null -ne ($t = ConvertTo-MspkiGuiDateTime -Value $o.Timestamp)) { $t.ToString('yyyy-MM-dd HH:mm:ss') + ' UTC' } else { '' })
             ConfidencePill = (Get-MspkiGuiStatusPill -Value ([string]$o.Confidence) -Kind Confidence)
             Glyph = $(if ($missing) { [string][char]0xE7BA } elseif ([string]$o.Kind -eq 'Seen') { [string][char]0xE73E } else { [string][char]0xE71B })
         }
@@ -167,11 +195,13 @@ function Get-MspkiGuiEntityPane {
     foreach ($s in $miss) { $copy.Add(('MISSING: {0} {1} {2}' -f $s.Source, $s.Location, $s.Detail).Trim()) }
     foreach ($r in $related) { $copy.Add(('{0}: {1}' -f $r.Label, $r.Name)) }
     return [pscustomobject][ordered]@{
-        Kind = 'Entity'; Known = $true; Id = $Id; Title = [string]$e.Name; TypeText = $ti.Label; TypeGlyph = $ti.Glyph; About = $ti.About; HasAbout = [bool]$ti.About
-        Properties = $props; HostFacts = $hostFacts; HasHostFacts = ($hostFacts.Count -gt 0)
-        Seen = $seen; NoSeen = ($seen.Count -eq 0); Missing = $miss; HasMissing = ($miss.Count -gt 0); MissingCount = $miss.Count
-        Related = $related; NoRelated = ($related.Count -eq 0); Findings = [object[]]$rows; FindingCount = $rows.Count; NoFindings = ($rows.Count -eq 0)
-        Breadcrumbs = $crumbs; CanGoBack = (@($Trail).Count -gt 1); CopyText = ($copy -join "`r`n")
+        Kind = 'Entity'; Known = $true; Id = $Id; Title = (Get-MspkiGuiEntityName -Index $Index -Id $Id); TypeText = $ti.Label; TypeGlyph = $ti.Glyph; About = $ti.About; HasAbout = [bool]$ti.About
+        Facts = $props; HasProperties = ($props.Count -gt 0); HostFacts = $hostFacts; HasHostFacts = ($hostFacts.Count -gt 0)
+        Seen = $seen; SeenCount = $seen.Count; NoSeen = ($seen.Count -eq 0); Missing = $miss; HasMissing = ($miss.Count -gt 0); MissingCount = $miss.Count
+        Related = $related; RelatedCount = $related.Count; NoRelated = ($related.Count -eq 0); Findings = [object[]]$rows; FindingCount = $rows.Count; NoFindings = ($rows.Count -eq 0)
+        MissingBadge = ('Missing in {0}' -f (Format-MspkiGuiCount -Count $miss.Count -Singular 'expected place'))
+        SeenBadge = ('Seen or named in {0}' -f (Format-MspkiGuiCount -Count $seen.Count -Singular 'place')); FindingBadge = (Format-MspkiGuiCount -Count $rows.Count -Singular 'finding')
+        Breadcrumbs = $nav.Breadcrumbs; ShowCrumbs = $nav.ShowCrumbs; CanGoBack = $nav.CanGoBack; BackText = $nav.BackText; CopyText = ($copy -join "`r`n")
     }
 }
 
@@ -191,19 +221,155 @@ function Get-MspkiGuiEntityLink {
 function Get-MspkiGuiObjectList {
     <#
     .SYNOPSIS
-    Rows for the Objects page: every entity with its type, number of findings and whether something is expected but missing, sorted by type and name.
+    Rows for the Objects page: every entity with its type, its findings (count and worst status) and whether something is expected but
+    missing, sorted by type and name.
     #>
     [CmdletBinding()]
-    param($Index)
+    param($Index, [hashtable]$RowById = @{})
     if ($null -eq $Index) { return @() }
     $order = @($script:MspkiGuiEntityType.Keys)
+    $quiet = @('Pass', 'Information', 'Skipped', 'NotApplicable')
     return @($Index.Entities.Values | ForEach-Object {
         $t = Get-MspkiGuiEntityTypeInfo -Type ([string]$_.Type)
         $id = [string]$_.Id
         $miss = 0; if ($Index.Obs.ContainsKey($id)) { $miss = @($Index.Obs[$id] | Where-Object { $_.Kind -eq 'ExpectedMissing' }).Count }
-        $nf = 0; if ($Index.Findings.ContainsKey($id)) { $nf = @($Index.Findings[$id] | Select-Object -Unique).Count }
-        [pscustomobject][ordered]@{ Id = $id; Name = [string]$_.Name; Type = [string]$_.Type; TypeText = $t.Label; Glyph = $t.Glyph; TypeOrder = [Math]::Max(0, [array]::IndexOf($order, [string]$_.Type))
-            FindingCount = $nf; MissingCount = $miss; HasMissing = ($miss -gt 0); Tag = ('ent:{0}' -f $id)
-            SearchText = ('{0} {1} {2}' -f $_.Name, $id, $t.Label).ToLowerInvariant() }
+        $fids = @(); if ($Index.Findings.ContainsKey($id)) { $fids = @($Index.Findings[$id] | Select-Object -Unique) }
+        $worst = ''; $rank = -1
+        foreach ($f in $fids) { if ($RowById.ContainsKey($f) -and [int]$RowById[$f].StatusRank -gt $rank) { $rank = [int]$RowById[$f].StatusRank; $worst = [string]$RowById[$f].Status } }
+        $nf = $fids.Count
+        $fpill = New-MspkiGuiPill -Text '' -Tone Neutral
+        if ($nf -gt 0) {
+            $ftext = Format-MspkiGuiCount -Count $nf -Singular 'finding'
+            if ($worst) { $fpill = Get-MspkiGuiStatusPill -Value $worst -Text $ftext } else { $fpill = New-MspkiGuiPill -Text $ftext -Tone Neutral -Code 0xE8FD }
+        }
+        $mpill = New-MspkiGuiPill -Text '' -Tone Neutral
+        if ($miss -gt 0) { $mpill = New-MspkiGuiPill -Text ('{0} missing' -f $miss) -Tone Warn -Code 0xE7BA }
+        $attention = ($miss -gt 0 -or ($worst -and $quiet -notcontains $worst))
+        [pscustomobject][ordered]@{ Id = $id; Name = (Get-MspkiGuiEntityName -Index $Index -Id $id); Type = [string]$_.Type; TypeText = $t.Label; Glyph = $t.Glyph; TypeOrder = [Math]::Max(0, [array]::IndexOf($order, [string]$_.Type))
+            FindingCount = $nf; WorstStatus = $worst; FindingPill = $fpill; MissingCount = $miss; HasMissing = ($miss -gt 0); MissingPill = $mpill; NeedsAttention = [bool]$attention
+            Tag = ('ent:{0}' -f $id); SearchText = ('{0} {1} {2}' -f $_.Name, $id, $t.Label).ToLowerInvariant() }
     } | Sort-Object TypeOrder, Name)
+}
+
+function Test-MspkiGuiObjectFilter {
+    <#
+    .SYNOPSIS
+    True when an Objects row matches the search words (every word somewhere in name, id or type), the type filter ('' or 'All' = any)
+    and, with -AttentionOnly, has a finding worse than Information or something expected but missing.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Row, [AllowEmptyString()][string]$Text = '', [AllowEmptyString()][string]$Type = '', [switch]$AttentionOnly)
+    if ($Type -and $Type -ne 'All' -and [string]$Row.TypeText -ne $Type) { return $false }
+    if ($AttentionOnly -and -not $Row.NeedsAttention) { return $false }
+    foreach ($w in @($Text.ToLowerInvariant() -split '\s+' | Where-Object { $_ })) {
+        if (([string]$Row.SearchText).IndexOf($w, [System.StringComparison]::Ordinal) -lt 0) { return $false }
+    }
+    return $true
+}
+
+function Get-MspkiGuiObjectTypeChoice {
+    <#
+    .SYNOPSIS
+    The choices of the Objects type filter: 'All' and every type label that occurs, in the fixed type order.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyCollection()][object[]]$Rows = @())
+    return @(@('All') + @($Rows | Sort-Object TypeOrder | ForEach-Object { [string]$_.TypeText } | Select-Object -Unique))
+}
+
+function Step-MspkiGuiTrail {
+    <#
+    .SYNOPSIS
+    The breadcrumb trail after one navigation step: Push an object (an object already in the trail cuts the trail back to it), go Back one
+    step, or jump to Crumb <Index>. Returns the new trail (string[]).
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyCollection()][string[]]$Trail = @(), [Parameter(Mandatory = $true)][ValidateSet('Push', 'Back', 'Crumb')][string]$Action, [string]$Id = '', [int]$Index = 0)
+    $t = @($Trail | Where-Object { $_ })
+    if ($Action -eq 'Push') {
+        if (-not $Id) { return [string[]]$t }
+        $at = [array]::IndexOf([string[]]$t, $Id)
+        if ($at -ge 0) { return [string[]]@($t[0..$at]) }
+        return [string[]]@($t + $Id)
+    }
+    if ($Action -eq 'Back') { if ($t.Count -le 1) { return [string[]]@() }; return [string[]]@($t[0..($t.Count - 2)]) }
+    if ($Index -lt 0 -or $Index -ge $t.Count) { return [string[]]$t }
+    return [string[]]@($t[0..$Index])
+}
+
+function Find-MspkiGuiEntityId {
+    <#
+    .SYNOPSIS
+    The ids of the objects of one type (or any type) with this name or URL, case-insensitive.
+    #>
+    [CmdletBinding()]
+    param($Index, [AllowEmptyString()][string]$Name, [string]$Type = '')
+    if ($null -eq $Index -or -not $Name -or $null -eq $Index.ByName) { return @() }
+    $k = $Name.Trim().ToLowerInvariant()
+    if (-not $Index.ByName.ContainsKey($k)) { return @() }
+    return @($Index.ByName[$k] | Where-Object { -not $Type -or [string]$Index.Entities[$_].Type -eq $Type })
+}
+
+function Get-MspkiGuiNodeEntityId {
+    <#
+    .SYNOPSIS
+    The objects behind a Discovery map item: the forest, a container (by DN), a CA (by configuration string or name), a CA certificate
+    (by thumbprint), an endpoint (by URL and its variants) or the templates of a template list. When none is known, the objects of the
+    item's own findings. Only ids that are in the graph are returned.
+    #>
+    [CmdletBinding()]
+    param($Index, [AllowNull()]$Node, [hashtable]$RowById = @{})
+    if ($null -eq $Index -or $null -eq $Node) { return @() }
+    $ids = New-Object 'System.Collections.Generic.List[string]'
+    $add = { param($i) if ($i -and $Index.Entities.ContainsKey($i) -and -not $ids.Contains($i)) { $ids.Add($i) } }
+    $detail = @($Node.Detail | Where-Object { $_ } | ForEach-Object { [string]$_ })
+    $label = [string]$Node.Label
+    switch ([string]$Node.Type) {
+        'Forest' { & $add ('forest:' + ($label -replace '^Forest\s+', '').Trim().ToLowerInvariant()) }
+        'Container' { foreach ($d in $detail) { if ($d -match '^(CN|OU|DC)=') { & $add ('adobject:' + $d.Trim().ToLowerInvariant()) } } }
+        'Certificate' { foreach ($d in $detail) { if ($d -match 'Thumbprint \(SHA-1\):\s*([0-9A-Fa-f ]+)') { & $add ('cacert:' + ($Matches[1] -replace '\s', '').ToLowerInvariant()) } } }
+        'CA' {
+            foreach ($d in $detail) { if ($d -match '^CA configuration:\s*(.+)$') { & $add ('ca:' + $Matches[1].Trim().ToLowerInvariant()) } }
+            if ($ids.Count -eq 0) { foreach ($i in @(Find-MspkiGuiEntityId -Index $Index -Name $label -Type 'CA')) { & $add $i } }
+        }
+        'Endpoint' {
+            $urls = @()
+            $cut = $label.IndexOf(': ')
+            if ($cut -ge 0) { $urls += $label.Substring($cut + 2) }
+            foreach ($d in $detail) { if ($d -match '^URL variants:\s*(.+)$') { $urls += @($Matches[1] -split '\s;\s') } }
+            foreach ($u in @($urls | Where-Object { $_ } | ForEach-Object { $_.Trim() })) {
+                foreach ($i in @(Find-MspkiGuiEntityId -Index $Index -Name $u -Type 'Endpoint')) { & $add $i }
+                # The id key of a web URL: decoded, lower case, http and https as one "web" scheme.
+                $k = $u
+                try { $k = [System.Uri]::UnescapeDataString($u) } catch { }
+                & $add ('endpoint:' + ($k.ToLowerInvariant() -replace '^https?://', 'web://'))
+            }
+        }
+        'Group' {
+            if ($label -like 'Published certificate templates*') { foreach ($d in $detail) { & $add ('template:' + $d.Trim().ToLowerInvariant()) } }
+        }
+    }
+    if ($ids.Count -eq 0) {
+        foreach ($fid in @($Node.FindingIds | Where-Object { $_ })) {
+            if (-not $RowById.ContainsKey($fid)) { continue }
+            $f = $RowById[$fid]
+            if ($null -ne $f.PSObject.Properties['Finding']) { $f = $f.Finding }
+            foreach ($i in @($f.EntityIds | Where-Object { $_ })) { & $add ([string]$i) }
+        }
+    }
+    return [string[]]$ids.ToArray()
+}
+
+function Add-MspkiGuiPaneObject {
+    <#
+    .SYNOPSIS
+    Adds the "Related objects" links (Objects, ObjectCount, HasObjects) to a Finding or Discovery map pane, so that each opens its object view.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Pane, $Index, [AllowEmptyCollection()][string[]]$Ids = @())
+    $links = @(Get-MspkiGuiEntityLink -Index $Index -Ids $Ids -Max 24)
+    $Pane | Add-Member -NotePropertyName Objects -NotePropertyValue ([object[]]$links) -Force
+    $Pane | Add-Member -NotePropertyName ObjectCount -NotePropertyValue $links.Count -Force
+    $Pane | Add-Member -NotePropertyName HasObjects -NotePropertyValue ($links.Count -gt 0) -Force
+    return $Pane
 }

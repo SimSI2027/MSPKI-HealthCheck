@@ -8,6 +8,7 @@ BeforeAll {
     $script:GuiFolder = Join-Path $script:RepoRoot 'src\Gui'
     . (Join-Path $script:GuiFolder 'GuiModel.ps1')
     . (Join-Path $script:GuiFolder 'GuiView.ps1')
+    . (Join-Path $script:GuiFolder 'GuiEntity.ps1')
     $script:DemoResults = Join-Path $script:FixturePath 'demo-results.json'
 
     function Invoke-InStaRunspace {
@@ -460,6 +461,7 @@ Describe 'GUI window (single-threaded runspace)' {
             param($folder)
             . (Join-Path $folder 'GuiModel.ps1')
             . (Join-Path $folder 'GuiView.ps1')
+            . (Join-Path $folder 'GuiEntity.ps1')
             . (Join-Path $folder 'GuiApp.ps1')
             . (Join-Path $folder 'GuiSnapshot.ps1')
             Import-MspkiGuiAssembly
@@ -494,7 +496,7 @@ Describe 'GUI window (single-threaded runspace)' {
         $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, $TestDrive) -Script {
             param($folder, $module, $outRoot)
             Import-Module $module -Force
-            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiApp.ps1')
+            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiEntity.ps1'); . (Join-Path $folder 'GuiApp.ps1')
             Import-MspkiGuiAssembly
             $win = Initialize-MspkiGuiApplication -ModulePath $module -XamlPath (Join-Path $folder 'MainWindow.xaml') -OutputPath $outRoot
             $ui = $script:MspkiGui.Ui
@@ -536,7 +538,7 @@ Describe 'GUI window (single-threaded runspace)' {
         $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, $script:DemoResults, $TestDrive) -Script {
             param($folder, $module, $results, $outRoot)
             Import-Module $module -Force
-            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiApp.ps1')
+            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiEntity.ps1'); . (Join-Path $folder 'GuiApp.ps1')
             Import-MspkiGuiAssembly
             # The export confirmation would block the test with a message box, so record it instead.
             $script:messages = New-Object System.Collections.ArrayList
@@ -667,13 +669,111 @@ Describe 'GUI window (single-threaded runspace)' {
         $r.Messages | Should -BeLike '*Exported*'
     }
 
+    It 'drills into objects (format-2 fixture): Objects page, Overview tiles and cards, finding and map panes, related links, breadcrumbs, Back' {
+        $v2 = Join-Path $script:FixturePath 'demo-results-v2.json'
+        $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, $v2, $TestDrive) -Script {
+            param($folder, $module, $results, $outRoot)
+            Import-Module $module -Force
+            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiEntity.ps1'); . (Join-Path $folder 'GuiApp.ps1')
+            Import-MspkiGuiAssembly
+            function Show-MspkiGuiMessage { param([string]$Text, [string]$Title, [string]$Icon) }
+            $null = Initialize-MspkiGuiApplication -ModulePath $module -XamlPath (Join-Path $folder 'MainWindow.xaml') -OutputPath $outRoot -OpenResults $results
+            $g = $script:MspkiGui; $ui = $g.Ui
+            $r = [ordered]@{}
+            $r.Objects = @($g.ObjRows).Count; $r.Listed = $ui.ObjList.Items.Count; $r.Showing = $ui.TxtObjShowing.Text; $r.Types = @($ui.FltObjType.ItemsSource).Count
+            $r.FirstPane = $ui.ObjHost.Content.Kind
+            # Overview: a KPI tile lists one type; a CA card opens its CA
+            Show-MspkiGuiObjectsOfType -Type 'CA'
+            $r.KpiTab = ($ui.Tabs.SelectedItem -eq $ui.TabObjects); $r.KpiType = [string]$ui.FltObjType.SelectedItem; $r.KpiCount = $ui.ObjList.Items.Count
+            $card = @($ui.CaList.ItemsSource)[0]
+            $r.CardTag = [string]$card.Tag
+            Show-MspkiGuiObject -Id $card.Tag.Substring(4)
+            $r.CardPane = $ui.ObjHost.Content.Kind; $r.CardTitle = $ui.ObjHost.Content.Title; $r.CardName = $card.Name
+            # Related link, breadcrumbs, crumb jump and Back on the Objects page
+            $rel = @($ui.ObjHost.Content.Related | Where-Object { $_.Known })[0]
+            Invoke-MspkiGuiPaneCommand -HostName 'ObjHost' -Tag $rel.Tag
+            $r.Trail2 = @($g.Nav.ObjHost.Trail).Count; $r.Crumbs = $ui.ObjHost.Content.ShowCrumbs; $r.Back2 = $ui.ObjHost.Content.BackText
+            Invoke-MspkiGuiPaneCommand -HostName 'ObjHost' -Tag 'crumb:0'
+            $r.AfterCrumb = $ui.ObjHost.Content.Title
+            Invoke-MspkiGuiPaneCommand -HostName 'ObjHost' -Tag 'Back'
+            $r.BackAtStart = $ui.ObjHost.Content.Title
+            # Attention filter and a search with no match
+            Clear-MspkiGuiObjectFilter
+            $ui.ChkObjAttention.IsChecked = $true; Update-MspkiGuiObjectFilter
+            $r.Attention = $ui.ObjList.Items.Count
+            $ui.FltObj.Text = 'zzzz-no-such-object'
+            $r.NoMatch = $ui.ObjList.Items.Count; $r.NoMatchText = [string]$ui.TxtObjEmpty.Visibility
+            Clear-MspkiGuiObjectFilter
+            # Findings pane: objects of a finding, open one, Back to the finding
+            $row = @($g.Rows | Where-Object { @($_.Finding.EntityIds).Count -gt 0 })[0]
+            $ui.Tabs.SelectedItem = $ui.TabFindings
+            $ui.FindingsGrid.SelectedItem = $row
+            $r.FindObjects = $ui.FindingHost.Content.HasObjects
+            Invoke-MspkiGuiPaneCommand -HostName 'FindingHost' -Tag @($ui.FindingHost.Content.Objects)[0].Tag
+            $r.FindEntity = $ui.FindingHost.Content.Kind; $r.FindBack = $ui.FindingHost.Content.BackText
+            Invoke-MspkiGuiPaneCommand -HostName 'FindingHost' -Tag 'Back'
+            $r.FindReturn = $ui.FindingHost.Content.Kind
+            # Discovery map: the CA item links its object; a finding opened from the object returns to it
+            $root = $ui.MapTree.Items[0]
+            $ca = $null; $stack = New-Object System.Collections.Stack; $stack.Push($root)
+            while ($stack.Count -gt 0 -and $null -eq $ca) { $n = $stack.Pop(); if ($n.Type -eq 'CA') { $ca = $n } else { foreach ($c in @($n.Children)) { $stack.Push($c) } } }
+            Show-MspkiGuiNodePane -Node $ca
+            $r.MapObjects = $ui.MapHost.Content.ObjectCount
+            Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag @($ui.MapHost.Content.Objects)[0].Tag
+            $r.MapEntity = $ui.MapHost.Content.Kind; $r.MapBack = $ui.MapHost.Content.BackText
+            $fid = @($ui.MapHost.Content.Findings)[0].Id
+            if ($fid) {
+                Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag $fid
+                $r.MapFinding = $ui.MapHost.Content.Kind; $r.MapFindingBack = $ui.MapHost.Content.BackText
+                Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag 'Back'
+                $r.MapFindingReturn = $ui.MapHost.Content.Kind
+            }
+            Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag 'Back'
+            $r.MapReturn = $ui.MapHost.Content.Kind
+            Select-MspkiGuiTab -Index 4
+            $r.Tab5 = ($ui.Tabs.SelectedItem -eq $ui.TabObjects)
+            [pscustomobject]$r
+        }
+        $r = $out[0]
+        $r.Objects | Should -BeGreaterThan 20
+        $r.Listed | Should -Be $r.Objects
+        $r.Showing | Should -Be ('Showing {0} of {0} objects' -f $r.Objects)
+        $r.Types | Should -BeGreaterThan 5
+        $r.FirstPane | Should -Be 'Entity'
+        $r.KpiTab | Should -BeTrue
+        $r.KpiType | Should -Be 'Certification authority'
+        $r.KpiCount | Should -Be 2
+        $r.CardTag | Should -BeLike 'ent:ca:*'
+        $r.CardPane | Should -Be 'Entity'
+        $r.CardTitle | Should -Be $r.CardName
+        $r.Trail2 | Should -Be 2
+        $r.Crumbs | Should -BeTrue
+        $r.Back2 | Should -Be ('Back to {0}' -f $r.CardName)
+        $r.AfterCrumb | Should -Be $r.CardName
+        $r.BackAtStart | Should -Be $r.CardName
+        $r.Attention | Should -BeGreaterThan 0
+        $r.Attention | Should -BeLessThan $r.Objects
+        $r.NoMatch | Should -Be 0
+        $r.NoMatchText | Should -Be 'Visible'
+        $r.FindObjects | Should -BeTrue
+        $r.FindEntity | Should -Be 'Entity'
+        $r.FindBack | Should -Be 'Back to the finding'
+        $r.FindReturn | Should -Be 'Finding'
+        $r.MapObjects | Should -BeGreaterThan 0
+        $r.MapEntity | Should -Be 'Entity'
+        $r.MapBack | Should -Be 'Back to the map item'
+        if ($null -ne $r.PSObject.Properties['MapFinding']) { $r.MapFinding | Should -Be 'Finding'; $r.MapFindingBack | Should -BeLike 'Back to *'; $r.MapFindingReturn | Should -Be 'Entity' }
+        $r.MapReturn | Should -Be 'Node'
+        $r.Tab5 | Should -BeTrue
+    }
+
     It 'a bad file is reported in a message, not a crash (window stays usable)' {
         $bad = Join-Path $TestDrive 'bad-results.json'
         [System.IO.File]::WriteAllText($bad, 'nope')
         $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, $bad, $TestDrive) -Script {
             param($folder, $module, $bad, $outRoot)
             Import-Module $module -Force
-            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiApp.ps1')
+            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiEntity.ps1'); . (Join-Path $folder 'GuiApp.ps1')
             Import-MspkiGuiAssembly
             # A message box would block the test, so replace it with a recorder.
             $script:messages = New-Object System.Collections.ArrayList
@@ -692,7 +792,7 @@ Describe 'GUI window (single-threaded runspace)' {
         $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, $script:DemoResults, (Join-Path $TestDrive 'out'), $snap) -Script {
             param($folder, $module, $results, $outRoot, $snap)
             Import-Module $module -Force
-            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiApp.ps1'); . (Join-Path $folder 'GuiSnapshot.ps1')
+            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiEntity.ps1'); . (Join-Path $folder 'GuiApp.ps1'); . (Join-Path $folder 'GuiSnapshot.ps1')
             Import-MspkiGuiAssembly
             $win = Initialize-MspkiGuiApplication -ModulePath $module -XamlPath (Join-Path $folder 'MainWindow.xaml') -OutputPath $outRoot
             Invoke-MspkiGuiSnapshot -Window $win -Folder $snap -AllowedRoot $outRoot -ResultsFile $results -Width 1100 -Height 700

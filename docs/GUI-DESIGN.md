@@ -74,7 +74,7 @@ error (run ended without results), no CAs found, plus every tab and the details 
 
 **Frame.** Custom title bar (in-box `WindowChrome`, no compiled code): app mark, name, version, a "Read-only" badge, the user
 badge and caption buttons (minimise, maximise/restore, close; close turns red on hover). Under it, left: navigation pane
-(Overview, Findings, Discovery map, Run log, with Ctrl+1..4) and the environment the run sees (forest, domain, domain
+(Overview, Findings, Discovery map, Run log, Objects, with Ctrl+1..5) and the environment the run sees (forest, domain, domain
 controller, run as). Right: command bar (Run = the only primary button, Cancel, Open results, Open report, Open folder), the
 run-options strip (collapsed summary; expands to the form), a 3 px progress bar while running, then the page.
 
@@ -117,7 +117,10 @@ coverage (problems listed, successes collapsed) and run limits; Findings grid wi
 category / confidence filters, group by category, clear filters, sort, multi-select copy (Ctrl+C and context menu), export of the
 filtered view, empty-grid text, split details pane with copy; Discovery map tree with expand/collapse all, item count, details
 pane, drill into a finding and back; Run log with filter, level filter, auto-scroll, copy shown lines, count and empty text;
-status bar with state icon, current stage, current target, elapsed time, finding count and output folder; developer snapshots
+status bar with state icon, current stage, current target, elapsed time, finding count and output folder; Objects page (Ctrl+5:
+every object of the graph grouped by type, search, type filter, "needs attention", count, empty text); object details pane (what it is
+and why it matters, properties, host identity, where it exists, expected-but-missing places apart, related objects, findings,
+breadcrumbs and Back) opened from the Findings pane, the Discovery map pane, the Objects list, KPI tiles and CA cards; developer snapshots
 (`-Snapshot`, writes only under `out\`).
 
 ## 5. Rounds

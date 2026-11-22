@@ -82,4 +82,83 @@ Describe 'Object views' {
         @(Get-MspkiGuiObjectList -Index $null).Count | Should -Be 0
         @(Get-MspkiGuiEntityLink -Index $ix -Ids @('cacert:aa', 'missing:id')).Count | Should -Be 1
     }
+
+    It 'filters the Objects list by words, type and "needs attention", and offers the types that occur' {
+        $ix = New-MspkiGuiGraphIndex -Graph $script:graph -Findings $script:findings
+        $rows = @{ 'F-1' = [pscustomobject]@{ Id = 'F-1'; StatusRank = 3; Status = 'Warning' } }
+        $list = @(Get-MspkiGuiObjectList -Index $ix -RowById $rows)
+        $cert = $list | Where-Object { $_.Id -eq 'cacert:aa' }
+        $cert.FindingPill.Text | Should -Be '1 finding'
+        $cert.MissingPill.Text | Should -Be '1 missing'
+        $cert.NeedsAttention | Should -BeTrue
+        ($list | Where-Object { $_.Type -eq 'Host' }).NeedsAttention | Should -BeFalse
+        @($list | Where-Object { Test-MspkiGuiObjectFilter -Row $_ -Text 'CA01 corp' }).Count | Should -Be 2
+        @($list | Where-Object { Test-MspkiGuiObjectFilter -Row $_ -Type 'Host' }).Count | Should -Be 1
+        @($list | Where-Object { Test-MspkiGuiObjectFilter -Row $_ -Type 'All' -AttentionOnly }).Count | Should -Be 1
+        @($list | Where-Object { Test-MspkiGuiObjectFilter -Row $_ -Text 'no-such-thing' }).Count | Should -Be 0
+        Get-MspkiGuiObjectTypeChoice -Rows $list | Should -Be @('All', 'Certification authority', 'CA certificate', 'Host')
+    }
+
+    It 'keeps a breadcrumb trail: push, push again to an earlier object, back and jump to a crumb' {
+        $t = Step-MspkiGuiTrail -Trail @() -Action Push -Id 'a'
+        $t = Step-MspkiGuiTrail -Trail $t -Action Push -Id 'b'
+        $t = Step-MspkiGuiTrail -Trail $t -Action Push -Id 'c'
+        $t | Should -Be @('a', 'b', 'c')
+        Step-MspkiGuiTrail -Trail $t -Action Push -Id 'a' | Should -Be @('a')
+        Step-MspkiGuiTrail -Trail $t -Action Back | Should -Be @('a', 'b')
+        @(Step-MspkiGuiTrail -Trail @('a') -Action Back).Count | Should -Be 0
+        Step-MspkiGuiTrail -Trail $t -Action Crumb -Index 1 | Should -Be @('a', 'b')
+        Step-MspkiGuiTrail -Trail $t -Action Crumb -Index 9 | Should -Be @('a', 'b', 'c')
+    }
+
+    It 'says where Back goes: the previous object, or the finding or map item the user came from' {
+        $ix = New-MspkiGuiGraphIndex -Graph $script:graph
+        $one = Get-MspkiGuiEntityPane -Index $ix -Id 'cacert:aa' -Trail @('cacert:aa')
+        $one.CanGoBack | Should -BeFalse
+        $one.ShowCrumbs | Should -BeFalse
+        $from = Get-MspkiGuiEntityPane -Index $ix -Id 'cacert:aa' -Trail @('cacert:aa') -OriginText 'Back to the finding'
+        $from.CanGoBack | Should -BeTrue
+        $from.BackText | Should -Be 'Back to the finding'
+        $two = Get-MspkiGuiEntityPane -Index $ix -Id 'host:ca01.corp.example.test' -Trail @('cacert:aa', 'host:ca01.corp.example.test')
+        $two.BackText | Should -Be 'Back to CN=Example Issuing CA'
+        $two.ShowCrumbs | Should -BeTrue
+        $two.Breadcrumbs[0].NotLast | Should -BeTrue
+        $two.Breadcrumbs[1].IsLast | Should -BeTrue
+        $c = Get-MspkiGuiEntityPane -Index $ix -Id 'cacert:aa'
+        $c.MissingBadge | Should -Be 'Missing in 1 expected place'
+        $c.SeenBadge | Should -Be 'Seen or named in 1 place'
+        $c.Seen[0].TimeText | Should -Be '2026-11-22 00:00:00 UTC'
+    }
+
+    It 'finds the objects behind Discovery map items and adds them as links to a pane' {
+        $ix = New-MspkiGuiGraphIndex -Graph $script:graph
+        $ca = [pscustomobject]@{ Type = 'CA'; Label = 'Example Issuing CA'; Detail = @('Host: ca01.corp.example.test', 'CA configuration: ca01.corp.example.test\Example Issuing CA'); FindingIds = @() }
+        Get-MspkiGuiNodeEntityId -Index $ix -Node $ca | Should -Be @('ca:ca01.corp.example.test\example issuing ca')
+        $byName = [pscustomobject]@{ Type = 'CA'; Label = 'example issuing ca'; Detail = @(); FindingIds = @() }
+        Get-MspkiGuiNodeEntityId -Index $ix -Node $byName | Should -Be @('ca:ca01.corp.example.test\example issuing ca')
+        $cert = [pscustomobject]@{ Type = 'Certificate'; Label = 'CA certificate'; Detail = @('Thumbprint (SHA-1): AA'); FindingIds = @() }
+        Get-MspkiGuiNodeEntityId -Index $ix -Node $cert | Should -Be @('cacert:aa')
+        $group = [pscustomobject]@{ Type = 'Group'; Label = 'CRLs held by the CA (1)'; Detail = @(); FindingIds = @('F-1') }
+        Get-MspkiGuiNodeEntityId -Index $ix -Node $group -RowById @{ 'F-1' = [pscustomobject]@{ Finding = $script:findings[0] } } | Should -Be @('cacert:aa')
+        @(Get-MspkiGuiNodeEntityId -Index $null -Node $ca).Count | Should -Be 0
+        $pane = Add-MspkiGuiPaneObject -Pane ([pscustomobject]@{ Kind = 'Node' }) -Index $ix -Ids @('cacert:aa', 'unknown:x')
+        $pane.HasObjects | Should -BeTrue
+        $pane.ObjectCount | Should -Be 1
+        $pane.Objects[0].Tag | Should -Be 'ent:cacert:aa'
+        @(Find-MspkiGuiEntityId -Index $ix -Name 'CA01.corp.example.test' -Type 'Host').Count | Should -Be 1
+    }
+
+    It 'builds a view for every object of the format-2 example fixture, and finds an endpoint behind its map item' {
+        $doc = ConvertFrom-MspkiResultsDocument -Document (Read-MspkiResultsJson -Path (Join-Path $PSScriptRoot 'fixtures\demo-results-v2.json'))
+        $ix = New-MspkiGuiGraphIndex -Graph $doc.Graph -Findings @($doc.Findings)
+        $ix.Entities.Count | Should -BeGreaterThan 20
+        foreach ($id in @($ix.Entities.Keys)) { (Get-MspkiGuiEntityPane -Index $ix -Id $id).Known | Should -BeTrue }
+        $h = @(Get-MspkiGuiObjectList -Index $ix | Where-Object { $_.Type -eq 'Host' })[0]
+        (Get-MspkiGuiEntityPane -Index $ix -Id $h.Id).HasHostFacts | Should -BeTrue
+        $tree = ConvertTo-MspkiGuiTreeNode -Node (Get-MspkiDiscoveryTree -Inventory $doc.Inventory -Findings @($doc.Findings) -RunInfo $doc.RunInfo)
+        $stack = New-Object System.Collections.Stack; $stack.Push($tree); $ep = $null
+        while ($stack.Count -gt 0 -and $null -eq $ep) { $n = $stack.Pop(); if ($n.Type -eq 'Endpoint' -and $n.Label -match 'https?://') { $ep = $n } else { foreach ($c in @($n.Children)) { $stack.Push($c) } } }
+        $ep | Should -Not -BeNullOrEmpty
+        @(Get-MspkiGuiNodeEntityId -Index $ix -Node $ep).Count | Should -BeGreaterThan 0
+    }
 }

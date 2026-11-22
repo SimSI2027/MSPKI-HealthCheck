@@ -4,6 +4,52 @@ Statuses: **DONE**, **BLOCKER**, **DISCOVERY** (top priority), **GUI**, **HOUSEK
 Product rule that never changes: a normal user on a clean machine with Windows PowerShell 5.1 only. Research tools (packet
 capture, RSAT, PSPKI, Sysinternals) are for understanding on the lab machine; the product never depends on them (D5).
 
+## Work packages (plan of record)
+From 2026-11-22 this section is the plan of record. Statuses: DONE, IN PROGRESS, TODO.
+
+| WP | Scope | Status |
+|---|---|---|
+| WP1 | results.json read without a size limit (in-box JavaScriptSerializer) | DONE (2026-11-21) |
+| WP2 | D2 endpoint identity: A/AAAA, PTR, CNAME chain, TLS names, Server header, Web Enrollment | DONE (2026-11-21) |
+| WP3 | D4 NDES without the CA database view: template permissions and SPNs, RA certificates, graph links | DONE (2026-11-22) |
+| WP4 | D3 local evidence: stores, template extension, Lifecycle and autoenrollment events, enrollment policy cache | DONE (2026-11-22) |
+| WP5 | GUI drill-down (G1, G2, G4, G5) | DONE (2026-11-22) |
+| WP6 | PKI Services page (G3) | TODO |
+| WP7 | GUI adversarial polish (max 3 rounds) | TODO |
+| WP8 | Ready for audit | TODO |
+
+**WP5 GUI drill-down (G1, G2, G4).** DONE: Objects page, object details pane, links from every pane, tiles and cards. Scope was:
+- Load the helpers in the window.
+- An object details pane, and an Objects page (Ctrl+5) listing every entity with search and type filter.
+- Every object and finding anywhere in the GUI opens its details: Findings, Discovery Map, Overview tiles and cards, and the
+  PKI Services page once it exists.
+- Clickable related-object links (certificate > issuer > CRL > endpoint > host) with breadcrumbs and Back.
+- A "Where this exists" panel: every observation with confidence and time, and the expected-but-missing places clearly marked apart.
+- Host identity: IPs, PTR, alias chain, TLS names, Server header.
+- Plain-language "What is this and why it matters" note per object type.
+- Use the existing Theme.xaml and design language. Check with -Snapshot.
+
+**WP6 PKI Services page (G3).**
+- Web Enrollment, CES, CEP, NDES/SCEP (with RA certificates and their CA), OCSP and the Intune Connector.
+- Each shows status, confidence, host, evidence and security notes (e.g. the ESC8 warning), and drills down to its details.
+- Clearly show "not found" versus "can't be checked from here" (e.g. Intune on other hosts).
+
+**WP7 GUI adversarial polish (GAN loop, maximum 3 rounds).**
+- Generator builds and fixes.
+- Render every page and the new detail views with -Snapshot (welcome, running, finished, partial, error; minimum size,
+  1920x1080, maximised).
+- Discriminator judges only the PNGs against the fixed rubric in GUI-DESIGN.md; assumes it is not enterprise grade until
+  proven; lists every defect by page and control; scores it.
+- PASS = every category at 8 or more and no defect a Fortune 500 customer would notice. Scores are logged in GUI-DESIGN.md.
+
+**WP8 Ready for audit.**
+- A full normal-user run against the lab.
+- Discriminator check against the private lab facts: false positives, false negatives, wrong confidence and unclear
+  explanations; fix them, maximum 3 rounds.
+- Update README.md and docs/TESTING.md (plain language, including the new pages), the statuses here and the known limitations.
+
+Every new check or GUI helper needs tests (sanitised example.test fixtures). The full suite stays passing.
+
 ## DONE
 - Entity graph (results.json format 2, `docs/DATA-MODEL.md`): the base for G1/G2 drill-down. GUI reads format 1 and 2.
 - WP1 (2026-11-21): results.json is read with the in-box JavaScriptSerializer (no size limit; 10 MB tested).
@@ -32,13 +78,13 @@ capture, RSAT, PSPKI, Sysinternals) are for understanding on the lab machine; th
 - **D5 Research tools.** Allowed in the lab for understanding; the product stays in-box only.
 
 ## GUI
-- **G1** STATUS 2026-11-22: IN PROGRESS (WP5: view models done, window wiring next). Drill into any object or result (CA, certificate, CRL, endpoint, template, finding), with links between related objects
+- **G1** STATUS 2026-11-22: DONE (WP5). Drill into any object or result (CA, certificate, CRL, endpoint, template, finding), with links between related objects
   (certificate > issuer > CRL > endpoint) and a way back.
-- **G2** STATUS 2026-11-22: IN PROGRESS (WP5, view model done). "Where this exists" panel: every place an object was seen (AD container, CA server, HTTP, LDAP, local store, event log)
+- **G2** STATUS 2026-11-22: DONE (WP5). "Where this exists" panel: every place an object was seen (AD container, CA server, HTTP, LDAP, local store, event log)
   with confidence, plus places where it is expected but missing.
 - **G3** NDES / SCEP / Intune section.
-- **G4** STATUS 2026-11-22: IN PROGRESS (WP5, view model done). Show endpoint identity (IP, host, alias).
-- **G5** A short "what is this and why it matters" note per object type; the tool should help people understand PKI.
+- **G4** STATUS 2026-11-22: DONE (WP5). Show endpoint identity (IP, host, alias).
+- **G5** STATUS 2026-11-22: DONE (WP5, one note per object type). A short "what is this and why it matters" note per object type; the tool should help people understand PKI.
 - **G6** Low priority: custom dialogs, dark theme, remember column widths.
 
 ## HOUSEKEEPING
