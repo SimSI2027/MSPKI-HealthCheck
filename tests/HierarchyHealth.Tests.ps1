@@ -26,16 +26,16 @@ Describe 'AIA/CDP published only over LDAP' {
 Describe 'Retrieval order used by Windows clients' {
     It 'warns when the first URL fails and a later one works' {
         $f = InModuleScope MspkiHealthCheck -Parameters @{ A = $script:ldapCdp; B = $script:httpCdp } { param($A, $B)
-            Test-MspkiRetrievalOrder -IssuerName 'Example Root CA' -Kind 'CDP' -Urls @($A, $B) -UrlStatus @{ $A = 'Fail'; $B = 'Pass' } }
+            Test-MspkiRetrievalOrder -IssuerName 'Example Root CA' -Kind 'CDP' -Urls @($A, $B) -UrlOutcome @{ $A = 'Failed'; $B = 'Usable' } }
         $f.Status | Should -Be 'Warning'
         $f.Message | Should -Match '1 failing CDP URL'
         ($f.Evidence -join "`n") | Should -Match '1\. ldap.*Fail'
     }
     It 'passes when the first URL works, and fails when none does' {
         $ok = InModuleScope MspkiHealthCheck -Parameters @{ A = $script:ldapCdp; B = $script:httpCdp } { param($A, $B)
-            Test-MspkiRetrievalOrder -IssuerName 'Example Root CA' -Kind 'CDP' -Urls @($A, $B) -UrlStatus @{ $A = 'Pass'; $B = 'Fail' } }
+            Test-MspkiRetrievalOrder -IssuerName 'Example Root CA' -Kind 'CDP' -Urls @($A, $B) -UrlOutcome @{ $A = 'Usable'; $B = 'Failed' } }
         $ok.Status | Should -Be 'Pass'
-        $bad = InModuleScope MspkiHealthCheck -Parameters @{ A = $script:ldapCdp } { param($A) Test-MspkiRetrievalOrder -IssuerName 'Example Root CA' -Kind 'CDP' -Urls @($A) -UrlStatus @{ $A = 'Fail' } }
+        $bad = InModuleScope MspkiHealthCheck -Parameters @{ A = $script:ldapCdp } { param($A) Test-MspkiRetrievalOrder -IssuerName 'Example Root CA' -Kind 'CDP' -Urls @($A) -UrlOutcome @{ $A = 'Failed' } }
         $bad.Status | Should -Be 'Fail'
         $bad.Severity | Should -Be 'High'
     }

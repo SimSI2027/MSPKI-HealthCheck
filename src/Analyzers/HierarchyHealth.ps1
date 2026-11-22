@@ -54,6 +54,50 @@ function Test-MspkiPublicationProtocol {
     return (New-MspkiHierarchyFinding -P $p -EntityIds $EntityIds)
 }
 
+function Get-MspkiRetrievalUrlKey {
+    <#
+    .SYNOPSIS
+    The key under which a URL is compared in the retrieval-order check: scheme plus the normalised URL (spaces and %20, host case and
+    default ports do not matter; http and https stay apart, because a client tries them as two URLs).
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Url)
+    $n = ConvertTo-MspkiNormalizedUrl -Url $Url
+    if (-not $n.Valid) { return ([string]$Url).Trim().ToLowerInvariant() }
+    return ('{0}|{1}' -f $n.Scheme, $n.Key)
+}
+
+function Get-MspkiRetrievalOutcome {
+    <#
+    .SYNOPSIS
+    Per URL: did a usable object come back? Usable, Failed or NotTested, keyed by Get-MspkiRetrievalUrlKey.
+    .DESCRIPTION
+    Built from the findings of the probes and the CRL checks, not from the worst status. Failed: a Fail, Critical or Error, or a Warning
+    whose code names a retrieval, content or TLS problem (a wrong issuer, a wrong key, a redirect that was not followed, a failure that the
+    scope rule reduced to a Warning). Usable: at least one Pass and no failure; a Warning about the age of the object counts, because the
+    object was retrieved. NotTested: only Skipped, NotApplicable or Information.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyCollection()][object[]]$Findings = @())
+    $failureCode = '^(DNS_FAIL|TCP_FAIL|TIMEOUT|HTTP_|TLS_|CONTENT_|SIGNATURE_INVALID|RETRIEVAL_FAIL|OBJECT_EXPIRED|PUBLICATION_FAIL|CHAIN_)'
+    $state = @{}
+    foreach ($f in @($Findings | Where-Object { $_ -and $_.Endpoint -and $_.Category -in @('AIA', 'CDP', 'CRL') })) {
+        $k = Get-MspkiRetrievalUrlKey -Url ([string]$f.Endpoint)
+        if (-not $state.ContainsKey($k)) { $state[$k] = @{ Failed = $false; Usable = $false } }
+        $s = [string]$f.Status
+        if ($s -in @('Fail', 'Critical', 'Error')) { $state[$k].Failed = $true }
+        elseif ($s -eq 'Warning') {
+            if ([string]$f.StatusCode -match $failureCode) { $state[$k].Failed = $true } else { $state[$k].Usable = $true }
+        }
+        elseif ($s -eq 'Pass') { $state[$k].Usable = $true }
+    }
+    $out = @{}
+    foreach ($k in $state.Keys) {
+        $out[$k] = $(if ($state[$k].Failed) { 'Failed' } elseif ($state[$k].Usable) { 'Usable' } else { 'NotTested' })
+    }
+    return $out
+}
+
 function Test-MspkiRetrievalOrder {
     <#
     .SYNOPSIS
@@ -61,28 +105,32 @@ function Test-MspkiRetrievalOrder {
     .DESCRIPTION
     CryptoAPI tries the URLs one after the other and stops at the first that returns a usable object; every failing URL before it
     costs a time-out on every client without a cached copy. Pass: the first URL works. Warning: a later one works. Fail: none works.
+    URLs are matched after normalisation, and a URL that was not tested from here is neither working nor failing (audit 2 M4).
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$IssuerName,
         [Parameter(Mandatory = $true)][ValidateSet('AIA', 'CDP')][string]$Kind,
         [AllowEmptyCollection()][string[]]$Urls = @(),
-        # URL -> worst probe status (Pass, Warning, Fail, Critical, Skipped, NotApplicable, ...).
-        [hashtable]$UrlStatus = @{},
+        # Outcome per URL (Usable, Failed, NotTested) from Get-MspkiRetrievalOutcome. Keys are normalised here, so any spelling works.
+        [hashtable]$UrlOutcome = @{},
         [string]$From = '',
         [string[]]$EntityIds = @()
     )
     $list = @($Urls | Where-Object { $_ -match '^(?i)(https?|ldaps?)://' })
     if ($list.Count -eq 0) { return $null }
+    $known = @{}
+    foreach ($k in $UrlOutcome.Keys) { $known[(Get-MspkiRetrievalUrlKey -Url ([string]$k))] = [string]$UrlOutcome[$k] }
     $ev = New-Object System.Collections.ArrayList
-    $first = -1; $tested = 0
+    $first = -1; $failed = 0; $untested = 0; $failedBefore = 0; $untestedBefore = 0
     for ($i = 0; $i -lt $list.Count; $i++) {
-        $st = $(if ($UrlStatus.ContainsKey($list[$i])) { [string]$UrlStatus[$list[$i]] } else { 'NotTested' })
-        if ($st -in @('Pass', 'Warning', 'Fail', 'Critical')) { $tested++ }
-        $ok = $st -in @('Pass', 'Warning')
-        if ($ok -and $first -lt 0) { $first = $i }
+        $key = Get-MspkiRetrievalUrlKey -Url $list[$i]
+        $st = $(if ($known.ContainsKey($key) -and $known[$key] -in @('Usable', 'Failed')) { $known[$key] } else { 'NotTested' })
+        if ($st -eq 'Failed') { $failed++ } elseif ($st -eq 'NotTested') { $untested++ }
+        if ($st -eq 'Usable' -and $first -lt 0) { $first = $i; $failedBefore = $failed; $untestedBefore = $untested }
         [void]$ev.Add(('{0}. {1} -> {2}' -f ($i + 1), $list[$i], $st))
     }
+    $tested = $list.Count - $untested
     if ($From) { [void]$ev.Insert(0, ('Order taken from: {0}' -f $From)) }
     $what = $(if ($Kind -eq 'AIA') { 'issuing CA certificate' } else { 'CRL' })
     $p = @{ Category = $Kind; Role = $(if ($Kind -eq 'AIA') { 'AIAEndpoint' } else { 'CDPEndpoint' }); Target = $IssuerName; RelatedCA = $IssuerName
@@ -94,14 +142,25 @@ function Test-MspkiRetrievalOrder {
     elseif ($first -eq 0) {
         $p += @{ Status = 'Pass'; StatusCode = 'OK'; Message = ('Windows clients get the {0} of {1} from the first {2} URL they try ({3}).' -f $what, $IssuerName, $Kind, $list[0]) }
     }
-    elseif ($first -gt 0) {
+    elseif ($first -gt 0 -and $failedBefore -gt 0) {
+        # Only URLs that really failed count as "failing"; an untested one before it makes the finding a review item, not a fact.
+        $more = ''
+        if ($untestedBefore -gt 0) { $p.Confidence = 'Referenced'; $more = ' {0} more URL(s) before it were not tested from here.' -f $untestedBefore }
         $p += @{ Status = 'Warning'; StatusCode = 'RETRIEVAL_FAIL'; Severity = 'Low'
-            Message = ('Windows clients try {0} failing {1} URL(s) before the one that works ({2}) for the {3} of {4}: each failing URL costs a time-out on every client without a cached copy.' -f $first, $Kind, $list[$first], $what, $IssuerName)
+            Message = ('Windows clients try {0} failing {1} URL(s) before the one that works ({2}) for the {3} of {4}: each failing URL costs a time-out on every client without a cached copy.{5}' -f $failedBefore, $Kind, $list[$first], $what, $IssuerName, $more)
             Remediation = 'Fix or remove the failing URL(s), or move a working HTTP URL to the first place, in the CA''s Extensions tab (affects newly issued certificates).' }
     }
+    elseif ($first -gt 0) {
+        $p.Confidence = 'Referenced'
+        $p += @{ Status = 'Information'; StatusCode = 'OK'
+            Message = ('The {0} of {1} is returned by the {2} URL {3}; the {4} URL(s) before it were not tested from here, so it is not known whether clients try them first and fail.' -f $what, $IssuerName, $Kind, $list[$first], $untestedBefore) }
+    }
     else {
+        if ($untested -gt 0) { $p.Confidence = 'Referenced' }
+        if ($untested -gt 0) { $msg = '{0} of the {1} {2} URLs of {3} could be tested from here, and none of them returned the {4}.' -f $tested, $list.Count, $Kind, $IssuerName, $what }
+        else { $msg = 'None of the {0} {1} URLs of {2} returned the {3} from here.' -f $list.Count, $Kind, $IssuerName, $what }
         $p += @{ Status = 'Fail'; StatusCode = 'RETRIEVAL_FAIL'; Severity = $(if ($Kind -eq 'CDP') { 'High' } else { 'Medium' })
-            Message = ('None of the {0} {1} URLs of {2} returned the {3} from here.' -f $list.Count, $Kind, $IssuerName, $what)
+            Message = $msg
             Notes = $(if ($Kind -eq 'CDP') { 'Without a CRL, clients that check revocation reject certificates issued by this CA (or wait and then fail).' } else { 'Without the issuing CA certificate, clients that do not already have it cannot build the chain.' }) }
     }
     return (New-MspkiHierarchyFinding -P $p -EntityIds $EntityIds)
@@ -394,12 +453,7 @@ function Invoke-MspkiHierarchyAnalysis {
     foreach ($f in (Test-MspkiNtAuthAiaMatch -CACertificates $gens -Now $now)) { [void]$out.Add($f) }
 
     # URL design and retrieval order, per issuing CA: from the certificates it issued (exact order) and from its own URL properties.
-    $urlStatus = @{}
-    foreach ($f in @($Findings | Where-Object { $_.Endpoint -and $_.Category -in @('AIA', 'CDP', 'CRL') })) {
-        $rank = @{ Pass = 1; Information = 1; Warning = 2; Skipped = 0; NotApplicable = 0; Fail = 3; Critical = 4; Error = 3 }
-        $cur = $(if ($urlStatus.ContainsKey($f.Endpoint)) { $urlStatus[$f.Endpoint] } else { '' })
-        if (-not $cur -or $rank[[string]$f.Status] -gt $rank[$cur]) { $urlStatus[$f.Endpoint] = [string]$f.Status }
-    }
+    $urlOutcome = Get-MspkiRetrievalOutcome -Findings @($Findings)
     $issuers = @{}
     foreach ($g in @($gens | Where-Object { -not $_.SelfIssued -and $_.NotAfter -gt $now })) {
         $par = @($g.Parents) | Select-Object -First 1
@@ -430,7 +484,7 @@ function Invoke-MspkiHierarchyAnalysis {
             $ids = @(@($caId) + @($i[$k] | ForEach-Object { Get-MspkiEndpointEntityId -Url $_ }) | Where-Object { $_ })
             $f = Test-MspkiPublicationProtocol -IssuerName $iname -Kind $k -Urls @($i[$k]) -Sources @('Analysis:Hierarchy', $i.From) -EntityIds $ids
             if ($null -ne $f) { $f.Evidence = [string[]](@($f.Evidence) + ('From: {0}' -f $i.From)); [void]$out.Add($f) }
-            $f = Test-MspkiRetrievalOrder -IssuerName $iname -Kind $k -Urls @($i[$k]) -UrlStatus $urlStatus -From $i.From -EntityIds $ids
+            $f = Test-MspkiRetrievalOrder -IssuerName $iname -Kind $k -Urls @($i[$k]) -UrlOutcome $urlOutcome -From $i.From -EntityIds $ids
             if ($null -ne $f) { [void]$out.Add($f) }
         }
     }

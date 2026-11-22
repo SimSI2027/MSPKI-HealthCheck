@@ -30,3 +30,71 @@ Describe 'Audit 2 M1: an AIA location that serves the old CA certificate after a
         $m.Result | Should -Be 'Verified'
     }
 }
+
+Describe 'Audit 2 M4: the retrieval-order check matches URLs after normalisation and counts only usable objects' {
+    BeforeAll {
+        # Findings for a URL, built the way the probes build them: the Endpoint is the normalised probe URL (spaces as %20).
+        $script:probeFinding = {
+            param([string]$Url, [string]$Status, [string]$Code = 'OK', [string]$Category = 'CDP')
+            InModuleScope MspkiHealthCheck -Parameters @{ U = $Url; S = $Status; C = $Code; K = $Category } {
+                param($U, $S, $C, $K)
+                New-MspkiFinding -Stage 'Probe' -Category $K -Role 'CDPEndpoint' -Target 'pki.example.test' -Endpoint $U -Status $S -StatusCode $C -Sources @('test') -Message 'test' -Confidence 'Confirmed'
+            }
+        }
+        $script:order = {
+            param([string[]]$Urls, $Findings, [string]$Kind = 'CDP')
+            InModuleScope MspkiHealthCheck -Parameters @{ U = $Urls; F = @($Findings); K = $Kind } {
+                param($U, $F, $K)
+                $o = Get-MspkiRetrievalOutcome -Findings $F
+                Test-MspkiRetrievalOrder -IssuerName 'Example Issuing CA' -Kind $K -Urls $U -UrlOutcome $o
+            }
+        }
+    }
+    It 'finds a failing URL that contains a space (the certificate has the space, the probe the %20): Fail, not "not tested"' {
+        $f = & $script:order @('http://pki.example.test/CertEnroll/Example Issuing CA.crl') @(& $script:probeFinding 'http://pki.example.test/CertEnroll/Example%20Issuing%20CA.crl' 'Fail' 'HTTP_404')
+        $f.Status | Should -Be 'Fail'
+        $f.StatusCode | Should -Be 'RETRIEVAL_FAIL'
+    }
+    It 'matches an explicit default port and a different host case' {
+        $f = & $script:order @('http://PKI.example.test:80/CertEnroll/ca.crl') @(& $script:probeFinding 'http://pki.example.test/CertEnroll/ca.crl' 'Pass')
+        $f.Status | Should -Be 'Pass'
+    }
+    It 'does not mix up the http and the https URL of the same path' {
+        $f = & $script:order @('https://pki.example.test/ca.crl', 'http://pki.example.test/ca.crl') @(& $script:probeFinding 'http://pki.example.test/ca.crl' 'Pass')
+        # The https URL was not tested; the http one works, and the first URL is unknown, not failing.
+        $f.Status | Should -Not -Be 'Pass'
+        $f.Status | Should -Not -Be 'Warning'
+        $f.Confidence | Should -Be 'Referenced'
+    }
+    It 'does not count a Warning for the wrong content as a working URL: <Name>' -TestCases @(
+        @{ Name = 'wrong CRL issuer'; Code = 'CONTENT_WRONG_TYPE' }
+        @{ Name = 'a failure capped to a Warning by scope'; Code = 'DNS_FAIL' }
+        @{ Name = 'a redirect that was not followed'; Code = 'HTTP_REDIRECT' }
+    ) {
+        param($Name, $Code)
+        $only = & $script:order @('http://pki.example.test/a.crl') @(& $script:probeFinding 'http://pki.example.test/a.crl' 'Warning' $Code)
+        $only.Status | Should -Be 'Fail' -Because 'the only URL did not deliver a usable object'
+        $two = & $script:order @('http://pki.example.test/a.crl', 'http://pki.example.test/b.crl') @(
+            (& $script:probeFinding 'http://pki.example.test/a.crl' 'Warning' $Code), (& $script:probeFinding 'http://pki.example.test/b.crl' 'Pass'))
+        $two.Status | Should -Be 'Warning'
+        $two.Message | Should -Match '1 failing CDP URL'
+    }
+    It 'still counts a Warning about the object''s age (it was retrieved) as working' {
+        $f = & $script:order @('http://pki.example.test/a.crl') @(& $script:probeFinding 'http://pki.example.test/a.crl' 'Pass'; & $script:probeFinding 'http://pki.example.test/a.crl' 'Warning' 'OBJECT_EXPIRING' 'CRL')
+        $f.Status | Should -Be 'Pass'
+    }
+    It 'an expired CRL (Fail from the freshness check) is not a working URL even though the download passed' {
+        $f = & $script:order @('http://pki.example.test/a.crl') @(& $script:probeFinding 'http://pki.example.test/a.crl' 'Pass'; & $script:probeFinding 'http://pki.example.test/a.crl' 'Fail' 'OBJECT_EXPIRED' 'CRL')
+        $f.Status | Should -Be 'Fail'
+    }
+    It 'says how many URLs were really tested, and is not Confirmed when some were not' {
+        $urls = @('http://pki.example.test/a.crl', 'http://pki.example.test/b.crl', 'http://pki.example.test/c.crl')
+        $f = & $script:order $urls @(& $script:probeFinding $urls[0] 'Fail' 'HTTP_404'; & $script:probeFinding $urls[1] 'Fail' 'TIMEOUT'; & $script:probeFinding $urls[2] 'Skipped' 'NOT_APPLICABLE')
+        $f.Status | Should -Be 'Fail'
+        $f.Message | Should -Match '2 of the 3 CDP URLs'
+        $f.Message | Should -Not -Match '^None of the 3'
+        $f.Confidence | Should -Be 'Referenced'
+        $all = & $script:order $urls @(& $script:probeFinding $urls[0] 'Fail' 'HTTP_404'; & $script:probeFinding $urls[1] 'Fail' 'HTTP_404'; & $script:probeFinding $urls[2] 'Fail' 'TIMEOUT')
+        $all.Confidence | Should -Be 'Confirmed'
+    }
+}
