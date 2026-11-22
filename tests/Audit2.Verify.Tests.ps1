@@ -278,3 +278,34 @@ Describe 'Audit 2 N6: LDAP referrals are never chased' {
         InModuleScope MspkiHealthCheck { Test-MspkiLdapReferralError -InputError (New-Object System.Runtime.InteropServices.COMException('x', -2147016656)) } | Should -BeFalse
     }
 }
+
+Describe 'Audit 2 N8: the LDAP host gate gets the forest domains and domain controllers as a list' {
+    BeforeEach {
+        Install-TestCredentialRecorder -Handler { param($Query) @{ Records = @(@{ certificaterevocationlist = @(, [byte[]](1, 2, 3)) }) } }
+        $script:probe = {
+            param([string]$Url)
+            InModuleScope MspkiHealthCheck -Parameters @{ U = $Url } { param($U)
+                [void](Initialize-MspkiRun)
+                Reset-MspkiLeadRegistry -LocalDomains @('corp.example.test', 'second.example.test') -DomainControllers @('dc01.corp.example.test', 'dc02.disjoint.example.test')
+                $lead = Add-MspkiLead -Url $U -Kind CDP -Source 'CA:Example Issuing CA:CertCdpUrls' -Origin 'test'
+                Test-MspkiLeadEndpoint -Lead $lead -Url $U -DomainController 'dc01.corp.example.test' }
+        }
+    }
+
+    It 'contacts a host in the second domain of a two-domain forest when an authoritative source names it' {
+        $r = & $script:probe 'ldap://pki.second.example.test/CN=Example Issuing CA,CN=CDP,DC=second,DC=example,DC=test?certificateRevocationList?base'
+        @(Get-TestCredentialEvent -Kind Bind -Server 'pki.second.example.test').Count | Should -Be 1
+        @($r.Findings)[0].Status | Should -Not -Be 'Skipped'
+    }
+
+    It 'contacts a live domain controller of the forest whose name is outside the forest''s DNS domains' {
+        $null = & $script:probe 'ldap://dc02.disjoint.example.test/CN=Example Issuing CA,CN=CDP,DC=corp,DC=example,DC=test?certificateRevocationList?base'
+        @(Get-TestCredentialEvent -Kind Bind -Server 'dc02.disjoint.example.test').Count | Should -Be 1
+    }
+
+    It 'still contacts no outside host that is not a domain controller' {
+        $r = & $script:probe 'ldap://ldap.example.test/CN=Example Issuing CA,CN=CDP,DC=corp,DC=example,DC=test?certificateRevocationList?base'
+        @(Get-TestCredentialEvent -Kind Bind).Count | Should -Be 0
+        @($r.Findings)[0].Status | Should -Be 'Skipped'
+    }
+}

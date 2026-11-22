@@ -421,7 +421,9 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 | N1 | Fixed | `eccbc02` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N1: a downloaded CA certificate is trusted only as an authoritative copy or by its own verified signature" (6), "Audit 2 N1: a forged certificate at an AIA location is not followed" (4) | against `9b43bb1`: 10 ran, 8 red. Behavioural 2: the forged certificate was Pass / **Confirmed** (expected Referenced), and the forged self-signed root was **Pass** (expected Fail / SIGNATURE_INVALID). Signature 6: `Test-MspkiDownloadedCertificateTrust` did not exist. The 2 positive cases (exact root copy, proven subordinate) pass on both, as they should |
 | N5 | Fixed | `204c0cc` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N5: the forest domain controller list holds live domain controllers only" (4); `tests/Audit2.Security.Tests.ps1` "reads the forest domain controllers ..." updated (two reads now) | against `eccbc02`: 5 ran, 5 red. Behavioural 1: "reports the server objects that were not counted" got all three server objects (a stale one without NTDS Settings and one without an SRV record included), expected one. Signature 4: `Get-MspkiLiveDomainControllerName` did not exist |
 | N6 | Fixed | `d8f92f4` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N6: LDAP referrals are never chased" (3), with the credential harness `tests/CredentialHarness.ps1` | against `204c0cc`: 3 ran, 3 red. Behavioural 2: the searcher kept `ReferralChasing` External, and the referral was chased (one bind recorded to the referred server). Signature 1: `Test-MspkiLdapReferralError` did not exist |
-| H2 (N2) | Fixed | (this commit) | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2 regression (verification N2): ESC3 matches whichever template the broad principals sit on" (18: 7 positive, 11 negative) | against `d8f92f4`: 18 ran, 4 red, all behavioural: probe A (Authenticated Users agent + default User), probe B (Everyone agent + default User), BUILTINUsers agent + default User, and probe D (the schema version 2 case that fired before `59a2f72`) gave no ESC3. The 3 other positives (same group on both, group on the target) and the 11 negatives pass on both, as they should |
+| H2 (N2) | Fixed | `2b836db` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2 regression (verification N2): ESC3 matches whichever template the broad principals sit on" (18: 7 positive, 11 negative) | against `d8f92f4`: 18 ran, 4 red, all behavioural: probe A (Authenticated Users agent + default User), probe B (Everyone agent + default User), BUILTINUsers agent + default User, and probe D (the schema version 2 case that fired before `59a2f72`) gave no ESC3. The 3 other positives (same group on both, group on the target) and the 11 negatives pass on both, as they should |
+| N8 (new) | Fixed | (this commit) | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N8: the LDAP host gate gets the forest domains and domain controllers as a list" (3) | against `2b836db`: 3 ran, 2 red, both behavioural: no bind to a host in the second domain of a two-domain forest named by an authoritative source, and no bind to a live DC named outside the forest zones (expected one each). The negative case passes on both |
+| Item 5 | Done | (next commit) | `tests/Credential.Behaviour.Tests.ps1`: "Credential behaviour: no bind, no handshake and no credentials because of an unverified object" (4), with `tests/CredentialHarness.ps1` | against `9b43bb1` (before Batch D): 4 ran, 3 red, all behavioural (`Expected 0, but got 1` binds): forged certificate, unverified CRL, referral chased. The stale DC case **passes on the old code by accident** (N8: the old DC list never reached the gate). Against `9b43bb1` with only the two N8 nesting lines corrected (so the old H1 DC rule works as designed): 4 ran, **4 red, all behavioural**, the stale DC object received a bind |
 
 ### N1: what changed
 - `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
@@ -467,3 +469,28 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 - `Test-MspkiSidContains` knows that BUILTIN\Users contains Authenticated Users and, through it, Domain Users and Domain Computers
   (the L5 statement in `SecurityDescriptor.ps1`). A Deny for BUILTIN\Users therefore also marks those grants as possibly cancelled.
 - Still not matched: Domain Users vs Domain Computers, the Domain Users groups of two domains, Anonymous Logon vs Domain Users.
+
+### N8 (new, found while writing the item 5 tests): the forest DC list and domains never reached the LDAP host gate intact
+- **What happened:** `Get-MspkiLeadLocalDomain` and `Get-MspkiLeadDomainController` return their list with `return , @(...)`. The only
+  caller, `Test-MspkiLeadEndpoint`, wrapped them in `@()` again, so the gate got a one-element array whose element was the list, which
+  PowerShell turned into one string of all names. Before N5, `Get-MspkiAdContext` nested the DC list the same way.
+- **Effect:** no forest domain controller other than the selected one was ever allowed (the H1 DC rule never applied), and in a forest
+  with two or more DNS domains no named host passed the zone check, so authoritative LDAP URLs naming a forest host were "not contacted".
+  This failed closed (no credentials went anywhere extra), which is why no test or lab run showed it: the lab's LDAP URLs are serverless.
+- **Fix:** the lists are passed as they are (`src/Analyzers/EndpointHealth.ps1`). N5 made the DC list flat. Now that the DC rule works,
+  N5's live-only list is what keeps stale objects out.
+
+### Item 5: credential harness and end-to-end tests
+- `tests/CredentialHarness.ps1` records every directory bind (fake DirectoryEntry / DirectorySearcher via a module-scoped `New-Object`
+  mock; nothing reaches a network), every HTTP request and every TLS handshake (`Invoke-MspkiHttpGet` and `Test-MspkiTlsEndpoint` are
+  wrapped and then run), and lists requests that reached the loopback server with credentials. It mocks only things that existed before
+  Batch D, so on old code the tests fail on behaviour, not on a missing function.
+- `tests/Credential.Behaviour.Tests.ps1` runs the real endpoint stage (and, for the stale DC, the real AD context stage):
+  1. forged certificate (root's public key, attacker signature) with a planted `ldap://` CDP: no bind to the planted host, no TLS to a
+     planted https AIA, no credentials on any HTTP request;
+  2. CRL at the issuing CA's CDP signed by an attacker key, with the attacker's CA certificate reachable through a forged chain: no bind
+     to the host in its Freshest CRL link, and the CRL is not Confirmed;
+  3. referral from the selected DC: one bind (to the selected DC), none to the referred server, a Warning with the evidence;
+  4. stale DC object (no NTDS Settings, no SRV record, name outside the forest zones) named by an authoritative LDAP URL: no bind.
+- **Limits:** the referral is modelled (see N6). DCOM calls to CA hosts are not covered by the harness; they go only to the CA hosts in
+  the Enrollment Services objects of AD, unchanged in this batch.

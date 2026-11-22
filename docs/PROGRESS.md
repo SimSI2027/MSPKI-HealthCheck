@@ -420,3 +420,5 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   after a failed bind no longer hides the first error. Credential harness added (tests/CredentialHarness.ps1). Lab: 99 findings, exit 6.
 - H2 regression (N2): ESC3 shares principals when either broad group contains the other (Everyone ⊇ BUILTIN\Users ⊇ Authenticated Users
   ⊇ Domain Users / Domain Computers), whichever template they sit on; probes A, B, D fire again, 11 negatives stay silent. Lab unchanged.
+- N8 (new): the LDAP host gate got the forest domains and DC list nested in one string (a second @() around "return , @()"), so the H1 DC
+  rule never applied and multi-domain forests refused every named forest host (failed closed). Lists now passed as they are. Lab unchanged.

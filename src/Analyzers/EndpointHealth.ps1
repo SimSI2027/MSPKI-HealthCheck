@@ -303,10 +303,12 @@ function Test-MspkiLeadEndpoint {
         $layers = @{ DnsStatus = 'NotApplicable'; TcpStatus = 'NotApplicable'; HttpStatus = 'NotApplicable'; RedirectStatus = 'NotApplicable' }
         # The bind uses the running user's Windows credentials, so only the selected domain controller, the forest's domain
         # controllers and forest hosts named by trusted evidence are contacted; with -SkipNetwork only the selected domain controller.
+        # The two getters return their list with "return , @(...)"; wrapping the call in @() again would nest it, and the gate would see
+        # one string made of every name (audit 2 verification N8). They are passed as they are.
         $trust = ''
         if ($null -ne $Lead.PSObject.Properties['Trust']) { $trust = [string]$Lead.Trust }
         $r = Get-MspkiLdapUrlContent -Url $Url -DefaultServer $DomainController -TimeoutSeconds ([math]::Max(10, $TimeoutSeconds * 3)) `
-            -LocalDomains @(Get-MspkiLeadLocalDomain) -DomainControllers @(Get-MspkiLeadDomainController) -Trust $trust `
+            -LocalDomains (Get-MspkiLeadLocalDomain) -DomainControllers (Get-MspkiLeadDomainController) -Trust $trust `
             -SkipNetwork:$SkipNetwork -DefaultAttribute (Get-MspkiLdapDefaultAttribute -Kind $Lead.Kind)
         [void]$ev.Add(('LDAP server: {0}' -f $(if ($r.Server) { $r.Server } else { '(default)' })))
         if ($r.AttributeDefaulted) { [void]$ev.Add(('The URL names no attribute; read {0}, the attribute Windows clients use for this kind of object. A URL without an attribute is valid.' -f $r.Attribute)) }
