@@ -2,7 +2,7 @@
 
 A read-only health check for Microsoft Active Directory Certificate Services (AD CS).
 
-Run it on any domain-joined Windows computer with Windows PowerShell 5.1. It needs no configuration file,
+Run it on any domain-joined Windows computer with Windows PowerShell 5.1 in Full Language mode (on a computer where AppLocker or Windows Defender Application Control forces Constrained Language Mode, it says so and stops; your administrator may need to allow or sign the scripts). It needs no configuration file,
 no installation and no external modules. It discovers the PKI by itself from Active Directory, the CAs,
 certificates, CRLs and local policy, then checks:
 

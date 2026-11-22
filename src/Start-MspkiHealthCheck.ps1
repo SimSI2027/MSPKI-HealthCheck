@@ -51,6 +51,9 @@ function Start-MspkiHealthCheck {
         [ValidateRange(1, 1440)][int]$CrlPublicationGraceMinutes = 60,
         [hashtable]$Control = $null
     )
+    # The tool needs Full Language mode (audit 2 M13); stop before anything is written.
+    $languageMode = Get-MspkiLanguageModeStatus
+    if (-not $languageMode.IsFull) { throw $languageMode.Message }
     Set-MspkiRunControl -Control $Control
     $thresholds = Get-MspkiThreshold -Override @{
         RootCaWarningDays = $RootCaWarningDays; RootCaCriticalDays = $RootCaCriticalDays

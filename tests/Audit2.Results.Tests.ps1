@@ -261,3 +261,88 @@ Describe 'Audit 2 M8: different failures have different status codes' {
         foreach ($c in $codes) { $doc | Should -Match ([regex]::Escape($c)) -Because "$c is a status code" }
     }
 }
+
+Describe 'Audit 2 M13: Constrained Language Mode is detected at the start and reported in plain words' {
+    BeforeAll {
+        # A child powershell.exe that switches its own session to Constrained Language Mode and then runs the script, so every script
+        # it runs is restricted like under AppLocker or WDAC. Only the child is affected. The child is killed after 90 seconds.
+        $script:runClm = {
+            param([string]$Script, [string[]]$Arguments = @(), [switch]$Sta, [string]$Probe = '')
+            $argText = (@($Arguments | ForEach-Object { if ($_ -match '^-[A-Za-z]+$') { $_ } else { "'" + ($_ -replace "'", "''") + "'" } }) -join ' ')
+            $cmd = "`$ExecutionContext.SessionState.LanguageMode = 'ConstrainedLanguage'; "
+            if ($Probe) { $cmd += $Probe }
+            else { $cmd += "& '" + ($Script -replace "'", "''") + "' $argText; exit `$LASTEXITCODE" }
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = 'powershell.exe'
+            $psi.Arguments = ('-NoProfile {0} -ExecutionPolicy Bypass -Command "& {{ {1} }}"' -f $(if ($Sta) { '-STA' } else { '-MTA' }), ($cmd -replace '"', '\"'))
+            $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.CreateNoWindow = $true
+            $proc = [System.Diagnostics.Process]::Start($psi)
+            $so = $proc.StandardOutput.ReadToEndAsync(); $se = $proc.StandardError.ReadToEndAsync()
+            if (-not $proc.WaitForExit(90000)) { try { $proc.Kill() } catch { }; return [pscustomobject]@{ Code = -1; Text = 'TIMED OUT' } }
+            $proc.WaitForExit()
+            return [pscustomobject]@{ Code = $proc.ExitCode; Text = ($so.Result + "`n" + $se.Result) }
+        }
+        $script:clmOk = ((& $script:runClm '' @() -Probe 'Write-Output $ExecutionContext.SessionState.LanguageMode').Text -match 'ConstrainedLanguage')
+    }
+
+    It 'knows which language modes the tool can run in: <Mode>' -TestCases @(
+        @{ Mode = 'FullLanguage'; Full = $true }
+        @{ Mode = 'ConstrainedLanguage'; Full = $false }
+        @{ Mode = 'RestrictedLanguage'; Full = $false }
+        @{ Mode = 'NoLanguage'; Full = $false }
+    ) {
+        param($Mode, $Full)
+        $s = InModuleScope MspkiHealthCheck -Parameters @{ M = $Mode } { param($M) Get-MspkiLanguageModeStatus -Mode $M }
+        $s.IsFull | Should -Be $Full
+        $s.Mode | Should -Be $Mode
+        if (-not $Full) {
+            $s.Message | Should -Match 'Constrained Language Mode'
+            $s.Message | Should -Match 'AppLocker'
+            $s.Message | Should -Match 'Nothing was changed'
+        }
+    }
+
+    It 'reads the real mode of this session (Full on the test machine)' {
+        $s = InModuleScope MspkiHealthCheck { Get-MspkiLanguageModeStatus }
+        $s.Mode | Should -Be ([string]$ExecutionContext.SessionState.LanguageMode)
+    }
+
+    It 'the test child process really is in Constrained Language Mode (so the tests below mean something)' {
+        $script:clmOk | Should -BeTrue
+    }
+
+    It 'the command-line script stops with exit code 5 and a plain explanation, before it loads or writes anything' {
+        $script:clmOk | Should -BeTrue -Because 'the child must be restricted, otherwise this test would run a real check'
+        $out = Join-Path $TestDrive 'clm-out'
+        $r = & $script:runClm (Join-Path $script:RepoRoot 'Invoke-MspkiHealthCheck.ps1') @('-OutputPath', $out, '-SkipNetwork', '-NoOpen')
+        $r.Code | Should -Be 5
+        $r.Text | Should -Match 'Constrained Language Mode'
+        $r.Text | Should -Match 'AppLocker'
+        $r.Text | Should -Match 'Nothing was changed'
+        Test-Path -LiteralPath $out | Should -BeFalse
+    }
+
+    It 'the window launcher does the same (and opens no window)' {
+        $script:clmOk | Should -BeTrue -Because 'the child must be restricted, otherwise this test would open a real window'
+        $out = Join-Path $TestDrive 'clm-out-gui'
+        $r = & $script:runClm (Join-Path $script:RepoRoot 'Start-MspkiHealthCheckGui.ps1') @('-OutputPath', $out) -Sta
+        $r.Code | Should -Be 5
+        $r.Text | Should -Match 'Constrained Language Mode'
+        Test-Path -LiteralPath $out | Should -BeFalse
+    }
+
+    It 'Start-MspkiHealthCheck refuses to start in another language mode, with the same words, and writes nothing' {
+        $out = Join-Path $TestDrive 'clm-out-engine'
+        $msg = $null
+        try {
+            InModuleScope MspkiHealthCheck -Parameters @{ O = $out } {
+                param($O)
+                Mock Get-MspkiLanguageModeStatus { [pscustomobject]@{ Mode = 'ConstrainedLanguage'; IsFull = $false; Message = 'MSPKI Health Check cannot run: Constrained Language Mode (test).' } }
+                Start-MspkiHealthCheck -OutputPath $O -SkipNetwork
+            }
+        }
+        catch { $msg = $_.Exception.Message }
+        $msg | Should -Match 'Constrained Language Mode'
+        Test-Path -LiteralPath $out | Should -BeFalse
+    }
+}

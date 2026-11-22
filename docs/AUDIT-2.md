@@ -429,7 +429,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | M3 | Fixed | `9715e0b` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M3" (4 tests, all red on the old code): the CRL cap is at least 32 MB; a CRL above the cap is Information / `SIZE_LIMIT` (not Fail, not CONTENT_WRONG_TYPE) and does not give exit code 4; `Measure-MspkiDerChild` counts 3000 entries without objects and throws on truncated data. `tests/Endpoint.Tests.ps1` and `tests/Model.Tests.ps1` updated for the new code |
 | M6 | Fixed | `96e3ee8` | `tests/Gui.Tests.ps1`: "Audit 2 M6" (3 tests, red on the old code): error text without stack trace; `Invoke-MspkiGuiUnhandledError` logs a Run log row and gui-error.log, shows the same error once, cancels a run in progress through the Cancel flag and returns Handled; in a real dispatcher loop a throwing event delegate reaches the hook and a throwing timer tick does not stop the timer |
 | M8 | Fixed (two items explained) | `759bb77` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M8" (16 tests, red on the old code): chain errors map to `CHAIN_INVALID` (not `TLS_HANDSHAKE_FAIL`) after a completed handshake; a host identity summary is not `OK` without an address; one code for a missing COM class; the new codes exist and every schema code is documented in REQUIREMENTS. Assertions updated in `Endpoint`, `Audit.Grading`, `Audit.Probes`, `Discovery`, `Model` and `LocalEvidence` tests (new case: enrollment error event) |
-| M12 | Fixed | `PENDING` | `tests/NdesTemplateAccess.Tests.ps1`: "Audit 2 M12" (3 tests, 2 red on the old code): a group member and a computer allowed to use a gMSA become Account entities (Seen in AD), linked `memberOf` / `mayUse` to the principal; the member, not the group or gMSA, `identifies` the host; the host list and its "how" text are unchanged |
+| M12 | Fixed | `d73534f` | `tests/NdesTemplateAccess.Tests.ps1`: "Audit 2 M12" (3 tests, 2 red on the old code): a group member and a computer allowed to use a gMSA become Account entities (Seen in AD), linked `memberOf` / `mayUse` to the principal; the member, not the group or gMSA, `identifies` the host; the host list and its "how" text are unchanged |
+| M13 | Fixed | `PENDING` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M13" (9 tests, 8 red on the old code): `Get-MspkiLanguageModeStatus` for Full, Constrained, Restricted and No language; a child process switched to Constrained Language Mode really is restricted; `Invoke-MspkiHealthCheck.ps1` and `Start-MspkiHealthCheckGui.ps1` in that child exit with code 5, print the plain explanation and create nothing (no window); `Start-MspkiHealthCheck` throws the same words |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -558,3 +559,13 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
   record now reads `objectSid`. `Add-MspkiNdesTemplateAccessToGraph` writes an Account entity (Seen in AD) for every member, `memberOf`
   (group) or the new `mayUse` (gMSA) to the principal, and `identifies` from the member to the host. The group no longer identifies hosts
   that only its members name. DATA-MODEL.md and the GUI relation labels are updated.
+
+### M13 notes (Batch B)
+- Both entry points check `$ExecutionContext.SessionState.LanguageMode` first (before the module is loaded, before anything is created) and
+  stop with exit code 5 and a plain explanation; `Start-MspkiHealthCheck` throws the same text through `Get-MspkiLanguageModeStatus`
+  (`src/Model/LanguageMode.ps1`). The tool stops instead of running "what still works": in Constrained Language Mode the COM objects,
+  `System.DirectoryServices`, sockets, runspaces and WPF are all blocked, so nothing useful is left. README and TESTING.md say what to
+  ask the administrator.
+- The test child switches itself with `$ExecutionContext.SessionState.LanguageMode = 'ConstrainedLanguage'` (the `__PSLockdownPolicy`
+  environment variable did not restrict the child on the dev machine). It is killed after 90 s, and the tests check that it really is
+  restricted before they run a script in it, so a failure cannot start a real check or open a window.

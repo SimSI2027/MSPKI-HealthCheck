@@ -70,6 +70,13 @@ param(
     [ValidateRange(1, 1440)][int]$CrlPublicationGraceMinutes = 60
 )
 
+# Constrained Language Mode (AppLocker or WDAC) blocks COM objects, System.DirectoryServices, sockets and WPF. Say so now and stop,
+# before anything is loaded or written, instead of failing part-way with generic errors (audit 2 M13).
+if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {
+    Write-Host ('MSPKI Health Check cannot run in this PowerShell session: it is in {0} mode instead of FullLanguage. The usual cause is Constrained Language Mode, which Windows applies to unsigned scripts when AppLocker or Windows Defender Application Control (WDAC) restricts them. ' -f $ExecutionContext.SessionState.LanguageMode)
+    Write-Host 'The tool needs Full Language mode because it uses COM objects, System.DirectoryServices, network sockets and, for the window, WPF, which Constrained Language Mode blocks. Ask the administrator who manages the application control policy to allow or sign these scripts, or run them on a computer where they are allowed. Nothing was changed on this computer.'
+    exit 5
+}
 # The default is set here, not in the parameter block: $PSScriptRoot is not reliable in parameter defaults of an advanced script.
 if (-not $OutputPath) { $OutputPath = Join-Path $PSScriptRoot 'out' }
 $module = Join-Path $PSScriptRoot 'src\MspkiHealthCheck.psd1'

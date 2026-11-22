@@ -178,6 +178,7 @@ request to the NDES admin page).
 | What you see | What to do |
 |---|---|
 | "Running scripts is disabled on this system" | Ask your administrator. Do not turn the execution policy off. |
+| "cannot run in this PowerShell session ... Constrained Language Mode" (exit code 5) | Windows restricts unsigned scripts here (AppLocker or Windows Defender Application Control). The tool needs Full Language mode (COM, System.DirectoryServices, sockets and WPF are blocked otherwise). Ask the administrator who manages that policy to allow or sign the scripts, or run them on another computer. Nothing was changed on the computer. |
 | "This computer is not joined to a domain" | Run it on a domain-joined computer. |
 | It is very slow | Wait, or run `.\Invoke-MspkiHealthCheck.ps1 -TimeoutSeconds 10` if the network is slow. Ctrl+C stops it and keeps what it found. |
 | You only want to see that it starts | Run `.\Invoke-MspkiHealthCheck.ps1 -SkipNetwork`. It then reads Active Directory only and contacts no other server. |
