@@ -17,7 +17,7 @@ computer, so two runs can be compared by id. Keys are trimmed and lower-cased.
 | CACertificate | `cacert` | SHA-1 thumbprint (no spaces) | one entity per **generation** |
 | CRL | `crl` | `<AKI hex>:base` or `<AKI hex>:delta` | one per CA **key** and kind; AKI = SKI of the signing CA certificate. Without an AKI: `name=<issuer>;v=<CA version>` |
 | Endpoint | `endpoint` | the lead registry's normalised URL key | http and https of one path, case, default ports and `%20` give one endpoint |
-| Host | `host` | DNS name without trailing dot | `Addresses` from this run's DNS cache (no extra lookup), `Roles` |
+| Host | `host` | DNS name without trailing dot | `Roles`, `Addresses`; D2 identity (stage Analysis:Identity): `A`, `AAAA`, `Ptr` (`{Address, Names, Lookup}`), `AliasChain` + `CanonicalName` (CNAME chain), `QueryName`, `DnsMethod` (DnsClient = DNS only, DotNet = Inferred), `DnsLookup`, `TlsCertificates` (`{Port, Subject, Issuer, DnsNames, Thumbprint, NotAfter, Result}` or `{Port, Result, Detail}`), `HttpServer` |
 | Service | `service` | `<kind>:<endpoint id or host>` | kinds: WebEnrollment, CES, CEP, NDES, OCSP, IntuneConnector |
 | Template | `template` | template `cn` | |
 | LocalCertificate | `localcert` | thumbprint | `LocalMachine\My` certificates issued by a discovered CA (public part only); more with D3 |
@@ -55,7 +55,7 @@ ExpectedMissing is recorded only when the place was really checked:
 | `references` | CACertificate/CA → Endpoint | a URL in the certificate's AIA/CDP, or in the CA's URL properties |
 | `hostedOn` | CA/Endpoint/Service → Host | |
 | `servedBy` | Endpoint → Service | e.g. an OCSP URL and its responder |
-| `resolvesTo` | Host → Host | DNS alias (CNAME) chain to the real host (D2) |
+| `resolvesTo` | Host → Host | DNS alias (CNAME) chain to the real host, one step per CNAME (Source `DNS:CNAME`); a single-label name that the DNS suffix completes to a host already in the graph (Source `DNS:SuffixSearch`) |
 | `aliasOf` | Host → Host | a name in the SAN of a certificate served by (or installed on) that host; ExpectedMissing DNS when it does not resolve |
 | `enrollsVia` | Template/Service → CA | the template is published on the CA; CES enrolls through the CA |
 | `supersedes` | CACertificate → CACertificate | the newer generation of the same CA (by NotBefore; Inferred) |
@@ -83,3 +83,13 @@ this computer when there is no forest), so the list is never empty.
    `Register-MspkiCaOwnCrl` (the CA's own CRLs).
 3. At the end (also for a cancelled run): the inventory pass again (leads, NDES hosts, CEP, connector are known by then), then
    `Add-MspkiFindingEntityLink`, then `Get-MspkiEntityGraphExport` into results.json.
+
+## Endpoint identity (D2)
+- Every Host entity in the graph is looked up once per run (`Resolve-MspkiDnsIdentity`, cached as `dnsid|<name>`, one time-limited runspace
+  for all names): A/AAAA with the CNAME chain, then PTR for every address. `Resolve-DnsName -DnsOnly` when the in-box DnsClient module exists
+  (Confirmed), else .NET `Dns` (Inferred: Windows may answer from NetBIOS/LLMNR). Nothing is looked up with `-SkipNetwork`.
+- Observations on the host: `Seen DNS` (query name, A/AAAA), `Seen DNS <reverse name>` (PTR), `ExpectedMissing DNS` for a name or PTR with no
+  record (location = the name or its `in-addr.arpa` / `ip6.arpa` name), `Seen Certificate tls://host:port` for a served certificate,
+  `Seen HTTP <url>` with the Server header.
+- Web Enrollment: `GET http(s)://<Enterprise CA host>/certsrv/` (anonymous, no redirects, body not read). Any answer other than 404 gives a
+  Service entity `service:webenrollment:<endpoint id>` (Seen HTTP, Inferred), `servedBy`, `hostedOn` and `enrollsVia` the CA (Inferred).

@@ -20,7 +20,7 @@ or on the remote host. Confidence: C = confirmed by direct observation, L = like
 | Root CA host runs IIS: `/certsrv/` and `/certenroll/` answer 403, HTTPS is reset on every TLS version | Anonymous GET, raw TLS handshakes | Already in scope (standard paths on proven PKI hosts); the TLS reset should be reported as "TLS handshake closed by the server" | No | C |
 | Sub CA host has no web server (80/443 time out) | TCP connect | Already done (TCP probe) | No | C |
 | No CES, no CEP, no Intune Certificate Connector on the CA hosts | AD `msPKI-Enrollment-Servers`, constructed candidates, `sc.exe` | Already done for AD/HTTP; the connector on a remote NDES host is not visible (remote SCM blocked by firewall) | Remote services: yes | L |
-| Reverse DNS is incomplete (one PTR missing, one short name, one full name); one certificate SAN names an alias with no DNS record | `Resolve-DnsName` on A/PTR, SAN of the served certificate | D2 not done yet: resolve A, PTR, CNAME chain and compare with the certificate names | No | C |
+| Reverse DNS: DNS holds NO PTR record for any lab host (DNS-only lookups, also the DC). The "short name" and "full name" seen earlier came from NetBIOS / .NET name resolution, not DNS. One certificate SAN names an alias with no DNS record | `Resolve-DnsName -Type PTR -DnsOnly` vs. without `-DnsOnly` vs. .NET `Dns.GetHostEntry(IP)`; SAN of the served certificate | DONE (D2): `Resolve-DnsName -DnsOnly` (in-box DnsClient), .NET fallback reported as Inferred | No | C |
 | How this computer's certificates got here: one from a policy-driven machine enrollment (the RDS "certificate template" policy), one requested by an administrator in MMC | Certificate template extension (OID 1.3.6.1.4.1.311.21.7 / 20.2), `Microsoft-Windows-CertificateServicesClient-Lifecycle-*/Operational` events (template name+OID, thumbprint, process, account), `HKLM\...\Terminal Services\CertTemplateName`, `gpresult` | D3 not done yet. Public certificate data in `LocalMachine\My` and the template extension are readable by any user; the Lifecycle-User log is the user's own; whether the System lifecycle log is readable by a standard user is untested | Possibly (System log) | C / U |
 | Autoenrollment is not configured by registry policy here; no CEP policy servers | Registry (read-only) | Already done for CEP keys (`LocalPolicy`); add the autoenrollment keys | No | C |
 | Standard-user COM/RPC reads of the CA | `pktmon` capture, `certutil -ping` as each account | `GetCAProperty` (in-box); a quick 0x800706BA after TCP 135 is now reported as an Inferred refusal of this account | No | C |
@@ -62,3 +62,18 @@ or on the remote host. Confidence: C = confirmed by direct observation, L = like
 3. NDES is reported as "not discovered" although it answers: add the template-ACE/SPN route; report the missing CA database view in words.
 4. PARTLY FIXED: SAN names with no DNS record and an HTTPS port that resets are now reported; missing PTR records wait for D2.
 5. `CertificateAuthority.View` is not in-box on clients: CLAUDE.md rule 5 and REQUIREMENTS list it as in-box; they should say "if the management tools are installed".
+
+## WP2 endpoint identity (D2): adversarial check (2026-11-21, standard user, sanitised)
+- **Round 1.** Generator: full run as the standard user. Discriminator against the private lab facts:
+  - false positive / duplicate: this computer appeared twice (its certificate SAN holds the single-label name, which DNS completes to the
+    same FQDN), so its identity findings were doubled. Fixed: such a name gets `resolvesTo` (Source `DNS:SuffixSearch`) and no findings.
+  - unclear explanation: the Sub CA host, where no web server answers (80/443 filtered), was reported as "Web Enrollment not found",
+    as if a server had answered 404. Fixed: the finding now says "no web server answered at all" and lists what each URL gave.
+  - wrong lab fact, not a tool error: the private notes said the Root CA host has a short-name PTR. A DNS-only lookup shows no PTR at all;
+    the short name came from NetBIOS. The tool (DNS only) was right; the notes were corrected.
+  - crash: duplicate keys when merging finding parameters (`Sources`, `Target`, `Confidence`); fixed before any result was judged.
+  - expected gap (WP3): the NDES host is not in the graph yet, because nothing in AD names it and the CA database view is unavailable.
+- **Round 2.** Every Identity / Web Enrollment result matches the lab: Web Enrollment on the Root CA host (HTTP 403, HTTPS closes the
+  handshake, Server `Microsoft-IIS/10.0`; Inferred), none on the Sub CA host, no PTR for any address (Information, Confirmed), the dead
+  SAN alias (no DNS record), A records for every host. No false positives, no wrong confidence. The lab has no CNAMEs, no wrong PTR and
+  no ESC8 exposure, so those paths are proven by unit tests only (`tests/EndpointIdentity.Tests.ps1`).

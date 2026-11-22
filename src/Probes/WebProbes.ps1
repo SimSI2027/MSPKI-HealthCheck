@@ -134,7 +134,7 @@ function Invoke-MspkiHttpGet {
     $r = [pscustomobject][ordered]@{
         Url = $Url; FinalUrl = $Url; HttpStatus = 0; Code = 'RETRIEVAL_FAIL'; Redirected = $false
         Hops = (New-Object System.Collections.ArrayList); ContentType = ''; Bytes = $null; Error = ''; ElapsedMs = 0; FromCache = $false
-        ProxyMode = $opt.ProxyMode
+        ProxyMode = $opt.ProxyMode; Server = ''; AuthSchemes = @()
     }
     $sysProxy = $null
     if ($opt.UseSystemProxy) { $sysProxy = [System.Net.WebRequest]::GetSystemWebProxy() }
@@ -176,7 +176,12 @@ function Invoke-MspkiHttpGet {
             }
             $sc = [int]$resp.StatusCode
             $loc = [string]$resp.Headers['Location']
-            [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = $sc; Location = $loc; Error = '' })
+            # Identity facts only (D2): the Server header (capped) and the names of the offered sign-in schemes, never their tokens.
+            $srv = [string]$resp.Headers['Server']
+            if ($srv) { $r.Server = $srv.Substring(0, [Math]::Min(200, $srv.Length)) }
+            $wa = $resp.Headers.GetValues('WWW-Authenticate')
+            if ($null -ne $wa) { $r.AuthSchemes = @($wa | ForEach-Object { ([string]$_ -split '\s+')[0] } | Where-Object { $_ } | Select-Object -Unique) }
+            [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = $sc; Location = $loc; Error = ''; Server = $r.Server })
             if ($sc -ge 300 -and $sc -lt 400 -and $loc) {
                 $r.Redirected = $true
                 $current = (New-Object System.Uri((New-Object System.Uri($current)), $loc)).AbsoluteUri

@@ -8,7 +8,7 @@ $script:MspkiJsonSchema  = 'mspki-healthcheck/2'   # 2 = entity graph (Graph) an
 
 $script:MspkiSchema = @{
     Category    = @('CA', 'Hierarchy', 'CRL', 'AIA', 'CDP', 'OCSP', 'ADContainer', 'Template', 'CEP', 'CES',
-                    'NDES', 'IntuneConnector', 'StaleRef', 'ADDependency', 'Run')
+                    'NDES', 'IntuneConnector', 'StaleRef', 'ADDependency', 'Run', 'Identity', 'WebEnrollment')
     Status      = @('Pass', 'Information', 'Warning', 'Fail', 'Critical', 'NotApplicable', 'Skipped', 'Error')
     Confidence  = @('Confirmed', 'Referenced', 'Inferred', 'Unknown')
     Severity    = @('None', 'High', 'Medium', 'Low', 'Information', 'ReviewRequired')
@@ -20,7 +20,7 @@ $script:MspkiSchema = @{
                     'PermissionDenied', 'Timeout', 'Unknown')
     Role        = @('EnterpriseRoot', 'EnterpriseSubordinate', 'StandaloneRoot', 'StandaloneSubordinate',
                     'Intermediate', 'IssuingCA', 'CrossCertificate', 'AIAEndpoint', 'CDPEndpoint', 'OCSPEndpoint',
-                    'CEPEndpoint', 'CESEndpoint', 'NDESEndpoint', 'IntuneConnector', 'DomainController', 'Forest',
+                    'CEPEndpoint', 'CESEndpoint', 'NDESEndpoint', 'WebEnrollmentEndpoint', 'IntuneConnector', 'DomainController', 'Forest',
                     'Domain', 'Site', 'Trust', 'ADContainer', 'Template', 'Computer', 'Run', 'Unknown')
     StatusCode  = @('DNS_FAIL', 'TCP_FAIL', 'TIMEOUT', 'HTTP_REDIRECT', 'HTTP_400', 'HTTP_401_403', 'HTTP_404',
                     'HTTP_500', 'TLS_HANDSHAKE_FAIL', 'TLS_UNTRUSTED_ROOT', 'TLS_PARTIAL_CHAIN', 'TLS_NAME_MISMATCH',

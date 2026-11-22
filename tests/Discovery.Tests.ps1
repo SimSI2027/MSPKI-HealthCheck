@@ -329,7 +329,7 @@ Describe 'Invoke-MspkiDiscovery' {
         @($j.Findings | Where-Object { $_.Category -eq 'CDP' -and $_.StatusCode -eq 'PUBLICATION_FAIL' }).Count | Should -Be 1
         $j.RunInfo.Completed | Should -BeTrue
         $j.ExitCode | Should -Be 4
-        Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiHttpGet -Times 2 -Exactly -ParameterFilter { $Url -notmatch 'service.svc' -and $Url -notmatch '/ocsp/$' }
+        Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiHttpGet -Times 2 -Exactly -ParameterFilter { $Url -notmatch 'service.svc' -and $Url -notmatch '/ocsp/$' -and $Url -notmatch '/certsrv/$' }
         # The hierarchy review asks each CA host's standard /ocsp/ path once (anonymous, no redirects, body not read).
         Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiHttpGet -Times 1 -Exactly -ParameterFilter { $Url -match '^http://[^/]+/ocsp/$' -and $MaxRedirects -eq 0 -and $DiscardBody }
         # CEP/CES: the 2 URLs from AD plus the 6 constructed candidates on the CA host.

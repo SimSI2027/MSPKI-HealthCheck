@@ -25,7 +25,8 @@ $script:MspkiGuiStages = @(
     @('Probe:NDES', 'Checking NDES / SCEP'),
     @('Discovery:IntuneConnector', 'Looking for the Intune Certificate Connector'),
     @('Analysis:StaleReferences', 'Reviewing stale references'),
-    @('Analysis:Hierarchy', 'Reviewing the CA hierarchy')
+    @('Analysis:Hierarchy', 'Reviewing the CA hierarchy'),
+    @('Analysis:Identity', 'Recording endpoint identity and Web Enrollment')
 )
 
 # Icon (Segoe MDL2 Assets code point) and tone for every status word the window shows. Icon + text, never colour alone.

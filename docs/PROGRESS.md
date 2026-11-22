@@ -245,3 +245,13 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   the report re-export. Found and fixed on the way: the report tree crashed on an inventory without `Containers` (`@($null)` gave one empty node).
 - Note: on this machine PS 5.1 `ConvertFrom-Json` also read the 10 MB file; the ~2 MB limit noted earlier was not reproduced. The tool no longer depends on it.
 - Full suite 805 passed, 0 failed. Next: WP2 endpoint identity (D2).
+
+## WP2 (2026-11-21): endpoint identity (D2)
+- New stage Analysis:Identity (`src/Analyzers/EndpointIdentity.ps1`, `src/Probes/DnsIdentity.ps1`): every Host in the graph gets A/AAAA, the CNAME
+  chain (`resolvesTo`), PTR per address, the TLS certificate names and the HTTP Server header (now captured by `Invoke-MspkiHttpGet`, with the
+  names of the offered sign-in schemes). DNS-only via the in-box `Resolve-DnsName`; .NET fallback is Inferred. One runspace, time-limited, cached.
+- Findings (new categories Identity, WebEnrollment): missing PTR (Information), PTR short name / other host (Warning), alias with no address
+  (Warning), alias not covered by the TLS certificate (Warning when an https URL uses it), a per-host identity summary; Web Enrollment on CA hosts
+  as a Service entity, with an ESC8 Warning when plain HTTP offers NTLM/Negotiate. All `/certsrv` paths stay in `NdesProbe.ps1` (NDES test rule).
+- Adversarial check: 2 rounds (RESEARCH.md); lab shows no PTR records in DNS at all (earlier "short name" came from NetBIOS).
+- Tests: `tests/EndpointIdentity.Tests.ps1` (17). Next: WP3 NDES without the CA database view.

@@ -175,10 +175,11 @@ function Invoke-MspkiTimeLimitedScript {
     param(
         [Parameter(Mandatory = $true)][scriptblock]$ScriptBlock,
         [object[]]$ArgumentList = @(),
-        [ValidateRange(1, 3600)][int]$TimeoutSeconds = 30
+        [ValidateRange(1, 3600)][int]$TimeoutSeconds = 30,
+        [string]$ProgressText = 'Calling a CA (COM)'
     )
     Assert-MspkiNotCancelled
-    Send-MspkiProgress -Kind 'Target' -Text 'Calling a CA (COM)'
+    Send-MspkiProgress -Kind 'Target' -Text $ProgressText
     $res = [pscustomobject][ordered]@{
         Completed = $false; TimedOut = $false; Output = @(); Errors = @(); ElapsedMs = 0
     }

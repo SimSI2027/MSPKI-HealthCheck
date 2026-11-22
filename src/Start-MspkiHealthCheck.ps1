@@ -239,6 +239,16 @@ function Start-MspkiHealthCheck {
                     -Target 'Hierarchy' -Sources 'Run' -Action 'reviewing the CA hierarchy (generations, AIA/CDP design, OCSP, TLS, certificate names)' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Analysis:Hierarchy' -Stopwatch $sw
+            $sw = Start-MspkiStageTimer -Stage 'Analysis:Identity'
+            try {
+                foreach ($f in (Invoke-MspkiEndpointIdentityAnalysis -Inventory $inventory -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)) { [void]$findings.Add($f) }
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('Endpoint identity review stopped: {0} | {1}' -f $_.Exception.Message, (($_.ScriptStackTrace -split "`r?`n" | Select-Object -First 6) -join ' <- '))
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'Identity' -Role 'Computer' `
+                    -Target 'Identity' -Sources 'Run' -Action 'recording endpoint identity (DNS, reverse DNS, aliases, TLS names, Server header) and Web Enrollment' -Stage 'Run'))
+            }
+            Add-MspkiStageTiming -Stage 'Analysis:Identity' -Stopwatch $sw
             $inventory | Add-Member -NotePropertyName 'Leads'-NotePropertyValue @(Get-MspkiLead | ForEach-Object { ConvertTo-MspkiLeadExport -Lead $_ }) -Force
             $inventory | Add-Member -NotePropertyName 'LeadStatistics' -NotePropertyValue (Get-MspkiLeadStatistic) -Force
         }

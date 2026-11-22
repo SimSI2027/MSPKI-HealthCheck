@@ -270,6 +270,8 @@ function Get-MspkiDiscoveryTree {
         @{ Label = 'NDES / SCEP'; Cats = @('NDES'); Src = @('CA:CertificateAuthority.View') }
         @{ Label = 'Intune Certificate Connector (this computer only)'; Cats = @('IntuneConnector'); Src = @('Local:Win32_Service') }
         @{ Label = 'Historical and stale reference review'; Cats = @('StaleRef'); Src = @('Probe results') }
+        @{ Label = 'Web Enrollment (browser enrollment pages)'; Cats = @('WebEnrollment'); Src = @('HTTP:StandardPath') }
+        @{ Label = 'Endpoint identity (DNS, reverse DNS, aliases, TLS names)'; Cats = @('Identity'); Src = @('DNS', 'TLS', 'HTTP') }
     )
     foreach ($g in $reviewGroups) {
         $fs = @($all | Where-Object { $g.Cats -contains $_.Category -and -not $placed.ContainsKey($_.Id) })

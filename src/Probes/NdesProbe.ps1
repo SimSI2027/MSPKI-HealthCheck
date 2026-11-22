@@ -18,6 +18,31 @@ $script:MspkiNdesRequestTable = [ordered]@{
     AdminAnonymous = @{ Path = '/certsrv/mscep_admin/'; Query = ''; DiscardBody = $true; Purpose = 'anonymous request to the admin page: HTTP 401 proves that it exists; the body is never read' }
 }
 
+# Web Enrollment lives under the same IIS application root, so its standard path is kept here too: every path below /certsrv is
+# named in this file only. These two functions only build a string; the Web Enrollment GET itself (anonymous, no redirects,
+# body not read) is sent by the endpoint identity analysis to Enterprise CA hosts, never to a SCEP path.
+function Get-MspkiWebEnrollmentPath {
+    <#
+    .SYNOPSIS
+    The standard Web Enrollment path (the root of the browser enrollment pages), for messages and URLs.
+    #>
+    [CmdletBinding()]
+    param()
+    return '/certsrv/'
+}
+
+function New-MspkiWebEnrollmentUrl {
+    <#
+    .SYNOPSIS
+    Builds the Web Enrollment URL of a host (standard path, default port). Throws for a host name that is not a plain DNS name or IP address.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$HostName, [ValidateSet('http', 'https')][string]$Scheme = 'http')
+    $h = ConvertTo-MspkiHostName $HostName
+    if ($h -notmatch '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$') { throw ('Not a usable host name: {0}' -f $HostName) }
+    return ('{0}://{1}{2}' -f $Scheme, $h, (Get-MspkiWebEnrollmentPath))
+}
+
 function Get-MspkiNdesAllowedRequest {
     <#
     .SYNOPSIS

@@ -24,7 +24,7 @@ capture, RSAT, PSPKI, Sysinternals) are for understanding on the lab machine; th
   Original scope: Every root, intermediate and issuing CA; every CA certificate generation; every AIA, CDP and OCSP
   URI (HTTP, LDAP, file) actually tested; CRL freshness and publication (AD vs HTTP vs the CA's own CRL); delta CRLs;
   offline-root CRL risk; NTAuth and AIA containers. For anything not working, explain WHY (layered diagnosis).
-- **D2 Endpoint identity.** For every link that responds or issues certificates: resolved IPs, reverse DNS, the CNAME/alias
+- **D2 Endpoint identity.** STATUS 2026-11-21: DONE (WP2: A/AAAA, PTR, CNAME chain, TLS names, Server header, Web Enrollment). Original scope: For every link that responds or issues certificates: resolved IPs, reverse DNS, the CNAME/alias
   chain to the real host, the TLS certificate names and the server header.
 - **D3 Local evidence.** Work out how this computer's certificates got here (stores, template extension, issuing CA,
   autoenrollment and lifecycle event logs, CEP policy) and use that as discovery.
