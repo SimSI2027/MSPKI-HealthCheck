@@ -271,10 +271,14 @@ function Add-MspkiInventoryToEntityGraph {
     foreach ($n in @($Inventory.NdesHosts | Where-Object { $_ })) {
         $hn = $(if ($n -is [string]) { $n } elseif ($n.HostName) { $n.HostName } elseif ($n.Host) { $n.Host } else { '' })
         if (-not $hn) { continue }
-        $hid = Add-MspkiHostEntity -HostName $hn -Role 'NDES'
-        $sid = Add-MspkiEntity -Type 'Service' -Key ('ndes:' + $hn) -Name ('NDES / SCEP on {0}' -f $hn) -Properties @{ Kind = 'NDES'; HostName = $hn }
-        Add-MspkiRelation -From $sid -Type 'hostedOn' -To $hid -Source 'NDES'
-        Add-MspkiObservation -EntityId $sid -Kind 'Seen' -Source 'HTTP' -Location $hn -Confidence 'Referenced' -Detail 'NDES host from discovery'
+        $cls = $(if ($n -is [string]) { '' } else { [string]$n.Classification })
+        $hid = Add-MspkiHostEntity -HostName $hn -Role $(if ($cls -eq 'ConfirmedEndpoint' -or -not $cls) { 'NDES' } else { 'NDESCandidate' })
+        $sid = Add-MspkiEntity -Type 'Service' -Key ('ndes:' + $hn.ToLowerInvariant()) -Name ('NDES / SCEP on {0}' -f $hn) -Properties @{ Kind = 'NDES'; HostName = $hn; Classification = $cls }
+        if ($cls) { (Get-MspkiEntity -Id $sid).Properties['Classification'] = $cls }
+        Add-MspkiRelation -From $sid -Type 'hostedOn' -To $hid -Source 'NDES' -Confidence $(if ($cls -eq 'ConfirmedEndpoint') { 'Confirmed' } else { 'Inferred' })
+        # Only a host that answered SCEP requests was seen; every other classification is a candidate that something names.
+        if ($cls -eq 'ConfirmedEndpoint') { Add-MspkiObservation -EntityId $sid -Kind 'Seen' -Source 'HTTP' -Location $hn -Confidence 'Confirmed' -Detail 'Answers GetCACaps / GetCACert' }
+        else { Add-MspkiObservation -EntityId $sid -Kind 'Referenced' -Source 'AD' -Location $hn -Confidence 'Inferred' -Detail ('NDES candidate ({0})' -f $(if ($cls) { $cls } else { 'from discovery' })) }
     }
     foreach ($p in @($Inventory.CepPolicies | Where-Object { $_ })) {
         $u = [string]$p.Url
@@ -285,7 +289,8 @@ function Add-MspkiInventoryToEntityGraph {
         Add-MspkiObservation -EntityId $sid -Kind 'Referenced' -Source 'LocalPolicy' -Location 'HKLM\SOFTWARE\Policies\Microsoft\Cryptography\PolicyServers' -Detail $u
     }
     $ic = $Inventory.IntuneConnector
-    if ($null -ne $ic -and (@($ic.ProductsMatched).Count -gt 0 -or @($ic.CertificatesMatched).Count -gt 0)) {
+    # ProductsMatched / CertificatesMatched are counts (numbers); @(0).Count would be 1 and invent a connector.
+    if ($null -ne $ic -and ([int]$ic.ProductsMatched -gt 0 -or [int]$ic.CertificatesMatched -gt 0 -or @($ic.Evidence | Where-Object { $_ }).Count -gt 0)) {
         $hn = [string]$ic.ComputerName
         $sid = Add-MspkiEntity -Type 'Service' -Key ('intuneconnector:' + $hn) -Name ('Intune Certificate Connector on {0}' -f $hn) -Properties @{ Kind = 'IntuneConnector'; HostName = $hn }
         Add-MspkiObservation -EntityId $sid -Kind 'Seen' -Source 'LocalStore' -Location $hn -Confidence 'Confirmed' -Detail 'Local services / certificates'

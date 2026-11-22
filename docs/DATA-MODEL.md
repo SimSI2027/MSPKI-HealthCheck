@@ -22,6 +22,8 @@ computer, so two runs can be compared by id. Keys are trimmed and lower-cased.
 | Template | `template` | template `cn` | |
 | LocalCertificate | `localcert` | thumbprint | `LocalMachine\My` certificates issued by a discovered CA (public part only); more with D3 |
 | ADObject | `adobject` | distinguished name | PKI containers and objects |
+| Account | `account` | SID | an account named in the Enroll permissions of an NDES RA template (WP3): `SamAccountName`, `AccountClass` (user / computer / group / gmsa / msa), `Spns`, `DnsHostName`, `Lookup` (Found / NotFound / Error) |
+| RACertificate | `racert` | SHA-1 thumbprint | an NDES RA certificate returned by GetCACert: `Subject`, `Issuer`, `Eku`, `KeyUsage`, `Template`, validity |
 
 ## Observations: where an entity exists
 `{ EntityId, Kind, Source, Location, Confidence, Detail, Timestamp }`
@@ -57,10 +59,13 @@ ExpectedMissing is recorded only when the place was really checked:
 | `servedBy` | Endpoint → Service | e.g. an OCSP URL and its responder |
 | `resolvesTo` | Host → Host | DNS alias (CNAME) chain to the real host, one step per CNAME (Source `DNS:CNAME`); a single-label name that the DNS suffix completes to a host already in the graph (Source `DNS:SuffixSearch`) |
 | `aliasOf` | Host → Host | a name in the SAN of a certificate served by (or installed on) that host; ExpectedMissing DNS when it does not resolve |
-| `enrollsVia` | Template/Service → CA | the template is published on the CA; CES enrolls through the CA |
+| `enrollsVia` | Template/Service → CA | the template is published on the CA; CES enrolls through the CA; NDES enrolls through the CA that issued its RA certificates (GetCACert, Confirmed) |
 | `supersedes` | CACertificate → CACertificate | the newer generation of the same CA (by NotBefore; Inferred) |
-| `certificateOf` | CACertificate → CA | the generation belongs to that CA (added; needed to join CA and certificate) |
+| `certificateOf` | CACertificate → CA; RACertificate → Service | the generation belongs to that CA; the RA certificate belongs to that NDES service |
 | `partOf` | Domain/CA/ADObject → Forest | (added) |
+| `mayEnroll` | Account → Template | the account holds Enroll on the template (ACL read from AD; Confirmed) |
+| `identifies` | Account → Host | the host named by the account (dNSHostName or an HTTP/ SPN; Inferred) |
+| `memberOf` | Account → Account | reserved for group membership (not written yet) |
 
 ## Findings
 Every finding has `EntityIds` (string[]): the entities it is about. Ids set when the finding is created are kept; the linker adds ids
@@ -93,3 +98,11 @@ this computer when there is no forest), so the list is never empty.
   `Seen HTTP <url>` with the Server header.
 - Web Enrollment: `GET http(s)://<Enterprise CA host>/certsrv/` (anonymous, no redirects, body not read). Any answer other than 404 gives a
   Service entity `service:webenrollment:<endpoint id>` (Seen HTTP, Inferred), `servedBy`, `hostedOn` and `enrollsVia` the CA (Inferred).
+
+## NDES without the CA database view (D4, WP3)
+- Templates with the NDES RA purpose (CEPEncryption, EnrollmentAgentOffline, or Certificate Request Agent EKU + subject supplied in the
+  request) that a CA publishes; their Enroll ACEs minus the default admin groups (and broad groups, which name no host) give Account entities.
+- Each account is read once by `<SID=...>` (base scope, selected DC); groups one level, a gMSA's allowed computers from `msDS-GroupMSAMembership`.
+  An account that cannot be read gets `ExpectedMissing AD <SID=...>` (Unknown: deleted, or hidden from this account).
+- The NDES Service is `Seen` only when it answered GetCACaps/GetCACert (ConfirmedEndpoint); candidates are `Referenced` (Inferred) and their
+  host has the role `NDESCandidate`. The CA certificates in GetCACert get a `Seen HTTP` observation (issuing CA or "chain").

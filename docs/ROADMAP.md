@@ -16,7 +16,7 @@ capture, RSAT, PSPKI, Sysinternals) are for understanding on the lab machine; th
   in a capture). The tool now reports it as an Inferred PERMISSION_DENIED with owner steps (`docs/RESEARCH.md`). The CA database view is still
   not in-box on clients.
 - FIXED: a CDP LDAP URL without an attribute part was graded Fail (false positive). Still open: NDES is missed when the CA
-  database view is unavailable (add the template-ACE / SPN route); the HTTPS reset on a CA host is now reported with its meaning (FIXED).
+  database view is unavailable (FIXED 2026-11-22: template-ACE / SPN route); the HTTPS reset on a CA host is now reported with its meaning (FIXED).
 
 ## DISCOVERY (top priority)
 - **D1 Full hierarchy health.** STATUS 2026-11-21: DONE for Enterprise hierarchies (generations, AIA/CDP design and order, NTAuth vs AIA,
@@ -28,7 +28,7 @@ capture, RSAT, PSPKI, Sysinternals) are for understanding on the lab machine; th
   chain to the real host, the TLS certificate names and the server header.
 - **D3 Local evidence.** Work out how this computer's certificates got here (stores, template extension, issuing CA,
   autoenrollment and lifecycle event logs, CEP policy) and use that as discovery.
-- **D4 NDES / SCEP / Intune Certificate Connector.** Observe and report.
+- **D4 NDES / SCEP / Intune Certificate Connector.** STATUS 2026-11-22: DONE (WP3: template-permission / SPN route, RA certificates, graph; the connector is checked on this computer only).
 - **D5 Research tools.** Allowed in the lab for understanding; the product stays in-box only.
 
 ## GUI

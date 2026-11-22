@@ -7,11 +7,11 @@ $script:MspkiGraphSchemaVersion = 2
 
 $script:MspkiEntityTypes = [ordered]@{
     Forest = 'forest'; Domain = 'domain'; CA = 'ca'; CACertificate = 'cacert'; CRL = 'crl'; Endpoint = 'endpoint'; Host = 'host'
-    Service = 'service'; Template = 'template'; LocalCertificate = 'localcert'; ADObject = 'adobject'
+    Service = 'service'; Template = 'template'; LocalCertificate = 'localcert'; ADObject = 'adobject'; Account = 'account'; RACertificate = 'racert'
 }
 $script:MspkiServiceKinds = @('WebEnrollment', 'CES', 'CEP', 'NDES', 'OCSP', 'IntuneConnector')
 $script:MspkiRelationTypes = @('issuedBy', 'signedBy', 'publishedAt', 'references', 'hostedOn', 'servedBy', 'resolvesTo', 'aliasOf',
-    'enrollsVia', 'supersedes', 'certificateOf', 'partOf')
+    'enrollsVia', 'supersedes', 'certificateOf', 'partOf', 'mayEnroll', 'identifies', 'memberOf')
 $script:MspkiObservationKinds = @('Seen', 'Referenced', 'ExpectedMissing')
 
 $script:MspkiGraph = $null
@@ -52,7 +52,7 @@ function Get-MspkiEntityId {
     )
     if (-not $script:MspkiEntityTypes.Contains($Type)) { throw ('Unknown entity type: {0}' -f $Type) }
     $k = ([string]$Key).Trim().ToLowerInvariant()
-    if ($Type -in @('CACertificate', 'LocalCertificate')) { $k = $k -replace '\s', '' }
+    if ($Type -in @('CACertificate', 'LocalCertificate', 'RACertificate')) { $k = $k -replace '\s', '' }
     if ($Type -eq 'Host') { $k = $k.TrimEnd('.') }
     return ('{0}:{1}' -f $script:MspkiEntityTypes[$Type], $k)
 }

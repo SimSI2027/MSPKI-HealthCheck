@@ -243,6 +243,16 @@ function Get-MspkiNdesCaEvidence {
         Write-MspkiLog -Message ('CertificateAuthority.View query for template value {0} (columns: {1}; restrictions: Request.Disposition = 20, CertificateTemplate = value): {2} row(s) after {3} ms{4}' -f `
             $t.Key, $t.Columns, $t.Rows, $t.ElapsedMs, $(if ($t.HResult) { ', error 0x' + $t.HResult } else { '' }))
     }
+    if ($null -ne $raw.Fatal -and [string]$raw.Fatal.HResult -eq '80040154') {
+        # Class not registered: the reader ships with the AD CS management tools, which a clean client does not have and this tool does not need.
+        Add-MspkiMethodOutcome -Method 'CA:CertificateAuthority.View' -Outcome 'Unsupported' -Detail 'CertificateAuthority.View is not registered on this computer' -ElapsedMs $run.ElapsedMs
+        Add-MspkiRunLimit -Text 'The CA database reader (CertificateAuthority.View, part of the AD CS management tools) is not installed here, so the CA databases were not read for NDES evidence; NDES was looked for through the template permissions and references instead.'
+        [void]$findings.Add((New-MspkiFinding @common -Status 'Skipped' -StatusCode 'NOT_APPLICABLE' -Confidence 'Confirmed' -Layers @{ DiscoveryStatus = 'Skipped' } `
+            -Message ('The CA database of {0} was not read for NDES evidence: the CA database reader (CertificateAuthority.View) is not installed on this computer.' -f $CA.Name) `
+            -Evidence @('COM class CertificateAuthority.View: not registered (0x80040154)', 'It is installed with the AD CS management tools (RSAT: Active Directory Certificate Services Tools).') `
+            -Notes 'This tool does not need the management tools. NDES is looked for through the accounts that may enroll from the NDES RA templates, and through references. Running on a computer with the AD CS management tools, as a CA administrator or certificate manager, adds the CA database evidence.'))
+        $out.Findings = @($findings); return $out
+    }
     if ($null -ne $raw.Fatal) {
         $class = 'Error'
         if ($script:MspkiHResultClass.ContainsKey([string]$raw.Fatal.HResult)) { $class = $script:MspkiHResultClass[[string]$raw.Fatal.HResult] }

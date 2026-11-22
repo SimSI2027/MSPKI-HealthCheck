@@ -255,3 +255,12 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   as a Service entity, with an ESC8 Warning when plain HTTP offers NTLM/Negotiate. All `/certsrv` paths stay in `NdesProbe.ps1` (NDES test rule).
 - Adversarial check: 2 rounds (RESEARCH.md); lab shows no PTR records in DNS at all (earlier "short name" came from NetBIOS).
 - Tests: `tests/EndpointIdentity.Tests.ps1` (17). Next: WP3 NDES without the CA database view.
+
+## WP3 (2026-11-22): NDES without the CA database view (D4)
+- New `src/Discovery/NdesTemplateAccess.ps1`: NDES RA templates (standard names, or Certificate Request Agent EKU + subject in request), their
+  Enroll ACEs minus default admins / broad groups, one `<SID=...>` read per account (groups one level, gMSA allowed computers), host from
+  dNSHostName or `HTTP/` SPNs -> Probable NDES leads probed with GetCACaps/GetCACert only. Lab: NDES Confirmed as the standard user.
+- GetCACert certificates: role (CA / RA), issuer, EKU, key usage, template (new `src/Model/CertificateTemplateInfo.ps1`, v1 + v2 extension);
+  graph: Account, RACertificate, mayEnroll, identifies, certificateOf, issuedBy, enrollsVia (issuing CA only). Missing CA database reader in words.
+- Fixed: wrapped GetCACert list (false "expired"), invented Intune connector entity, NDES candidates shown as Seen. 3 adversarial rounds (RESEARCH.md).
+- Tests: `tests/NdesTemplateAccess.Tests.ps1` (14). Next: WP4 local evidence (D3).

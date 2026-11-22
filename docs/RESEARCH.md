@@ -14,7 +14,7 @@ or on the remote host. Confidence: C = confirmed by direct observation, L = like
 | Every CA/CRL URI is LDAP only: no HTTP CDP/AIA, no OCSP URI | Certificate extensions + CA properties 41-43 | Already done (leads); CA property read needs RPC to the CA, the certificate extensions do not | No | C |
 | CRLs: AD copy and the CA's own copy have the same number; base/delta freshness | `certutil`-free: CA properties 17/18 and the AD CDP objects | Already done once the CRL-stage bug (below) was fixed | No | C |
 | Standalone/offline CA | None exists here | Cannot be found from AD alone (only the certificates in AD); a standalone root shows as "seen in AD only" | No | U |
-| An NDES/SCEP server exists (answers GetCACaps and GetCACert anonymously, HTTP and HTTPS, valid TLS) | AD computer lookup by name; certificates published in a user object; anonymous GETs | NOT found today. In-box routes: (1) Enroll ACEs on published templates with an Enrollment Agent / CEP-Encryption EKU name a service account; its SPN `HTTP/<host>` names the host; (2) the CA database view (not available, see below) | No | C (exists) / L (route 1) |
+| An NDES/SCEP server exists (answers GetCACaps and GetCACert anonymously, HTTP and HTTPS, valid TLS) | AD computer lookup by name; certificates published in a user object; anonymous GETs | DONE (WP3): found as a standard user through route (1); was NOT found before. In-box routes: (1) Enroll ACEs on published templates with an Enrollment Agent / CEP-Encryption EKU name a service account; its SPN `HTTP/<host>` names the host; (2) the CA database view (not available, see below) | No | C (exists) / L (route 1) |
 | NDES service account is a normal user account with an `HTTP/` SPN | LDAP lookup of the account named in the template ACL | Read the account object named in a template ACE (a bounded lookup of a principal that came from AD) | No | C |
 | Online Responder role installed on the Root CA host, but no certificate points to it and `/ocsp/` answers HTTP 500 | `sc.exe \\host query`, anonymous GET | Not in-box as a standard user: the service state needs admin. The HTTP 500 on a standard path of a proven PKI host is visible | Service state: yes | C |
 | Root CA host runs IIS: `/certsrv/` and `/certenroll/` answer 403, HTTPS is reset on every TLS version | Anonymous GET, raw TLS handshakes | Already in scope (standard paths on proven PKI hosts); the TLS reset should be reported as "TLS handshake closed by the server" | No | C |
@@ -77,3 +77,23 @@ or on the remote host. Confidence: C = confirmed by direct observation, L = like
   handshake, Server `Microsoft-IIS/10.0`; Inferred), none on the Sub CA host, no PTR for any address (Information, Confirmed), the dead
   SAN alias (no DNS record), A records for every host. No false positives, no wrong confidence. The lab has no CNAMEs, no wrong PTR and
   no ESC8 exposure, so those paths are proven by unit tests only (`tests/EndpointIdentity.Tests.ps1`).
+
+## WP3 NDES without the CA database view (D4): adversarial check (2026-11-22, standard user, sanitised)
+- **Before:** NotDiscovered (Unknown). The Root CA refuses DCOM for this account and the CA database reader is not registered on the dev
+  computer, so the only NDES route was closed: a false negative.
+- **Round 1.** Template route added. Discriminator: (a) false negative remained: the two `HTTP/` SPNs of the NDES service account came back
+  as one string joined by a space (a wrapped LDAP value list), so the "host" did not resolve; (b) the missing CA database reader was shown as
+  an opaque CLSID error. Fixed both (plain message: "the CA database reader is not installed on this computer").
+- **Round 2.** NDES host Confirmed (GetCACaps + GetCACert, HTTPS, valid TLS), classification before the probe ProbableCandidate, found from
+  the NDES service account (a user account with `HTTP/<host>` SPNs) that holds Enroll on the two NDES RA template copies. Discriminator:
+  (a) false positive: "a certificate returned by GetCACert has expired" - with several certificates the parsed list was wrapped once more and
+  every field became an array (pre-existing bug, hidden because no NDES had ever answered); (b) wrong relation: the service `enrollsVia` the
+  Root CA as well, although the Root certificate is only the chain; (c) RA certificate template not decoded. All fixed: `enrollsVia` only the
+  CA whose SKI is the RA certificates' AKI; the v2 template extension is decoded (another wrapped DER child list).
+- **Round 3.** Matches the lab: CA + Root + two RA certificates (signing = Enrollment Agent copy, encryption = CEP Encryption copy) issued by
+  the Sub CA; no expiry; the second account in the template ACLs (an RA user per the private notes) is not readable by the standard user and is
+  reported as "deleted, or this account may not read it" (never "deleted"). Wrong confidence: none.
+- Also found in this package: the graph listed an "Intune Certificate Connector on this computer" (Seen, Confirmed) although nothing matched
+  (`@(0).Count` is 1). Fixed; tested.
+- **Intune Certificate Connector (lab):** none on this computer (checked locally: services, installed products, certificates). On the NDES host
+  it cannot be checked: the product reads only the local computer, and remote service control is blocked there anyway. Not installed on the CA hosts.

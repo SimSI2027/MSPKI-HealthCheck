@@ -72,7 +72,9 @@ function New-TestCertificate {
         [string[]]$OcspUrls = @(),
         [switch]$Ecdsa,
         $Key = $null,
-        [switch]$WithAki
+        [switch]$WithAki,
+        [string[]]$Eku = @(),
+        [object[]]$Extensions = @()
     )
     if ($Ecdsa) {
         $rsa = $Key
@@ -96,6 +98,12 @@ function New-TestCertificate {
     $ku = [System.Security.Cryptography.X509Certificates.X509KeyUsageFlags]'KeyCertSign, CrlSign, DigitalSignature'
     $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509KeyUsageExtension($ku, $true)))
     $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509SubjectKeyIdentifierExtension($req.PublicKey, $false)))
+    if ($Eku.Count -gt 0) {
+        $oc = New-Object System.Security.Cryptography.OidCollection
+        foreach ($o in $Eku) { [void]$oc.Add((New-Object System.Security.Cryptography.Oid($o))) }
+        $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension($oc, $false)))
+    }
+    foreach ($x in $Extensions) { $req.CertificateExtensions.Add($x) }
     if ($CAVersion -ge 0) {
         $der = ConvertTo-TestDerInteger -Value $CAVersion
         $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509Extension('1.3.6.1.4.1.311.21.1', $der, $false)))
