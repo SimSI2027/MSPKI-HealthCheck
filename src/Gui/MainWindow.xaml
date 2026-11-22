@@ -85,6 +85,60 @@
         </Grid>
       </DataTemplate>
 
+      <!-- ===== PKI services page: one card per service kind ===== -->
+      <DataTemplate x:Key="ServiceCard">
+        <Border Style="{StaticResource Card}" Margin="0,0,0,16" Padding="20,16">
+          <StackPanel>
+            <DockPanel>
+              <ContentPresenter DockPanel.Dock="Right" Content="{Binding StatePill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top" Margin="12,2,-6,0"/>
+              <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="6" Background="{StaticResource B.AccentSoft}" Margin="0,0,12,0" VerticalAlignment="Top">
+                <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="18" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+              </Border>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding Label}" Style="{StaticResource H2}" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding StateWhy}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,2,0,0" Visibility="{Binding HasStateWhy, Converter={StaticResource BoolToVis}}"/>
+              </StackPanel>
+            </DockPanel>
+            <TextBlock Text="{Binding About}" TextWrapping="Wrap" Margin="0,12,0,0"/>
+            <StackPanel Visibility="{Binding HasInstances, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
+              <TextBlock Text="{Binding InstancesTitle}" Style="{StaticResource Label}" Margin="0,0,0,2"/>
+              <ItemsControl ItemsSource="{Binding Instances}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Style="{StaticResource RowButton}" Tag="{Binding Tag}" Padding="4,8" ToolTip="Open this service: where it exists, its host and certificates" AutomationProperties.Name="{Binding Name}">
+                      <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        <StackPanel>
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
+                          <TextBlock Style="{StaticResource Small}" Visibility="{Binding HasHost, Converter={StaticResource BoolToVis}}" TextTrimming="CharacterEllipsis"><Run Text="Host: "/><Run Text="{Binding HostName, Mode=OneWay}" FontFamily="{StaticResource F.Mono}"/></TextBlock>
+                          <WrapPanel Margin="0,4,0,0">
+                            <ContentPresenter Content="{Binding StatePill}" ContentTemplate="{StaticResource PillTemplate}"/>
+                            <ContentPresenter Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}"/>
+                            <ContentPresenter Content="{Binding WorstPill}" ContentTemplate="{StaticResource PillTemplate}"/>
+                          </WrapPanel>
+                          <TextBlock Text="{Binding Evidence}" Style="{StaticResource Small}" FontFamily="{StaticResource F.Mono}" TextWrapping="Wrap" MaxHeight="48" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                        </StackPanel>
+                      </DockPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+            <StackPanel Visibility="{Binding HasFindings, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
+              <TextBlock Style="{StaticResource Label}" Margin="0,0,0,2"><Run Text="Findings ("/><Run Text="{Binding FindingCount, Mode=OneWay}"/><Run Text=")"/></TextBlock>
+              <ItemsControl ItemsSource="{Binding Findings}" ItemTemplate="{StaticResource FindingLink}" Focusable="False"/>
+              <TextBlock Text="{Binding MoreText}" Style="{StaticResource Small}" Margin="4,6,0,0"/>
+            </StackPanel>
+            <Border Background="{StaticResource B.Hover}" CornerRadius="4" Padding="10,8" Margin="0,12,0,0">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" FontSize="12" Foreground="{StaticResource B.Muted}" VerticalAlignment="Top" Margin="0,2,8,0"/>
+                <TextBlock Style="{StaticResource Small}" TextWrapping="Wrap"><Run Text="What this run can see: " FontWeight="SemiBold"/><Run Text="{Binding Scope, Mode=OneWay}"/></TextBlock>
+              </DockPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+      </DataTemplate>
+
       <!-- ===== Details pane: one object of the graph (G1 drill-down, G2 where it exists, G4 host identity, G5 note) ===== -->
       <DataTemplate x:Key="EntityPane">
         <DockPanel>
@@ -613,6 +667,9 @@
               </ListBoxItem>
               <ListBoxItem ToolTip="Objects (Ctrl+5)" AutomationProperties.Name="Objects">
                 <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE71D;" Margin="0,0,12,0"/><TextBlock Text="Objects" Style="{StaticResource NavLabel}"/></StackPanel>
+              </ListBoxItem>
+              <ListBoxItem ToolTip="PKI services (Ctrl+6)" AutomationProperties.Name="PKI services">
+                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE912;" Margin="0,0,12,0"/><TextBlock Text="PKI services" Style="{StaticResource NavLabel}"/></StackPanel>
               </ListBoxItem>
             </ListBox>
           </StackPanel>
@@ -1177,6 +1234,43 @@
                 <GridSplitter Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Focusable="False"/>
                 <Border Grid.Column="2" Style="{StaticResource Panel}" ClipToBounds="True">
                   <ContentControl x:Name="ObjHost" Style="{StaticResource PaneHost}"/>
+                </Border>
+              </Grid>
+            </DockPanel>
+          </TabItem>
+
+          <!-- PKI services: Web Enrollment, CES, CEP, NDES/SCEP, OCSP and the Intune Certificate Connector. -->
+          <TabItem x:Name="TabServices" Header="PKI services">
+            <DockPanel Margin="24,20,24,24">
+              <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+                <TextBlock Text="PKI services" Style="{StaticResource PageTitle}"/>
+                <TextBlock Text="Enrollment and revocation services: what was found, what is not there, and what cannot be checked from this computer." Style="{StaticResource PageSub}" Margin="0,2,0,0"/>
+              </StackPanel>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="5*" MinWidth="420"/>
+                  <ColumnDefinition Width="16"/>
+                  <ColumnDefinition Width="3*" MinWidth="300" MaxWidth="640"/>
+                </Grid.ColumnDefinitions>
+                <Grid>
+                  <ScrollViewer x:Name="SvcScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                    <StackPanel>
+                      <TextBlock x:Name="TxtSvcSummary" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                      <ItemsControl x:Name="SvcList" ItemTemplate="{StaticResource ServiceCard}" Focusable="False" AutomationProperties.Name="PKI services"/>
+                    </StackPanel>
+                  </ScrollViewer>
+                  <Border Style="{StaticResource Panel}" Visibility="{Binding Visibility, ElementName=TxtSvcEmpty}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380" Margin="24">
+                      <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE912;" FontSize="24" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+                      </Border>
+                      <TextBlock x:Name="TxtSvcEmpty" Style="{StaticResource Muted}" TextAlignment="Center" Text="There are no results yet. Run a health check, or open an earlier results.json."/>
+                    </StackPanel>
+                  </Border>
+                </Grid>
+                <GridSplitter Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Focusable="False"/>
+                <Border Grid.Column="2" Style="{StaticResource Panel}" ClipToBounds="True">
+                  <ContentControl x:Name="SvcHost" Style="{StaticResource PaneHost}"/>
                 </Border>
               </Grid>
             </DockPanel>

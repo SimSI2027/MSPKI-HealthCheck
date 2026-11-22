@@ -161,4 +161,50 @@ Describe 'Object views' {
         $ep | Should -Not -BeNullOrEmpty
         @(Get-MspkiGuiNodeEntityId -Index $ix -Node $ep).Count | Should -BeGreaterThan 0
     }
+
+    It 'builds the PKI services page: found, named only, not found, cannot be checked from here, and not checked' {
+        $g = ConvertFrom-MspkiJson -Text @'
+{ "Entities": [
+    { "Id": "service:ndes:ndes01.corp.example.test", "Type": "Service", "Name": "NDES / SCEP on ndes01.corp.example.test", "Properties": { "Kind": "NDES", "HostName": "ndes01.corp.example.test" } },
+    { "Id": "host:ndes01.corp.example.test", "Type": "Host", "Name": "ndes01.corp.example.test", "Properties": {} },
+    { "Id": "service:cep:x", "Type": "Service", "Name": "CEP https://cep.example.test/policy", "Properties": { "Kind": "CEP", "Url": "https://cep.example.test/policy" } }
+  ],
+  "Observations": [
+    { "EntityId": "service:ndes:ndes01.corp.example.test", "Kind": "Seen", "Source": "HTTP", "Location": "ndes01.corp.example.test", "Confidence": "Confirmed", "Detail": "Answers GetCACaps / GetCACert", "Timestamp": "2026-11-22T00:00:00Z" },
+    { "EntityId": "service:cep:x", "Kind": "Referenced", "Source": "LocalPolicy", "Location": "HKLM/SOFTWARE/Policies/Microsoft/Cryptography/PolicyServers", "Confidence": "Referenced", "Detail": "", "Timestamp": "2026-11-22T00:00:00Z" }
+  ],
+  "Relations": [ { "From": "service:ndes:ndes01.corp.example.test", "Type": "hostedOn", "To": "host:ndes01.corp.example.test", "Sources": ["t"], "Confidence": "Confirmed" } ] }
+'@
+        $mk = {
+            param($id, $cat, $status, $code, [string[]]$ents = @())
+            $f = [pscustomobject]@{ Id = $id; Category = $cat; Status = $status; StatusCode = $code; EntityIds = $ents; Message = ('{0} {1}' -f $cat, $code) }
+            [pscustomobject]@{ Id = $id; Category = $cat; Status = $status; StatusRank = (Get-MspkiGuiRank -Kind Status -Value $status); StatusPill = (Get-MspkiGuiStatusPill -Value $status); Message = $f.Message; Finding = $f }
+        }
+        $rows = @(
+            (& $mk 'F-1' 'NDES' 'Warning' 'OBJECT_EXPIRED' @('service:ndes:ndes01.corp.example.test')),
+            (& $mk 'F-2' 'WebEnrollment' 'Skipped' 'UNSUPPORTED'),
+            (& $mk 'F-3' 'IntuneConnector' 'Information' 'NOT_DISCOVERED'),
+            (& $mk 'F-4' 'IntuneConnector' 'Skipped' 'UNSUPPORTED'),
+            (& $mk 'F-5' 'CES' 'Information' 'NOT_CONFIGURED'))
+        $ix = New-MspkiGuiGraphIndex -Graph $g -Findings @($rows | ForEach-Object { $_.Finding })
+        $s = @(Get-MspkiGuiServiceSection -Index $ix -Rows $rows)
+        $s.Count | Should -Be 6
+        $by = @{}; foreach ($x in $s) { $by[$x.Kind] = $x }
+        $by.NDES.StatePill.Text | Should -Be '1 found'
+        $by.NDES.Instances[0].HostName | Should -Be 'ndes01.corp.example.test'
+        $by.NDES.Instances[0].ConfidencePill.Text | Should -Be 'Confirmed'
+        $by.NDES.Instances[0].WorstPill.Text | Should -Be 'Warning'
+        $by.NDES.Instances[0].Evidence | Should -Be 'HTTP ndes01.corp.example.test: Answers GetCACaps / GetCACert'
+        $by.NDES.RiskCount | Should -Be 1
+        $by.CEP.StatePill.Text | Should -Be 'Named, not confirmed'
+        $by.CEP.InstancesTitle | Should -Match 'not confirmed'
+        $by.WebEnrollment.StatePill.Text | Should -Be 'Cannot be checked from here'
+        $by.CES.StatePill.Text | Should -Be 'None registered in AD'
+        $by.IntuneConnector.StatePill.Text | Should -Be 'Not on this computer'
+        $by.IntuneConnector.StateWhy | Should -Match 'could not be checked from here'
+        $by.IntuneConnector.Scope | Should -Match 'Only this computer'
+        $by.OCSP.StatePill.Text | Should -Be 'Not checked in this run'
+        @(Get-MspkiGuiServiceSection -Index $null -Rows @()).Count | Should -Be 6
+        (Get-MspkiGuiEntityPane -Index $ix -Id 'service:ndes:ndes01.corp.example.test').TypeText | Should -Be 'NDES / SCEP'
+    }
 }

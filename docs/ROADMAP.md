@@ -14,7 +14,7 @@ From 2026-11-22 this section is the plan of record. Statuses: DONE, IN PROGRESS,
 | WP3 | D4 NDES without the CA database view: template permissions and SPNs, RA certificates, graph links | DONE (2026-11-22) |
 | WP4 | D3 local evidence: stores, template extension, Lifecycle and autoenrollment events, enrollment policy cache | DONE (2026-11-22) |
 | WP5 | GUI drill-down (G1, G2, G4, G5) | DONE (2026-11-22) |
-| WP6 | PKI Services page (G3) | TODO |
+| WP6 | PKI Services page (G3) | DONE (2026-11-22) |
 | WP7 | GUI adversarial polish (max 3 rounds) | TODO |
 | WP8 | Ready for audit | TODO |
 
@@ -82,7 +82,7 @@ Every new check or GUI helper needs tests (sanitised example.test fixtures). The
   (certificate > issuer > CRL > endpoint) and a way back.
 - **G2** STATUS 2026-11-22: DONE (WP5). "Where this exists" panel: every place an object was seen (AD container, CA server, HTTP, LDAP, local store, event log)
   with confidence, plus places where it is expected but missing.
-- **G3** NDES / SCEP / Intune section.
+- **G3** STATUS 2026-11-22: DONE (WP6, PKI services page). NDES / SCEP / Intune section.
 - **G4** STATUS 2026-11-22: DONE (WP5). Show endpoint identity (IP, host, alias).
 - **G5** STATUS 2026-11-22: DONE (WP5, one note per object type). A short "what is this and why it matters" note per object type; the tool should help people understand PKI.
 - **G6** Low priority: custom dialogs, dark theme, remember column widths.

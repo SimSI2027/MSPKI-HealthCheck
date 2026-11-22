@@ -153,6 +153,11 @@ function Get-MspkiGuiEntityPane {
     }
     $e = $Index.Entities[$Id]
     $ti = Get-MspkiGuiEntityTypeInfo -Type ([string]$e.Type)
+    # A PKI service gets the note of its own kind (Web Enrollment, CES, CEP, NDES, OCSP, Intune connector).
+    if ([string]$e.Type -eq 'Service' -and $null -ne $e.Properties -and $null -ne $e.Properties.PSObject.Properties['Kind'] -and $script:MspkiGuiServiceKind.Contains([string]$e.Properties.Kind)) {
+        $sk = $script:MspkiGuiServiceKind[[string]$e.Properties.Kind]
+        $ti = @{ Label = $sk.Label; Glyph = [string][char]$sk.Glyph; About = $sk.About }
+    }
     $props = @()
     if ($null -ne $e.Properties) {
         $props = @($e.Properties.PSObject.Properties | Where-Object { $null -ne $_.Value -and [string]$_.Value -ne '' } | Sort-Object Name | ForEach-Object { [pscustomobject]@{ Name = ($_.Name -creplace '([a-z])([A-Z])', '$1 $2'); Value = (ConvertTo-MspkiGuiValueText $_.Value) } } | Where-Object { $_.Value })
@@ -372,4 +377,93 @@ function Add-MspkiGuiPaneObject {
     $Pane | Add-Member -NotePropertyName ObjectCount -NotePropertyValue $links.Count -Force
     $Pane | Add-Member -NotePropertyName HasObjects -NotePropertyValue ($links.Count -gt 0) -Force
     return $Pane
+}
+
+# ===== PKI Services page (G3, WP6) =====
+# One section per service kind, in a fixed order: what it is, what this run can see of it (scope), every instance found with its state,
+# confidence and host, and the findings about it. "Not found" (looked for, nothing there) is kept apart from "can't be checked from here"
+# (the run could not look) and from "not checked in this run" (no finding and no object at all).
+$script:MspkiGuiServiceKind = [ordered]@{
+    WebEnrollment = @{ Label = 'Web Enrollment'; Glyph = 0xE774; Category = 'WebEnrollment'; NotFound = 'Not found on the CA hosts'
+        About = 'The Web Enrollment pages of a CA, where people request certificates in a browser. Rarely needed today; on plain HTTP with Windows sign-in it is an NTLM relay target (ESC8) that can lead to a domain takeover.'
+        Scope = 'Only the standard Web Enrollment path on the Enterprise CA hosts is tried, anonymously. Web Enrollment on a server that nothing in AD names cannot be found without scanning, which this tool never does.' }
+    CES = @{ Label = 'Certificate Enrollment Web Service (CES)'; Glyph = 0xE753; Category = 'CES'; NotFound = 'None registered in AD'
+        About = 'Enrollment over HTTPS for computers that cannot reach the CA over RPC/DCOM: other forests, workgroup computers or remote clients. A CA lists its CES servers on its AD object.'
+        Scope = 'Read from the Enrollment Services objects in AD (msPKI-Enrollment-Servers): every CES that a CA has registered is listed.' }
+    CEP = @{ Label = 'Certificate Enrollment Policy Web Service (CEP)'; Glyph = 0xE7C3; Category = 'CEP'; NotFound = 'No policy server for this computer'
+        About = 'Tells clients over HTTPS which templates they may use; works together with CES. Clients learn its URL from Group Policy.'
+        Scope = 'Read from the enrollment policy of this computer (Group Policy). Other computers can get a different policy, which cannot be seen from here.' }
+    NDES = @{ Label = 'NDES / SCEP'; Glyph = 0xE772; Category = 'NDES'; NotFound = 'Not found'
+        About = 'The Network Device Enrollment Service gives certificates over SCEP to devices without a domain account: network devices, and phones and laptops through Intune. Its two RA certificates must stay valid, or every SCEP request fails.'
+        Scope = 'Found from the permissions of the NDES RA templates and the accounts that hold them, then asked GetCACaps and GetCACert anonymously. The admin page is only requested with -IncludeNdesAdminProbe.' }
+    OCSP = @{ Label = 'Online responder (OCSP)'; Glyph = 0xE895; Category = 'OCSP'; NotFound = 'No OCSP URL found'
+        About = 'Answers "is this certificate revoked?" for one certificate at a time, so that clients need not download the whole CRL. Clients use it only when the certificate carries its URL.'
+        Scope = 'From the OCSP URLs in CA certificates and CA properties, and the standard /ocsp/ path on the Enterprise CA hosts.' }
+    IntuneConnector = @{ Label = 'Intune Certificate Connector'; Glyph = 0xE703; Category = 'IntuneConnector'; NotFound = 'Not on this computer'
+        About = 'Connects Microsoft Intune to this PKI, so that managed devices get certificates (PKCS, or SCEP through NDES).'
+        Scope = 'Only this computer is checked. The connector on other servers cannot be seen from here: its state is kept in Intune (Microsoft Graph), which this tool does not use.' }
+}
+
+function Get-MspkiGuiServiceSection {
+    <#
+    .SYNOPSIS
+    The PKI Services page: one section per service kind (Web Enrollment, CES, CEP, NDES/SCEP, OCSP, Intune Certificate Connector) with its
+    state, the instances found (state, confidence, host, evidence; each opens its object), the findings about it and what this run can see.
+    #>
+    [CmdletBinding()]
+    param($Index, [AllowEmptyCollection()][object[]]$Rows = @())
+    $out = New-Object System.Collections.ArrayList
+    $quiet = @('Pass', 'Information', 'Skipped', 'NotApplicable')
+    foreach ($kind in @($script:MspkiGuiServiceKind.Keys)) {
+        $k = $script:MspkiGuiServiceKind[$kind]
+        $svc = @()
+        if ($null -ne $Index) { $svc = @($Index.Entities.Values | Where-Object { [string]$_.Type -eq 'Service' -and $null -ne $_.Properties -and [string]$_.Properties.Kind -eq $kind } | Sort-Object Name) }
+        $ids = @($svc | ForEach-Object { [string]$_.Id })
+        $mine = @($Rows | Where-Object { $null -ne $_ -and ([string]$_.Category -eq $k.Category -or @(@($_.Finding.EntityIds) | Where-Object { $ids -contains $_ }).Count -gt 0) } |
+            Sort-Object @{ Expression = { -1 * [int]$_.StatusRank } }, Id)
+        $inst = @(foreach ($s in $svc) {
+            $id = [string]$s.Id
+            $obs = @(); if ($Index.Obs.ContainsKey($id)) { $obs = @($Index.Obs[$id]) }
+            $seen = @($obs | Where-Object { $_.Kind -eq 'Seen' })
+            $conf = 'Referenced'
+            if (@($seen | Where-Object { $_.Confidence -eq 'Confirmed' }).Count -gt 0) { $conf = 'Confirmed' } elseif ($seen.Count -gt 0) { $conf = 'Inferred' }
+            elseif (@($obs | Where-Object { $_.Confidence -eq 'Inferred' }).Count -gt 0) { $conf = 'Inferred' }
+            $state = $(if ($seen.Count -gt 0) { New-MspkiGuiPill -Text 'Answers' -Tone Good -Code 0xE73E } else { New-MspkiGuiPill -Text 'Named, not confirmed' -Tone Info -Code 0xE946 })
+            $hostId = ''
+            if ($Index.Out.ContainsKey($id)) { $hostId = @($Index.Out[$id] | Where-Object { $_.Type -eq 'hostedOn' } | ForEach-Object { [string]$_.To }) | Select-Object -First 1 }
+            $hostName = $(if ($hostId) { Get-MspkiGuiEntityName -Index $Index -Id $hostId } elseif ($s.Properties.HostName) { [string]$s.Properties.HostName } else { '' })
+            $fr = @($mine | Where-Object { @($_.Finding.EntityIds) -contains $id })
+            $worst = $null; foreach ($f in $fr) { if ($null -eq $worst -or [int]$f.StatusRank -gt [int]$worst.StatusRank) { $worst = $f } }
+            [pscustomobject][ordered]@{
+                Id = $id; Tag = ('ent:{0}' -f $id); Name = (Get-MspkiGuiEntityName -Index $Index -Id $id); HostName = $hostName; HasHost = [bool]$hostName
+                StatePill = $state; ConfidencePill = (Get-MspkiGuiStatusPill -Value $conf -Kind Confidence)
+                WorstPill = $(if ($null -ne $worst -and $quiet -notcontains [string]$worst.Status) { $worst.StatusPill } else { New-MspkiGuiPill -Text '' -Tone Neutral })
+                Evidence = ((@($obs | Where-Object { $_.Kind -ne 'ExpectedMissing' } | ForEach-Object {
+                    $place = (@([string]$_.Source, [string]$_.Location) | Where-Object { $_ }) -join ' '
+                    $(if ($_.Detail) { '{0}: {1}' -f $place, $_.Detail } else { $place }) }) | Select-Object -First 3) -join "`r`n")
+            }
+        })
+        # Overall state of the kind: found / named only / looked for and not there / could not look / not looked for.
+        $codes = @($mine | ForEach-Object { [string]$_.Finding.StatusCode })
+        $cannot = @($mine | Where-Object { [string]$_.Status -eq 'Skipped' -or @('UNSUPPORTED', 'PERMISSION_DENIED', 'ERROR', 'TIMEOUT') -contains [string]$_.Finding.StatusCode }).Count -gt 0
+        if (@($inst | Where-Object { $_.StatePill.Text -eq 'Answers' }).Count -gt 0) { $st = New-MspkiGuiPill -Text ('{0} found' -f $inst.Count) -Tone Good -Code 0xE73E; $why = '' }
+        elseif ($inst.Count -gt 0) { $st = New-MspkiGuiPill -Text 'Named, not confirmed' -Tone Info -Code 0xE946; $why = 'Something names this service, but it did not answer this run.' }
+        elseif (@($codes | Where-Object { $_ -in @('NOT_DISCOVERED', 'NOT_CONFIGURED') }).Count -gt 0) {
+            $st = New-MspkiGuiPill -Text $k.NotFound -Tone Neutral -Code 0xE711
+            $why = $(if ($cannot) { 'Not there where this run could look; some places could not be checked from here, so it may still exist elsewhere (see the findings).' } else { 'Looked for in this run; nothing was there.' })
+        }
+        elseif ($cannot) { $st = New-MspkiGuiPill -Text 'Cannot be checked from here' -Tone Admin -Code 0xE72E; $why = 'This run could not look (permission, unsupported or unreachable): not found is not the same as not present.' }
+        else { $st = New-MspkiGuiPill -Text 'Not checked in this run' -Tone Neutral -Code 0xE7E8; $why = 'No check in this run covered it (for example with -SkipNetwork, or a run that was cancelled).' }
+        $risk = @($mine | Where-Object { $quiet -notcontains [string]$_.Status -or [string]$_.Finding.StatusCode -eq 'CONFIG_RISK' })
+        [void]$out.Add([pscustomobject][ordered]@{
+            Kind = $kind; Label = $k.Label; Glyph = [string][char]$k.Glyph; About = $k.About; Scope = $k.Scope
+            StatePill = $st; StateWhy = $why; HasStateWhy = [bool]$why
+            Instances = [object[]]$inst; HasInstances = ($inst.Count -gt 0)
+            InstancesTitle = $(if (@($inst | Where-Object { $_.StatePill.Text -eq 'Answers' }).Count -gt 0) { 'Found in this run' } else { 'Named in this run (not confirmed)' })
+            Findings = [object[]]@($mine | Select-Object -First 5); FindingCount = $mine.Count; HasFindings = ($mine.Count -gt 0)
+            MoreText = $(if ($mine.Count -gt 5) { 'and {0} more on the Findings page' -f ($mine.Count - 5) } else { '' })
+            RiskCount = $risk.Count; Found = ($inst.Count -gt 0)
+        })
+    }
+    return $out.ToArray()
 }

@@ -224,6 +224,14 @@ function Invoke-MspkiGuiSnapshot {
             Update-MspkiGuiObjectFilter
             & $shot '74-objects-nomatch'
             Clear-MspkiGuiObjectFilter
+            # PKI services: the cards, a service opened on the right, and the bottom of the list.
+            & $page $ui.TabServices
+            & $shot '80-services'
+            $svcItem = @(@($ui.SvcList.ItemsSource) | ForEach-Object { @($_.Instances) } | Where-Object { $_ }) | Select-Object -First 1
+            if ($null -ne $svcItem) { Open-MspkiGuiServiceItem -Tag $svcItem.Tag; Wait-MspkiGuiIdle -Rounds 3; & $shot '81-services-detail' }
+            $ui.SvcScroll.ScrollToEnd(); Wait-MspkiGuiIdle -Rounds 3
+            & $shot '82-services-bottom'
+            $ui.SvcScroll.ScrollToTop()
             & $page $ui.TabLog
             & $shot '40-log'
 

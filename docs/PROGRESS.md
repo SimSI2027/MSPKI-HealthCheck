@@ -290,3 +290,18 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Full suite 884 passed, 0 failed. Open: one earlier full run had 10 LocalEvidence failures with empty messages that did not repeat (file
   alone, files in order, and a second full run all pass): watch for a flaky test there.
 - Next: WP6 PKI Services page (G3). Then WP7 polish (minimum size of the Objects page and the details pane not yet judged).
+
+## WP6 (2026-11-22): PKI Services page (G3) - DONE
+- `Get-MspkiGuiServiceSection` (`src/Gui/GuiEntity.ps1`): one card per kind (Web Enrollment, CES, CEP, NDES/SCEP, OCSP, Intune Certificate
+  Connector) with a plain-language note, every instance (answers or only named, confidence, host, evidence, worst finding), the findings of
+  the kind and "what this run can see". States kept apart: N found / named, not confirmed / not found (looked, nothing there) / cannot be
+  checked from here / not checked in this run. When a kind was not found where the run could look but other places could not be checked
+  (Intune on the NDES host), the card says so. A service's details pane uses its kind's note.
+- Window: PKI services page (Ctrl+6), services and findings open in the pane on the right (`Open-MspkiGuiServiceItem`). Snapshots 80-82.
+- Found: `@($list)` on the GUI's generic row list throws "Argument types do not match" in Windows PowerShell 5.1; pass rows through the
+  pipeline. A load error in snapshot mode opens a modal message box and the snapshot waits for it (pre-existing behaviour).
+- Lab check (normal user via `runas /trustlevel:0x20000`): Web Enrollment on the root CA host (HTTP 403, Inferred), no CES, no CEP, NDES
+  Confirmed, OCSP answers but no certificate names it (Warning), Intune not on this computer and not checkable on the NDES host: all match.
+  NOTE: this Claude terminal runs at High integrity (IsAdmin true), not as a normal user; normal-user runs need the filtered token.
+- Tests: services states in `tests/GuiEntity.Tests.ps1`, the page in the window test; full suite 885 passed, 0 failed. (The NDES path
+  rule test caught the Web Enrollment path in a GUI note; the note now names the service, not the path.) Next: WP7 GUI adversarial polish.

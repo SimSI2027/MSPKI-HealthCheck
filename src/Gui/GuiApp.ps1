@@ -447,6 +447,23 @@ function Show-MspkiGuiObject {
     Show-MspkiGuiEntityPane -HostName 'ObjHost'
 }
 
+function Open-MspkiGuiServiceItem {
+    <#
+    .SYNOPSIS
+    From the PKI services page: opens a service (Tag "ent:<id>") or a finding (its id) in the details pane next to the list.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Tag)
+    $g = $script:MspkiGui
+    if (-not $Tag) { return }
+    Reset-MspkiGuiPaneNav -HostName 'SvcHost'
+    if ($Tag.StartsWith('ent:')) { $g.Nav.SvcHost.Trail = [string[]]@($Tag.Substring(4)); Show-MspkiGuiEntityPane -HostName 'SvcHost'; return }
+    if ($g.RowById.ContainsKey($Tag)) {
+        $f = $g.RowById[$Tag].Finding
+        $g.Ui.SvcHost.Content = Add-MspkiGuiPaneObject -Pane (Get-MspkiGuiFindingDetail -Finding $f) -Index $g.Index -Ids @($f.EntityIds | Where-Object { $_ })
+    }
+}
+
 function Show-MspkiGuiObjectsOfType {
     <#
     .SYNOPSIS
@@ -480,7 +497,11 @@ function Clear-MspkiGuiResult {
     $ui.MapTree.ItemsSource = $null
     $ui.MapHost.Content = Get-MspkiGuiEmptyPane -Text 'Select an item in the tree to see what was found and why.'
     $ui.FindingHost.Content = Get-MspkiGuiEmptyPane
-    foreach ($h in @('FindingHost', 'MapHost', 'ObjHost')) { Reset-MspkiGuiPaneNav -HostName $h }
+    foreach ($h in @('FindingHost', 'MapHost', 'ObjHost', 'SvcHost')) { Reset-MspkiGuiPaneNav -HostName $h }
+    $ui.SvcList.ItemsSource = $null
+    $ui.SvcHost.Content = Get-MspkiGuiEmptyPane -Text 'Select a service or a finding to see its details.'
+    $ui.TxtSvcSummary.Text = ''
+    $ui.TxtSvcEmpty.Visibility = 'Visible'
     $g.Index = $null; $g.ObjRows = @(); $g.ObjView = $null
     $ui.ObjList.ItemsSource = $null
     $ui.ObjHost.Content = Get-MspkiGuiEmptyPane -Text 'Select an object to see where it exists, where it is missing and what it is linked to.'
@@ -634,6 +655,16 @@ function Show-MspkiGuiResult {
     else { $ui.TxtObjEmpty.Visibility = 'Collapsed' }
     Update-MspkiGuiObjectFilter
     if ($g.ObjRows.Count -gt 0) { $ui.ObjList.SelectedIndex = 0 }
+
+    # PKI services (one card per service kind; without a graph they are built from the findings alone)
+    # @($g.Rows) on the generic list throws "Argument types do not match" in Windows PowerShell 5.1; the pipeline does not.
+    $svc = @(Get-MspkiGuiServiceSection -Index $g.Index -Rows @($g.Rows | Where-Object { $null -ne $_ }))
+    $ui.SvcList.ItemsSource = $svc
+    $found = @($svc | Where-Object { $_.Found }).Count
+    $notes = @($svc | Where-Object { $_.RiskCount -gt 0 }).Count
+    $ui.TxtSvcSummary.Text = '{0} of {1} service types found in this run{2}{3}.' -f $found, $svc.Count, $script:MspkiGuiDot, $(if ($notes -gt 0) { '{0} with findings that need attention' -f $notes } else { 'no service has a finding that needs attention' })
+    if ($null -eq $g.Index) { $ui.TxtSvcSummary.Text += ' These results have no object graph (older version), so only the findings are shown.' }
+    $ui.TxtSvcEmpty.Visibility = 'Collapsed'
 
     # Buttons, folder and notes
     $ui.BtnOpenReport.IsEnabled = [bool]$Data.ReportPath
@@ -1042,7 +1073,7 @@ function Select-MspkiGuiTab {
     [CmdletBinding()]
     param([int]$Index)
     $ui = $script:MspkiGui.Ui
-    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabLog, $ui.TabObjects)
+    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabLog, $ui.TabObjects, $ui.TabServices)
     if ($Index -ge 0 -and $Index -lt $tabs.Count) { $ui.Tabs.SelectedItem = $tabs[$Index] }
 }
 
@@ -1195,6 +1226,9 @@ function Initialize-MspkiGuiApplication {
     $ui.FindingHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'FindingHost' -Tag (& $script:MspkiGuiTagOf $e) })
     $ui.MapHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag (& $script:MspkiGuiTagOf $e) })
     $ui.ObjHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'ObjHost' -Tag (& $script:MspkiGuiTagOf $e) })
+    $ui.SvcHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'SvcHost' -Tag (& $script:MspkiGuiTagOf $e) })
+    # PKI services page: a service opens its object, a finding opens the finding (both in the pane on the right)
+    $ui.SvcList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Open-MspkiGuiServiceItem -Tag (& $script:MspkiGuiTagOf $e) })
 
     # Discovery Map: selection, expand/collapse
     $ui.MapTree.Add_SelectedItemChanged({ Show-MspkiGuiNodePane -Node $script:MspkiGui.Ui.MapTree.SelectedItem })
@@ -1252,6 +1286,7 @@ function Initialize-MspkiGuiApplication {
                 'D3' { Select-MspkiGuiTab -Index 2; $e.Handled = $true }
                 'D4' { Select-MspkiGuiTab -Index 3; $e.Handled = $true }
                 'D5' { Select-MspkiGuiTab -Index 4; $e.Handled = $true }
+                'D6' { Select-MspkiGuiTab -Index 5; $e.Handled = $true }
                 'O' { if ($u.BtnOpenResults.IsEnabled) { Invoke-MspkiGuiOpenDialog }; $e.Handled = $true }
                 'F' {
                     if ($u.Tabs.SelectedItem -eq $u.TabFindings) { [void]$u.FltText.Focus(); $e.Handled = $true }

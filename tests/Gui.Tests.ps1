@@ -732,6 +732,15 @@ Describe 'GUI window (single-threaded runspace)' {
             $r.MapReturn = $ui.MapHost.Content.Kind
             Select-MspkiGuiTab -Index 4
             $r.Tab5 = ($ui.Tabs.SelectedItem -eq $ui.TabObjects)
+            Select-MspkiGuiTab -Index 5
+            $r.Tab6 = ($ui.Tabs.SelectedItem -eq $ui.TabServices)
+            $r.Services = @($ui.SvcList.ItemsSource).Count; $r.SvcSummary = $ui.TxtSvcSummary.Text
+            $inst = @(@($ui.SvcList.ItemsSource) | ForEach-Object { @($_.Instances) } | Where-Object { $_ })[0]
+            Open-MspkiGuiServiceItem -Tag $inst.Tag; $r.SvcEntity = $ui.SvcHost.Content.Kind
+            $sf = @(@($ui.SvcList.ItemsSource) | ForEach-Object { @($_.Findings) } | Where-Object { $_ })[0]
+            Open-MspkiGuiServiceItem -Tag $sf.Id; $r.SvcFinding = $ui.SvcHost.Content.Kind
+            Select-MspkiGuiTab -Index 4
+            $r.Tab5 = ($ui.Tabs.SelectedItem -eq $ui.TabObjects)
             [pscustomobject]$r
         }
         $r = $out[0]
@@ -765,6 +774,11 @@ Describe 'GUI window (single-threaded runspace)' {
         if ($null -ne $r.PSObject.Properties['MapFinding']) { $r.MapFinding | Should -Be 'Finding'; $r.MapFindingBack | Should -BeLike 'Back to *'; $r.MapFindingReturn | Should -Be 'Entity' }
         $r.MapReturn | Should -Be 'Node'
         $r.Tab5 | Should -BeTrue
+        $r.Services | Should -Be 6
+        $r.Tab6 | Should -BeTrue
+        $r.SvcSummary | Should -BeLike "* of 6 service types found*"
+        $r.SvcEntity | Should -Be "Entity"
+        $r.SvcFinding | Should -Be "Finding"
     }
 
     It 'a bad file is reported in a message, not a crash (window stays usable)' {
