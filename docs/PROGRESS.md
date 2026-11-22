@@ -264,3 +264,23 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   graph: Account, RACertificate, mayEnroll, identifies, certificateOf, issuedBy, enrollsVia (issuing CA only). Missing CA database reader in words.
 - Fixed: wrapped GetCACert list (false "expired"), invented Intune connector entity, NDES candidates shown as Seen. 3 adversarial rounds (RESEARCH.md).
 - Tests: `tests/NdesTemplateAccess.Tests.ps1` (14). Next: WP4 local evidence (D3).
+
+## WP4 (2026-11-22): local evidence (D3)
+- New `src/Discovery/LocalEvidence.ps1` (stores read-only, Enterprise store key names, Lifecycle System/User logs, AutoEnrollment / CertEnroll
+  events, template cache, AEPolicy, Remote Desktop template policy) and `src/Analyzers/LocalEvidence.ps1` (stage Analysis:LocalEvidence, category
+  LocalEvidence): "how this certificate got here" per certificate from this PKI, trust-store coverage of AD's Certification Authorities / AIA /
+  NTAuth (ExpectedMissing when absent), lifecycle summary, expiry warnings, enrollment policy. Graph: LocalCertificate issuedBy / references
+  Template, EventLog and LocalStore observations, template-cache observations on Template entities.
+- Lab (standard user): both Lifecycle logs readable; origins of both machine certificates match the lab facts. 2 adversarial rounds.
+- Tests: `tests/LocalEvidence.Tests.ps1` (10). Next: WP5 GUI drill-down (G1, G2, G4).
+
+## WP5 (2026-11-22): GUI drill-down (G1, G2, G4) - IN PROGRESS
+- Done: `src/Gui/GuiEntity.ps1` (pure view models): graph index, object details pane (Kind `Entity`: what it is (G5 note per type), properties,
+  "where this exists" with Seen / Named and EXPECTED-BUT-MISSING apart, related objects both directions as `ent:<id>` links, findings, breadcrumbs,
+  Back), host identity rows (IPs, PTR, alias chain, TLS names, Server header), entity links for other panes, Objects page list. Tests:
+  `tests/GuiEntity.Tests.ps1` (4).
+- Next (not started): load GuiEntity.ps1 in GuiApp / Gui tests; `EntityPane` DataTemplate + PaneHost trigger in MainWindow.xaml; an Objects tab
+  (index 4, Ctrl+5) with a searchable list grouped by type; "Related objects" links in the Finding and Discovery map panes; click routing for
+  `ent:` / `crumb:` / Back; snapshots of the new views. Then WP6.
+- Note: a full Pester run started in the foreground with a 600 s limit moved to the background and never exited (a test HTTP server runspace);
+  it held 1.5 GB and later runs failed with OutOfMemoryException (looked like a product bug at first). Start full runs in the background instead.

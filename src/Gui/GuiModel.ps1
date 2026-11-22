@@ -26,6 +26,7 @@ $script:MspkiGuiStages = @(
     @('Discovery:IntuneConnector', 'Looking for the Intune Certificate Connector'),
     @('Analysis:StaleReferences', 'Reviewing stale references'),
     @('Analysis:Hierarchy', 'Reviewing the CA hierarchy'),
+    @('Analysis:LocalEvidence', 'Reading this computer''s certificates, events and policy'),
     @('Analysis:Identity', 'Recording endpoint identity and Web Enrollment')
 )
 

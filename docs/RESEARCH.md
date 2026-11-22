@@ -21,7 +21,7 @@ or on the remote host. Confidence: C = confirmed by direct observation, L = like
 | Sub CA host has no web server (80/443 time out) | TCP connect | Already done (TCP probe) | No | C |
 | No CES, no CEP, no Intune Certificate Connector on the CA hosts | AD `msPKI-Enrollment-Servers`, constructed candidates, `sc.exe` | Already done for AD/HTTP; the connector on a remote NDES host is not visible (remote SCM blocked by firewall) | Remote services: yes | L |
 | Reverse DNS: DNS holds NO PTR record for any lab host (DNS-only lookups, also the DC). The "short name" and "full name" seen earlier came from NetBIOS / .NET name resolution, not DNS. One certificate SAN names an alias with no DNS record | `Resolve-DnsName -Type PTR -DnsOnly` vs. without `-DnsOnly` vs. .NET `Dns.GetHostEntry(IP)`; SAN of the served certificate | DONE (D2): `Resolve-DnsName -DnsOnly` (in-box DnsClient), .NET fallback reported as Inferred | No | C |
-| How this computer's certificates got here: one from a policy-driven machine enrollment (the RDS "certificate template" policy), one requested by an administrator in MMC | Certificate template extension (OID 1.3.6.1.4.1.311.21.7 / 20.2), `Microsoft-Windows-CertificateServicesClient-Lifecycle-*/Operational` events (template name+OID, thumbprint, process, account), `HKLM\...\Terminal Services\CertTemplateName`, `gpresult` | D3 not done yet. Public certificate data in `LocalMachine\My` and the template extension are readable by any user; the Lifecycle-User log is the user's own; whether the System lifecycle log is readable by a standard user is untested | Possibly (System log) | C / U |
+| How this computer's certificates got here: one from a policy-driven machine enrollment (the RDS "certificate template" policy), one requested by an administrator in MMC | Certificate template extension (OID 1.3.6.1.4.1.311.21.7 / 20.2), `Microsoft-Windows-CertificateServicesClient-Lifecycle-*/Operational` events (template name+OID, thumbprint, process, account), `HKLM\...\Terminal Services\CertTemplateName`, `gpresult` | DONE (WP4): stores, template extension, Lifecycle logs, policy cache. A standard user CAN read both Lifecycle logs here | No | C |
 | Autoenrollment is not configured by registry policy here; no CEP policy servers | Registry (read-only) | Already done for CEP keys (`LocalPolicy`); add the autoenrollment keys | No | C |
 | Standard-user COM/RPC reads of the CA | `pktmon` capture, `certutil -ping` as each account | `GetCAProperty` (in-box); a quick 0x800706BA after TCP 135 is now reported as an Inferred refusal of this account | No | C |
 | CA database view (`CertificateAuthority.View`) is NOT registered on this computer | ProgID lookup fails with class-not-registered; `certadm.dll` absent | Not available on a clean client: it ships with the AD CS management tools. The product must report "CA database not read: management tools missing" instead of an opaque CLSID error, and rely on route (1) for NDES | n/a | C |
@@ -97,3 +97,23 @@ or on the remote host. Confidence: C = confirmed by direct observation, L = like
   (`@(0).Count` is 1). Fixed; tested.
 - **Intune Certificate Connector (lab):** none on this computer (checked locally: services, installed products, certificates). On the NDES host
   it cannot be checked: the product reads only the local computer, and remote service control is blocked there anyway. Not installed on the CA hosts.
+
+## WP4 local evidence (D3): what a standard user can read, and the adversarial check (2026-11-22, sanitised)
+| Source | Readable as a standard user here | Used for |
+|---|---|---|
+| `Cert:\CurrentUser\My`, `Cert:\LocalMachine\My` (public parts) | Yes | template extension, issuer (AKI), EKU, DNS names, URLs |
+| `Cert:\LocalMachine\Root`, `\CA`, `\NTAuth` (logical stores) | Yes | did AD's Certification Authorities / AIA / NTAuth reach this computer |
+| `HKLM\SOFTWARE\Microsoft\EnterpriseCertificates\{Root,CA,NTAuth}\Certificates` (key names only) | Yes | which copies came from AD (Enterprise physical store) |
+| `CertificateServicesClient-Lifecycle-System/Operational` | Yes (was untested before) | enroll / delete / expire events: template name + OID, thumbprint, process, account, context |
+| `CertificateServicesClient-Lifecycle-User/Operational` | Yes | the same for user certificates |
+| Application log, AutoEnrollment / CertEnroll providers | Yes | expiry warnings (event 64), enrollment failures |
+| `HKLM` / `HKCU\...\CertificateTemplateCache` | Yes | when autoenrollment last downloaded the templates, which templates |
+| `...\Policies\...\AutoEnrollment` (AEPolicy), `...\Terminal Services\CertTemplateName` | Yes | autoenrollment policy, Remote Desktop certificate template policy |
+- **Round 1.** Every result matched the private lab facts: the Remote Desktop certificate was enrolled by Windows (svchost, machine context) for the
+  Remote Desktop template policy; the web server certificate was a manual request in the Certificates console by the administrator; Root, CA and
+  NTAuth hold everything AD publishes (including the older Sub CA generation in NTAuth, from the Enterprise store). One wording problem: an old
+  autoenrollment expiry warning for a certificate that is no longer present was reported as STALE_DATA (raises the exit code for history). Fixed (OK).
+- **Round 2.** No false positives or negatives found; confidence: Confirmed only where the event and the policy agree, Inferred for a background
+  enrollment without a policy that names the template, or a certificate with no Lifecycle event.
+- The Lifecycle logs also show deleted certificates of an earlier CA with another name (history). They are listed in the lifecycle summary;
+  turning them into stale-reference leads is left for later.

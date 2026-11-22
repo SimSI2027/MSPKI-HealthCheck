@@ -24,7 +24,7 @@ Every result is one object created by `New-MspkiFinding`:
 | Field | Meaning |
 |---|---|
 | `Id`, `Timestamp`, `Stage` | unique id, UTC time, discovery/check stage |
-| `Category` | CA, Hierarchy, CRL, AIA, CDP, OCSP, ADContainer, Template, CEP, CES, NDES, IntuneConnector, StaleRef, ADDependency, Run, Identity, WebEnrollment |
+| `Category` | CA, Hierarchy, CRL, AIA, CDP, OCSP, ADContainer, Template, CEP, CES, NDES, IntuneConnector, StaleRef, ADDependency, Run, Identity, WebEnrollment, LocalEvidence |
 | `Role` | PKI role of the target (EnterpriseRoot, StandaloneRoot, Intermediate, IssuingCA, CDPEndpoint, …, Unknown) |
 | `Target` / `Endpoint` | object or host / normalised URL |
 | `RelatedCA` | CA (and certificate thumbprint) this belongs to, where known |

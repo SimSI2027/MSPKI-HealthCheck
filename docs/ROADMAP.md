@@ -26,18 +26,18 @@ capture, RSAT, PSPKI, Sysinternals) are for understanding on the lab machine; th
   offline-root CRL risk; NTAuth and AIA containers. For anything not working, explain WHY (layered diagnosis).
 - **D2 Endpoint identity.** STATUS 2026-11-21: DONE (WP2: A/AAAA, PTR, CNAME chain, TLS names, Server header, Web Enrollment). Original scope: For every link that responds or issues certificates: resolved IPs, reverse DNS, the CNAME/alias
   chain to the real host, the TLS certificate names and the server header.
-- **D3 Local evidence.** Work out how this computer's certificates got here (stores, template extension, issuing CA,
+- **D3 Local evidence.** STATUS 2026-11-22: DONE (WP4: stores, template extension, Lifecycle and autoenrollment events, policy cache). Original scope: Work out how this computer's certificates got here (stores, template extension, issuing CA,
   autoenrollment and lifecycle event logs, CEP policy) and use that as discovery.
 - **D4 NDES / SCEP / Intune Certificate Connector.** STATUS 2026-11-22: DONE (WP3: template-permission / SPN route, RA certificates, graph; the connector is checked on this computer only).
 - **D5 Research tools.** Allowed in the lab for understanding; the product stays in-box only.
 
 ## GUI
-- **G1** Drill into any object or result (CA, certificate, CRL, endpoint, template, finding), with links between related objects
+- **G1** STATUS 2026-11-22: IN PROGRESS (WP5: view models done, window wiring next). Drill into any object or result (CA, certificate, CRL, endpoint, template, finding), with links between related objects
   (certificate > issuer > CRL > endpoint) and a way back.
-- **G2** "Where this exists" panel: every place an object was seen (AD container, CA server, HTTP, LDAP, local store, event log)
+- **G2** STATUS 2026-11-22: IN PROGRESS (WP5, view model done). "Where this exists" panel: every place an object was seen (AD container, CA server, HTTP, LDAP, local store, event log)
   with confidence, plus places where it is expected but missing.
 - **G3** NDES / SCEP / Intune section.
-- **G4** Show endpoint identity (IP, host, alias).
+- **G4** STATUS 2026-11-22: IN PROGRESS (WP5, view model done). Show endpoint identity (IP, host, alias).
 - **G5** A short "what is this and why it matters" note per object type; the tool should help people understand PKI.
 - **G6** Low priority: custom dialogs, dark theme, remember column widths.
 

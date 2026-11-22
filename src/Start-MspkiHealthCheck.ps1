@@ -239,6 +239,16 @@ function Start-MspkiHealthCheck {
                     -Target 'Hierarchy' -Sources 'Run' -Action 'reviewing the CA hierarchy (generations, AIA/CDP design, OCSP, TLS, certificate names)' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Analysis:Hierarchy' -Stopwatch $sw
+            $sw = Start-MspkiStageTimer -Stage 'Analysis:LocalEvidence'
+            try {
+                foreach ($f in (Invoke-MspkiLocalEvidenceAnalysis -Inventory $inventory)) { [void]$findings.Add($f) }
+            }
+            catch {
+                Write-MspkiLog -Level Error -Message ('Local evidence review stopped: {0} | {1}' -f $_.Exception.Message, (($_.ScriptStackTrace -split "`r?`n" | Select-Object -First 6) -join ' <- '))
+                [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (Get-MspkiErrorInfo $_) -Category 'LocalEvidence' -Role 'Computer' `
+                    -Target 'LocalEvidence' -Sources 'Run' -Action 'reading this computer''s certificates, enrollment events and policy' -Stage 'Run' -Scope 'Local'))
+            }
+            Add-MspkiStageTiming -Stage 'Analysis:LocalEvidence' -Stopwatch $sw
             $sw = Start-MspkiStageTimer -Stage 'Analysis:Identity'
             try {
                 foreach ($f in (Invoke-MspkiEndpointIdentityAnalysis -Inventory $inventory -TimeoutSeconds $TimeoutSeconds -SkipNetwork:$SkipNetwork)) { [void]$findings.Add($f) }

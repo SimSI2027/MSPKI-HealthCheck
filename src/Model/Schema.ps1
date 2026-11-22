@@ -8,7 +8,7 @@ $script:MspkiJsonSchema  = 'mspki-healthcheck/2'   # 2 = entity graph (Graph) an
 
 $script:MspkiSchema = @{
     Category    = @('CA', 'Hierarchy', 'CRL', 'AIA', 'CDP', 'OCSP', 'ADContainer', 'Template', 'CEP', 'CES',
-                    'NDES', 'IntuneConnector', 'StaleRef', 'ADDependency', 'Run', 'Identity', 'WebEnrollment')
+                    'NDES', 'IntuneConnector', 'StaleRef', 'ADDependency', 'Run', 'Identity', 'WebEnrollment', 'LocalEvidence')
     Status      = @('Pass', 'Information', 'Warning', 'Fail', 'Critical', 'NotApplicable', 'Skipped', 'Error')
     Confidence  = @('Confirmed', 'Referenced', 'Inferred', 'Unknown')
     Severity    = @('None', 'High', 'Medium', 'Low', 'Information', 'ReviewRequired')

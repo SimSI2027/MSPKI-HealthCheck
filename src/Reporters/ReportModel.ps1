@@ -272,6 +272,7 @@ function Get-MspkiDiscoveryTree {
         @{ Label = 'Historical and stale reference review'; Cats = @('StaleRef'); Src = @('Probe results') }
         @{ Label = 'Web Enrollment (browser enrollment pages)'; Cats = @('WebEnrollment'); Src = @('HTTP:StandardPath') }
         @{ Label = 'Endpoint identity (DNS, reverse DNS, aliases, TLS names)'; Cats = @('Identity'); Src = @('DNS', 'TLS', 'HTTP') }
+        @{ Label = 'This computer: certificates, events and enrollment policy'; Cats = @('LocalEvidence'); Src = @('Local:CertStore', 'Local:EventLog') }
     )
     foreach ($g in $reviewGroups) {
         $fs = @($all | Where-Object { $g.Cats -contains $_.Category -and -not $placed.ContainsKey($_.Id) })
