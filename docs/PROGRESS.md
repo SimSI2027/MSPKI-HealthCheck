@@ -422,3 +422,7 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   ⊇ Domain Users / Domain Computers), whichever template they sit on; probes A, B, D fire again, 11 negatives stay silent. Lab unchanged.
 - N8 (new): the LDAP host gate got the forest domains and DC list nested in one string (a second @() around "return , @()"), so the H1 DC
   rule never applied and multi-domain forests refused every named forest host (failed closed). Lists now passed as they are. Lab unchanged.
+- Item 5: tests/CredentialHarness.ps1 records binds, HTTP and TLS; tests/Credential.Behaviour.Tests.ps1 proves no bind for a forged
+  certificate, an unverified CRL, a referral or a stale DC. Against 9b43bb1: 3 of 4 red on behaviour (stale DC passed by the N8 accident);
+  with the two N8 lines corrected, 4 of 4. Full suite 1071 passed.
+- Next (Batch E): N3 (AIA download above 10 MB), N4 (CES/CEP 200 on a word match), N7 (hygiene test gaps, one store open).
