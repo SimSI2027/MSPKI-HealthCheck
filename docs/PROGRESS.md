@@ -416,3 +416,5 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - N5: the forest DC list counts a server object only with an NTDS Settings child AND a DNS SRV record (_ldap._tcp.dc._msdcs.<domain>,
   DC locator as fallback); excluded objects are one Information / STALE_REFERENCE finding and never get a bind. -SkipNetwork skips the
   DNS lookup. Lab: 2 DCs counted, 0 excluded, 99 findings, exit 6.
+- N6: every directory search sets ReferralChasing = None; a referral (0x8007202B) is a Warning with evidence, never a second bind. Disposal
+  after a failed bind no longer hides the first error. Credential harness added (tests/CredentialHarness.ps1). Lab: 99 findings, exit 6.

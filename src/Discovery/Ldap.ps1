@@ -50,6 +50,10 @@ function Get-MspkiLdapObject {
         $searcher.ClientTimeout = [TimeSpan]::FromSeconds($TimeoutSeconds)
         $searcher.ServerTimeLimit = [TimeSpan]::FromSeconds($TimeoutSeconds)
         if ($IncludeDacl) { $searcher.SecurityMasks = [System.DirectoryServices.SecurityMasks]'Owner, Dacl' }
+        # Never chase a referral (audit 2 verification N6). The .NET default (External) lets the directory client follow a referral to
+        # another server with the same Windows credentials, outside the host check of this tool. With None a referral comes back as
+        # an error (0x8007202B), which the caller reports as evidence (Test-MspkiLdapReferralError).
+        $searcher.ReferralChasing = [System.DirectoryServices.ReferralChasingOption]::None
         $searcher.PropertiesToLoad.Clear()
         foreach ($p in $Properties) { [void]$searcher.PropertiesToLoad.Add($p) }
         $results = $searcher.FindAll()
@@ -62,10 +66,28 @@ function Get-MspkiLdapObject {
         }
     }
     finally {
-        if ($null -ne $results) { $results.Dispose() }
-        $searcher.Dispose()
-        $entry.Dispose()
+        # After a failed bind (a referral, for example) Dispose can throw the bind error again, which would hide the first error.
+        if ($null -ne $results) { try { $results.Dispose() } catch { } }
+        try { $searcher.Dispose() } catch { }
+        try { $entry.Dispose() } catch { }
     }
+}
+
+function Test-MspkiLdapReferralError {
+    <#
+    .SYNOPSIS
+    True when an error is an LDAP referral (0x8007202B, "a referral was returned from the server"): the server named another server for
+    the object. Referrals are never chased (Get-MspkiLdapObject sets ReferralChasing = None), so the referral is reported, not followed.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$InputError)
+    $e = $InputError
+    if ($e -is [System.Management.Automation.ErrorRecord]) { $e = $e.Exception }
+    while ($null -ne $e) {
+        if ($e.HResult -eq -2147016661) { return $true }
+        $e = $e.InnerException
+    }
+    return $false
 }
 
 function Get-MspkiLdapValue {

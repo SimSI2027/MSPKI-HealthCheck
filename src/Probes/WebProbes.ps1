@@ -456,7 +456,7 @@ function Get-MspkiLdapUrlContent {
     if ($null -ne $cached) { return $cached }
     Assert-MspkiNotCancelled
     Send-MspkiProgress -Kind 'Target' -Text ('LDAP {0}' -f $Url)
-    $r = [pscustomobject][ordered]@{ Url = $Url; Server = ''; Code = 'RETRIEVAL_FAIL'; Bytes = $null; ValueCount = 0; Error = ''; ElapsedMs = 0; Contacted = $true; Attribute = ''; AttributeDefaulted = $false }
+    $r = [pscustomobject][ordered]@{ Url = $Url; Server = ''; Code = 'RETRIEVAL_FAIL'; Bytes = $null; ValueCount = 0; Error = ''; ElapsedMs = 0; Contacted = $true; Attribute = ''; AttributeDefaulted = $false; Referral = $false }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $p = ConvertFrom-MspkiLdapUrl -Url $Url
@@ -487,6 +487,12 @@ function Get-MspkiLdapUrlContent {
     catch {
         $ei = Get-MspkiErrorInfo $_
         $r.Error = $ei.Message
+        if (Test-MspkiLdapReferralError -InputError $_) {
+            # The server holds no copy of this object and named another server. Referrals are never chased (audit 2 N6): a bind there
+            # would send the Windows credentials of the user running this tool to a host this run did not prove.
+            $r.Referral = $true
+            $r.Error = ('The server {0} returned a referral to another server (0x8007202B). The referral was not followed: referrals are never chased, because a bind to the referred server would send the Windows credentials of the user running this tool to a host that this run did not prove.' -f $r.Server)
+        }
         switch ($ei.Class) {
             'NotFound' { $r.Code = 'PUBLICATION_FAIL' }
             'PermissionDenied' { $r.Code = 'PERMISSION_DENIED' }

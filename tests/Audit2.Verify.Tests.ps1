@@ -4,6 +4,7 @@
 
 BeforeAll {
     . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
+    . (Join-Path $PSScriptRoot 'CredentialHarness.ps1')
     Import-Module $script:ModulePath -Force
 
     $script:root = New-TestCertificate -Subject 'CN=Example Root CA, DC=example, DC=test' -DaysBefore 800 -DaysValid 3650
@@ -230,5 +231,50 @@ Describe 'Audit 2 N5: the forest domain controller list holds live domain contro
         $gate = InModuleScope MspkiHealthCheck -Parameters @{ D = @($c.Data.DomainControllers) } { param($D)
             Test-MspkiLdapHostAllowed -HostName 'dc-gone.example.test' -DefaultServer 'dc01.corp.example.test' -LocalDomains @('corp.example.test') -DomainControllers $D -Trust 'Authoritative' }
         $gate.Allowed | Should -BeFalse
+    }
+}
+
+Describe 'Audit 2 N6: LDAP referrals are never chased' {
+    BeforeAll {
+        $script:otherDn = 'CN=Example Root CA,CN=CDP,DC=other,DC=example,DC=test'
+        # The selected domain controller holds no copy of DC=other and answers with a referral to the server that does.
+        $script:referring = {
+            param($Query)
+            if ($Query.BaseDN -like '*DC=other,DC=example,DC=test') {
+                return @{ Referral = 'dc9.other.example.test'; ReferralRecords = @(@{ certificaterevocationlist = @(, [byte[]](1, 2, 3)) }) }
+            }
+            @{ Records = @() }
+        }
+    }
+
+    It 'sets ReferralChasing to None on every search' {
+        Install-TestCredentialRecorder
+        $null = InModuleScope MspkiHealthCheck { @(Get-MspkiLdapObject -Server 'dc01.corp.example.test' -BaseDN 'CN=Sites,CN=Configuration,DC=corp,DC=example,DC=test' -Scope Subtree) }
+        $b = @(Get-TestCredentialEvent -Kind Bind)
+        $b.Count | Should -Be 1
+        $b[0].Detail | Should -Match 'referral chasing None$'
+    }
+
+    It 'reports a referral as evidence (Warning, not followed) and binds to no other server' {
+        Install-TestCredentialRecorder -Handler $script:referring
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ Dn = $script:otherDn } { param($Dn)
+            [void](Initialize-MspkiRun); Reset-MspkiLeadRegistry -LocalDomains @('corp.example.test') -DomainControllers @('dc01.corp.example.test')
+            $url = 'ldap://dc01.corp.example.test/{0}?certificateRevocationList?base?objectClass=cRLDistributionPoint' -f $Dn
+            $lead = Add-MspkiLead -Url $url -Kind CDP -Source 'CA:Example Issuing CA:CertCdpUrls' -Origin 'test'
+            Test-MspkiLeadEndpoint -Lead $lead -Url $url -DomainController 'dc01.corp.example.test' }
+        @(Get-TestCredentialEvent -Kind Bind -Server 'dc9.other.example.test').Count | Should -Be 0
+        @(Get-TestCredentialEvent -Kind Bind | ForEach-Object { $_.Server } | Select-Object -Unique) | Should -Be @('dc01.corp.example.test')
+        $f = @($r.Findings)[0]
+        $f.Status | Should -Be 'Warning'
+        ($f.Evidence -join "`n") | Should -Match 'referral'
+        ($f.Message) | Should -Match 'not followed'
+        $r.Crl | Should -BeNullOrEmpty
+    }
+
+    It 'recognises a referral error by its code (0x8007202B), also when it is wrapped' {
+        $inner = New-Object System.Runtime.InteropServices.COMException('A referral was returned from the server.', -2147016661)
+        $outer = New-Object System.Management.Automation.MethodInvocationException('Exception calling "FindAll"', $inner)
+        InModuleScope MspkiHealthCheck -Parameters @{ E = $outer } { param($E) Test-MspkiLdapReferralError -InputError $E } | Should -BeTrue
+        InModuleScope MspkiHealthCheck { Test-MspkiLdapReferralError -InputError (New-Object System.Runtime.InteropServices.COMException('x', -2147016656)) } | Should -BeFalse
     }
 }

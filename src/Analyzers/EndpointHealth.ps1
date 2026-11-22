@@ -321,6 +321,9 @@ function Test-MspkiLeadEndpoint {
         if ($r.Code -ne 'OK') {
             $st = 'Fail'
             if ($r.Code -eq 'PERMISSION_DENIED') { $st = 'Skipped' }
+            # A referral is evidence, not a failure of the location: the object may well exist on the referred server, which was not
+            # contacted (audit 2 N6).
+            if ($null -ne $r.PSObject.Properties['Referral'] -and $r.Referral) { $st = 'Warning'; [void]$ev.Add('Referral: returned by the server and not followed.') }
             $layers['ContentStatus'] = 'Fail'
             [void]$ev.Add(('Error: {0}' -f $r.Error))
             [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status $st -Code $r.Code -Layers $layers -Evidence @($ev) `

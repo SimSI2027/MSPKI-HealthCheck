@@ -35,7 +35,10 @@ function Get-MspkiRootDse {
             if ($null -eq $v) { $out[$p] = '' } else { $out[$p] = [string]$v }
         }
     }
-    finally { $entry.Dispose() }
+    # RootDSE is the server's own entry, so it is never referred elsewhere; it has no object options (Options is $null), so there is no
+    # referral setting to change here. Every other read is a search in src/Discovery/Ldap.ps1, which never chases referrals (audit 2 N6).
+    # After a failed bind Dispose can throw the bind error again; the first error is the one reported.
+    finally { try { $entry.Dispose() } catch { } }
     if (-not $out['configurationNamingContext']) { throw 'RootDSE has no configurationNamingContext.' }
     return [pscustomobject]$out
 }

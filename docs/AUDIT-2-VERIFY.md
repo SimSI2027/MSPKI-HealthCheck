@@ -419,7 +419,8 @@ counts the tests that failed because of the old behaviour; "signature" counts th
 | ID | Status | Commit | Tests | Pre-fix run |
 |---|---|---|---|---|
 | N1 | Fixed | `eccbc02` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N1: a downloaded CA certificate is trusted only as an authoritative copy or by its own verified signature" (6), "Audit 2 N1: a forged certificate at an AIA location is not followed" (4) | against `9b43bb1`: 10 ran, 8 red. Behavioural 2: the forged certificate was Pass / **Confirmed** (expected Referenced), and the forged self-signed root was **Pass** (expected Fail / SIGNATURE_INVALID). Signature 6: `Test-MspkiDownloadedCertificateTrust` did not exist. The 2 positive cases (exact root copy, proven subordinate) pass on both, as they should |
-| N5 | Fixed | (this commit) | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N5: the forest domain controller list holds live domain controllers only" (4); `tests/Audit2.Security.Tests.ps1` "reads the forest domain controllers ..." updated (two reads now) | against `eccbc02`: 5 ran, 5 red. Behavioural 1: "reports the server objects that were not counted" got all three server objects (a stale one without NTDS Settings and one without an SRV record included), expected one. Signature 4: `Get-MspkiLiveDomainControllerName` did not exist |
+| N5 | Fixed | `204c0cc` | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N5: the forest domain controller list holds live domain controllers only" (4); `tests/Audit2.Security.Tests.ps1` "reads the forest domain controllers ..." updated (two reads now) | against `eccbc02`: 5 ran, 5 red. Behavioural 1: "reports the server objects that were not counted" got all three server objects (a stale one without NTDS Settings and one without an SRV record included), expected one. Signature 4: `Get-MspkiLiveDomainControllerName` did not exist |
+| N6 | Fixed | (this commit) | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N6: LDAP referrals are never chased" (3), with the credential harness `tests/CredentialHarness.ps1` | against `204c0cc`: 3 ran, 3 red. Behavioural 2: the searcher kept `ReferralChasing` External, and the referral was chased (one bind recorded to the referred server). Signature 1: `Test-MspkiLdapReferralError` did not exist |
 
 ### N1: what changed
 - `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
@@ -445,3 +446,15 @@ counts the tests that failed because of the old behaviour; "signature" counts th
   bind. If DNS cannot be read, no other domain controller is counted and a run limit says so. With `-SkipNetwork` the DNS lookup is
   skipped (only the selected domain controller can receive a bind then).
 - Lab check: 2 domains, 2 server objects, both with NTDS Settings and SRV records, 0 excluded.
+
+### N6: what changed
+- `Get-MspkiLdapObject` (`src/Discovery/Ldap.ps1`), the only place that searches the directory, sets `ReferralChasing = None` on every
+  search. A referral then comes back as 0x8007202B. `Get-MspkiLdapUrlContent` reports it (Referral = true, the error names the
+  server that referred and says the referral was not followed); the endpoint finding is a Warning with that evidence, not a Fail.
+- RootDSE reads (`Get-MspkiRootDse`) use a DirectoryEntry with RefreshCache. RootDSE is the server's own entry, so it is never
+  referred, and it has no object options (`Options` is `$null` on the lab DC), so there is no referral setting to change there.
+- Dispose after a failed bind can throw the bind error a second time; every Dispose is now wrapped so the first error is reported.
+- **Lab check (read-only, codes only):** a base search on the selected DC for the root DN of the forest's other tree fails at bind time
+  with 0x8007202B for `None`, `External` and `All` alike. So a live chase could not be shown here; with `External` ADSI chases only
+  referrals that come back inside a search. The harness models that documented search preference: with External it follows the
+  referral (and records the bind), with None it throws 0x8007202B.
