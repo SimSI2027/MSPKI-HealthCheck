@@ -311,3 +311,13 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   Round 2 (8/8/8/9/8/8/8/8/8/8, PASS) after also capping card prose at 880 px on ultra-wide screens. Details in `docs/GUI-DESIGN.md`.
 - Breadcrumbs now show from the third object and list the objects before the current one; Back always goes one step.
 - Next: WP8 ready for audit (normal-user lab run with the filtered token, discriminator check against the lab facts, README/TESTING).
+
+## WP8 (2026-11-22): ready for audit - DONE
+- Normal-user lab runs (filtered token, IsAdmin false): exit 6, 99 findings. Discriminator check against the private lab facts, 2 rounds:
+  no false positive or false negative found; LDAP-only AIA/CDP, the TLS reset on the root CA host, the dead SAN alias, the OCSP responder
+  that nothing names, the DCOM permission test case, NDES (Confirmed) and the Intune connector (not checkable on the NDES host) all match.
+- Fixed (unclear explanation): the AD-container "current/historical split" warning said "2 CA certificates but 1 of them are current";
+  it now says one is current and which one could not be placed, and its note no longer claims the CA could not be read when it was.
+- README (Objects, PKI services, known limitations) and docs/TESTING.md (checks 6-8) updated. ROADMAP: every work package DONE.
+- Open: this Claude terminal runs elevated (High integrity); normal-user runs were made with `runas /trustlevel:0x20000`. One full test run
+  earlier today had a flaky LocalEvidence failure that never repeated.

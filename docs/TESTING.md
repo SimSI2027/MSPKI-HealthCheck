@@ -144,8 +144,19 @@ things worth trying, and what you should see:
 4. **Opening an earlier run.** Press **Open results** (Ctrl+O), choose a `results.json` from an earlier run. Nothing is scanned;
    the Summary, Findings, Map and Run Log tabs show that run, with a note saying so.
 5. **A wrong file.** Choose a file that is not a results file. A message says what is wrong and the window stays as it was.
+6. **Objects (Ctrl+5).** After a run, open **Objects**. Every object is listed by type with a count at the bottom ("Showing 100
+   of 100 objects"). Type a host name in the search box; choose a type in the Type list; tick "Only objects that need attention".
+   Select a host: the right side explains what a host is, shows its addresses, reverse DNS, alias chain, TLS names and web server,
+   lists every place it was seen and, in an amber block, anything expected but missing (for example "No PTR record for this
+   address"). Select a related object, then another: a path appears at the top; **Back** and the path take you back.
+7. **From anywhere to the object.** On **Findings**, select a finding and use "Objects this finding is about". On the **Discovery
+   map**, select a CA and use "Objects of this item". On the **Overview**, select a tile (CAs, CA certificates, endpoints,
+   templates) or a CA card. Each opens the same object view; Back returns to the finding or map item.
+8. **PKI services (Ctrl+6).** One card per service. Check that what it says matches what you know: which servers run Web
+   Enrollment, NDES and OCSP, that CES and CEP say "none" when you have none, and that the Intune connector says it was only
+   checked on this computer. Select a service or a finding to see its details on the right.
 
-If something looks wrong, tell us which of the five it was and what you saw, and send `run.log` from that run (see "What to
+If something looks wrong, tell us which of the eight it was and what you saw, and send `run.log` from that run (see "What to
 send back"). Please do not send screenshots or the result files: they contain real names.
 
 ## What the tool does and does not do

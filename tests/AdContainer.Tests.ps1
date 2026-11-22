@@ -139,6 +139,15 @@ Describe 'Test-MspkiAdContainerConsistency: publication in the AD PKI containers
         $split[0].Evidence.Count | Should -Be 2
     }
 
+    It 'says plainly when one certificate is current and another one cannot be placed' {
+        $unk = & $script:subEntry @{ Thumbprint = 'AA11'; Lifecycle = 'Unknown'; LifecycleConfidence = 'Inferred'; LifecycleBasis = 'in AD only'; Generation = 'V0.0' }
+        $cur = & $script:subEntry @{ Thumbprint = 'AA12'; Generation = 'V1.0' }
+        $f = & $script:run (& $script:inv @((& $script:rootEntry), $unk, $cur))
+        $split = @($f | Where-Object { $_.Message -like '*no clear current/historical split*' })
+        $split.Count | Should -Be 1
+        $split[0].Message | Should -BeLike '*has 2 CA certificates: one is current, but this run could not tell whether the other one is historical*'
+    }
+
     It 'does not report a split when exactly one certificate is current and the rest are historical' {
         $hist = & $script:subEntry @{ Thumbprint = 'AA09'; Lifecycle = 'Historical'; Generation = 'V0.0'; InNTAuth = $false }
         $cur = & $script:subEntry @{ Thumbprint = 'AA10'; Generation = 'V1.0' }

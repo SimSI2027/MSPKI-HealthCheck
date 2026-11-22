@@ -16,7 +16,7 @@ From 2026-11-22 this section is the plan of record. Statuses: DONE, IN PROGRESS,
 | WP5 | GUI drill-down (G1, G2, G4, G5) | DONE (2026-11-22) |
 | WP6 | PKI Services page (G3) | DONE (2026-11-22) |
 | WP7 | GUI adversarial polish (max 3 rounds) | DONE (2026-11-22, PASS in round 2) |
-| WP8 | Ready for audit | TODO |
+| WP8 | Ready for audit | DONE (2026-11-22) |
 
 **WP5 GUI drill-down (G1, G2, G4).** DONE: Objects page, object details pane, links from every pane, tiles and cards. Scope was:
 - Load the helpers in the window.

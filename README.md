@@ -71,8 +71,31 @@ If it says it needs a single-threaded session, start it as `powershell.exe -STA 
   templates, CES and NDES, each with its status and confidence. **Findings**: every finding in a table you can search, filter
   by status, category and confidence, and sort by clicking a column heading. **Details**: select a finding to see all of it
   (sources, evidence, the DNS/TCP/TLS/HTTP/redirect/content/chain results, remediation, notes).
+- **Objects** (Ctrl+5): everything the run found (forest, domains, CAs, CA certificates, CRLs, URLs, hosts, PKI services,
+  templates, certificates on this computer, AD objects, accounts), grouped by type, with a search box, a type filter and
+  "Only objects that need attention". Select one to see what it is and why it matters, its properties, **where it exists** (every
+  place it was read or named, with confidence and time) and, in an amber block of its own, **where it is expected but missing**.
+  A host also shows its identity: addresses, reverse DNS, the alias (CNAME) chain, the names in its TLS certificate and its web
+  server header. Related objects are links (for example certificate > issuer > CRL > URL > host); a path at the top and **Back**
+  take you back.
+- The same object view opens from a finding (its objects are listed under "Objects this finding is about"), from a Discovery Map
+  item, from the Overview tiles (they open the Objects page for that type) and from a CA card.
+- **PKI services** (Ctrl+6): one card each for Web Enrollment, CES, CEP, NDES/SCEP, OCSP and the Intune Certificate Connector, with
+  what was found (host, confidence, evidence), the findings about it (for example the NTLM relay warning, ESC8, for Web
+  Enrollment on plain HTTP) and what this run can see. "Not found" (looked, nothing there), "cannot be checked from here" (for
+  example the Intune connector on another server) and "not checked in this run" are shown apart.
 
 The window only shows and filters what the engine found; it checks nothing itself, and it changes nothing on any server.
+
+### Known limitations
+
+- Read-only and anonymous web checks: a page that needs a sign-in shows as "answers" (for example HTTP 403), never as working.
+- The Intune Certificate Connector is only checked on the computer that runs the tool; its state in Intune (Microsoft Graph) is not read.
+- Without the CA database reader (`CertificateAuthority.View`, not in-box on clients) NDES is found from template permissions and
+  service accounts instead of from the issued certificates.
+- A CA that refuses this account over DCOM is reported as "permission denied" (Inferred); its properties and CRLs are then not read.
+- Web Enrollment, CES or OCSP on a server that nothing in AD or the certificates names cannot be found: the tool never scans.
+- Results written before the object graph (results.json format 1) open without the Objects page and service instances.
 
 ## Safety
 
@@ -104,7 +127,8 @@ posted publicly).
 
 ## Status
 
-Work in progress. See [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md).
+Work packages WP1-WP8 are done and the tool is ready for an audit. The plan of record is [docs/ROADMAP.md](docs/ROADMAP.md);
+history in [docs/PROGRESS.md](docs/PROGRESS.md), requirements in [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md).
 
 ## Development
 

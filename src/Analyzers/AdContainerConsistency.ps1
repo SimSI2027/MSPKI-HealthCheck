@@ -88,9 +88,16 @@ function Test-MspkiAdContainerConsistency {
             if ($allConfirmed) { $conf = 'Confirmed' }
             [void]$findings.Add((New-MspkiFinding @common -Role (Get-MspkiSchemaRole $mine[0].Role) -Status 'Warning' -StatusCode 'NOT_DISCOVERED' -Confidence $conf `
                 -Sources @('AD:EnrollmentServices', 'AD:AIA', 'CA:GetCAProperty') `
-                -Message ('{0} has {1} CA certificates but {2} of them are current, so there is no clear current/historical split.' -f $ca.Name, $mine.Count, $current.Count) `
+                -Message $(if ($current.Count -eq 1) {
+                        $unk = @($mine | Where-Object { $_.Lifecycle -eq 'Unknown' }).Count
+                        '{0} has {1} CA certificates: one is current, but this run could not tell whether {2} historical (no clear current/historical split). The evidence says why for each certificate.' -f $ca.Name, $mine.Count, $(if ($unk -eq 1) { 'the other one is' } else { ('the other {0} are' -f $unk) })
+                    } elseif ($current.Count -eq 0) {
+                        '{0} has {1} CA certificates and none of them could be confirmed as current (no clear current/historical split): it is not clear which one the CA signs with now.' -f $ca.Name, $mine.Count
+                    } else {
+                        '{0} has {1} CA certificates and {2} of them look current (no clear current/historical split): it is not clear which one the CA signs with now.' -f $ca.Name, $mine.Count, $current.Count
+                    }) `
                 -Evidence @($mine | ForEach-Object { '{0} [{1}] {2} ({3}, {4})' -f $_.Generation, $_.Thumbprint, $_.Lifecycle, $_.LifecycleConfidence, $_.LifecycleBasis }) `
-                -Notes 'Review only. Only the CA itself can say which certificate is current; this needs read access to the CA.'))
+                -Notes $(if ($null -ne $props) { 'Review only. The CA was read and does not list the certificates marked Unknown among its own signing certificates; such a certificate usually belongs to an earlier installation of a CA with the same name. Remove it from AD only when nothing it issued is still in use.' } else { 'Review only. Only the CA itself can say which certificate is current; this needs read access to the CA.' })))
         }
         if ($current.Count -eq 0) { continue }
 
