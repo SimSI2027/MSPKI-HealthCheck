@@ -53,7 +53,7 @@ Describe 'Audit 2 M4: the retrieval-order check matches URLs after normalisation
     It 'finds a failing URL that contains a space (the certificate has the space, the probe the %20): Fail, not "not tested"' {
         $f = & $script:order @('http://pki.example.test/CertEnroll/Example Issuing CA.crl') @(& $script:probeFinding 'http://pki.example.test/CertEnroll/Example%20Issuing%20CA.crl' 'Fail' 'HTTP_404')
         $f.Status | Should -Be 'Fail'
-        $f.StatusCode | Should -Be 'RETRIEVAL_FAIL'
+        $f.StatusCode | Should -Be 'RETRIEVAL_ORDER'
     }
     It 'matches an explicit default port and a different host case' {
         $f = & $script:order @('http://PKI.example.test:80/CertEnroll/ca.crl') @(& $script:probeFinding 'http://pki.example.test/CertEnroll/ca.crl' 'Pass')
@@ -211,5 +211,53 @@ Describe 'Audit 2 M3: a valid CRL larger than the general download cap is not a 
             (Get-MspkiDerChild -Bytes $seq -Element $el).Count | Should -Be 3000
             { Measure-MspkiDerChild -Bytes ([byte[]]($hdr + $content[0..($content.Length - 2)])) -Element ([pscustomobject]@{ ContentOffset = 4; End = ($seq.Length - 1) }) } | Should -Throw
         }
+    }
+}
+
+Describe 'Audit 2 M8: different failures have different status codes' {
+    It 'names the TLS result from the chain errors: <Name>' -TestCases @(
+        @{ Name = 'untrusted root'; Errors = @('UntrustedRoot'); Name2 = $true; Code = 'TLS_UNTRUSTED_ROOT' }
+        @{ Name = 'partial chain'; Errors = @('PartialChain'); Name2 = $true; Code = 'TLS_PARTIAL_CHAIN' }
+        @{ Name = 'expired'; Errors = @('NotTimeValid'); Name2 = $true; Code = 'OBJECT_EXPIRED' }
+        @{ Name = 'a completed handshake whose chain has a signature error is a chain problem, not a failed handshake'; Errors = @('NotSignatureValid'); Name2 = $true; Code = 'CHAIN_INVALID' }
+        @{ Name = 'a completed handshake with an unsuitable key usage'; Errors = @('NotValidForUsage', 'Revoked'); Name2 = $true; Code = 'CHAIN_INVALID' }
+        @{ Name = 'a name mismatch when the chain is fine'; Errors = @(); Name2 = $false; Code = 'TLS_NAME_MISMATCH' }
+        @{ Name = 'everything fine'; Errors = @(); Name2 = $true; Code = 'OK' }
+    ) {
+        param($Name, $Errors, $Name2, $Code)
+        $c = InModuleScope MspkiHealthCheck -Parameters @{ E = @($Errors); N = $Name2 } { param($E, $N) Get-MspkiTlsChainCode -ChainErrors $E -NameMatch $N }
+        $c | Should -Be $Code
+    }
+
+    It 'does not give a host identity summary the code OK when its DNS lookup failed or timed out' -TestCases @(
+        @{ Lookup = 'Timeout'; Code = 'TIMEOUT' }
+        @{ Lookup = 'ServerFailure'; Code = 'DNS_FAIL' }
+        @{ Lookup = 'NoRecord'; Code = 'DNS_FAIL' }
+    ) {
+        param($Lookup, $Code)
+        $id = [pscustomobject]@{ Target = 'ca01.corp.example.test'; QueryName = 'ca01.corp.example.test'; Chain = @('ca01.corp.example.test'); A = @(); AAAA = @(); Ptr = @(); Lookup = $Lookup; Method = 'DnsClient'; Error = '' }
+        $f = @(InModuleScope MspkiHealthCheck -Parameters @{ Id = $id } { param($Id) Test-MspkiHostIdentity -HostName 'ca01.corp.example.test' -Identity $Id })
+        $s = @($f | Where-Object { $_.Message -like 'Identity of*' })
+        $s.Count | Should -Be 1
+        $s[0].StatusCode | Should -Be $Code
+        $s[0].StatusCode | Should -Not -Be 'OK'
+    }
+
+    It 'keeps one code for one cause: a missing CertificateAuthority.View class is NOT_APPLICABLE like a missing CertificateAuthority.Request class' {
+        $src = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'src\Discovery\NdesEvidence.ps1') -Raw
+        $src | Should -Match "(?s)80040154.*?-StatusCode 'NOT_APPLICABLE'"
+        $cp = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'src\Discovery\CAProperty.ps1') -Raw
+        $cp | Should -Match "(?s)80040154'\) \{.*?-StatusCode 'NOT_APPLICABLE'"
+    }
+
+    It 'has a code of its own for each of these (schema): RPC_FAIL, RETRIEVAL_ORDER, CONTENT_MISMATCH, ENROLLMENT_FAIL, SIZE_LIMIT' {
+        $codes = InModuleScope MspkiHealthCheck { (Get-MspkiSchema).StatusCode }
+        foreach ($c in @('RPC_FAIL', 'RETRIEVAL_ORDER', 'CONTENT_MISMATCH', 'ENROLLMENT_FAIL', 'SIZE_LIMIT')) { $codes | Should -Contain $c }
+    }
+
+    It 'documents every status code of the schema in REQUIREMENTS.md' {
+        $codes = InModuleScope MspkiHealthCheck { (Get-MspkiSchema).StatusCode }
+        $doc = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'docs\REQUIREMENTS.md') -Raw
+        foreach ($c in $codes) { $doc | Should -Match ([regex]::Escape($c)) -Because "$c is a status code" }
     }
 }

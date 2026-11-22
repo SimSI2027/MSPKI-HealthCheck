@@ -297,7 +297,7 @@ function Get-MspkiCaRpcFailureDiagnosis {
       the cause, and it is not a network failure. Reported as PERMISSION_DENIED with Inferred confidence, because the fault code
       itself is not visible to the tool.
     - Slow: no answer from the dynamic RPC port the endpoint mapper handed out: a firewall between this computer and the CA
-      (49152-65535 or the CA's fixed port) is the usual cause. Reported as RETRIEVAL_FAIL.
+      (49152-65535 or the CA's fixed port) is the usual cause. Reported as RPC_FAIL.
     Returns $null for other HRESULTs.
     #>
     [CmdletBinding()]
@@ -319,7 +319,7 @@ function Get-MspkiCaRpcFailureDiagnosis {
         }
     }
     return [pscustomobject]@{
-        Kind = 'NoAnswer'; Status = 'Fail'; StatusCode = 'RETRIEVAL_FAIL'; Confidence = 'Referenced'; Layer = 'Fail'
+        Kind = 'NoAnswer'; Status = 'Fail'; StatusCode = 'RPC_FAIL'; Confidence = 'Referenced'; Layer = 'Fail'
         Message = ('The CA host {0} answered on TCP 135 but the CA could not be reached over its dynamic RPC port (error 0x800706BA, RPC server unavailable).' -f $HostName)
         Evidence = @($timing)
         Notes = 'A slow "RPC server unavailable" after TCP 135 answered usually means a firewall blocks the dynamic RPC ports (49152-65535, or the port the CA is fixed to) between this computer and the CA, or the Certificate Services service is hung.'
@@ -435,13 +435,13 @@ function Get-MspkiCAProperty {
         if ($script:MspkiHResultClass.ContainsKey($hr)) { $class = $script:MspkiHResultClass[$hr] }
         Add-MspkiMethodOutcome -Method $method -Outcome $class -Detail ('{0}: 0x{1}' -f ($tried -join '; '), $hr) -ElapsedMs $run.ElapsedMs
         if ($script:MspkiCaNameMismatchHResult -contains $hr) {
-            $f = New-MspkiFinding @common -Status 'Fail' -StatusCode 'RETRIEVAL_FAIL' -Confidence 'Referenced' -Layers @{ DiscoveryStatus = 'Pass'; DnsStatus = 'Pass'; TcpStatus = 'Pass'; ContentStatus = 'Fail' } `
+            $f = New-MspkiFinding @common -Status 'Fail' -StatusCode 'CONFIG_MISMATCH' -Confidence 'Referenced' -Layers @{ DiscoveryStatus = 'Pass'; DnsStatus = 'Pass'; TcpStatus = 'Pass'; ContentStatus = 'Fail' } `
                 -Message ('The host {0} answered, but no Certification Authority named {1} was found there (HRESULT 0x{2}).' -f $CA.DnsHostName, $CA.Name, $hr) `
                 -Evidence ($triedEvidence + @(('HResult: 0x{0}' -f $hr), ('Message: {0}' -f $raw.Fatal.Message))) `
                 -Notes 'The Enrollment Services object in AD names a CA that this host does not answer for. The Certificate Services service may be stopped or uninstalled, the CA may have been renamed or moved, or the AD object may be left over. If other CAs on the same kind of host answer, compare the CA name with the one shown by the CA itself.'
         }
         elseif ($hr -eq '80040154') {
-            $f = New-MspkiFinding @common -Status 'Skipped' -StatusCode 'UNSUPPORTED' -Confidence 'Referenced' -Layers @{ DiscoveryStatus = 'Skipped' } `
+            $f = New-MspkiFinding @common -Status 'Skipped' -StatusCode 'NOT_APPLICABLE' -Confidence 'Referenced' -Layers @{ DiscoveryStatus = 'Skipped' } `
                 -Message 'The Certification Authority client COM class (CertificateAuthority.Request) is not registered on this computer, so no CA can be asked for its properties from here.' `
                 -Evidence ($triedEvidence + @('HResult: 0x80040154 (class not registered)', ('Message: {0}' -f $raw.Fatal.Message))) `
                 -Notes 'This is a limit of the computer running the tool, not a finding about the CA.'

@@ -327,12 +327,12 @@ Describe 'CA connection: connection strings, trace, and classification of the fi
         Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript -Times 2 -Exactly
     }
 
-    It 'reports "no CA of that name" (after every string) as Fail/RETRIEVAL_FAIL and names the strings tried, not as UNSUPPORTED or NOT_DISCOVERED' {
+    It 'reports "no CA of that name" (after every string) as Fail/CONFIG_MISMATCH and names the strings tried, not as UNSUPPORTED or NOT_DISCOVERED' {
         Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript { [pscustomobject]@{ Completed = $true; TimedOut = $false; ElapsedMs = 7; Errors = @(); Output = @(@{ Values = @{}; Errors = @{}; Count = -1; Fatal = @{ HResult = '80070057'; Message = 'The parameter is incorrect.' }; Trace = @() }) } }
         $r = & $script:read
         $f = $r.Findings[0]
         $f.Status | Should -Be 'Fail'
-        $f.StatusCode | Should -Be 'RETRIEVAL_FAIL'
+        $f.StatusCode | Should -Be 'CONFIG_MISMATCH'
         $f.Message | Should -Match 'no Certification Authority named Example Issuing CA was found'
         ($f.Evidence -join "`n") | Should -Match 'Example Issuing CA -> Failed 0x80070057'
         ($f.Evidence -join "`n") | Should -Match 'ExampleIssuingCA -> Failed 0x80070057'
@@ -350,11 +350,11 @@ Describe 'CA connection: connection strings, trace, and classification of the fi
         Should -Invoke -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript -Times 1 -Exactly
     }
 
-    It 'reports a COM class that is not registered on this computer as UNSUPPORTED (a limit of this computer, not of the CA)' {
+    It 'reports a COM class that is not registered on this computer as NOT_APPLICABLE, the same code as the missing CertificateAuthority.View class (a limit of this computer, not of the CA)' {
         Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript { [pscustomobject]@{ Completed = $true; TimedOut = $false; ElapsedMs = 7; Errors = @(); Output = @(@{ Values = @{}; Errors = @{}; Count = -1; Fatal = @{ HResult = '80040154'; Message = 'Class not registered' }; Trace = @() }) } }
         $f = (& $script:read).Findings[0]
         $f.Status | Should -Be 'Skipped'
-        $f.StatusCode | Should -Be 'UNSUPPORTED'
+        $f.StatusCode | Should -Be 'NOT_APPLICABLE'
         $f.Notes | Should -Match 'computer running the tool'
     }
 

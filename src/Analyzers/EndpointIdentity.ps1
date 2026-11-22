@@ -228,7 +228,7 @@ function Test-MspkiHostIdentity {
     if (@($HttpServers).Count) { $parts += ('web server {0}' -f (@($HttpServers) -join '; ')) }
     $p = $base.Clone()
     $p.Sources = @('DNS', 'TLS', 'HTTP')
-    $p += @{ Status = 'Information'; StatusCode = $(if ($addrs.Count -or $id.Lookup -ne 'NoRecord') { 'OK' } else { 'DNS_FAIL' }); Message = ('Identity of {0}: {1}.' -f $h, ($parts -join '; ')); Evidence = [string[]]$ev }
+    $p += @{ Status = 'Information'; StatusCode = $(if ($addrs.Count) { 'OK' } elseif ($id.Lookup -eq 'Timeout') { 'TIMEOUT' } else { 'DNS_FAIL' }); Message = ('Identity of {0}: {1}.' -f $h, ($parts -join '; ')); Evidence = [string[]]$ev }
     if ($id.Lookup -notin @('Found', 'NoRecord')) { $p.Confidence = 'Unknown' }
     [void]$out.Add((New-MspkiFinding @p -EntityIds $EntityIds))
     return $out.ToArray()

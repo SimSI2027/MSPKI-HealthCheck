@@ -93,10 +93,10 @@ Describe 'Trust store coverage and policy helpers' {
 Describe 'Local evidence analysis' {
     BeforeAll {
         $script:runIt = {
-            param([switch]$MissNtAuth, [switch]$DenyLog, [switch]$Expiring)
-            $p = @{ Leaf = $script:leaf.Public; Foreign = $script:foreign.Public; Root = $script:root.Public; Issuing = $script:issuing.Public; Miss = [bool]$MissNtAuth; Deny = [bool]$DenyLog; Exp = [bool]$Expiring; Xml = $script:lcXml }
+            param([switch]$MissNtAuth, [switch]$DenyLog, [switch]$Expiring, [switch]$EnrollError)
+            $p = @{ Leaf = $script:leaf.Public; Foreign = $script:foreign.Public; Root = $script:root.Public; Issuing = $script:issuing.Public; Miss = [bool]$MissNtAuth; Deny = [bool]$DenyLog; Exp = [bool]$Expiring; Err = [bool]$EnrollError; Xml = $script:lcXml }
             InModuleScope MspkiHealthCheck -Parameters $p {
-                param($Leaf, $Foreign, $Root, $Issuing, $Miss, $Deny, $Exp, $Xml)
+                param($Leaf, $Foreign, $Root, $Issuing, $Miss, $Deny, $Exp, $Err, $Xml)
                 Reset-MspkiEntityGraph
                 foreach ($c in @($Root, $Issuing)) { [void](Add-MspkiEntity -Type 'CACertificate' -Key $c.Thumbprint -Name $c.Subject -Properties @{ SubjectKeyId = (Get-MspkiCertificateSubjectKeyId -Certificate $c) }) }
                 [void](Add-MspkiEntity -Type 'Template' -Key 'ExampleRdp' -Name 'ExampleRdp')
@@ -116,6 +116,7 @@ Describe 'Local evidence analysis' {
                 Mock Get-MspkiEnrollmentEvent {
                     $ev = @()
                     if ($Exp) { $ev = @([pscustomobject]@{ Time = '2026-11-01T00:00:00Z'; EventId = 64; Provider = 'Microsoft-Windows-CertificateServicesClient-AutoEnrollment'; Level = 'Warning'; Data = @{ Context = 'local system'; ObjId = ($Leaf.Thumbprint.ToLowerInvariant() -replace '(..)', '$1 ').Trim() }; Message = 'about to expire' }) }
+                    if ($Err) { $ev = @([pscustomobject]@{ Time = '2026-11-02T00:00:00Z'; EventId = 13; Provider = 'Microsoft-Windows-CertificateServicesClient-CertEnroll'; Level = 'Error'; Data = @{ Context = 'local system' }; Message = 'Certificate enrollment failed' }) }
                     [pscustomobject]@{ Events = $ev; Read = $true; Error = $null }
                 }
                 Mock Get-MspkiEnrollmentPolicyState { [pscustomobject]@{ TemplateCache = @([pscustomobject]@{ Scope = 'Computer'; Path = 'HKLM\x'; Timestamp = '2026-11-05T13:25:55Z'; Templates = @('ExampleRdp'); Exists = $true; Error = $null }); AutoEnrollment = @(); RdpTemplate = [pscustomobject]@{ Path = 'HKLM\y'; Template = 'ExampleRdp'; Error = $null } } }
@@ -154,6 +155,14 @@ Describe 'Local evidence analysis' {
         @($r.Findings | Where-Object { $_.StatusCode -eq 'PERMISSION_DENIED' }).Count | Should -Be 1
         $how = @($r.Findings | Where-Object { $_.Message -like 'How *' })
         $how[0].Confidence | Should -Be 'Inferred'
+    }
+
+    It 'reports an enrollment error event as ENROLLMENT_FAIL, not as a failure to retrieve something (audit 2 M8)' {
+        $r = & $script:runIt -EnrollError
+        $w = @($r.Findings | Where-Object { $_.Message -like 'Certificate enrollment on this computer reported a problem*' })
+        $w.Count | Should -Be 1
+        $w[0].StatusCode | Should -Be 'ENROLLMENT_FAIL'
+        $w[0].Status | Should -Be 'Warning'
     }
 
     It 'warns when autoenrollment says a certificate that is still in the store is expiring' {

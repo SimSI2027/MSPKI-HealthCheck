@@ -302,13 +302,13 @@ function Test-MspkiLeadEndpoint {
         foreach ($l in $m.Lines) { [void]$ev.Add($l) }
         if ($m.Result -eq 'NameMismatch') {
             $layers['ContentStatus'] = 'Warning'
-            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Warning' -Code 'CONTENT_WRONG_TYPE' -Layers $layers -Evidence @($ev) `
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Warning' -Code 'CONTENT_MISMATCH' -Layers $layers -Evidence @($ev) `
                 -Confidence 'Confirmed' -Message ('The AIA location returns a certificate for {0}, not the expected issuer.' -f $cert.Subject)))
             return $out
         }
         if ($m.Result -eq 'KeyMismatch') {
             $layers['ContentStatus'] = 'Warning'
-            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Warning' -Code 'CONTENT_WRONG_TYPE' -Layers $layers -Evidence @($ev) `
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Warning' -Code 'CONTENT_MISMATCH' -Layers $layers -Evidence @($ev) `
                 -Confidence 'Confirmed' -Message ('The AIA location returns a certificate with the expected name ({0}), but not the key that signed the certificate(s) that reference it.' -f $cert.Subject) `
                 -Notes 'This can be another key generation of the CA (an older CA certificate published at the location of the newer one).'))
             return $out
@@ -437,12 +437,12 @@ function Test-MspkiCrlHealth {
     if ($code -eq 'NOT_APPLICABLE') { $msg = '{0} CRL of {1} at {2} has no next update.' -f $type, $crl.Issuer, $Record.Url }
     $expected = @($Record.ExpectedIssuer)
     if ($status -notin @('Fail', 'Critical') -and $expected.Count -gt 0 -and $expected -notcontains $crl.Issuer) {
-        $status = 'Warning'; $code = 'CONTENT_WRONG_TYPE'
+        $status = 'Warning'; $code = 'CONTENT_MISMATCH'
         $msg = 'The CRL at {0} is issued by {1}, not by the expected CA.' -f $Record.Url, $crl.Issuer
         $ev += ('Expected issuer: {0}' -f ($expected -join ' | '))
     }
     if ($status -notin @('Fail', 'Critical') -and $lead.Kind -eq 'FreshestCRL' -and -not $crl.IsDelta) {
-        $status = 'Warning'; $code = 'CONTENT_WRONG_TYPE'
+        $status = 'Warning'; $code = 'CONTENT_MISMATCH'
         $msg = 'The Freshest CRL location {0} returns a base CRL, not a delta CRL.' -f $Record.Url
     }
     if ($sigOk -eq $false) {

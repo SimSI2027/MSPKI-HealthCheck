@@ -427,7 +427,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | M4 | Fixed | `dce392b` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M4" (9 tests, red on the old code): a URL with a space (%20 in the probe), an explicit :80 and a different host case are found; http and https stay apart; a Warning for a wrong issuer, a wrong key, a scope-capped failure or an unfollowed redirect is not a working URL; an age Warning still is; an expired CRL is not; the message says how many URLs were tested and is not Confirmed when some were not. `tests/HierarchyHealth.Tests.ps1` updated to the new parameter |
 | M5 | Fixed | `d52359b` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M5" (5 tests, 3 red on the old code): a 302 through `Invoke-MspkiHttpGet -MaxRedirects 0` has HttpStatus 302, the Location and an explanatory Error; the hop limit takes the last hop's status; redirects within the limit are still followed; Web Enrollment state and finding exist for a redirecting host |
 | M3 | Fixed | `9715e0b` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M3" (4 tests, all red on the old code): the CRL cap is at least 32 MB; a CRL above the cap is Information / `SIZE_LIMIT` (not Fail, not CONTENT_WRONG_TYPE) and does not give exit code 4; `Measure-MspkiDerChild` counts 3000 entries without objects and throws on truncated data. `tests/Endpoint.Tests.ps1` and `tests/Model.Tests.ps1` updated for the new code |
-| M6 | Fixed | `PENDING` | `tests/Gui.Tests.ps1`: "Audit 2 M6" (3 tests, red on the old code): error text without stack trace; `Invoke-MspkiGuiUnhandledError` logs a Run log row and gui-error.log, shows the same error once, cancels a run in progress through the Cancel flag and returns Handled; in a real dispatcher loop a throwing event delegate reaches the hook and a throwing timer tick does not stop the timer |
+| M6 | Fixed | `96e3ee8` | `tests/Gui.Tests.ps1`: "Audit 2 M6" (3 tests, red on the old code): error text without stack trace; `Invoke-MspkiGuiUnhandledError` logs a Run log row and gui-error.log, shows the same error once, cancels a run in progress through the Cancel flag and returns Handled; in a real dispatcher loop a throwing event delegate reaches the hook and a throwing timer tick does not stop the timer |
+| M8 | Fixed (two items explained) | `PENDING` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M8" (16 tests, red on the old code): chain errors map to `CHAIN_INVALID` (not `TLS_HANDSHAKE_FAIL`) after a completed handshake; a host identity summary is not `OK` without an address; one code for a missing COM class; the new codes exist and every schema code is documented in REQUIREMENTS. Assertions updated in `Endpoint`, `Audit.Grading`, `Audit.Probes`, `Discovery`, `Model` and `LocalEvidence` tests (new case: enrollment error event) |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -538,3 +539,14 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
   returns to idle with the output folder named.
 - Finding from a prototype in Windows PowerShell 5.1: an exception in a `DispatcherTimer` tick stops the timer for good even when
   `Handled` is set. The tick therefore catches its own errors, and the guard re-arms the timer while a run is active.
+
+### M8 notes (Batch B)
+- New codes: `RPC_FAIL` (slow RPC failure to a CA), `RETRIEVAL_ORDER` (the AIA/CDP order check), `CONTENT_MISMATCH` (right kind of object,
+  wrong one: other subject, other key, other CRL issuer, base CRL at a delta location), `ENROLLMENT_FAIL` (enrollment error events), and
+  `SIZE_LIMIT` (M3). `CONFIG_MISMATCH` now also covers "no CA of that name on that host", `CHAIN_INVALID` a completed handshake with another
+  chain error, and `NOT_APPLICABLE` both missing COM classes (a limit of this computer; it must not give exit code 5 on a client without RSAT).
+  A host identity summary is `OK` only with an address (otherwise `TIMEOUT` or `DNS_FAIL`). REQUIREMENTS section 3 defines each code.
+- Not changed, on purpose: `E_INVALIDARG` stays `Unsupported` in `Get-MspkiErrorInfo`, because it is how a CA that lacks a property answers
+  (the CA property reads depend on it), and an unexpected exception is already `INTERNAL_ERROR`. "Not domain-joined" stays `UNSUPPORTED`
+  (exit code 5): the tool cannot do anything there, which is what that exit code means. The GUI and the reports build their code filters
+  from the data, so they needed no change.

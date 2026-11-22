@@ -94,9 +94,9 @@ Describe 'Test-MspkiCrlHealth' {
             $unknown.ChainStatus | Should -Be 'Unknown'
             $unknown.Notes | Should -Match 'could not be validated'
             $wrong = Test-MspkiCrlHealth -Record (& $rec $L @('CN=Other CA, DC=example, DC=test')) -Certificates @($R)
-            $wrong.StatusCode | Should -Be 'CONTENT_WRONG_TYPE'
+            $wrong.StatusCode | Should -Be 'CONTENT_MISMATCH'
             $notDelta = Test-MspkiCrlHealth -Record (& $rec $DL @()) -Certificates @($R)
-            $notDelta.StatusCode | Should -Be 'CONTENT_WRONG_TYPE'
+            $notDelta.StatusCode | Should -Be 'CONTENT_MISMATCH'
             $notDelta.Message | Should -Match 'not a delta'
         }
     }
@@ -249,7 +249,7 @@ Describe 'HTTP probes against a loopback test server' {
             $ra.Findings[0].HttpStatus | Should -Be 'Pass'
             $ra.Findings[0].ContentStatus | Should -Be 'Pass'
             $ra.Certificate.Thumbprint | Should -Be $Root.Thumbprint
-            (Test-MspkiLeadEndpoint -Lead $A -Url $A.Url -ExpectedIssuer @('CN=Someone Else')).Findings[0].StatusCode | Should -Be 'CONTENT_WRONG_TYPE'
+            (Test-MspkiLeadEndpoint -Lead $A -Url $A.Url -ExpectedIssuer @('CN=Someone Else')).Findings[0].StatusCode | Should -Be 'CONTENT_MISMATCH'
             (Test-MspkiLeadEndpoint -Lead $Bad -Url $Bad.Url).Findings[0].StatusCode | Should -Be 'CONTENT_WRONG_TYPE'
             $rc = Test-MspkiLeadEndpoint -Lead $C -Url $C.Url
             @($rc.Findings).Count | Should -Be 2

@@ -145,7 +145,7 @@ Describe 'H1: an LDAP URL never sends the credentials of the user running the to
             $aia = @($f | Where-Object { $_.Category -eq 'AIA' })
             $aia.Count | Should -Be 1
             $aia[0].Status | Should -Be 'Warning'
-            $aia[0].StatusCode | Should -Be 'CONTENT_WRONG_TYPE'
+            $aia[0].StatusCode | Should -Be 'CONTENT_MISMATCH'
             $aia[0].Confidence | Should -Be 'Confirmed'
             ($aia[0].Evidence -join "`n") | Should -Match 'does NOT verify'
             $hosts = @(InModuleScope MspkiHealthCheck { Get-MspkiLead | ForEach-Object { $_.Host } })

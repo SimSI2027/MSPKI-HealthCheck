@@ -267,6 +267,22 @@ function Get-MspkiTrustFailureCode {
     return 'TLS_HANDSHAKE_FAIL'
 }
 
+function Get-MspkiTlsChainCode {
+    <#
+    .SYNOPSIS
+    The status code for a TLS handshake that completed: the chain errors first (untrusted root, partial chain, expired), then any
+    other chain error as CHAIN_INVALID (the handshake itself worked, so it is not TLS_HANDSHAKE_FAIL), then the name match.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyCollection()][string[]]$ChainErrors = @(), [bool]$NameMatch = $true)
+    if ($ChainErrors -contains 'UntrustedRoot') { return 'TLS_UNTRUSTED_ROOT' }
+    if ($ChainErrors -contains 'PartialChain') { return 'TLS_PARTIAL_CHAIN' }
+    if ($ChainErrors -contains 'NotTimeValid') { return 'OBJECT_EXPIRED' }
+    if (@($ChainErrors).Count -gt 0) { return 'CHAIN_INVALID' }
+    if (-not $NameMatch) { return 'TLS_NAME_MISMATCH' }
+    return 'OK'
+}
+
 function Test-MspkiTlsEndpoint {
     <#
     .SYNOPSIS
@@ -339,12 +355,8 @@ function Test-MspkiTlsEndpoint {
                 $r.NotAfter = $state.Cert.NotAfter.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
                 $r.DnsNames = @(Get-MspkiCertificateDnsName -Certificate $state.Cert)
             }
-            if ($r.ChainErrors -contains 'UntrustedRoot') { $r.Code = 'TLS_UNTRUSTED_ROOT' }
-            elseif ($r.ChainErrors -contains 'PartialChain') { $r.Code = 'TLS_PARTIAL_CHAIN' }
-            elseif ($r.ChainErrors -contains 'NotTimeValid') { $r.Code = 'OBJECT_EXPIRED' }
-            elseif ($r.ChainErrors.Count -gt 0) { $r.Code = 'TLS_HANDSHAKE_FAIL' }
-            elseif (-not $r.NameMatch) { $r.Code = 'TLS_NAME_MISMATCH' }
-            else { $r.Code = 'OK'; $r.Status = 'Pass' }
+            $r.Code = Get-MspkiTlsChainCode -ChainErrors @($r.ChainErrors) -NameMatch ([bool]$r.NameMatch)
+            if ($r.Code -eq 'OK') { $r.Status = 'Pass' }
         }
         catch {
             if ($_.Exception -is [System.OperationCanceledException]) { throw }

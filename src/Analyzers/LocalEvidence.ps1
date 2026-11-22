@@ -202,7 +202,7 @@ function Invoke-MspkiLocalEvidenceAnalysis {
         $fail = @($all | Where-Object { $_.Level -in @('Error', 'Warning') -and $_.EventId -ne 64 })
         foreach ($g in @($fail | Group-Object Provider, EventId)) {
             $last = @($g.Group | Sort-Object Time -Descending)[0]
-            [void]$out.Add((& $mk @{ Target = ('{0} event {1}' -f $last.Provider, $last.EventId); Status = 'Warning'; StatusCode = 'RETRIEVAL_FAIL'; Severity = 'Low'; Confidence = 'Confirmed'; Sources = @('Local:EventLog:Application')
+            [void]$out.Add((& $mk @{ Target = ('{0} event {1}' -f $last.Provider, $last.EventId); Status = 'Warning'; StatusCode = 'ENROLLMENT_FAIL'; Severity = 'Low'; Confidence = 'Confirmed'; Sources = @('Local:EventLog:Application')
                 Message = ('Certificate enrollment on this computer reported a problem {0} time(s), last at {1}: {2}' -f $g.Count, $last.Time, $last.Message)
                 Evidence = @(@(('Provider {0}, event {1}, level {2}' -f $last.Provider, $last.EventId, $last.Level)) + @($last.Data.Keys | ForEach-Object { '{0} = {1}' -f $_, $last.Data[$_] }))
                 Notes = 'Read from the Application log of this computer. The event text names the template and the CA when Windows knows them.' }))

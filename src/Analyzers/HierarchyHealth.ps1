@@ -146,7 +146,7 @@ function Test-MspkiRetrievalOrder {
         # Only URLs that really failed count as "failing"; an untested one before it makes the finding a review item, not a fact.
         $more = ''
         if ($untestedBefore -gt 0) { $p.Confidence = 'Referenced'; $more = ' {0} more URL(s) before it were not tested from here.' -f $untestedBefore }
-        $p += @{ Status = 'Warning'; StatusCode = 'RETRIEVAL_FAIL'; Severity = 'Low'
+        $p += @{ Status = 'Warning'; StatusCode = 'RETRIEVAL_ORDER'; Severity = 'Low'
             Message = ('Windows clients try {0} failing {1} URL(s) before the one that works ({2}) for the {3} of {4}: each failing URL costs a time-out on every client without a cached copy.{5}' -f $failedBefore, $Kind, $list[$first], $what, $IssuerName, $more)
             Remediation = 'Fix or remove the failing URL(s), or move a working HTTP URL to the first place, in the CA''s Extensions tab (affects newly issued certificates).' }
     }
@@ -159,7 +159,7 @@ function Test-MspkiRetrievalOrder {
         if ($untested -gt 0) { $p.Confidence = 'Referenced' }
         if ($untested -gt 0) { $msg = '{0} of the {1} {2} URLs of {3} could be tested from here, and none of them returned the {4}.' -f $tested, $list.Count, $Kind, $IssuerName, $what }
         else { $msg = 'None of the {0} {1} URLs of {2} returned the {3} from here.' -f $list.Count, $Kind, $IssuerName, $what }
-        $p += @{ Status = 'Fail'; StatusCode = 'RETRIEVAL_FAIL'; Severity = $(if ($Kind -eq 'CDP') { 'High' } else { 'Medium' })
+        $p += @{ Status = 'Fail'; StatusCode = 'RETRIEVAL_ORDER'; Severity = $(if ($Kind -eq 'CDP') { 'High' } else { 'Medium' })
             Message = $msg
             Notes = $(if ($Kind -eq 'CDP') { 'Without a CRL, clients that check revocation reject certificates issued by this CA (or wait and then fail).' } else { 'Without the issuing CA certificate, clients that do not already have it cannot build the chain.' }) }
     }

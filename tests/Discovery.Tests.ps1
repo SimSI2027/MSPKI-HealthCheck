@@ -279,7 +279,7 @@ Describe 'Invoke-MspkiDiscovery' {
         $p.Remediation | Should -Match 'Certificate Service DCOM Access'
     }
 
-    It 'reports a slow RPC failure on the CA (dynamic port not answering) as RETRIEVAL_FAIL, not PERMISSION_DENIED' {
+    It 'reports a slow RPC failure on the CA (dynamic port not answering) as RPC_FAIL, not PERMISSION_DENIED' {
         & $script:mockAd
         Mock -ModuleName MspkiHealthCheck Invoke-MspkiTimeLimitedScript {
             [pscustomobject]@{ Completed = $true; TimedOut = $false; ElapsedMs = 21000; Errors = @()
@@ -288,7 +288,7 @@ Describe 'Invoke-MspkiDiscovery' {
         }
         $d = & $script:discover
         $p = $d.Findings | Where-Object { $_.Category -eq 'CA' -and $_.Endpoint -like '*\Example Issuing CA' -and $_.Message -notlike 'Enterprise CA*' }
-        $p.StatusCode | Should -Be 'RETRIEVAL_FAIL'
+        $p.StatusCode | Should -Be 'RPC_FAIL'
         $p.Status | Should -Be 'Fail'
         $p.Notes | Should -Match 'firewall'
     }
