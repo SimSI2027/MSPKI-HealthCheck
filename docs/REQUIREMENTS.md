@@ -194,7 +194,7 @@ Rules:
     published template that accepts enrollment-agent signatures (every schema version 1 template; version 2+ with
     `msPKI-RA-Signature` >= 1 and the Certificate Request Agent policy), is client-auth capable, needs no approval and lets
     the agent's principals enroll (same broad group, Everyone or Authenticated Users).
-  - **ESC4**: broad groups with write/owner/full-control rights on a template object.
+  - **ESC4**: broad groups with write-DACL, write-owner, generic-write, full-control or write-all-properties rights on a template object, or a write to one of the attributes that decide what a certificate may be used for (name flags, enrollment flags, EKU and application policies, issuance and RA policies, RA signatures, private key flags, minimal key size). A write to any other single attribute is not counted (audit 2 M11).
   - **ESC9**: `CT_FLAG_NO_SECURITY_EXTENSION` + client-auth EKU + broad enroll. Severity `ReviewRequired`, because DC
     certificate-binding enforcement can't be confirmed from here.
   - **ESC13**: an issuance policy linked to a group by `msDS-OIDToGroupLink` + a template carrying that policy + broad enroll.

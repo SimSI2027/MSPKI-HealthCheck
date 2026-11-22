@@ -219,7 +219,6 @@ Describe 'Pattern ESC4: broad group controls the template object' {
     It 'fires for write, write-DACL, write-owner, generic-all and an owner that is a broad group' {
         foreach ($case in @(
             @{ Acl = @((& $script:ace $script:du 0x20)); What = 'WriteProperty' }
-            @{ Acl = @((& $script:ace $script:du 0x20 'bf967a0a-0de6-11d0-a285-00aa003049e2')); What = 'WriteProperty on one property of the template' }
             @{ Acl = @((& $script:ace $script:du 0x40130 $script:enrollGuid)); What = 'WriteDacl in the same ACE as the Enroll right' }
             @{ Acl = @((& $script:ace $script:du 0x40000)); What = 'WriteDacl' }
             @{ Acl = @((& $script:ace 'S-1-5-11' 0x80000)); What = 'WriteOwner' }
@@ -247,6 +246,37 @@ Describe 'Pattern ESC4: broad group controls the template object' {
     ) {
         $f = & $script:run (& $script:inv @((& $script:tpl 'T' @{ Acl = $Acl })))
         @(& $script:hits $f 'ESC4').Count | Should -Be 0
+    }
+}
+
+Describe 'Audit 2 M11: a property write counts for ESC4 only when it can change what a certificate may be used for' {
+    It 'fires for a write to the sensitive attribute <Name>' -ForEach @(
+        @{ Name = 'msPKI-Certificate-Name-Flag'; Guid = 'ea1dddc4-60ff-416e-8cc0-17cee534bce7' }
+        @{ Name = 'msPKI-Enrollment-Flag'; Guid = 'd15ef7d8-f226-46db-ae79-b34e560bd12c' }
+        @{ Name = 'msPKI-RA-Signature'; Guid = 'fe17e04b-937d-4f7e-8e0e-9292c8d5683e' }
+        @{ Name = 'msPKI-Private-Key-Flag'; Guid = 'bab04ac2-0435-4709-9307-28380e7c7001' }
+        @{ Name = 'pKIExtendedKeyUsage'; Guid = '18976af6-3b9e-11d2-90cc-00c04fd91ab1' }
+        @{ Name = 'msPKI-Certificate-Application-Policy'; Guid = 'dbd90548-aa37-4202-9966-8c537ba5ce32' }
+    ) {
+        $f = & $script:run (& $script:inv @((& $script:tpl 'T' @{ Acl = @((& $script:ace $script:du 0x20 $Guid)) })))
+        $h = @(& $script:hits $f 'ESC4')
+        $h.Count | Should -Be 1
+        ($h[0].Evidence -join "`n") | Should -Match 'write'
+    }
+    It 'fires for a write to all properties (no property named)' {
+        $f = & $script:run (& $script:inv @((& $script:tpl 'T' @{ Acl = @((& $script:ace $script:du 0x20)) })))
+        @(& $script:hits $f 'ESC4').Count | Should -Be 1
+    }
+    It 'does not fire for a write to one harmless attribute: <Why>' -ForEach @(
+        @{ Why = 'an attribute that does not decide what a certificate may be used for'; Guid = 'bf967a0a-0de6-11d0-a285-00aa003049e2' }
+        @{ Why = 'the display name'; Guid = 'bf967953-0de6-11d0-a285-00aa003049e2' }
+    ) {
+        $f = & $script:run (& $script:inv @((& $script:tpl 'T' @{ Acl = @((& $script:ace $script:du 0x20 $Guid)) })))
+        @(& $script:hits $f 'ESC4').Count | Should -Be 0
+    }
+    It 'still counts a write-DACL or write-owner ACE that names an object type' {
+        $f = & $script:run (& $script:inv @((& $script:tpl 'T' @{ Acl = @((& $script:ace $script:du 0x40000 'bf967a0a-0de6-11d0-a285-00aa003049e2')) })))
+        @(& $script:hits $f 'ESC4').Count | Should -Be 1
     }
 }
 
@@ -519,5 +549,15 @@ Describe 'Audit 2 M11: a permission-based template finding is never Confirmed wh
         $h = @(& $script:hits $f 'ESC1')
         $h[0].Confidence | Should -Be 'Referenced'
         $h[0].Severity | Should -Be 'High'
+    }
+}
+
+Describe 'Audit 2 M11: the sensitive attribute list in the code is the one the tests use' {
+    It 'has the same attributes and schema IDs' {
+        $code = InModuleScope MspkiHealthCheck { $script:MspkiTemplateSensitiveAttribute.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value } | Sort-Object }
+        $code.Count | Should -Be 10
+        $code | Should -Contain 'msPKI-Certificate-Name-Flag=ea1dddc4-60ff-416e-8cc0-17cee534bce7'
+        $code | Should -Contain 'pKIExtendedKeyUsage=18976af6-3b9e-11d2-90cc-00c04fd91ab1'
+        $code | Should -Contain 'msPKI-Enrollment-Flag=d15ef7d8-f226-46db-ae79-b34e560bd12c'
     }
 }

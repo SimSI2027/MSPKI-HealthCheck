@@ -29,11 +29,30 @@ function Get-MspkiEkuLabel {
     return $Oid
 }
 
+# Schema IDs of the template attributes whose value decides what a certificate may be used for (name flags, enrollment flags, extended key
+# usage and application policies, issuance and RA policies, RA signatures, private key flags, minimal key size). They are defined by
+# Microsoft and are the same in every forest. A write to any other single attribute of a template is not a way to change what a
+# certificate may be used for, so it does not count for ESC4 (audit 2 M11).
+$script:MspkiTemplateSensitiveAttribute = [ordered]@{
+    'msPKI-Certificate-Name-Flag'          = 'ea1dddc4-60ff-416e-8cc0-17cee534bce7'
+    'msPKI-Enrollment-Flag'                = 'd15ef7d8-f226-46db-ae79-b34e560bd12c'
+    'msPKI-RA-Signature'                   = 'fe17e04b-937d-4f7e-8e0e-9292c8d5683e'
+    'msPKI-Private-Key-Flag'               = 'bab04ac2-0435-4709-9307-28380e7c7001'
+    'pKIExtendedKeyUsage'                  = '18976af6-3b9e-11d2-90cc-00c04fd91ab1'
+    'msPKI-Certificate-Application-Policy' = 'dbd90548-aa37-4202-9966-8c537ba5ce32'
+    'msPKI-RA-Application-Policies'        = '3c91fbbf-4773-4ccd-a87b-85d53e7bcf6a'
+    'msPKI-RA-Policies'                    = 'd546ae22-0951-4d47-817e-1c9f96faad46'
+    'msPKI-Certificate-Policy'             = '38942346-cc5b-424b-a7d8-6ffd12029c5f'
+    'msPKI-Minimal-Key-Size'               = 'e96a63f5-417f-46d3-be52-db7703c503df'
+}
+
 function Test-MspkiAceGrant {
     <#
     .SYNOPSIS
     True when an ACE (from ConvertFrom-MspkiSecurityDescriptor) grants the Enroll right or a write-type right on
-    the template object itself. Deny ACEs and inherit-only ACEs never count as a grant.
+    the template object itself. Deny ACEs and inherit-only ACEs never count as a grant. A write-type right is write-DACL, write-owner,
+    generic write, a write to all properties, or a write to one of the attributes in $script:MspkiTemplateSensitiveAttribute; a write
+    to any other single attribute is not one.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Ace, [Parameter(Mandatory = $true)][ValidateSet('Enroll', 'Write')][string]$Right)
@@ -45,13 +64,19 @@ function Test-MspkiAceGrant {
         if (($m -band $script:MspkiAdRightBit.ExtendedRight) -eq 0) { return $false }
         return ($Ace.ObjectType -eq '' -or $Ace.ObjectType -eq $script:MspkiEnrollRightGuid)
     }
-    $writeBits = $script:MspkiAdRightBit.GenericWrite -bor $script:MspkiAdRightBit.WriteOwner -bor $script:MspkiAdRightBit.WriteDacl -bor $script:MspkiAdRightBit.WriteProperty
+    # Rights that apply to the whole object, whatever object type the ACE names.
+    $writeBits = $script:MspkiAdRightBit.GenericWrite -bor $script:MspkiAdRightBit.WriteOwner -bor $script:MspkiAdRightBit.WriteDacl
     # The Enroll and Autoenroll ACEs are written by the template console with the mask 0x130 (read, write, control access) and the
     # extended-right GUID as object type. Their write bit does not apply to a property of the template: it is not a write right.
-    if ($Ace.ObjectType -eq $script:MspkiEnrollRightGuid -or $Ace.ObjectType -eq $script:MspkiAutoEnrollRightGuid) {
-        $writeBits = $writeBits -band (-bnot ($script:MspkiAdRightBit.GenericWrite -bor $script:MspkiAdRightBit.WriteProperty))
+    $ot = ([string]$Ace.ObjectType).ToLowerInvariant()
+    $isEnrollAce = ($ot -eq $script:MspkiEnrollRightGuid -or $ot -eq $script:MspkiAutoEnrollRightGuid)
+    if ($isEnrollAce) { $writeBits = $writeBits -band (-bnot $script:MspkiAdRightBit.GenericWrite) }
+    if (($m -band $writeBits) -ne 0) { return $true }
+    # A write to properties: all of them (no object type), or one that can change what a certificate may be used for.
+    if (($m -band $script:MspkiAdRightBit.WriteProperty) -ne 0 -and -not $isEnrollAce) {
+        return ($ot -eq '' -or @($script:MspkiTemplateSensitiveAttribute.Values) -contains $ot)
     }
-    return (($m -band $writeBits) -ne 0)
+    return $false
 }
 
 function Test-MspkiSidContains {
