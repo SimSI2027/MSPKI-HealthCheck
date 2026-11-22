@@ -112,7 +112,7 @@ function Invoke-MspkiHttpGet {
 
     .OUTPUTS
     { Url, FinalUrl, HttpStatus (int, 0 when no response), Code (OK / HTTP_400 / HTTP_401_403 / HTTP_404 / HTTP_500 /
-      HTTP_OTHER (any other status) / HTTP_REDIRECT / CONTENT_WRONG_TYPE (response too large) / TIMEOUT / RETRIEVAL_FAIL /
+      HTTP_OTHER (any other status) / HTTP_REDIRECT / SIZE_LIMIT (response larger than MaxBytes, not read) / TIMEOUT / RETRIEVAL_FAIL /
       TLS_* / OBJECT_EXPIRED (the TLS problem found by a separate handshake) / DNS_FAIL / TCP_FAIL), Redirected, Hops,
       ContentType, Bytes, Error, ElapsedMs, ProxyMode }
     #>
@@ -127,6 +127,7 @@ function Invoke-MspkiHttpGet {
     $opt = Get-MspkiWebProbeOption
     $key = 'http|{0}|{1}' -f [int]$opt.UseSystemProxy, $Url
     if ($DiscardBody) { $key += '|nobody' }
+    if ($MaxBytes -ne 10485760) { $key += ('|max{0}' -f $MaxBytes) }
     $cached = Get-MspkiProbeCacheEntry -Key $key
     if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
     Assert-MspkiNotCancelled
@@ -221,7 +222,7 @@ function Invoke-MspkiHttpGet {
                 if ($DiscardBody) { $r.Code = 'OK' }   # the body is never read (used for pages that must not be read)
                 else {
                     $body = Read-MspkiResponseBody -Response $resp -MaxBytes $MaxBytes
-                    if ($body.TooLarge) { $r.Code = 'CONTENT_WRONG_TYPE'; $r.Error = ('Response larger than {0} bytes; not read.' -f $MaxBytes) }
+                    if ($body.TooLarge) { $r.Code = 'SIZE_LIMIT'; $r.Error = ('Response larger than {0} bytes; not read.' -f $MaxBytes) }
                     else { $r.Bytes = $body.Bytes; $r.Code = 'OK' }
                 }
             }

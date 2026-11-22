@@ -46,7 +46,7 @@ function ConvertFrom-MspkiCrl {
     $nextUpdate = $null
     if ($i -lt $kids.Count -and ($kids[$i].Tag -eq 0x17 -or $kids[$i].Tag -eq 0x18)) { $nextUpdate = ConvertFrom-MspkiDerTime -Bytes $b -Element $kids[$i]; $i++ }
     $revoked = 0
-    if ($i -lt $kids.Count -and $kids[$i].Tag -eq 0x30) { $revoked = (Get-MspkiDerChild -Bytes $b -Element $kids[$i]).Count; $i++ }
+    if ($i -lt $kids.Count -and $kids[$i].Tag -eq 0x30) { $revoked = Measure-MspkiDerChild -Bytes $b -Element $kids[$i]; $i++ }
 
     $crlNumber = ''; $isDelta = $false; $baseNumber = ''; $freshest = @(); $caVersion = ''; $nextPublish = $null; $hasIdp = $false; $aki = ''
     if ($i -lt $kids.Count -and $kids[$i].Tag -eq 0xA0) {

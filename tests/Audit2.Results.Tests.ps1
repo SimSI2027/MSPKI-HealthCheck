@@ -153,3 +153,63 @@ Describe 'Audit 2 M5: a redirect that is not followed is an answer (status and L
         ($f[0].Evidence -join "`n") | Should -Not -Match 'no answer'
     }
 }
+
+Describe 'Audit 2 M3: a valid CRL larger than the general download cap is not a failure' {
+    BeforeAll {
+        $script:routes3 = [hashtable]::Synchronized(@{})
+        $script:server3 = Start-TestHttpServer -Routes $script:routes3
+        $script:b3 = $script:server3.Base
+        # Bigger than the 1 KiB cap used below; the first byte is a DER SEQUENCE tag, as for a real CRL.
+        $big = New-Object byte[] 5000; $big[0] = 0x30
+        $script:routes3['/big.crl'] = @{ Status = 200; Body = $big }
+        $script:crlProbe = {
+            param([long]$Cap)
+            InModuleScope MspkiHealthCheck -Parameters @{ U = ($script:b3 + '/big.crl'); Cap = $Cap } {
+                param($U, $Cap)
+                [void](Initialize-MspkiRun); Reset-MspkiLeadRegistry; Reset-MspkiProbeCache; Set-MspkiWebProbeOption
+                $old = $script:MspkiCrlMaxBytes
+                if ($Cap -gt 0) { $script:MspkiCrlMaxBytes = [int]$Cap }
+                try {
+                    $lead = Add-MspkiLead -Url $U -Kind CDP -Source 'AD:test' -Origin 'test'
+                    Test-MspkiLeadEndpoint -Lead $lead -Url $lead.Url
+                }
+                finally { $script:MspkiCrlMaxBytes = $old }
+            }
+        }
+    }
+    AfterAll { Stop-TestHttpServer -Server $script:server3 }
+
+    It 'allows a CRL of at least 32 MB for CDP downloads (the general cap is 10 MB)' {
+        $cap = InModuleScope MspkiHealthCheck { $script:MspkiCrlMaxBytes }
+        $cap | Should -BeGreaterOrEqual 33554432
+    }
+    It 'reports a CRL above the CRL cap as its own result: Information, SIZE_LIMIT, never Fail or CONTENT_WRONG_TYPE' {
+        $r = & $script:crlProbe 1024
+        $f = @($r.Findings)[0]
+        $f.StatusCode | Should -Be 'SIZE_LIMIT'
+        $f.Status | Should -Be 'Information'
+        $f.Message | Should -Match 'larger than'
+        $f.Message | Should -Match 'not (read|checked)'
+        $f.HttpStatus | Should -Be 'Pass'
+        @($r.Findings | Where-Object { $_.Status -eq 'Fail' }).Count | Should -Be 0
+    }
+    It 'does not turn that result into exit code 4' {
+        $r = & $script:crlProbe 1024
+        $code = InModuleScope MspkiHealthCheck -Parameters @{ F = @($r.Findings) } { param($F) Get-MspkiExitCode -Findings $F }
+        $code | Should -Not -Be 4
+    }
+    It 'counts revoked entries without building an object per entry' {
+        InModuleScope MspkiHealthCheck {
+            $one = [byte[]](0x02, 0x01, 0x05)
+            $list = New-Object System.Collections.Generic.List[byte]
+            for ($i = 0; $i -lt 3000; $i++) { $list.AddRange($one) }
+            $content = $list.ToArray()
+            $hdr = [byte[]](0x30, 0x82, [byte](($content.Length -shr 8) -band 0xFF), [byte]($content.Length -band 0xFF))
+            $seq = [byte[]]($hdr + $content)
+            $el = Read-MspkiDerElement -Bytes $seq -Offset 0
+            Measure-MspkiDerChild -Bytes $seq -Element $el | Should -Be 3000
+            (Get-MspkiDerChild -Bytes $seq -Element $el).Count | Should -Be 3000
+            { Measure-MspkiDerChild -Bytes ([byte[]]($hdr + $content[0..($content.Length - 2)])) -Element ([pscustomobject]@{ ContentOffset = 4; End = ($seq.Length - 1) }) } | Should -Throw
+        }
+    }
+}

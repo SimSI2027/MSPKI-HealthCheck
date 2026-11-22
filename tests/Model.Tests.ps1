@@ -59,8 +59,8 @@ Describe 'New-MspkiFinding' {
     It 'keeps the status code list from REQUIREMENTS separate (no merged codes)' {
         InModuleScope MspkiHealthCheck {
             $codes = (Get-MspkiSchema).StatusCode
-            $codes.Count | Should -Be 35
-            foreach ($c in @('CONFIG_RISK', 'DNS_FAIL', 'TCP_FAIL', 'TIMEOUT', 'HTTP_REDIRECT', 'HTTP_401_403', 'TLS_NAME_MISMATCH',
+            $codes.Count | Should -Be 36
+            foreach ($c in @('CONFIG_RISK', 'SIZE_LIMIT', 'DNS_FAIL', 'TCP_FAIL', 'TIMEOUT', 'HTTP_REDIRECT', 'HTTP_401_403', 'TLS_NAME_MISMATCH',
                     'TLS_UNTRUSTED_ROOT', 'PERMISSION_DENIED', 'NOT_CONFIGURED', 'NOT_DISCOVERED', 'NOT_APPLICABLE', 'UNSUPPORTED',
                     'INTERNAL_ERROR', 'HTTP_OTHER', 'CLOCK_SKEW', 'CONFIG_MISMATCH', 'STALE_REFERENCE')) {
                 $codes | Should -Contain $c

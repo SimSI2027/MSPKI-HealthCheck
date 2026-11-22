@@ -218,7 +218,7 @@ Describe 'HTTP probes against a loopback test server' {
             (Invoke-MspkiHttpGet -Url "$B/denied.crl").Code | Should -Be 'HTTP_401_403'
             (Invoke-MspkiHttpGet -Url "$B/broken.crl").Code | Should -Be 'HTTP_500'
             $big = Invoke-MspkiHttpGet -Url "$B/big.crl" -MaxBytes 1024
-            $big.Code | Should -Be 'CONTENT_WRONG_TYPE'
+            $big.Code | Should -Be 'SIZE_LIMIT'
             $big.Bytes | Should -BeNullOrEmpty
             (Invoke-MspkiHttpGet -Url "$B/root.crl").FromCache | Should -BeTrue
         }

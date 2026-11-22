@@ -4,6 +4,9 @@
 
 $script:MspkiLeadCategory = @{ AIA = 'AIA'; CDP = 'CDP'; FreshestCRL = 'CDP'; OCSP = 'OCSP' }
 $script:MspkiLeadRole = @{ AIA = 'AIAEndpoint'; CDP = 'CDPEndpoint'; FreshestCRL = 'CDPEndpoint'; OCSP = 'OCSPEndpoint' }
+# A base CRL of a large PKI is 10-50 MB, so CRL downloads have their own, larger cap than the 10 MB general one (audit 2 M3). A CRL
+# above this cap is not read: it is reported with its own code (SIZE_LIMIT), never as a failure.
+$script:MspkiCrlMaxBytes = 67108864
 
 function New-MspkiEndpointFinding {
     [CmdletBinding()]
@@ -226,7 +229,8 @@ function Test-MspkiLeadEndpoint {
                 return $out
             }
         }
-        $http = Invoke-MspkiHttpGet -Url $Url -TimeoutMs $ms
+        if ($Lead.Kind -in @('CDP', 'FreshestCRL')) { $http = Invoke-MspkiHttpGet -Url $Url -TimeoutMs $ms -MaxBytes $script:MspkiCrlMaxBytes }
+        else { $http = Invoke-MspkiHttpGet -Url $Url -TimeoutMs $ms }
         [void]$ev.Add(('HTTP proxy: {0}' -f $http.ProxyMode))
         foreach ($h in $http.Hops) { [void]$ev.Add(('HTTP hop: {0} -> {1} {2} {3}' -f $h.Url, $h.HttpStatus, $h.Location, $h.Error).Trim()) }
         $notFollowed = ''
@@ -249,6 +253,15 @@ function Test-MspkiLeadEndpoint {
                 -Notes 'Recorded separately from the download result. Check that every client that fetches this URL follows redirects.'))
         }
         else { $layers['RedirectStatus'] = 'Pass' }
+        if ($http.Code -eq 'SIZE_LIMIT') {
+            # The object is larger than the cap, so it was not read. That is a limit of this tool, not a failed download: the server answered
+            # and a CRL of this size is normal for a large PKI. Its freshness and signature were not checked.
+            $layers['HttpStatus'] = 'Pass'; $layers['ContentStatus'] = 'Skipped'
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Information' -Code 'SIZE_LIMIT' -Layers $layers -Evidence @($ev) -Confidence 'Confirmed' `
+                -Message ('The {0} at {1} is larger than the {2} MB limit of this tool, so it was not read: its freshness, issuer and signature were not checked.' -f $what, $Url, [int]($script:MspkiCrlMaxBytes / 1MB)) `
+                -Notes 'The server answered with HTTP 200. A large base CRL is normal for a PKI with many revoked certificates.'))
+            return $out
+        }
         if ($http.Code -ne 'OK') {
             $layers['HttpStatus'] = 'Fail'
             $notes = ''

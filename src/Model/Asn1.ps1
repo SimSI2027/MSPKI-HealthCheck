@@ -58,6 +58,41 @@ function Get-MspkiDerChild {
     return , $list.ToArray()
 }
 
+function Measure-MspkiDerChild {
+    <#
+    .SYNOPSIS
+    Counts the direct children of a constructed DER element without building an object per child (a CRL can have hundreds of thousands
+    of revoked entries). Validates the lengths like Read-MspkiDerElement and throws on malformed data.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)]$Element
+    )
+    $pos = [int]$Element.ContentOffset
+    $end = [int]$Element.End
+    $count = 0
+    while ($pos -lt $end) {
+        if ($pos + 2 -gt $end) { throw 'DER: truncated header.' }
+        if (([int]$Bytes[$pos] -band 0x1F) -eq 0x1F) { throw 'DER: multi-byte tags are not supported.' }
+        $first = [int]$Bytes[$pos + 1]
+        $p = $pos + 2
+        if ($first -lt 0x80) { $len = [int64]$first }
+        else {
+            $n = $first -band 0x7F
+            if ($n -lt 1 -or $n -gt 4) { throw 'DER: unsupported length encoding.' }
+            if ($p + $n -gt $end) { throw 'DER: truncated length.' }
+            [int64]$len = 0
+            for ($i = 0; $i -lt $n; $i++) { $len = ($len * 256) + $Bytes[$p + $i] }
+            $p += $n
+        }
+        if ($p + $len -gt $end) { throw 'DER: element extends past the end of the data.' }
+        $pos = [int]($p + $len)
+        $count++
+    }
+    return $count
+}
+
 function Get-MspkiDerBytes {
     <#
     .SYNOPSIS

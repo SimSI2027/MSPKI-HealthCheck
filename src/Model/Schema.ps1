@@ -24,7 +24,7 @@ $script:MspkiSchema = @{
                     'Domain', 'Site', 'Trust', 'ADContainer', 'Template', 'Computer', 'Run', 'Unknown')
     StatusCode  = @('DNS_FAIL', 'TCP_FAIL', 'TIMEOUT', 'HTTP_REDIRECT', 'HTTP_400', 'HTTP_401_403', 'HTTP_404',
                     'HTTP_500', 'TLS_HANDSHAKE_FAIL', 'TLS_UNTRUSTED_ROOT', 'TLS_PARTIAL_CHAIN', 'TLS_NAME_MISMATCH',
-                    'CONTENT_WRONG_TYPE', 'SIGNATURE_INVALID', 'OBJECT_EXPIRED', 'OBJECT_EXPIRING', 'STALE_DATA',
+                    'CONTENT_WRONG_TYPE', 'SIZE_LIMIT', 'SIGNATURE_INVALID', 'OBJECT_EXPIRED', 'OBJECT_EXPIRING', 'STALE_DATA',
                     'PUBLICATION_FAIL', 'RETRIEVAL_FAIL', 'EXPECTED_OFFLINE', 'PERMISSION_DENIED', 'NOT_CONFIGURED',
                     'NOT_DISCOVERED', 'NOT_APPLICABLE', 'UNSUPPORTED', 'OK',
                     'CHAIN_UNTRUSTED_ROOT', 'CHAIN_PARTIAL', 'CHAIN_INVALID', 'CONFIG_RISK',

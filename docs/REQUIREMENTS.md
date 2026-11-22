@@ -51,8 +51,9 @@ Added after the audit (docs/AUDIT.md M10) so that different failures are not rep
 `CLOCK_SKEW` (an object dated in the future, for example a CRL whose thisUpdate is ahead of this computer's clock),
 `CONFIG_MISMATCH` (AD and the CA disagree: template lists, Enrollment Services certificates) and
 `STALE_REFERENCE` (a stale-reference candidate, review only). `STALE_DATA` is now only "an older CRL number" and
-`RETRIEVAL_FAIL` only "the server could not be reached or the answer could not be retrieved". An HTTP response that is too large and an HTTP
-200 that is not a SCEP capability list are `CONTENT_WRONG_TYPE`. A TLS trust failure of an HTTP request is named by a separate handshake to
+`RETRIEVAL_FAIL` only "the server could not be reached or the answer could not be retrieved". An HTTP 200 that is not a SCEP capability list is `CONTENT_WRONG_TYPE`. An HTTP response larger than the size limit of the
+request (10 MB in general, 64 MB for CRL downloads) is `SIZE_LIMIT`: it was not read, and for a CRL it is an Information result, never a
+failure or exit code 4 (audit 2 M3). A TLS trust failure of an HTTP request is named by a separate handshake to
 the host of the failing hop (`TLS_UNTRUSTED_ROOT`, `TLS_NAME_MISMATCH`, `TLS_PARTIAL_CHAIN`, `OBJECT_EXPIRED` or `TLS_HANDSHAKE_FAIL`). A signature that
 could not be checked (unsupported algorithm, or a .NET Framework without the APIs) is `UNSUPPORTED`, never `SIGNATURE_INVALID`.
 

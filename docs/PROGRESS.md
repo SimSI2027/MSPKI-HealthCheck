@@ -369,3 +369,11 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Identity with a known CA certificate counts as proof of the key only when no referencing certificate is known; with a
   referencing certificate its signature must verify (KeyMismatch otherwise). Red then green: "Audit 2 M1" in tests/Audit2.Results.Tests.ps1.
 - Next in Batch B: M2 (CES/CEP 401/403/3xx), M7 (GUI Inferred), M4, M5, M3, M6, M8, M12, M13, M14, fixture rename, Lows.
+
+## Audit 2 Batch B, M2, M7, M4, M5, M3 (2026-11-22): DONE (951 tests)
+- M2: CES/CEP 401/403 is AuthRequired and a 3xx is Redirected (Information, Referenced), never Confirmed. M7: the services page says
+  "Something answers (not confirmed)" for Inferred services; "N found" counts only Confirmed ones. M4: retrieval order compares
+  normalised URLs per scheme from per-URL outcomes (Usable/Failed/NotTested). M5: a redirect that is not followed keeps its
+  status and Location. M3: CRLs up to 64 MB are read; larger ones are Information / SIZE_LIMIT, not Fail.
+- Red then green for each (tests/Audit2.Results.Tests.ps1, EnrollmentServices, GuiEntity). Fix log in docs/AUDIT-2.md.
+- Next: M6 (GUI crash safety), M8 (status codes), M12, M13, M14, fixture rename, then the Lows. Lab run after M8/M12.
