@@ -135,7 +135,12 @@ function Invoke-MspkiHttpGet {
         Url = $Url; FinalUrl = $Url; HttpStatus = 0; Code = 'RETRIEVAL_FAIL'; Redirected = $false
         Hops = (New-Object System.Collections.ArrayList); ContentType = ''; Bytes = $null; Error = ''; ElapsedMs = 0; FromCache = $false
         ProxyMode = $opt.ProxyMode; Server = ''; AuthSchemes = @()
+        # A redirect target on a host that no trusted evidence named: recorded here, never contacted (audit 2 M9).
+        RedirectNotFollowed = ''
     }
+    $requestHost = ''
+    $ru = $null
+    if ([System.Uri]::TryCreate($Url, [System.UriKind]::Absolute, [ref]$ru)) { $requestHost = ConvertTo-MspkiHostName $ru.Host }
     $sysProxy = $null
     if ($opt.UseSystemProxy) { $sysProxy = [System.Net.WebRequest]::GetSystemWebProxy() }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -166,7 +171,7 @@ function Invoke-MspkiHttpGet {
                         'Timeout' { $r.Code = 'TIMEOUT' }
                         'NameResolutionFailure' { $r.Code = 'DNS_FAIL' }
                         'ConnectFailure' { $r.Code = 'TCP_FAIL' }
-                        'TrustFailure' { $r.Code = Get-MspkiTrustFailureCode -Url $current -TimeoutMs $TimeoutMs }
+                        'TrustFailure' { $r.Code = Get-MspkiTrustFailureCode -Url $current -RequestHost $requestHost -TimeoutMs $TimeoutMs }
                         'SecureChannelFailure' { $r.Code = 'TLS_HANDSHAKE_FAIL' }
                         default { $r.Code = 'RETRIEVAL_FAIL' }
                     }
@@ -184,7 +189,19 @@ function Invoke-MspkiHttpGet {
             [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = $sc; Location = $loc; Error = ''; Server = $r.Server })
             if ($sc -ge 300 -and $sc -lt 400 -and $loc) {
                 $r.Redirected = $true
-                $current = (New-Object System.Uri((New-Object System.Uri($current)), $loc)).AbsoluteUri
+                $next = New-Object System.Uri((New-Object System.Uri($current)), $loc)
+                # Bounded discovery (rule 4): a hop goes only to the host this request named, or to a host that trusted evidence
+                # already named (Test-MspkiTrustedLeadHost). Any other target is recorded and never contacted.
+                $nextHost = ConvertTo-MspkiHostName $next.Host
+                if ($nextHost -ne $requestHost -and -not (Test-MspkiTrustedLeadHost -HostName $nextHost)) {
+                    $r.Code = 'HTTP_REDIRECT'
+                    $r.HttpStatus = $sc
+                    $r.FinalUrl = $current
+                    $r.RedirectNotFollowed = $next.AbsoluteUri
+                    $r.Error = ('Redirect to {0} not followed: no authoritative source or verified object named host {1}.' -f $next.AbsoluteUri, $nextHost)
+                    break
+                }
+                $current = $next.AbsoluteUri
                 if ($hop -eq $MaxRedirects) { $r.Code = 'HTTP_REDIRECT'; $r.Error = ('More than {0} redirects.' -f $MaxRedirects) }
                 continue
             }
@@ -222,9 +239,19 @@ function Get-MspkiTrustFailureCode {
     the failing hop (cached) tells them apart. When that handshake finds nothing wrong, the code is TLS_HANDSHAKE_FAIL.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string]$Url, [ValidateRange(100, 600000)][int]$TimeoutMs = 5000)
+    param(
+        [Parameter(Mandatory = $true)][string]$Url,
+        # The host the original request named. A handshake goes only to that host or to a host trusted evidence named (audit 2 M9).
+        [AllowEmptyString()][string]$RequestHost = '',
+        [ValidateRange(100, 600000)][int]$TimeoutMs = 5000
+    )
     $u = $null
     if (-not [System.Uri]::TryCreate($Url, [System.UriKind]::Absolute, [ref]$u)) { return 'TLS_HANDSHAKE_FAIL' }
+    $h = ConvertTo-MspkiHostName $u.Host
+    if ($h -ne (ConvertTo-MspkiHostName $RequestHost) -and -not (Test-MspkiTrustedLeadHost -HostName $h)) {
+        Write-MspkiLog -Message ('TLS {0}: no separate handshake, the host was not named by trusted evidence.' -f $h)
+        return 'TLS_HANDSHAKE_FAIL'
+    }
     $tls = Test-MspkiTlsEndpoint -HostName $u.Host -Port $u.Port -TimeoutMs $TimeoutMs
     if ($tls.Code -in @('TLS_UNTRUSTED_ROOT', 'TLS_PARTIAL_CHAIN', 'TLS_NAME_MISMATCH', 'OBJECT_EXPIRED')) { return $tls.Code }
     return 'TLS_HANDSHAKE_FAIL'

@@ -215,3 +215,77 @@ Describe 'Audit 2 M10: downloaded bytes never create a private key on disk' {
         $r.Certificate.HasPrivateKey | Should -BeFalse
     }
 }
+
+Describe 'Audit 2 M9: a redirect or a TLS handshake never goes to a host that no trusted evidence named' {
+    BeforeAll {
+        # Both names reach the same loopback server, so a request that goes to "localhost" shows in the log; "localhost" is the
+        # undiscovered host, 127.0.0.1 the host the lead named.
+        $script:routes = [hashtable]::Synchronized(@{})
+        $script:server = Start-TestHttpServer -Routes $script:routes
+        $p = $script:server.Port
+        $script:routes['/away.crl'] = @{ Status = 302; Body = @(); Headers = @{ Location = "http://localhost:$p/target.crl" } }
+        $script:routes['/near.crl'] = @{ Status = 302; Body = @(); Headers = @{ Location = '/target.crl' } }
+        $script:routes['/target.crl'] = @{ Status = 200; Body = (New-TestCrl -Issuer $script:root -Number 3) }
+    }
+    AfterAll { Stop-TestHttpServer -Server $script:server }
+    BeforeEach { $script:server.Log.Clear() }
+
+    It 'records a redirect to an undiscovered host and does not connect to it' {
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ B = $script:server.Base } { param($B)
+            [void](Initialize-MspkiRun); Reset-MspkiLeadRegistry
+            Invoke-MspkiHttpGet -Url "$B/away.crl" -TimeoutMs 5000 }
+        $r.Code | Should -Be 'HTTP_REDIRECT'
+        $r.HttpStatus | Should -Be 302
+        $r.Redirected | Should -BeTrue
+        $r.RedirectNotFollowed | Should -BeLike 'http://localhost:*/target.crl'
+        $r.Error | Should -Match 'not followed'
+        @($script:server.Log | Where-Object { $_.Path -eq '/target.crl' }).Count | Should -Be 0
+    }
+
+    It 'follows a redirect on the same host' {
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ B = $script:server.Base } { param($B)
+            [void](Initialize-MspkiRun); Reset-MspkiLeadRegistry
+            Invoke-MspkiHttpGet -Url "$B/near.crl" -TimeoutMs 5000 }
+        $r.Code | Should -Be 'OK'
+        @($script:server.Log | Where-Object { $_.Path -eq '/target.crl' }).Count | Should -Be 1
+    }
+
+    It 'follows a redirect to a host that an Authoritative lead names, but not to one that only an Unverified lead names' {
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ B = $script:server.Base; P = $script:server.Port } { param($B, $P)
+            [void](Initialize-MspkiRun); Reset-MspkiLeadRegistry
+            $null = Add-MspkiLead -Url "http://localhost:$P/other.crl" -Kind CDP -Source 'test' -Trust Unverified
+            $u = Invoke-MspkiHttpGet -Url "$B/away.crl" -TimeoutMs 5000
+            Reset-MspkiProbeCache
+            $null = Add-MspkiLead -Url "http://localhost:$P/other.crl" -Kind CDP -Source 'AD:test' -Trust Authoritative
+            $a = Invoke-MspkiHttpGet -Url "$B/away.crl" -TimeoutMs 5000
+            @($u, $a) }
+        $r[0].Code | Should -Be 'HTTP_REDIRECT'
+        $r[1].Code | Should -Be 'OK'
+        @($script:server.Log | Where-Object { $_.Path -eq '/target.crl' }).Count | Should -Be 1
+    }
+
+    It 'grades a CDP location that redirects to an undiscovered host as a Warning that names the target, not as a download failure' {
+        $r = InModuleScope MspkiHealthCheck -Parameters @{ B = $script:server.Base } { param($B)
+            [void](Initialize-MspkiRun); Reset-MspkiLeadRegistry
+            $lead = Add-MspkiLead -Url "$B/away.crl" -Kind CDP -Source 'test' -Origin 'test'
+            Test-MspkiLeadEndpoint -Lead $lead -Url $lead.Url }
+        $f = @($r.Findings)
+        $f.Count | Should -Be 1
+        $f[0].Status | Should -Be 'Warning'
+        $f[0].StatusCode | Should -Be 'HTTP_REDIRECT'
+        $f[0].Message | Should -Match 'localhost'
+        $f[0].Message | Should -Match 'not followed'
+        @($script:server.Log | Where-Object { $_.Path -eq '/target.crl' }).Count | Should -Be 0
+    }
+
+    It 'makes no separate TLS handshake with a redirect host that no trusted evidence named' {
+        Mock -ModuleName MspkiHealthCheck Test-MspkiTlsEndpoint { [pscustomobject]@{ Code = 'TLS_UNTRUSTED_ROOT' } }
+        $c = InModuleScope MspkiHealthCheck {
+            Reset-MspkiLeadRegistry
+            @((Get-MspkiTrustFailureCode -Url 'https://elsewhere.example.test/x.crl' -RequestHost 'pki.corp.example.test'),
+              (Get-MspkiTrustFailureCode -Url 'https://pki.corp.example.test/x.crl' -RequestHost 'pki.corp.example.test')) }
+        $c | Should -Be @('TLS_HANDSHAKE_FAIL', 'TLS_UNTRUSTED_ROOT')
+        Should -Invoke -ModuleName MspkiHealthCheck Test-MspkiTlsEndpoint -Times 1 -Exactly -ParameterFilter { $HostName -eq 'pki.corp.example.test' }
+        Should -Invoke -ModuleName MspkiHealthCheck Test-MspkiTlsEndpoint -Times 0 -Exactly -ParameterFilter { $HostName -eq 'elsewhere.example.test' }
+    }
+}

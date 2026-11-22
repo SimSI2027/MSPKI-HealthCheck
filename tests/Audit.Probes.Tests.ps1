@@ -343,7 +343,11 @@ Describe 'M6 and M11: the TLS probe against a real TLS listener' {
         try {
             $routes['/go'] = @{ Status = 302; Body = @(); Headers = @{ Location = ('https://localhost:{0}/x' -f $s.Port) } }
             Mock -ModuleName MspkiHealthCheck Test-MspkiTlsEndpoint { [pscustomobject]@{ Code = 'TLS_NAME_MISMATCH' } }
-            $r = InModuleScope MspkiHealthCheck -Parameters @{ U = ($origin.Base + '/go') } { param($U) Reset-MspkiProbeCache; Invoke-MspkiHttpGet -Url $U -TimeoutMs 8000 }
+            # Audit 2 M9: the redirect host must be known from trusted evidence, or the redirect is not followed at all.
+            $r = InModuleScope MspkiHealthCheck -Parameters @{ U = ($origin.Base + '/go'); P = $s.Port } { param($U, $P)
+                Reset-MspkiProbeCache; Reset-MspkiLeadRegistry
+                $null = Add-MspkiLead -Url ('https://localhost:{0}/other' -f $P) -Kind CDP -Source 'AD:test'
+                Invoke-MspkiHttpGet -Url $U -TimeoutMs 8000 }
             $r.Redirected | Should -BeTrue
             $r.Code | Should -Be 'TLS_NAME_MISMATCH'
             # The handshake was made to the host and port of the hop that failed (the HTTPS host), not to the first host.

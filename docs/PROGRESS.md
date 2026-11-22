@@ -344,3 +344,11 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   use it; Hygiene forbids key-persisting flags and certificate loading elsewhere.
 - Red then green (red shown in a worktree of the H1 commit: one key file per PFX load). Lab run (normal user): 99 findings, exit 6,
   no difference from the baseline. Next: M9.
+
+## Audit 2 Batch A, M9 (2026-11-22): redirects and TLS to undiscovered hosts - DONE
+- A redirect is followed only to the request's own host or a host trusted evidence named (`Test-MspkiTrustedLeadHost`); other
+  targets are recorded (`RedirectNotFollowed`, evidence) and never contacted; the separate TLS handshake obeys the same rule.
+  An AIA/CDP location that redirects to such a host is a Warning naming the target, not a download failure.
+- Test helper fix: an issued test certificate is clamped to its issuer's validity (the old race failed LocalEvidence.Tests in
+  about half of the runs). Runner note: a loopback server runspace can keep a finished test process alive; force-exit after results.
+- Red then green (M9 block in tests/Audit2.Security.Tests.ps1). Lab run (normal user): 99 findings, exit 6, no difference.

@@ -417,7 +417,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | ID | Status | Commit | Tests |
 |---|---|---|---|
 | H1 | Fixed | `3b4c3af` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 H1: links in a downloaded CRL are followed only when its signature verified" (3 tests) and "Audit 2 H1: an LDAP bind goes only to hosts proven by authoritative discovery" (12 tests); updated audit 1 cases in `tests/Audit.Probes.Tests.ps1` |
-| M10 | Fixed | see the M10 commit (`git log --grep "Audit 2 M10"`) | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M10: downloaded bytes never create a private key on disk" (5 tests: content type, New-MspkiCertificate, AIA endpoint, NDES reader, PKCS #7 still read); new Hygiene patterns "key persistence" and "certificate loading" |
+| M10 | Fixed | `a95e566` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M10: downloaded bytes never create a private key on disk" (5 tests: content type, New-MspkiCertificate, AIA endpoint, NDES reader, PKCS #7 still read); new Hygiene patterns "key persistence" and "certificate loading" |
+| M9 | Fixed | see the M9 commit (`git log --grep "Audit 2 M9"`) | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M9: a redirect or a TLS handshake never goes to a host that no trusted evidence named" (5 tests); audit 1 test "looks at the host of the failing hop ..." now registers the HTTPS host as a lead first |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -445,3 +446,16 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
   `New-MspkiCertificate`.
 - The tests snapshot the user and machine key folders under `%APPDATA%\Microsoft\Crypto` and `%ProgramData%\Microsoft\Crypto`
   before and after each call. On the old code one key file appeared per PFX load.
+
+### M9 notes
+- `Invoke-MspkiHttpGet` follows a redirect only to the host the request named or to a host for which `Test-MspkiTrustedLeadHost`
+  is true (an Authoritative or Verified lead names it, or it is a forest domain controller). Any other target is recorded
+  (`RedirectNotFollowed`, the hop list, the evidence) and never contacted: no DNS lookup, no connection, no TLS handshake.
+  The result then carries the 3xx status, not 0.
+- `Get-MspkiTrustFailureCode` makes its separate handshake only with the request's own host or a trusted host.
+- An AIA / CDP / Freshest CRL location that redirects to such a host is a Warning (`HTTP_REDIRECT`) that names the target and says
+  the object there was not checked; it is no longer a download failure.
+- Not changed here: with `-MaxRedirects 0` (NDES) or after the hop limit, `HttpStatus` is still 0 (audit 2 M5, Batch B).
+- Test helper: `New-TestCertificate` now clamps an issued certificate to its issuer's validity. The old race (child created a
+  second after the issuer with the same lifetime) made `LocalEvidence.Tests.ps1` fail in about half of the runs (the "flaky
+  LocalEvidence failure" in PROGRESS); 8 of 8 runs pass now.

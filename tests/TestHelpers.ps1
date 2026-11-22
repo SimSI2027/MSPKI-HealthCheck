@@ -132,6 +132,12 @@ function New-TestCertificate {
         $serial = New-Object byte[] 16
         (New-Object System.Random).NextBytes($serial)
         $serial[0] = $serial[0] -band 0x7F
+        # A child made a second after its issuer with the same lifetime would end after it, which Create() refuses (this made
+        # LocalEvidence.Tests fail about every second run). Clamp to the issuer's end, and the start to its start.
+        $sNa = [DateTimeOffset]$Signer.NotAfter.ToUniversalTime()
+        $sNb = [DateTimeOffset]$Signer.NotBefore.ToUniversalTime()
+        if ($na -gt $sNa) { $na = $sNa }
+        if ($nb -lt $sNb) { $nb = $sNb }
         $issued = $req.Create($Signer, $nb, $na, $serial)
         if ($Ecdsa) { $full = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::CopyWithPrivateKey($issued, $rsa) }
         else { $full = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::CopyWithPrivateKey($issued, $rsa) }

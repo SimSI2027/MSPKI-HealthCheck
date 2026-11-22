@@ -105,6 +105,9 @@ Rules:
 ### 4.3 Probes (shared, cached for the run)
 - DNS (`[System.Net.Dns]`), TCP connect, HTTP(S) via `HttpWebRequest` with `AllowAutoRedirect = $false`
   (follow redirects manually and record each hop), TLS server certificate, chain and name check, LDAP/LDAPS bind and latency.
+  A redirect is followed only to the host the request named or to a host already named by trusted evidence (an Authoritative
+  or Verified lead, or a forest domain controller). Any other target is recorded in the evidence and never contacted, and no
+  separate TLS handshake is made with it (audit 2 M9).
   HTTP probes connect directly (no proxy, no WPAD) unless `-UseSystemProxy` is given; the proxy mode is recorded in RunInfo and
   in the Evidence of every HTTP result. TLS protocol versions are passed explicitly (1.2, 1.1, 1.0, plus 1.3 where the
   .NET Framework has it), and the process-wide setting used by `HttpWebRequest` is raised for the run and restored afterwards.

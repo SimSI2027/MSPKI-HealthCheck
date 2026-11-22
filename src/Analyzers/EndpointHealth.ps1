@@ -227,6 +227,18 @@ function Test-MspkiLeadEndpoint {
         $http = Invoke-MspkiHttpGet -Url $Url -TimeoutMs $ms
         [void]$ev.Add(('HTTP proxy: {0}' -f $http.ProxyMode))
         foreach ($h in $http.Hops) { [void]$ev.Add(('HTTP hop: {0} -> {1} {2} {3}' -f $h.Url, $h.HttpStatus, $h.Location, $h.Error).Trim()) }
+        $notFollowed = ''
+        if ($null -ne $http.PSObject.Properties['RedirectNotFollowed']) { $notFollowed = [string]$http.RedirectNotFollowed }
+        if ($notFollowed) {
+            # The target host was named by nothing this run trusts, so it was not contacted (audit 2 M9). That is not a failed
+            # download: clients that follow the redirect may well get the object there. It goes to review with the target named.
+            $layers['RedirectStatus'] = 'Warning'; $layers['HttpStatus'] = 'Warning'
+            [void]$ev.Add(('Redirect target (recorded, not contacted): {0}' -f $notFollowed))
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Warning' -Code 'HTTP_REDIRECT' -Layers $layers -Evidence @($ev) `
+                -Message ('{0} answers HTTP {1} and redirects to {2}; the redirect was not followed, so the {3} there was not checked.' -f $Url, $http.HttpStatus, $notFollowed, $what) `
+                -Notes 'This tool contacts only hosts that an authoritative source (AD, the CA, local policy) or a verified certificate or CRL named. Check that the redirect target is intended and that every client that fetches this URL follows redirects.'))
+            return $out
+        }
         if ($http.Redirected) {
             $layers['RedirectStatus'] = 'Warning'
             [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Information' -Code 'HTTP_REDIRECT' `

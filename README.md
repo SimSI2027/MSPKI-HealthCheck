@@ -113,7 +113,8 @@ The window only shows and filters what the engine found; it checks nothing itsel
   sent to a host named by a (possibly downloaded) certificate. With `-SkipNetwork` only the selected domain controller is used.
 - Links inside a certificate that was downloaded from an AIA location are followed only when that certificate is proven to
   be the expected issuer (the signature of the certificate that references it verifies with its key).
-- Web checks are anonymous and direct (no proxy). The TLS versions offered are set explicitly (1.2, 1.1 and 1.0, and 1.3 where
+- Web checks are anonymous and direct (no proxy). A redirect to a host that no authoritative source or verified object named is
+  recorded and not followed. The TLS versions offered are set explicitly (1.2, 1.1 and 1.0, and 1.3 where
   the .NET Framework has it) for the run only and restored afterwards.
 - The Intune Certificate Connector is detected on the local computer only.
 - Warn your security team before a run. The tool reads every template with its security descriptor, the CA properties,
