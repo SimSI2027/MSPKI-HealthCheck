@@ -613,5 +613,17 @@ counts the tests that failed because of the old behaviour; "signature" counts th
   that file re-run green before the commit); H2 1064 passed; N8 and item 5 1071 passed.
 - Lab run as a normal (non-elevated) user after each fix: 99 findings, exit 6, the same categories, statuses, codes and confidences as
   the baseline every time. The lab has 2 domains and 2 live DCs; no server object was excluded; all its AIA/CDP URLs are serverless LDAP.
-- Not done: a live referral chase could not be produced in the lab (see N6). N3, N4 and N7 of the verification are not part of this
-  batch.
+- Not done in Batch D: a live referral chase could not be produced in the lab (see N6).
+
+### Fix log 2: Batch E runs
+- **Full suite (Pester 5.7.1, Windows PowerShell 5.1), final state: 1144 run, 1143 passed, 0 failed, 1 skipped** (the private-list scan, which
+  runs only when `MSPKI_PRIVATE_NAMES_FILE` is set). An earlier full run, before N3, N4, N7, M14 and the M4 test, had 4 red: a mistake in my
+  new GUI search test (it called a GUI helper that the module does not export and wrapped the list in an array); fixed. Claude Code reported
+  the final full run as stopped for low memory after it had printed its result (the known test-server runspace that keeps the process
+  alive); the result above is the printed one.
+- **Lab run as a normal (non-elevated) user** after the M8 remainder, after N3 + N4, and after N7: 99 findings, exit 6, an identical category /
+  status / code / confidence histogram each time (compared with the run of the previous fix). The lab's directory, CAs and AIA/CDP
+  locations answer, so none of the new failure codes appears in it; they are covered by the unit tests only.
+- **Open for the owner:** the history of this public repository still holds lab names in the file content of older commits (M14 remainder
+  above: 2 of the 19 names of the private list, 47 of 78 commits; none in HEAD, messages, paths or identities). A history rewrite and a force
+  push were not done.

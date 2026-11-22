@@ -426,3 +426,16 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   certificate, an unverified CRL, a referral or a stale DC. Against 9b43bb1: 3 of 4 red on behaviour (stale DC passed by the N8 accident);
   with the two N8 lines corrected, 4 of 4. Full suite 1071 passed.
 - Next (Batch E): N3 (AIA download above 10 MB), N4 (CES/CEP 200 on a word match), N7 (hygiene test gaps, one store open).
+
+## Audit 2 verification fixes, Batch E (2026-11-22)
+- M8 remainder: the Unreachable class is named by error number (DIRECTORY_UNAVAILABLE, RPC_FAIL, NETWORK_PATH_FAIL), an unclassified LDAP
+  error is DIRECTORY_ERROR, a Configuration NC built from the name is DC_NOT_FOUND; RETRIEVAL_FAIL stays only where the number says nothing
+  (explained in Fix log 2). N3: an AIA answer above 10 MB is Fail / SIZE_LIMIT naming the real limit. N4: a 200 from CES/CEP is Confirmed only
+  for a WSDL, a SOAP envelope or enrollment XML, otherwise Inferred. N7: tighter hygiene patterns plus AST scans; every store opened
+  OpenExistingOnly. M14: the history scan covers author and committer, messages, paths and the content of every commit, counts only.
+  M4: a behavioural test that is red on the old result (Skipped, Skipped, false Pass), not on a missing function.
+- Lab (normal user) after the M8 remainder, N3 + N4 and N7: 99 findings, exit 6, identical histograms. Full suite at the end: 1143 passed,
+  0 failed, 1 skipped.
+- **Open issue (owner decision):** the public repository's history still contains lab names in the content of older commits (private-list check:
+  2 of 19 names, 47 of 78 commits; HEAD is clean). Removing them needs a history rewrite and a force push.
+- Next: the verification of Batch E.
