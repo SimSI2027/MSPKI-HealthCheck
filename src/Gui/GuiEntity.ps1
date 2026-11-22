@@ -22,7 +22,7 @@ $script:MspkiGuiRelationText = @{
     issuedBy = @('Issued by', 'Issued'); signedBy = @('Signed by', 'Signs'); publishedAt = @('Published at', 'Publishes'); references = @('Refers to', 'Referred to by')
     hostedOn = @('Runs on', 'Hosts'); servedBy = @('Served by', 'Serves'); resolvesTo = @('Resolves to', 'Alias that resolves here'); aliasOf = @('Name in a certificate of', 'Certificate names this host')
     enrollsVia = @('Enrolls through', 'Enrollment path of'); supersedes = @('Newer generation of', 'Superseded by'); certificateOf = @('Certificate of', 'Has certificate')
-    partOf = @('Part of', 'Contains'); mayEnroll = @('May enroll from', 'Enrollment allowed for'); identifies = @('Names host', 'Named by account'); memberOf = @('Member of', 'Has member')
+    partOf = @('Part of', 'Contains'); mayEnroll = @('May enroll from', 'Enrollment allowed for'); identifies = @('Names host', 'Named by account'); memberOf = @('Member of', 'Has member'); mayUse = @('May use', 'May be used by')
 }
 
 function Get-MspkiGuiEntityTypeInfo {

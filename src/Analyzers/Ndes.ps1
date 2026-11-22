@@ -255,7 +255,21 @@ function Add-MspkiNdesTemplateAccessToGraph {
             $tid = Add-MspkiEntity -Type 'Template' -Key $t -Name $t
             Add-MspkiRelation -From $aid -Type 'mayEnroll' -To $tid -Source 'AD:CertificateTemplates:nTSecurityDescriptor' -Confidence 'Confirmed'
         }
-        foreach ($h in @($p.Hosts)) { Add-MspkiRelation -From $aid -Type 'identifies' -To (Add-MspkiHostEntity -HostName $h) -Source 'AD:servicePrincipalName/dNSHostName' -Confidence 'Inferred' }
+        # The hosts the principal names itself; a host that only a member account names is linked from that member (audit 2 M12).
+        $own = @($p.Hosts)
+        if ($null -ne $p.PSObject.Properties['OwnHosts']) { $own = @($p.OwnHosts) }
+        foreach ($h in $own) { Add-MspkiRelation -From $aid -Type 'identifies' -To (Add-MspkiHostEntity -HostName $h) -Source 'AD:servicePrincipalName/dNSHostName' -Confidence 'Inferred' }
+        if ($null -ne $p.PSObject.Properties['Members']) {
+            foreach ($m in @($p.Members | Where-Object { $_ })) {
+                $mkey = $(if ($m.Sid) { $m.Sid } else { 'dn:' + ([string]$m.DistinguishedName).ToLowerInvariant() })
+                $mid = Add-MspkiEntity -Type 'Account' -Key $mkey -Name $(if ($m.Name) { $m.Name } else { $m.DistinguishedName }) -Properties @{
+                    Sid = $m.Sid; SamAccountName = $m.Name; AccountClass = $m.Class; DistinguishedName = $m.DistinguishedName; Spns = @($m.Spns); DnsHostName = $m.DnsHostName; Disabled = [bool]$m.Disabled; Lookup = 'Found' }
+                Add-MspkiObservation -EntityId $mid -Kind 'Seen' -Source 'AD' -Location $m.DistinguishedName -Confidence 'Confirmed' -Detail ('{0}; named by {1} of {2}' -f $m.Class, $(if ($m.Relation -eq 'mayUse') { 'msDS-GroupMSAMembership' } else { 'the member attribute' }), $name)
+                $src = $(if ($m.Relation -eq 'mayUse') { 'AD:msDS-GroupMSAMembership' } else { 'AD:member' })
+                Add-MspkiRelation -From $mid -Type $m.Relation -To $aid -Source $src -Confidence 'Confirmed'
+                foreach ($h in @($m.Hosts)) { Add-MspkiRelation -From $mid -Type 'identifies' -To (Add-MspkiHostEntity -HostName $h) -Source 'AD:servicePrincipalName/dNSHostName' -Confidence 'Inferred' }
+            }
+        }
     }
 }
 

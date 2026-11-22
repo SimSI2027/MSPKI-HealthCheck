@@ -7,7 +7,7 @@
 
 $script:MspkiCertRequestAgentOid = '1.3.6.1.4.1.311.20.2.1'
 $script:MspkiNdesStandardTemplate = @{ 'cepencryption' = 'CEP Encryption'; 'enrollmentagentoffline' = 'Exchange Enrollment Agent (Offline request)' }
-$script:MspkiNdesAccountProperties = @('objectClass', 'sAMAccountName', 'distinguishedName', 'dNSHostName', 'servicePrincipalName', 'userAccountControl', 'member', 'msDS-GroupMSAMembership')
+$script:MspkiNdesAccountProperties = @('objectClass', 'sAMAccountName', 'distinguishedName', 'dNSHostName', 'servicePrincipalName', 'userAccountControl', 'member', 'msDS-GroupMSAMembership', 'objectSid')
 
 function Test-MspkiNdesRaTemplate {
     <#
@@ -92,13 +92,16 @@ function ConvertFrom-MspkiNdesAccountRecord {
     $uac = 0
     $u = & $g 'userAccountControl'
     if ($null -ne $u) { $uac = [int64](ConvertTo-MspkiUInt32 $u) }
+    $sid = ''
+    $sb = & $g 'objectSid'
+    if ($null -ne $sb -and $sb -is [byte[]]) { try { $sid = (New-Object System.Security.Principal.SecurityIdentifier(([byte[]]$sb), 0)).Value } catch { $sid = '' } }
     $allowed = @()
     $sd = & $g 'msDS-GroupMSAMembership'
     if ($null -ne $sd -and $sd -is [byte[]]) {
         try { $allowed = @((ConvertFrom-MspkiSecurityDescriptor -Bytes ([byte[]]$sd)).Aces | Where-Object { $_.Type -eq 'Allow' } | ForEach-Object { $_.Sid } | Select-Object -Unique) } catch { $allowed = @() }
     }
     return [pscustomobject][ordered]@{
-        Class = $class; SamAccountName = [string](& $g 'sAMAccountName'); DistinguishedName = $dn; Domain = $dom; DnsHostName = ([string](& $g 'dNSHostName')).ToLowerInvariant().TrimEnd('.')
+        Class = $class; SamAccountName = [string](& $g 'sAMAccountName'); DistinguishedName = $dn; Domain = $dom; Sid = $sid; DnsHostName = ([string](& $g 'dNSHostName')).ToLowerInvariant().TrimEnd('.')
         Spns = $spns; HttpSpnHosts = $http; Disabled = (($uac -band 2) -ne 0); Members = @(& $m 'member' | ForEach-Object { [string]$_ }); AllowedSids = $allowed
     }
 }
@@ -152,6 +155,22 @@ function Read-MspkiNdesAccount {
     }
 }
 
+function New-MspkiNdesMemberRecord {
+    <#
+    .SYNOPSIS
+    One member account of a group, or one computer allowed to use a gMSA, as plain data for the graph: Sid (or '' when AD did not return
+    it), Name, Class, DistinguishedName, DnsHostName, Spns, Disabled, Relation (memberOf / mayUse) and Hosts (the names it gives).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Account, [Parameter(Mandatory = $true)][ValidateSet('memberOf', 'mayUse')][string]$Relation, [AllowEmptyCollection()][string[]]$Hosts = @())
+    $sid = ''
+    if ($null -ne $Account.PSObject.Properties['Sid']) { $sid = [string]$Account.Sid }
+    return [pscustomobject][ordered]@{
+        Sid = $sid; Name = [string]$Account.SamAccountName; Class = [string]$Account.Class; DistinguishedName = [string]$Account.DistinguishedName
+        DnsHostName = [string]$Account.DnsHostName; Spns = @($Account.Spns); Disabled = [bool]$Account.Disabled; Relation = $Relation; Hosts = @($Hosts | Where-Object { $_ } | Select-Object -Unique)
+    }
+}
+
 function Find-MspkiNdesTemplateAccountHost {
     <#
     .SYNOPSIS
@@ -190,15 +209,21 @@ function Find-MspkiNdesTemplateAccountHost {
         $label = $(if ($a.SamAccountName) { $a.SamAccountName } else { $p.Principal })
         $found = @(Get-MspkiNdesAccountHostName -Account $a)
         $via = New-Object System.Collections.ArrayList
+        # Hosts found through a member account belong to that account, not to the group (audit 2 M12): each member is returned with its
+        # own hosts, and the principal keeps only the hosts it names itself in OwnHosts.
+        $members = New-Object System.Collections.ArrayList
+        $ownHosts = @($found | ForEach-Object { $_.Host })
         if ($a.Class -eq 'group') {
             foreach ($dn in @($a.Members | Select-Object -First $MaxMembers)) {
                 $lookups++
                 $mr = Read-MspkiNdesAccount -DistinguishedName $dn -Server $server -TimeoutSeconds $TimeoutSeconds
                 if ($mr.Status -ne 'Found') { continue }
-                foreach ($h in (Get-MspkiNdesAccountHostName -Account $mr.Account)) {
+                $mh = @(Get-MspkiNdesAccountHostName -Account $mr.Account)
+                foreach ($h in $mh) {
                     $h.How = ('{0}, member of the group {1}' -f $h.How, $label); $found += $h
                     [void]$via.Add($mr.Account.SamAccountName)
                 }
+                [void]$members.Add((New-MspkiNdesMemberRecord -Account $mr.Account -Relation 'memberOf' -Hosts @($mh | ForEach-Object { $_.Host })))
             }
         }
         if ($a.Class -eq 'gmsa') {
@@ -206,11 +231,14 @@ function Find-MspkiNdesTemplateAccountHost {
                 $lookups++
                 $mr = Read-MspkiNdesAccount -Sid $s -Server $server -TimeoutSeconds $TimeoutSeconds
                 if ($mr.Status -ne 'Found' -or $mr.Account.Class -ne 'computer' -or -not $mr.Account.DnsHostName) { continue }
+                [void]$members.Add((New-MspkiNdesMemberRecord -Account $mr.Account -Relation 'mayUse' -Hosts @($mr.Account.DnsHostName)))
                 $found += [pscustomobject][ordered]@{ Host = $mr.Account.DnsHostName; How = ('computer {0} may use the group managed service account {1} (msDS-GroupMSAMembership)' -f $mr.Account.SamAccountName, $label); Constructed = $false }
             }
         }
         $p.Hosts = @($found | ForEach-Object { $_.Host } | Select-Object -Unique)
         $p.Via = @($via)
+        $p | Add-Member -NotePropertyName 'Members' -NotePropertyValue @($members) -Force
+        $p | Add-Member -NotePropertyName 'OwnHosts' -NotePropertyValue @($ownHosts | Select-Object -Unique) -Force
         foreach ($h in $found) { & $addHost $h ('{0} ({1})' -f $label, $a.Class) @($p.Templates) }
     }
     return [pscustomobject][ordered]@{ Templates = @($tp.Templates); Principals = @($tp.Principals); Hosts = @($hosts.Values); Lookups = $lookups; Server = $server }

@@ -22,7 +22,7 @@ computer, so two runs can be compared by id. Keys are trimmed and lower-cased.
 | Template | `template` | template `cn` | |
 | LocalCertificate | `localcert` | thumbprint | `LocalMachine\My` certificates issued by a discovered CA (public part only); more with D3 |
 | ADObject | `adobject` | distinguished name | PKI containers and objects |
-| Account | `account` | SID | an account named in the Enroll permissions of an NDES RA template (WP3): `SamAccountName`, `AccountClass` (user / computer / group / gmsa / msa), `Spns`, `DnsHostName`, `Lookup` (Found / NotFound / Error) |
+| Account | `account` | SID | an account named in the Enroll permissions of an NDES RA template (WP3), or a member of such a group / a computer allowed to use such a gMSA (audit 2 M12; keyed by SID, or by DN when AD returned none): `SamAccountName`, `AccountClass` (user / computer / group / gmsa / msa), `Spns`, `DnsHostName`, `Lookup` (Found / NotFound / Error) |
 | RACertificate | `racert` | SHA-1 thumbprint | an NDES RA certificate returned by GetCACert: `Subject`, `Issuer`, `Eku`, `KeyUsage`, `Template`, validity |
 
 ## Observations: where an entity exists
@@ -64,8 +64,9 @@ ExpectedMissing is recorded only when the place was really checked:
 | `certificateOf` | CACertificate → CA; RACertificate → Service | the generation belongs to that CA; the RA certificate belongs to that NDES service |
 | `partOf` | Domain/CA/ADObject → Forest | (added) |
 | `mayEnroll` | Account → Template | the account holds Enroll on the template (ACL read from AD; Confirmed) |
-| `identifies` | Account → Host | the host named by the account (dNSHostName or an HTTP/ SPN; Inferred) |
-| `memberOf` | Account → Account | reserved for group membership (not written yet) |
+| `identifies` | Account → Host | the host named by the account itself (dNSHostName or an HTTP/ SPN; Inferred). A host named only by a member account is linked from that member, never from the group or gMSA |
+| `memberOf` | Account → Account | the member is in the group's `member` attribute (one level, up to 25 members; Confirmed) |
+| `mayUse` | Account → Account | the computer is allowed to use the group managed service account (msDS-GroupMSAMembership; Confirmed) |
 
 ## Findings
 Every finding has `EntityIds` (string[]): the entities it is about. Ids set when the finding is created are kept; the linker adds ids

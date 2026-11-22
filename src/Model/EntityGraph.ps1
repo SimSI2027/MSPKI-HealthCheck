@@ -11,7 +11,7 @@ $script:MspkiEntityTypes = [ordered]@{
 }
 $script:MspkiServiceKinds = @('WebEnrollment', 'CES', 'CEP', 'NDES', 'OCSP', 'IntuneConnector')
 $script:MspkiRelationTypes = @('issuedBy', 'signedBy', 'publishedAt', 'references', 'hostedOn', 'servedBy', 'resolvesTo', 'aliasOf',
-    'enrollsVia', 'supersedes', 'certificateOf', 'partOf', 'mayEnroll', 'identifies', 'memberOf')
+    'enrollsVia', 'supersedes', 'certificateOf', 'partOf', 'mayEnroll', 'identifies', 'memberOf', 'mayUse')
 $script:MspkiObservationKinds = @('Seen', 'Referenced', 'ExpectedMissing')
 
 $script:MspkiGraph = $null

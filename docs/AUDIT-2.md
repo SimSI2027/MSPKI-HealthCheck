@@ -428,7 +428,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | M5 | Fixed | `d52359b` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M5" (5 tests, 3 red on the old code): a 302 through `Invoke-MspkiHttpGet -MaxRedirects 0` has HttpStatus 302, the Location and an explanatory Error; the hop limit takes the last hop's status; redirects within the limit are still followed; Web Enrollment state and finding exist for a redirecting host |
 | M3 | Fixed | `9715e0b` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M3" (4 tests, all red on the old code): the CRL cap is at least 32 MB; a CRL above the cap is Information / `SIZE_LIMIT` (not Fail, not CONTENT_WRONG_TYPE) and does not give exit code 4; `Measure-MspkiDerChild` counts 3000 entries without objects and throws on truncated data. `tests/Endpoint.Tests.ps1` and `tests/Model.Tests.ps1` updated for the new code |
 | M6 | Fixed | `96e3ee8` | `tests/Gui.Tests.ps1`: "Audit 2 M6" (3 tests, red on the old code): error text without stack trace; `Invoke-MspkiGuiUnhandledError` logs a Run log row and gui-error.log, shows the same error once, cancels a run in progress through the Cancel flag and returns Handled; in a real dispatcher loop a throwing event delegate reaches the hook and a throwing timer tick does not stop the timer |
-| M8 | Fixed (two items explained) | `PENDING` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M8" (16 tests, red on the old code): chain errors map to `CHAIN_INVALID` (not `TLS_HANDSHAKE_FAIL`) after a completed handshake; a host identity summary is not `OK` without an address; one code for a missing COM class; the new codes exist and every schema code is documented in REQUIREMENTS. Assertions updated in `Endpoint`, `Audit.Grading`, `Audit.Probes`, `Discovery`, `Model` and `LocalEvidence` tests (new case: enrollment error event) |
+| M8 | Fixed (two items explained) | `759bb77` | `tests/Audit2.Results.Tests.ps1`: "Audit 2 M8" (16 tests, red on the old code): chain errors map to `CHAIN_INVALID` (not `TLS_HANDSHAKE_FAIL`) after a completed handshake; a host identity summary is not `OK` without an address; one code for a missing COM class; the new codes exist and every schema code is documented in REQUIREMENTS. Assertions updated in `Endpoint`, `Audit.Grading`, `Audit.Probes`, `Discovery`, `Model` and `LocalEvidence` tests (new case: enrollment error event) |
+| M12 | Fixed | `PENDING` | `tests/NdesTemplateAccess.Tests.ps1`: "Audit 2 M12" (3 tests, 2 red on the old code): a group member and a computer allowed to use a gMSA become Account entities (Seen in AD), linked `memberOf` / `mayUse` to the principal; the member, not the group or gMSA, `identifies` the host; the host list and its "how" text are unchanged |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -550,3 +551,10 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
   (the CA property reads depend on it), and an unexpected exception is already `INTERNAL_ERROR`. "Not domain-joined" stays `UNSUPPORTED`
   (exit code 5): the tool cannot do anything there, which is what that exit code means. The GUI and the reports build their code filters
   from the data, so they needed no change.
+
+### M12 notes (Batch B)
+- `Find-MspkiNdesTemplateAccountHost` returns, per principal, `Members` (`New-MspkiNdesMemberRecord`: Sid, Name, Class, DN, hosts it names,
+  Relation) and `OwnHosts` (the hosts the principal names itself); `Hosts` keeps the union for the lead registration. The account
+  record now reads `objectSid`. `Add-MspkiNdesTemplateAccessToGraph` writes an Account entity (Seen in AD) for every member, `memberOf`
+  (group) or the new `mayUse` (gMSA) to the principal, and `identifies` from the member to the host. The group no longer identifies hosts
+  that only its members name. DATA-MODEL.md and the GUI relation labels are updated.

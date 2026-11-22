@@ -244,3 +244,64 @@ Describe 'Intune Certificate Connector in the graph' {
         }
     }
 }
+
+Describe 'Audit 2 M12: hosts found through a group or a gMSA link to the member accounts, which are entities' {
+    BeforeAll {
+        $script:findM12 = {
+            param($Acl)
+            $tpl = & $script:tpl 'ExampleNdesSigning' -Acl $Acl
+            $inv = [pscustomobject]@{ AdContext = [pscustomobject]@{ DomainController = 'dc01.corp.example.test'; Ready = $true }; Templates = @($tpl); EnterpriseCAs = @([pscustomobject]@{ Name = 'Example Issuing CA'; Templates = @('ExampleNdesSigning') }) }
+            InModuleScope MspkiHealthCheck -Parameters @{ I = $inv; D = $script:dom } {
+                param($I, $D)
+                Reset-MspkiEntityGraph
+                $script:m12dom = $D
+                $script:m12acct = { param($cls, $sam, $dn, $hostName, $sid, $members = @(), $allowed = @())
+                    [pscustomobject]@{ Status = 'Found'; Error = ''; Account = [pscustomobject]@{ Class = $cls; SamAccountName = $sam; Domain = 'corp.example.test'; DnsHostName = $hostName; HttpSpnHosts = @(); Spns = @(); Members = @($members); AllowedSids = @($allowed); Disabled = $false; DistinguishedName = $dn; Sid = $sid } } }
+                Mock Read-MspkiNdesAccount {
+                    if ($Sid -like '*-1400') { return (& $script:m12acct 'group' 'NDES Servers' 'CN=NDES Servers,DC=corp,DC=example,DC=test' '' "$($script:m12dom)-1400" @('CN=NDES02,OU=Servers,DC=corp,DC=example,DC=test')) }
+                    if ($Sid -like '*-1500') { return (& $script:m12acct 'gmsa' 'svc-ndes$' 'CN=svc-ndes,CN=Managed Service Accounts,DC=corp,DC=example,DC=test' '' "$($script:m12dom)-1500" @() @("$($script:m12dom)-3003")) }
+                    if ($Sid -like '*-3003') { return (& $script:m12acct 'computer' 'NDES03$' 'CN=NDES03,OU=Servers,DC=corp,DC=example,DC=test' 'ndes03.corp.example.test' "$($script:m12dom)-3003") }
+                    if ($DistinguishedName -like 'CN=NDES02*') { return (& $script:m12acct 'computer' 'NDES02$' 'CN=NDES02,OU=Servers,DC=corp,DC=example,DC=test' 'ndes02.corp.example.test' "$($script:m12dom)-3002") }
+                    return [pscustomobject]@{ Status = 'NotFound'; Error = 'no'; Account = $null }
+                }
+                $r = Find-MspkiNdesTemplateAccountHost -Inventory $I -TimeoutSeconds 3
+                Add-MspkiNdesTemplateAccessToGraph -Result $r
+                $rels = @(Get-MspkiRelation)
+                [pscustomobject]@{
+                    Result = $r; GroupId = (Get-MspkiEntityId -Type 'Account' -Key "$D-1400"); GmsaId = (Get-MspkiEntityId -Type 'Account' -Key "$D-1500")
+                    Entities = @(Get-MspkiEntityList -Type 'Account' | ForEach-Object { [pscustomobject]@{ Id = $_.Id; Name = $_.Name; Class = $_.Properties['AccountClass'] } })
+                    Rels = @($rels | ForEach-Object { [pscustomobject]@{ From = $_.From; Type = $_.Type; To = $_.To; Confidence = $_.Confidence } })
+                    Seen = @(Get-MspkiObservation | Where-Object { $_.Kind -eq 'Seen' } | ForEach-Object { $_.EntityId })
+                }
+            }
+        }
+    }
+
+    It 'makes the member computer of a group an Account entity, links it memberOf the group, and lets the member (not the group) identify the host' {
+        $r = & $script:findM12 @((& $script:ace "$($script:dom)-1400"))
+        $group = $r.GroupId
+        $member = @($r.Entities | Where-Object { $_.Name -eq 'NDES02$' })
+        $member.Count | Should -Be 1 -Because 'a member account is an entity'
+        $member[0].Class | Should -Be 'computer'
+        @($r.Rels | Where-Object { $_.Type -eq 'memberOf' -and $_.From -eq $member[0].Id -and $_.To -eq $group }).Count | Should -Be 1
+        @($r.Rels | Where-Object { $_.Type -eq 'identifies' -and $_.From -eq $member[0].Id -and $_.To -eq 'host:ndes02.corp.example.test' }).Count | Should -Be 1
+        @($r.Rels | Where-Object { $_.Type -eq 'identifies' -and $_.From -eq $group }).Count | Should -Be 0 -Because 'the group names no host itself'
+        $r.Seen | Should -Contain $member[0].Id
+    }
+
+    It 'does the same for the computers allowed to use a gMSA (mayUse)' {
+        $r = & $script:findM12 @((& $script:ace "$($script:dom)-1500"))
+        $gmsa = $r.GmsaId
+        $c = @($r.Entities | Where-Object { $_.Name -eq 'NDES03$' })
+        $c.Count | Should -Be 1
+        @($r.Rels | Where-Object { $_.Type -eq 'mayUse' -and $_.From -eq $c[0].Id -and $_.To -eq $gmsa }).Count | Should -Be 1
+        @($r.Rels | Where-Object { $_.Type -eq 'identifies' -and $_.From -eq $c[0].Id -and $_.To -eq 'host:ndes03.corp.example.test' }).Count | Should -Be 1
+        @($r.Rels | Where-Object { $_.Type -eq 'identifies' -and $_.From -eq $gmsa }).Count | Should -Be 0
+    }
+
+    It 'keeps the host list and its "how" text (the lead registration still gets the hosts)' {
+        $r = & $script:findM12 @((& $script:ace "$($script:dom)-1400"))
+        @($r.Result.Hosts | ForEach-Object { $_.Host }) | Should -Be @('ndes02.corp.example.test')
+        ($r.Result.Hosts | Where-Object { $_.Host -eq 'ndes02.corp.example.test' }).How[0] | Should -Match 'member of the group NDES Servers'
+    }
+}
