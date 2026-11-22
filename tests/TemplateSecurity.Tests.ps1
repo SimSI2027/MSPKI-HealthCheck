@@ -134,7 +134,7 @@ Describe 'Pattern ESC1: enrollee supplies the subject' {
         $f = & $script:run (& $script:inv @((& $script:tpl 'T' @{ NameFlag = [int64]1; Eku = @($script:clientAuth); Acl = $acl })))
         $h = @(& $script:hits $f 'ESC1')
         $h.Count | Should -Be 1
-        ($h[0].Evidence -join "`n") | Should -Match 'Deny ACE exists for the same principal'
+        ($h[0].Evidence -join "`n") | Should -Match 'Deny ACE for Domain Users may cancel this grant'
     }
 
     It 'turns the match into a review item that is only Inferred when a Deny ACE exists for the same principal (effective access is not computed)' {
@@ -328,13 +328,13 @@ Describe 'Unpublished templates and reading problems' {
         (& $script:hits $f 'ESC9')[0].Severity | Should -Be 'ReviewRequired'
     }
 
-    It 'is Confirmed only when the CA''s own template list also names the template' {
+    It 'names the CA''s own template list as a source, but stays Referenced (audit 2 M11: effective access is not computed)' {
         $t = & $script:tpl 'T' @{ NameFlag = [int64]1; Eku = @($script:clientAuth) }
         $props = [pscustomobject]@{ Templates = @([pscustomobject]@{ Name = 'T'; Oid = '1.2' }) }
         $i = & $script:inv @($t)
         $i.EnterpriseCAs[0].Properties = $props
         $h = (& $script:hits (& $script:run $i) 'ESC1')[0]
-        $h.Confidence | Should -Be 'Confirmed'
+        $h.Confidence | Should -Be 'Referenced'
         $h.Sources | Should -Contain 'CA:GetCAProperty'
     }
 
@@ -464,5 +464,60 @@ Describe 'Audit 2 H2: ESC3 in a forest modelled on the default templates' {
         }
         $f = & $script:run (& $script:inv @($user, (& $script:machineTpl), (& $script:defaultAgentTpl), $agent) $pub)
         @(& $script:hits $f 'ESC3').Count | Should -Be 0
+    }
+}
+
+Describe 'Audit 2 M11: a permission-based template finding is never Confirmed while effective permissions are not computed' {
+    BeforeAll {
+        # Published by the CA's own list as well (the strongest publication evidence the review has).
+        $script:invCa = { param([object[]]$Templates)
+            $i = & $script:inv $Templates
+            $i.EnterpriseCAs[0].Properties = [pscustomobject]@{ Templates = @($Templates | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Oid = $_.Oid } }) }
+            $i }
+    }
+
+    It 'grades a match on a template the CA itself lists as Referenced, and says why in the evidence' {
+        $f = & $script:run (& $script:invCa @((& $script:tpl 'T' @{ NameFlag = [int64]1; Eku = @($script:clientAuth) })))
+        $h = @(& $script:hits $f 'ESC1')
+        $h.Count | Should -Be 1
+        $h[0].Confidence | Should -Be 'Referenced'
+        $h[0].Status | Should -Be 'Fail'
+        ($h[0].Evidence -join "`n") | Should -Match 'Confidence Referenced, not Confirmed'
+        ($h[0].Evidence -join "`n") | Should -Match 'group nesting'
+    }
+
+    It 'is never Confirmed for any pattern (ESC1, ESC2, ESC3, ESC4)' {
+        $tpls = @(
+            (& $script:tpl 'E1' @{ NameFlag = [int64]1; Eku = @($script:clientAuth); Oid = '1.2.1' }),
+            (& $script:tpl 'E2' @{ Eku = @($script:anyPurpose); Oid = '1.2.2' }),
+            (& $script:agentA @{ Oid = '1.2.3' }), (& $script:agentB @{ Oid = '1.2.4' }),
+            (& $script:tpl 'E4' @{ Acl = @((& $script:ace $script:du 0x40000)); Oid = '1.2.5' }))
+        $all = & $script:run (& $script:invCa $tpls)
+        $f = @($all | Where-Object { $_.StatusCode -eq 'CONFIG_RISK' })
+        $f.Count | Should -BeGreaterThan 3
+        @($f | Where-Object { $_.Confidence -eq 'Confirmed' }).Count | Should -Be 0
+    }
+
+    It 'treats a Deny ACE for <Deny> as possibly cancelling an Allow for <Allow>: Inferred review item' -ForEach @(
+        @{ Deny = 'Everyone'; DenySid = 'S-1-1-0'; Allow = 'Authenticated Users'; AllowSid = 'S-1-5-11' }
+        @{ Deny = 'Authenticated Users'; DenySid = 'S-1-5-11'; Allow = 'Domain Users'; AllowSid = 'S-1-5-21-1111-2222-3333-513' }
+        @{ Deny = 'Everyone'; DenySid = 'S-1-1-0'; Allow = 'Domain Computers'; AllowSid = 'S-1-5-21-1111-2222-3333-515' }
+    ) {
+        $acl = @((& $script:enrollAce $AllowSid), (& $script:ace $DenySid 0x100 $script:enrollGuid 'Deny'))
+        $f = & $script:run (& $script:invCa @((& $script:tpl 'T' @{ NameFlag = [int64]1; Eku = @($script:clientAuth); Acl = $acl })))
+        $h = @(& $script:hits $f 'ESC1')
+        $h.Count | Should -Be 1
+        $h[0].Confidence | Should -Be 'Inferred'
+        $h[0].Severity | Should -Be 'ReviewRequired'
+        ($h[0].Evidence -join "`n") | Should -Match ('Deny ACE .*{0}' -f $Deny)
+    }
+
+    It 'does not treat a Deny ACE for a narrower group as cancelling an Allow for a wider one' {
+        # A Deny for Domain Users does not stop the members of Authenticated Users who are not Domain Users (computers, other domains).
+        $acl = @((& $script:enrollAce 'S-1-5-11'), (& $script:ace $script:du 0x100 $script:enrollGuid 'Deny'))
+        $f = & $script:run (& $script:invCa @((& $script:tpl 'T' @{ NameFlag = [int64]1; Eku = @($script:clientAuth); Acl = $acl })))
+        $h = @(& $script:hits $f 'ESC1')
+        $h[0].Confidence | Should -Be 'Referenced'
+        $h[0].Severity | Should -Be 'High'
     }
 }

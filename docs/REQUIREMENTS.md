@@ -169,12 +169,17 @@ Rules:
   `msPKI-Certificate-Application-Policy`, `msPKI-RA-Signature`, `msPKI-RA-Application-Policies`, `msPKI-RA-Policies`,
   `msPKI-Certificate-Policy`, the security descriptor, and `msDS-OIDToGroupLink` on OIDs. Resolve each SID **once per run** (cache).
 - "Broad groups" means Everyone, Authenticated Users, Domain Users, Domain Computers, plus their forest equivalents.
+- Every pattern rests on permissions. Effective access (group nesting, Deny ACEs on containing groups, ACE order, the CA's
+  Request Certificates permission, enrollment agent restrictions) is not computed, so a match is at most `Referenced`, and
+  `Inferred` with severity `ReviewRequired` when a Deny ACE for the principal or a group that contains it exists.
 - A finding needs **every** condition below and lists each one in `Evidence`. One flag on its own is never a finding:
   - **ESC1**: published + broad enroll + enrollee supplies subject + client-auth-capable EKU (Client Auth, PKINIT,
     Smart Card Logon, Any Purpose, or no EKU) + no manager approval + no authorised signatures.
   - **ESC2**: published + broad enroll + Any Purpose or no EKU + no approval + no signatures.
-  - **ESC3**: published + broad enroll + Certificate Request Agent EKU + no approval, **and** another published
-    template that accepts enrollment-agent signatures and is client-auth capable.
+  - **ESC3**: published + broad enroll + Certificate Request Agent EKU + no approval + no signatures, **and** another
+    published template that accepts enrollment-agent signatures (every schema version 1 template; version 2+ with
+    `msPKI-RA-Signature` >= 1 and the Certificate Request Agent policy), is client-auth capable, needs no approval and lets
+    the agent's principals enroll (same broad group, Everyone or Authenticated Users).
   - **ESC4**: broad groups with write/owner/full-control rights on a template object.
   - **ESC9**: `CT_FLAG_NO_SECURITY_EXTENSION` + client-auth EKU + broad enroll. Severity `ReviewRequired`, because DC
     certificate-binding enforcement can't be confirmed from here.

@@ -358,3 +358,9 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   (agent: no signatures; target: no approval, client authentication, agent principals may enroll).
 - Red then green: "Audit 2 H2" block in tests/TemplateSecurity.Tests.ps1 (default-forest model, positive and negative cases).
   Lab run (normal user): 99 findings, exit 6, no difference (the lab has no broad agent template). Next: M11.
+
+## Audit 2 Batch A, M11 (2026-11-22): template confidence - PARTIALLY DONE (927 tests)
+- Template review findings are never Confirmed while effective access is not computed (now Referenced, with the reason in the
+  evidence); Deny ACEs for a containing well-known group (Everyone, Authenticated Users) make a match an Inferred review item.
+- Red then green: "Audit 2 M11" block in tests/TemplateSecurity.Tests.ps1. Lab run (normal user): 99 findings, exit 6, no difference.
+- Open from M11: the ESC4 single-attribute WriteProperty rule (Batch B). Batch A is complete; next is Batch B (AUDIT-2.md order).

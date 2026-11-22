@@ -419,7 +419,8 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 | H1 | Fixed | `3b4c3af` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 H1: links in a downloaded CRL are followed only when its signature verified" (3 tests) and "Audit 2 H1: an LDAP bind goes only to hosts proven by authoritative discovery" (12 tests); updated audit 1 cases in `tests/Audit.Probes.Tests.ps1` |
 | M10 | Fixed | `a95e566` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M10: downloaded bytes never create a private key on disk" (5 tests: content type, New-MspkiCertificate, AIA endpoint, NDES reader, PKCS #7 still read); new Hygiene patterns "key persistence" and "certificate loading" |
 | M9 | Fixed | `4aa6a91` | `tests/Audit2.Security.Tests.ps1`: "Audit 2 M9: a redirect or a TLS handshake never goes to a host that no trusted evidence named" (5 tests); audit 1 test "looks at the host of the failing hop ..." now registers the HTTPS host as a lead first |
-| H2 | Fixed | see the H2 commit (`git log --grep "Audit 2 H2"`) | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2: ESC3 in a forest modelled on the default templates" (10 tests: default forest does not fire; broad agent template + default User fires; two targets counted; 7 negative cases, one condition each) |
+| H2 | Fixed | `59a2f72` | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 H2: ESC3 in a forest modelled on the default templates" (10 tests: default forest does not fire; broad agent template + default User fires; two targets counted; 7 negative cases, one condition each) |
+| M11 | Partially fixed: confidence and Deny ACEs done; the ESC4 rule that counts a WriteProperty on any single attribute is not changed (Batch B) | see the M11 commit (`git log --grep "Audit 2 M11"`) | `tests/TemplateSecurity.Tests.ps1`: "Audit 2 M11: a permission-based template finding is never Confirmed while effective permissions are not computed" (6 tests); two older assertions updated to the new rule and wording |
 
 ### H1 notes
 - Freshest CRL links are queued and followed only after the CRL's signature verified with a discovered CA certificate (or one
@@ -471,3 +472,16 @@ test passing. Commits are listed under the fix; the commit of a fix is the one t
 - The fixtures model a new forest: User (schema 1, Domain Users), Machine (schema 1, Domain Computers) and EnrollmentAgent
   (schema 1, administrators only). That forest gives no ESC3; adding a broad, approval-free agent template gives one, with User
   as the target and Machine excluded.
+
+### M11 notes
+- Effective access is not computed (group nesting, Deny ACEs on groups that contain the principal, ACE order, the CA's own
+  Request Certificates permission and enrollment agent restrictions). So every template review finding is now Referenced,
+  never Confirmed, including templates the CA's own list names. The evidence says so in one line ("Confidence Referenced,
+  not Confirmed: ..."). The code keeps the place where Confirmed would be allowed, behind `$effectiveAccessComputed`, which
+  stays `$false` until that computation exists.
+- Deny ACEs now count when they are for the same principal or for a well-known group that contains it (Everyone contains every
+  principal; Authenticated Users contains Domain Users and Domain Computers). Such a match is Inferred with severity
+  ReviewRequired, and the evidence names the denying group. A Deny for a narrower group does not cancel an Allow for a wider
+  one.
+- Still open from M11 (Batch B): the ESC4 write check counts a `WriteProperty` limited to one harmless attribute as a write.
+  REQUIREMENTS 5.5 now states the confidence rule and the full ESC3 conditions (from H2).

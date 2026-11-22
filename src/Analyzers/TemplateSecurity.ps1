@@ -54,6 +54,22 @@ function Test-MspkiAceGrant {
     return (($m -band $writeBits) -ne 0)
 }
 
+function Test-MspkiSidContains {
+    <#
+    .SYNOPSIS
+    True when the well-known group Outer contains the principal Inner, or both are the same SID. Only the fixed containments of the
+    broad groups are known without a directory lookup: Everyone contains every principal; Authenticated Users contains itself,
+    Domain Users and Domain Computers (of any domain). Nothing else is assumed.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Outer, [AllowEmptyString()][string]$Inner)
+    if (-not $Outer -or -not $Inner) { return $false }
+    if ($Outer -eq $Inner) { return $true }
+    if ($Outer -eq 'S-1-1-0') { return $true }
+    if ($Outer -eq 'S-1-5-11') { return ($Inner -match '^S-1-5-21-\d+-\d+-\d+-(513|515)$') }
+    return $false
+}
+
 function Get-MspkiBroadAce {
     <#
     .SYNOPSIS
@@ -68,17 +84,21 @@ function Get-MspkiBroadAce {
         if (-not (Test-MspkiAceGrant -Ace $a -Right $Right)) { continue }
         $label = Get-MspkiBroadPrincipal -Sid ([string]$a.Sid)
         if (-not $label) { continue }
-        $denied = (@($acl | Where-Object { $_.Type -eq 'Deny' -and -not $_.InheritOnly -and $_.Sid -eq $a.Sid }).Count -gt 0)
+        # A Deny ACE for the same principal, or for a well-known group that contains it (audit 2 M11: a Deny for Everyone also
+        # applies to Authenticated Users), may cancel this grant. Effective access is not computed, so such a match is a review item.
+        $denyAces = @($acl | Where-Object { $_.Type -eq 'Deny' -and -not $_.InheritOnly -and (Test-MspkiSidContains -Outer ([string]$_.Sid) -Inner ([string]$a.Sid)) })
+        $denied = ($denyAces.Count -gt 0)
+        $deniedBy = @($denyAces | ForEach-Object { $l = Get-MspkiBroadPrincipal -Sid ([string]$_.Sid); if ($l) { $l } elseif ($_.Principal) { [string]$_.Principal } else { [string]$_.Sid } } | Select-Object -Unique)
         $name = [string]$a.Principal
         if (-not $name) { $name = $label }
-        [void]$out.Add([pscustomobject][ordered]@{ Sid = [string]$a.Sid; Principal = $name; Label = $label; Rights = @($a.Rights); Denied = $denied; Via = 'ACE' })
+        [void]$out.Add([pscustomobject][ordered]@{ Sid = [string]$a.Sid; Principal = $name; Label = $label; Rights = @($a.Rights); Denied = $denied; DeniedBy = $deniedBy; Via = 'ACE' })
     }
     if ($Right -eq 'Write' -and $Template.OwnerSid) {
         $ol = Get-MspkiBroadPrincipal -Sid ([string]$Template.OwnerSid)
         if ($ol) {
             $name = [string]$Template.Owner
             if (-not $name) { $name = $ol }
-            [void]$out.Add([pscustomobject][ordered]@{ Sid = [string]$Template.OwnerSid; Principal = $name; Label = $ol; Rights = @('Owner'); Denied = $false; Via = 'Owner' })
+            [void]$out.Add([pscustomobject][ordered]@{ Sid = [string]$Template.OwnerSid; Principal = $name; Label = $ol; Rights = @('Owner'); Denied = $false; DeniedBy = @(); Via = 'Owner' })
         }
     }
     return , $out.ToArray()
@@ -135,7 +155,7 @@ function Get-MspkiPrincipalText {
     param($Entries)
     return (@($Entries | ForEach-Object {
         $t = '{0} [{1}] ({2}; rights: {3})' -f $_.Principal, $_.Label, $_.Sid, (@($_.Rights) -join ', ')
-        if ($_.Denied) { $t += ' - a Deny ACE exists for the same principal, effective access not computed' }
+        if ($_.Denied) { $t += (' - a Deny ACE for {0} may cancel this grant, effective access not computed' -f (@($_.DeniedBy) -join ', ')) }
         $t }) -join '; ')
 }
 
@@ -310,14 +330,19 @@ function Test-MspkiTemplateEnrollmentRisk {
             $src = @('AD:CertificateTemplates', 'AD:EnrollmentServices:certificateTemplates')
             if ($viaCa) { $src += 'CA:GetCAProperty' }
             if ($h.Extra) { $src += $h.Extra }
+            # Every pattern rests on who may enroll or write (audit 2 M11). This review reads the ACEs but does not compute effective
+            # access, so a match is Referenced, never Confirmed; it could be Confirmed only once effective access is computed.
+            $effectiveAccessComputed = $false
             $conf = 'Referenced'
-            if ($isPub -and $viaCa) { $conf = 'Confirmed' }
-            # A Deny ACE for the same principal may cancel the grant that matched, and effective access is not computed: such a
-            # match is a review item that is only inferred, never a confirmed failure.
+            if ($effectiveAccessComputed -and $isPub -and $viaCa) { $conf = 'Confirmed' }
+            $ev += 'Confidence Referenced, not Confirmed: the conditions were read from AD, but effective permissions are not computed (group nesting, Deny ACEs on groups that contain the principal, the order of the ACEs, the CA''s own Request Certificates permission and its enrollment agent restrictions are not evaluated).'
+            # A Deny ACE for the same principal, or for a well-known group that contains it, may cancel the grant that matched: such
+            # a match is a review item that is only inferred.
             $denied = @(@($h.Principals) | Where-Object { $_ -and $_.Denied })
             if ($denied.Count -gt 0) {
                 $sev = 'ReviewRequired'; $status = $script:MspkiSeverityStatus[$sev]; $conf = 'Inferred'
-                $ev += ('A Deny ACE exists for the same principal ({0}). Effective access (the order and combination of the ACEs, group nesting) is not computed, so this match may not apply and is only a review item.' -f (($denied | ForEach-Object { $_.Principal }) -join ', '))
+                $ev += ('A Deny ACE for {0} may cancel the grant to {1}. Effective access (the order and combination of the ACEs, group nesting) is not computed, so this match may not apply and is only a review item.' -f `
+                    ((@($denied | ForEach-Object { @($_.DeniedBy) }) | Select-Object -Unique) -join ', '), (($denied | ForEach-Object { $_.Principal }) -join ', '))
             }
             $prefix = ''
             if (-not $isPub) { $prefix = '[Unpublished] ' }
