@@ -407,3 +407,9 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   Authenticated Users / Everyone agents; a schema 2 case that matched before no longer does). M3 has a small AIA side effect.
 - New: N1 (High) a forged AIA certificate with the real CA key is Pass/Confirmed and its LDAP link reaches a bind; N4-N7 Low/nit.
 - Next: fix N1, then N2 (H2), then N3-N7.
+
+## Audit 2 verification fixes, Batch D (2026-11-22)
+- N1: a downloaded CA certificate is trusted (used as an issuer, links followed) only as an exact SHA-256 copy of an AD/CA certificate,
+  or when its own signature verifies with a trusted CA key; a self-signed root needs both its self-signature and an exact copy. Public-key
+  match alone is never enough; non-CA certificates are never issuers. Forged self-signed roots are Fail / SIGNATURE_INVALID.
+  Tests: tests/Audit2.Verify.Tests.ps1 (N1). Lab: 99 findings, exit 6, unchanged. Fix log 2 in docs/AUDIT-2-VERIFY.md.

@@ -146,6 +146,40 @@ function New-TestCertificate {
     return [pscustomobject]@{ Full = $full; Public = $public; Key = $rsa }
 }
 
+function New-TestForgedCertificate {
+    <#
+    A certificate that carries somebody else's PUBLIC key (from -PublicKeyOf) but is signed with another key (-SigningKey) under the
+    issuer name -IssuerName: what anyone can build, because the public key of a CA is public (audit 2 verification N1). Returns the
+    public-only X509Certificate2.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Subject,
+        [Parameter(Mandatory = $true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$PublicKeyOf,
+        [Parameter(Mandatory = $true)][string]$IssuerName,
+        [Parameter(Mandatory = $true)]$SigningKey,
+        [string[]]$CdpUrls = @(),
+        [string[]]$AiaUrls = @(),
+        [int]$DaysValid = 365
+    )
+    $req = New-Object System.Security.Cryptography.X509Certificates.CertificateRequest(
+        (New-Object System.Security.Cryptography.X509Certificates.X500DistinguishedName($Subject)), $PublicKeyOf.PublicKey,
+        [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+    if ($CdpUrls.Count -gt 0) {
+        $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509Extension('2.5.29.31', (New-TestCdpExtensionValue -Urls $CdpUrls), $false)))
+    }
+    if ($AiaUrls.Count -gt 0) {
+        $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509Extension('1.3.6.1.5.5.7.1.1', (New-TestAiaExtensionValue -CaIssuers $AiaUrls), $false)))
+    }
+    $req.CertificateExtensions.Add((New-Object System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension($true, $false, 0, $true)))
+    $gen = [System.Security.Cryptography.X509Certificates.X509SignatureGenerator]::CreateForRSA($SigningKey, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+    $serial = New-Object byte[] 16
+    (New-Object System.Random).NextBytes($serial)
+    $serial[0] = $serial[0] -band 0x7F
+    $issued = $req.Create((New-Object System.Security.Cryptography.X509Certificates.X500DistinguishedName($IssuerName)), $gen,
+        [DateTimeOffset]::UtcNow.AddDays(-1), [DateTimeOffset]::UtcNow.AddDays($DaysValid), $serial)
+    return (New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(, $issued.RawData))
+}
+
 function ConvertTo-TestBase64 {
     param([byte[]]$Bytes)
     return [Convert]::ToBase64String($Bytes)

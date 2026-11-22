@@ -240,7 +240,8 @@ Describe 'HTTP probes against a loopback test server' {
             $rn.Findings[0].Status | Should -Be 'Pass'
             $rn.Findings[0].Confidence | Should -Be 'Referenced'
             $rn.Validated | Should -BeFalse
-            $ra = Test-MspkiLeadEndpoint -Lead $A -Url $A.Url -ExpectedIssuer @($Root.Subject) -KnownCertificate @{ $Root.Thumbprint = $Root }
+            $ra = Test-MspkiLeadEndpoint -Lead $A -Url $A.Url -ExpectedIssuer @($Root.Subject) -KnownCertificate @{ $Root.Thumbprint = $Root } `
+                -AuthoritativeCertificate @{ (Get-MspkiSha256Hex -Bytes $Root.RawData) = $Root }
             $ra.Findings[0].Status | Should -Be 'Pass'
             $ra.Findings[0].Confidence | Should -Be 'Confirmed'
             $ra.Validated | Should -BeTrue
@@ -272,7 +273,8 @@ Describe 'HTTP probes against a loopback test server' {
         $sub = New-TestCertificate -Subject 'CN=Example Issuing CA, DC=corp, DC=example, DC=test' -Signer $script:root.Full -DaysValid 900 `
             -CdpUrls @("$b/root.crl") -AiaUrls @("$b/root.crt")
         $disc = [pscustomobject]@{
-            Certificates = @{ $sub.Public.Thumbprint = $sub.Public }
+            # The root is read from AD too: a self-signed root downloaded from an AIA location is trusted only as an exact copy of it (audit 2 N1).
+            Certificates = @{ $sub.Public.Thumbprint = $sub.Public; $script:root.Public.Thumbprint = $script:root.Public }
             Inventory = [pscustomobject]@{
                 AdContext = [pscustomobject]@{ DomainController = ''; ForestDomains = @(); TrustedDomains = @() }
                 CACertificates = @([pscustomobject]@{ Thumbprint = $sub.Public.Thumbprint; CAName = 'Example Issuing CA'; Info = [pscustomobject]@{ Subject = $sub.Public.Subject } })

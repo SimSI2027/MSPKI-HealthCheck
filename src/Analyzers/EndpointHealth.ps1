@@ -90,6 +90,142 @@ function Test-MspkiAiaCertificateMatch {
     return [pscustomobject]@{ Result = 'NotVerifiable'; Lines = @($lines) }
 }
 
+function Test-MspkiCertificateMayIssue {
+    <#
+    .SYNOPSIS
+    False when the Basic Constraints of a certificate say it is not a CA certificate; true otherwise (a CA certificate, or a version 1
+    certificate without the extension). Only a certificate that may issue is used to verify another signature.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate)
+    $bc = Get-MspkiCertificateExtension -Certificate $Certificate -Oid $script:MspkiOid.BasicConstraints
+    if ($null -eq $bc) { return $true }
+    try { return [bool](New-Object System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension($bc, $bc.Critical)).CertificateAuthority }
+    catch { return $false }
+}
+
+function Find-MspkiIssuerSignature {
+    <#
+    .SYNOPSIS
+    Finds the issuer of a signed certificate or CRL among trusted CA certificates (issuer name, then Authority Key Identifier) and checks
+    the signature with that issuer's public key. Pure function: no chain engine, so Windows fetches nothing in the background.
+
+    .OUTPUTS
+    { Issuer (certificate or $null); Valid ($true verified, $false checked and does not verify, $null could not be checked); Text }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$SignedBytes,
+        [Parameter(Mandatory = $true)][string]$IssuerRawHex,
+        [string]$IssuerName = '',
+        [AllowEmptyString()][string]$AuthorityKeyId = '',
+        [AllowEmptyCollection()][object[]]$Certificates = @()
+    )
+    $issuer = $null; $sigText = 'issuer certificate not found among the discovered certificates'; $sigOk = $null
+    # A certificate whose Basic Constraints say "not a CA" is never an issuer (an end-entity certificate of the real CA must not vouch
+    # for anything).
+    $named = @($Certificates | Where-Object { $null -ne $_ -and (ConvertTo-MspkiHex $_.SubjectName.RawData) -eq $IssuerRawHex -and (Test-MspkiCertificateMayIssue -Certificate $_) } |
+        Sort-Object NotAfter -Descending)
+    # When the object names the key that signed it (Authority Key Identifier), only a certificate with that key can be its issuer.
+    $cands = $named
+    if ($AuthorityKeyId -and $named.Count -gt 0) {
+        $byKey = @($named | Where-Object { (Get-MspkiCertificateSubjectKeyId -Certificate $_) -eq $AuthorityKeyId })
+        $noKey = @($named | Where-Object { -not (Get-MspkiCertificateSubjectKeyId -Certificate $_) })
+        if ($byKey.Count -gt 0) { $cands = $byKey }
+        elseif ($noKey.Count -gt 0) { $cands = $noKey }
+        else {
+            $cands = @()
+            $sigText = ('issuer certificate with key identifier {0} not found: {1} certificate(s) named {2} were discovered, but they carry other keys (another key generation of the CA)' -f $AuthorityKeyId, $named.Count, $IssuerName)
+        }
+    }
+    $anyFalse = $false; $anyNull = $false; $lastReason = ''
+    foreach ($c in $cands) {
+        $v = Test-MspkiSignature -SignedBytes $SignedBytes -Issuer $c
+        if ($v.Valid -eq $true) { $issuer = $c; $sigOk = $true; $sigText = ('verified with {0} [{1}]' -f $c.Subject, $c.Thumbprint); $anyFalse = $false; $anyNull = $false; break }
+        if ($v.Valid -eq $false) { $anyFalse = $true } else { $anyNull = $true }
+        $lastReason = $v.Reason
+    }
+    if ($null -eq $issuer -and $cands.Count -gt 0) {
+        # "could not be checked" (Valid is $null) is not "invalid": only a signature that was really checked and does not verify is a failure.
+        if ($anyNull) { $sigOk = $null; $sigText = ('could not be checked with the certificate(s) named {0}: {1}' -f $IssuerName, $lastReason) }
+        elseif ($anyFalse) { $sigOk = $false; $sigText = ('does not verify with any certificate named {0} ({1})' -f $IssuerName, $lastReason) }
+    }
+    return [pscustomobject]@{ Issuer = $issuer; Valid = $sigOk; Text = $sigText }
+}
+
+function Test-MspkiDownloadedCertificateTrust {
+    <#
+    .SYNOPSIS
+    Decides whether a downloaded CA certificate is trusted: used to verify other signatures, and its links followed (audit 2
+    verification N1). Pure function: public-key signature checks only, so Windows fetches nothing in the background.
+
+    .DESCRIPTION
+    A downloaded certificate is trusted only when one of these holds:
+    - it is not self-signed, and it is byte for byte (SHA-256 of the DER) a CA certificate read from an authoritative source (the AD
+      containers or the CA's own properties); or its own signature verifies with the public key of an already trusted CA certificate;
+    - it is self-signed, its self-signature verifies, AND it is byte for byte a copy read from an authoritative source.
+    A matching public key alone is never enough: the public key of a CA is public, so anyone can put it into a certificate signed with
+    another key. A certificate whose Basic Constraints say it is not a CA is never trusted.
+
+    .OUTPUTS
+    { Trusted (bool); Basis ('AuthoritativeCopy', 'IssuerSignature' or ''); SignatureValid ($true, $false or $null = not checked);
+      Lines (evidence) }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate,
+        # SHA-256 hex of the DER -> certificate, for the CA certificates read from AD and from the CAs.
+        [hashtable]$Authoritative = @{},
+        # CA certificates already trusted (authoritative, or downloaded and proven earlier in this run).
+        [AllowEmptyCollection()][object[]]$TrustedIssuers = @()
+    )
+    $out = [pscustomobject]@{ Trusted = $false; Basis = ''; SignatureValid = $null; Lines = @() }
+    $lines = New-Object System.Collections.ArrayList
+    if (-not (Test-MspkiCertificateMayIssue -Certificate $Certificate)) {
+        [void]$lines.Add('Trust: the Basic Constraints of this certificate say it is not a CA certificate, so it is not trusted and its links are not followed.')
+        $out.Lines = @($lines); return $out
+    }
+    $sha = Get-MspkiSha256Hex -Bytes $Certificate.RawData
+    $copy = $false
+    if ($Authoritative.ContainsKey($sha) -and $null -ne $Authoritative[$sha]) {
+        $copy = ((ConvertTo-MspkiHex $Authoritative[$sha].RawData) -eq (ConvertTo-MspkiHex $Certificate.RawData))
+    }
+    $selfSigned = ((ConvertTo-MspkiHex $Certificate.SubjectName.RawData) -eq (ConvertTo-MspkiHex $Certificate.IssuerName.RawData))
+    if ($selfSigned) {
+        $v = Test-MspkiSignature -SignedBytes $Certificate.RawData -Issuer $Certificate
+        $out.SignatureValid = $v.Valid
+        if ($v.Valid -eq $true) { [void]$lines.Add('Trust: the certificate is self-signed and its self-signature verifies.') }
+        elseif ($v.Valid -eq $false) { [void]$lines.Add(('Trust: the certificate claims to be self-signed, but its self-signature does NOT verify with its own key ({0}).' -f $v.Reason)) }
+        else { [void]$lines.Add(('Trust: the self-signature could not be checked: {0}' -f $v.Reason)) }
+        if ($copy -and $v.Valid -eq $true) {
+            $out.Trusted = $true; $out.Basis = 'AuthoritativeCopy'
+            [void]$lines.Add(('Trust: identical (SHA-256 {0}) to the CA certificate read from Active Directory or from the CA.' -f $sha))
+        }
+        elseif (-not $copy) {
+            [void]$lines.Add('Trust: not trusted. A self-signed certificate proves nothing by itself, and this one is not identical to any CA certificate read from Active Directory or from the CA. Links inside it are not followed.')
+        }
+        else { [void]$lines.Add('Trust: not trusted, because its self-signature was not verified. Links inside it are not followed.') }
+        $out.Lines = @($lines); return $out
+    }
+    if ($copy) {
+        $out.Trusted = $true; $out.Basis = 'AuthoritativeCopy'
+        [void]$lines.Add(('Trust: identical (SHA-256 {0}) to a CA certificate read from Active Directory or from the CA.' -f $sha))
+        $out.Lines = @($lines); return $out
+    }
+    $sig = Find-MspkiIssuerSignature -SignedBytes $Certificate.RawData -IssuerRawHex (ConvertTo-MspkiHex $Certificate.IssuerName.RawData) `
+        -IssuerName $Certificate.Issuer -AuthorityKeyId (Get-MspkiCertificateAuthorityKeyId -Certificate $Certificate) -Certificates $TrustedIssuers
+    $out.SignatureValid = $sig.Valid
+    if ($sig.Valid -eq $true) {
+        $out.Trusted = $true; $out.Basis = 'IssuerSignature'
+        [void]$lines.Add(('Trust: its own signature is {0}, a CA certificate that is already trusted.' -f $sig.Text))
+    }
+    else {
+        [void]$lines.Add(('Trust: not trusted. Its own signature {0}, and it is not identical to any CA certificate read from Active Directory or from the CA. Links inside it are not followed.' -f $(if ($sig.Valid -eq $false) { $sig.Text } else { 'was not verified (' + $sig.Text + ')' })))
+    }
+    $out.Lines = @($lines)
+    return $out
+}
+
 function Get-MspkiExpectedIssuerName {
     <#
     .SYNOPSIS
@@ -144,7 +280,10 @@ function Test-MspkiLeadEndpoint {
         [int]$TimeoutSeconds = 5,
         [switch]$SkipNetwork,
         [string[]]$ExpectedIssuer = @(),
-        [hashtable]$KnownCertificate = @{}
+        # Trusted CA certificates (thumbprint -> certificate): read from AD and the CAs, or downloaded and proven in this run.
+        [hashtable]$KnownCertificate = @{},
+        # The CA certificates read from authoritative sources (AD containers, CA properties): SHA-256 hex of the DER -> certificate.
+        [hashtable]$AuthoritativeCertificate = @{}
     )
     $out = [pscustomobject]@{ Findings = (New-Object System.Collections.ArrayList); Certificate = $null; Validated = $false; Crl = $null; Url = $Url }
     $ms = $TimeoutSeconds * 1000
@@ -306,6 +445,18 @@ function Test-MspkiLeadEndpoint {
                 -Confidence 'Confirmed' -Message ('The AIA location returns a certificate for {0}, not the expected issuer.' -f $cert.Subject)))
             return $out
         }
+        # The key proof above says the downloaded key is the right one. It says nothing about the certificate itself: the key of a CA is
+        # public, so a certificate signed with any other key can carry it (audit 2 verification N1). Only a certificate that is
+        # identical to an authoritative copy, or whose own signature verifies with a trusted CA certificate, is used or followed.
+        $trust = Test-MspkiDownloadedCertificateTrust -Certificate $cert -Authoritative $AuthoritativeCertificate -TrustedIssuers @($KnownCertificate.Values)
+        foreach ($l in $trust.Lines) { [void]$ev.Add($l) }
+        if ($trust.SignatureValid -eq $false) {
+            $layers['ContentStatus'] = 'Fail'
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Fail' -Code 'SIGNATURE_INVALID' -Layers $layers -Evidence @($ev) `
+                -Confidence 'Confirmed' -Message ('The AIA location returns a certificate for {0} whose own signature does not verify.' -f $cert.Subject) `
+                -Notes 'A client cannot build a chain through this certificate. It is not used to verify anything, and the links inside it are not followed.'))
+            return $out
+        }
         if ($m.Result -eq 'KeyMismatch') {
             $layers['ContentStatus'] = 'Warning'
             [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Warning' -Code 'CONTENT_MISMATCH' -Layers $layers -Evidence @($ev) `
@@ -314,10 +465,15 @@ function Test-MspkiLeadEndpoint {
             return $out
         }
         $layers['ContentStatus'] = 'Pass'
-        if ($m.Result -eq 'Verified') {
+        if ($m.Result -eq 'Verified' -and $trust.Trusted) {
             $out.Validated = $true
             [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Pass' -Code 'OK' -Layers $layers -Evidence @($ev) `
                 -Confidence 'Confirmed' -Message ('The AIA location returns the CA certificate {0}.' -f $cert.Subject)))
+        }
+        elseif ($m.Result -eq 'Verified') {
+            [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Pass' -Code 'OK' -Layers $layers -Evidence @($ev) `
+                -Confidence 'Referenced' -Message ('The AIA location returns a certificate with the expected name and key ({0}); the certificate itself was not proven.' -f $cert.Subject) `
+                -Notes 'It is not identical to the copy in Active Directory or on the CA, and its own signature was not verified with a trusted CA certificate (a cross-certificate issued by another CA looks like this, and so does a forged one). It is not used to verify anything, and the links inside it are not followed.'))
         }
         else {
             [void]$out.Findings.Add((New-MspkiEndpointFinding -Lead $Lead -Url $Url -Status 'Pass' -Code 'OK' -Layers $layers -Evidence @($ev) `
@@ -357,33 +513,9 @@ function Test-MspkiCrlIssuerSignature {
         [Parameter(Mandatory = $true)]$Crl,
         [AllowEmptyCollection()][object[]]$Certificates = @()
     )
-    $issuer = $null; $sigText = 'issuer certificate not found among the discovered certificates'; $sigOk = $null
-    $named = @($Certificates | Where-Object { $null -ne $_ -and (ConvertTo-MspkiHex $_.SubjectName.RawData) -eq $Crl.IssuerRawHex } | Sort-Object NotAfter -Descending)
-    # When the CRL names the key that signed it (Authority Key Identifier), only a certificate with that key can be its issuer.
-    $cands = $named
-    if ($Crl.AuthorityKeyId -and $named.Count -gt 0) {
-        $byKey = @($named | Where-Object { (Get-MspkiCertificateSubjectKeyId -Certificate $_) -eq $Crl.AuthorityKeyId })
-        $noKey = @($named | Where-Object { -not (Get-MspkiCertificateSubjectKeyId -Certificate $_) })
-        if ($byKey.Count -gt 0) { $cands = $byKey }
-        elseif ($noKey.Count -gt 0) { $cands = $noKey }
-        else {
-            $cands = @()
-            $sigText = ('issuer certificate with key identifier {0} not found: {1} certificate(s) named {2} were discovered, but they carry other keys (another key generation of the CA)' -f $Crl.AuthorityKeyId, $named.Count, $Crl.Issuer)
-        }
-    }
-    $anyFalse = $false; $anyNull = $false; $lastReason = ''
-    foreach ($c in $cands) {
-        $v = Test-MspkiSignature -SignedBytes $Crl.Bytes -Issuer $c
-        if ($v.Valid -eq $true) { $issuer = $c; $sigOk = $true; $sigText = ('verified with {0} [{1}]' -f $c.Subject, $c.Thumbprint); $anyFalse = $false; $anyNull = $false; break }
-        if ($v.Valid -eq $false) { $anyFalse = $true } else { $anyNull = $true }
-        $lastReason = $v.Reason
-    }
-    if ($null -eq $issuer -and $cands.Count -gt 0) {
-        # "could not be checked" (Valid is $null) is not "invalid": only a signature that was really checked and does not verify is a failure.
-        if ($anyNull) { $sigOk = $null; $sigText = ('could not be checked with the certificate(s) named {0}: {1}' -f $Crl.Issuer, $lastReason) }
-        elseif ($anyFalse) { $sigOk = $false; $sigText = ('does not verify with any certificate named {0} ({1})' -f $Crl.Issuer, $lastReason) }
-    }
-    return [pscustomobject]@{ Issuer = $issuer; Valid = $sigOk; Text = $sigText }
+    # The same rule as for a downloaded certificate: only the public key of a trusted CA certificate can verify it (audit 2 N1).
+    return (Find-MspkiIssuerSignature -SignedBytes $Crl.Bytes -IssuerRawHex $Crl.IssuerRawHex -IssuerName $Crl.Issuer `
+        -AuthorityKeyId ([string]$Crl.AuthorityKeyId) -Certificates $Certificates)
 }
 
 function Test-MspkiCrlHealth {
@@ -530,7 +662,14 @@ function Invoke-MspkiEndpointAnalysis {
     $records = New-Object System.Collections.ArrayList
     $crlLinkQueue = New-Object System.Collections.ArrayList
     $certMap = @{}
-    foreach ($k in $Discovery.Certificates.Keys) { $certMap[$k] = $Discovery.Certificates[$k] }
+    # The CA certificates from AD and the CAs, by the SHA-256 of their DER: a downloaded certificate identical to one of these is an
+    # authoritative copy (audit 2 N1). $certMap grows with downloaded certificates that were proven; this map never does.
+    $authMap = @{}
+    foreach ($k in $Discovery.Certificates.Keys) {
+        $c = $Discovery.Certificates[$k]
+        $certMap[$k] = $c
+        if ($null -ne $c) { $authMap[(Get-MspkiSha256Hex -Bytes $c.RawData)] = $c }
+    }
     $caCerts = @(Get-MspkiDiscoveredCertificateEntry -Discovery $Discovery)
     $dc = ''
     if ($null -ne $Discovery.Inventory.AdContext) { $dc = $Discovery.Inventory.AdContext.DomainController }
@@ -547,7 +686,7 @@ function Invoke-MspkiEndpointAnalysis {
             $grade = Get-MspkiLeadGrading -Lead $lead -Inventory $Discovery.Inventory -KnownCertificates $certMap
             foreach ($url in @($lead.Variants)) {
                 $r = Test-MspkiLeadEndpoint -Lead $lead -Url $url -DomainController $dc -TimeoutSeconds $TimeoutSeconds `
-                    -SkipNetwork:$SkipNetwork -ExpectedIssuer $expected -KnownCertificate $certMap
+                    -SkipNetwork:$SkipNetwork -ExpectedIssuer $expected -KnownCertificate $certMap -AuthoritativeCertificate $authMap
                 foreach ($f in $r.Findings) {
                     if ($grade.ReviewOnly) { $f = ConvertTo-MspkiReviewFinding -Finding $f -Reason $grade.Reason }
                     [void]$findings.Add($f)
@@ -557,7 +696,8 @@ function Invoke-MspkiEndpointAnalysis {
                 try { Register-MspkiProbeResult -Lead $lead -Url $url -Result $r -KnownCertificates $certMap -Tested:$tested }
                 catch { Write-MspkiLog -Level Warning -Message ('Entity graph: could not record {0}: {1}' -f $url, $_.Exception.Message) }
                 # A downloaded certificate is used (to verify signatures, and for the links inside it) only when it is the expected
-                # issuer AND its key is proven: otherwise a changed or planted file could steer where this tool connects next.
+                # issuer, its key is proven AND the certificate itself is trusted (an authoritative copy, or its own signature verifies
+                # with a trusted CA certificate; audit 2 N1): otherwise a changed or planted file could steer where this tool connects next.
                 if ($null -ne $r.Certificate -and $r.Validated) {
                     $c = $r.Certificate
                     if (-not $certMap.ContainsKey($c.Thumbprint)) { $certMap[$c.Thumbprint] = $c }

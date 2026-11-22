@@ -407,3 +407,30 @@ the part that failed on the old behaviour rather than on a missing function or p
 - No lab run of the product: the code was not changed, and the Fix log records a lab run after the last fix.
 - N6 was not shown against a resolvable referral. The L7 LDAPS path was not tested against a real LDAPS server.
 - The probe tests and the old-code trees were kept outside the repository and are not committed.
+
+---
+
+## Fix log 2 (Batch D)
+
+Each fix was tested red then green. "Pre-fix run": the new tests of the fix commit were run against the code of its parent commit
+(`git archive` of the parent, the fix commit's `tests/` laid over it, outside the repository), as in the table above. "Behavioural"
+counts the tests that failed because of the old behaviour; "signature" counts those that failed only because a new function was missing.
+
+| ID | Status | Commit | Tests | Pre-fix run |
+|---|---|---|---|---|
+| N1 | Fixed | (this commit) | `tests/Audit2.Verify.Tests.ps1`: "Audit 2 N1: a downloaded CA certificate is trusted only as an authoritative copy or by its own verified signature" (6), "Audit 2 N1: a forged certificate at an AIA location is not followed" (4) | against `9b43bb1`: 10 ran, 8 red. Behavioural 2: the forged certificate was Pass / **Confirmed** (expected Referenced), and the forged self-signed root was **Pass** (expected Fail / SIGNATURE_INVALID). Signature 6: `Test-MspkiDownloadedCertificateTrust` did not exist. The 2 positive cases (exact root copy, proven subordinate) pass on both, as they should |
+
+### N1: what changed
+- `Test-MspkiDownloadedCertificateTrust` (`src/Analyzers/EndpointHealth.ps1`) decides whether a downloaded CA certificate is trusted:
+  - not self-signed: byte for byte (SHA-256 of the DER) a CA certificate read from AD or the CA, **or** its own signature verifies with
+    the public key of an already trusted CA certificate (found by issuer name and Authority Key Identifier);
+  - self-signed: the self-signature verifies **and** it is byte for byte a copy read from AD or the CA;
+  - a certificate whose Basic Constraints say "not a CA" is never trusted, and is never used as an issuer (also for CRLs).
+- The M1 key proof (a referencing certificate verifies with the downloaded key) stays, as an extra condition. A certificate is Validated
+  (Pass / Confirmed, added to the trusted set, links followed as Verified) only when both hold. Key proven but certificate not
+  trusted: Pass / Referenced, nothing followed (a cross-certificate looks like this, and so does a forgery). Its own signature checked
+  and invalid: Fail / SIGNATURE_INVALID.
+- CRLs use the same issuer search (`Find-MspkiIssuerSignature`), against the same trusted set. Signatures are checked with the public
+  key only (`Test-MspkiSignature`); no `X509Chain` is built, so Windows fetches nothing in the background.
+- Lab run as a normal (non-elevated) user after N1: 99 findings, exit 6, the same categories, statuses, codes and confidences as the
+  baseline (the lab's AIA certificates are exact copies of the AD ones, so they stay Confirmed).
