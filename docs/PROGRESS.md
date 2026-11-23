@@ -439,3 +439,11 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - **Open issue (owner decision):** the public repository's history still contains lab names in the content of older commits (private-list check:
   2 of 19 names, 47 of 78 commits; HEAD is clean). Removing them needs a history rewrite and a force push.
 - Next: the verification of Batch E.
+
+## Audit 3 verification (2026-11-22): docs/AUDIT-3-VERIFY.md, no code changed
+- Fix log 2 items checked in the code and run against their pre-fix commits; all reproduce (behavioural red where claimed). Full suite at
+  64ac786: 1143 passed, 0 failed, 1 skipped. The M14 committer self-test does not separate old from new logic (N14). History names still open.
+- Credential safety end to end: verified; no bind or credentialed request can be steered by an unverified object. One plain-HTTP answer
+  can stop the endpoint stage with a file:/ftp:/ldap: redirect (N9). The TLS chain engine contacts certificate-named hosts anonymously (N13).
+- ESC3 on the lab's default templates: correct for every broad-agent case; any Deny ACE (even Delete) silently removes the match (N10).
+- Next: fix N9, then N10, N11 (SIZE_LIMIT counted usable outside the forest), N12 (local certificate URLs garbled), then the nits.
