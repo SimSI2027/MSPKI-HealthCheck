@@ -61,6 +61,86 @@ From 2026-11-22 this section is the plan of record. Statuses: DONE, IN PROGRESS,
 
 Every new check or GUI helper needs tests (sanitised example.test fixtures). The full suite stays passing.
 
+## GUI program (plan of record from 2026-11-23)
+Design: `docs/GUI-EXPERIENCE.md`. Judged on the upgraded rubric (`docs/GUI-DESIGN.md` §6). Screenshots use the demo world
+(`docs/DEMO-WORLD.md`). Every WP: tests for each new helper, -Snapshot frames of every new state, the full suite green.
+
+| WP | Scope (build order) | Status |
+|---|---|---|
+| GX0 | Prototype: mission-control Overview + live discovery map (replay), world fixture, mid-animation snapshots, 2 discriminator rounds | IN PROGRESS |
+| GX1 | Engine events for the live map (`Entity`, `Relation`, `Probe` queue items) | TODO |
+| GX2 | Mission-control Overview, production quality | TODO |
+| GX3 | Guided troubleshooting walkthrough, Observed highlighting, copy the checks, mark as checked | TODO |
+| GX4 | Ctrl+K command palette, keyboard-first paths, in-app toasts | TODO |
+| GX5 | Themes: dark and light (follow Windows), high contrast, reduced motion | TODO |
+| GX6 | Map page: full-page canvas, zoom and pan, clustering, hover "Where this exists" | TODO |
+| GX7 | Lifecycle timeline (expiry countdowns, CRL heartbeat) and interactive chain view | TODO |
+| GX8 | Run history and compare two runs | TODO |
+| GX9 | "Explain it to me" mode, Learn page, glossary, first-run tour, healthy celebration | TODO |
+| GX10 | Executive summary export (printable HTML) | TODO |
+| GX11 | Adversarial round on the upgraded rubric (max 3 rounds; PASS gate for the program) | TODO |
+
+**Acceptance criteria**
+- **GX0** The Overview shows the score ring, per-area bars, "What to do next" and a map that builds itself (staggered Storyboards,
+  pulses), from a results file in the demo world; `-Snapshot` renders start, mid-build, probing and finished frames by seeking the
+  Storyboards; reduced motion sets the final state; the score helper has tests; findings in the rubric are logged in GUI-DESIGN §7.
+- **GX1** With `-Control`, the engine queues one `Entity` item per new entity (id, type, name, parent ids) and one `Relation` item per
+  relation, and `Probe` start/end items keyed by endpoint id; without `-Control` nothing changes (CLI byte-identical results.json). At
+  least 95 % of the final graph's entities arrive before the run ends; run time grows by under 5 % on the lab; tests with a recording control.
+- **GX2** Score model in `Get-MspkiGuiHealthScore` exactly as GUI-EXPERIENCE §6, with tests for every band, the cap, partial and no-CA;
+  "How is this scored?" in plain words; area bars and the ring open Findings filtered; "What to do next" lists every action (Overview shows
+  5, a full list one click away); headline sentence; the running state is the live mission control (no separate panel); journeys J1 and
+  J2 meet their targets; Overview scores 8+ on A1-A10 and B1-B5 at minimum size, 1920 x 1080 and maximised.
+- **GX3** Walkthrough in the details pane (meaning, causes ranked, Observed marks, a copy button per check and per cause, mark as checked
+  kept in `out\<run>\gui-state.json`, fix with its owner, sources); J3 in 3 clicks from the Overview; no check text is ever executed
+  (static test: the pane only calls the clipboard).
+- **GX4** Ctrl+K opens in under 100 ms; finds pages, commands, objects by name and findings by text with a virtualised list; Esc closes and
+  returns focus; every command of the command bar is reachable; toasts replace the Windows message boxes; a keyboard-only replay of J1-J6.
+- **GX5** Every brush is a `DynamicResource`; dark and light palettes meet WCAG AA (checked by a contrast test over the palette pairs); the
+  theme follows Windows and can be switched live; high contrast uses `SystemColors`; with reduced motion no Storyboard runs.
+- **GX6** Full-page map: zoom (wheel, Ctrl +/-), pan, fit, focus a CA; clusters above 120 nodes; arrow keys between nodes; the tree stays as
+  the alternative; a generated 500-entity fixture lays out in under 300 ms and never blocks the UI thread for more than 50 ms.
+- **GX7** Timeline: one row per CA generation and CRL, now-line, countdowns, next-update windows and the overlap; chain view leaf → root
+  with each AIA/CDP link's result; both drill into details; snapshots in the demo world's `renewal-drift` and `expired-crl` scenarios.
+- **GX8** Findings carry a deterministic `Key` (category, code, rule, target; engine change with tests); History lists runs under `out\`
+  (read-only) with the score sparkline; compare shows new, resolved and changed findings and objects added or gone; J4 in 2 clicks.
+- **GX9** Glossary in `src/Knowledge/Glossary.psd1` (data only, tested like the diagnosis files); explain mode underlines terms with hover
+  definitions; concept card per object type; a 4-stop tour offered once (`out\gui-settings.json`); the celebration runs once per healthy run.
+- **GX10** Executive summary reporter: one printable page (score, trend when history exists, areas, top 3 actions in plain words, what was
+  not checked); written under `out\` only; J6 in 2 clicks; hygiene and report tests.
+- **GX11** Discriminator on PNGs and journey click paths, all states, three sizes, both themes, reduced motion on and off: every category
+  8+, no Fortune 500 defect. Rounds logged in GUI-DESIGN §7.
+
+## Demo site (plan of record from 2026-11-23)
+Plan: `docs/DEMO-SITE.md`. World: `docs/DEMO-WORLD.md`.
+
+| WP | Scope (build order) | Status |
+|---|---|---|
+| DS1 | Simulation boundary and world fixture format (baseline scenario) | TODO |
+| DS2 | World PKI material (certificates and CRLs); owner gate for the key-generating developer tool | TODO (gate) |
+| DS3 | Generator: real engine per scenario, recorded events, manifest, guards | TODO |
+| DS4 | Site shell, design tokens generated from Theme.xaml | TODO |
+| DS5 | Scenario view: mission control, map replay, findings, details with the walkthrough | TODO |
+| DS6 | Mobile, accessibility, performance budget | TODO |
+| DS7 | GitHub Pages workflow (Windows PowerShell 5.1 generate job, deploy job) | TODO |
+| DS8 | Launch check on the upgraded rubric; README link | TODO |
+
+**Acceptance criteria**
+- **DS1** A list of boundary functions, enforced by a test against the module (every function using an I/O API is listed); fixture schema
+  for directory, CA, network and local data; the baseline world runs end to end with no real network, AD or COM call (a guard throws).
+- **DS2** Owner approval recorded and a CLAUDE.md clarification for the developer-only tool; keys exist only in memory; only public DER is
+  committed; every certificate and CRL of the world verifies with the engine's own signature code; the `forged-aia` certificate does not.
+- **DS3** Every scenario of DEMO-WORLD produces `results.json`, `events.json` and `manifest.json`; output byte-identical for the same commit;
+  no unexpected Error/PermissionDenied finding; the hygiene scan over the output finds only world names.
+- **DS4** Plain HTML/CSS/JS, no third-party runtime; `tokens.css` generated from Theme.xaml with a drift test; CSP `default-src 'self'`; the
+  "Simulated environment" banner with version and commit on every page.
+- **DS5** The scenario view matches the WPF Overview, Findings and details for the same results.json (a test compares the computed score,
+  areas and actions with the GUI helpers' output); replay with play, pause, speed and scrub; deep links to findings.
+- **DS6** One column below 720 px, bottom-sheet details, 44 px targets; `prefers-reduced-motion`, `prefers-color-scheme`, `forced-colors`;
+  first view under 150 KB compressed; Lighthouse 95+ (performance, accessibility) on the mobile profile.
+- **DS7** `.github/workflows/pages.yml` as in DEMO-SITE §5; actions pinned by SHA; least-privilege permissions; generated data not committed.
+- **DS8** Desktop and phone screenshots pass the upgraded rubric; README links the site and says its data is simulated.
+
 ## DONE
 - Entity graph (results.json format 2, `docs/DATA-MODEL.md`): the base for G1/G2 drill-down. GUI reads format 1 and 2.
 - WP1 (2026-11-21): results.json is read with the in-box JavaScriptSerializer (no size limit; 10 MB tested).
@@ -96,7 +176,7 @@ Every new check or GUI helper needs tests (sanitised example.test fixtures). The
 - **G3** STATUS 2026-11-22: DONE (WP6, PKI services page). NDES / SCEP / Intune section.
 - **G4** STATUS 2026-11-22: DONE (WP5). Show endpoint identity (IP, host, alias).
 - **G5** STATUS 2026-11-22: DONE (WP5, one note per object type). A short "what is this and why it matters" note per object type; the tool should help people understand PKI.
-- **G6** Low priority: custom dialogs, dark theme, remember column widths.
+- **G6** Superseded by the GUI program (GX4 toasts, GX5 themes, remembered layout in GX4/GX9).
 
 ## HOUSEKEEPING
 - Remaining Low audit items (L1-L4, L6-L11; L5 is fixed).

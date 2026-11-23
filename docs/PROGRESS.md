@@ -483,3 +483,12 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   Round 3: every top cause matches the lab facts; no overclaim left.
 - Docs: README, TESTING (step 9 of the click-through), ROADMAP (WP9), RESEARCH. Tests: `tests/Diagnosis.Tests.ps1` 325.
 - Next: GUI program (a "what to do" overview over all findings, copy-the-checks, Observed highlighting). Open: the PTR, template and KRA topics are "Typical" (nothing observed separates the causes).
+
+## GUI program, design (2026-11-23): demo world, experience design, upgraded rubric, demo site plan, work packages
+- Batch G closed (Step 5: `ndes01` names accepted as generic). Demo world `docs/DEMO-WORLD.md`: **Alcyone Orbital Systems** (`alcyone-orbital.example`),
+  the lab's PKI structure with invented names. "Halcyon" was dropped after a web check: a well-known security vendor uses it. CLAUDE.md, NAMING.md and the
+  hygiene scan allow the world's three `.example` domains for docs, screenshots and the demo; any other `.example` name fails; tests keep `example.test`.
+- `docs/GUI-EXPERIENCE.md` (personas, journeys J1-J6 with targets, pages and one drill-down pattern, features must/should/could, honest score model, motion
+  tokens, feasibility in PS 5.1 WPF), `docs/GUI-DESIGN.md` §6 (fixed rubric: A1-A10 visual, B1-B5 usability, C1-C4 delight), `docs/DEMO-SITE.md`
+  (generator = the real module with only the I/O boundary replaced; static site; Pages workflow), ROADMAP GX0-GX11 and DS1-DS8 with acceptance criteria.
+- Open: DS2 needs an owner decision (a developer-only tool that generates throw-away keys to sign the world's certificates and CRLs). Next: GX0 prototype.
