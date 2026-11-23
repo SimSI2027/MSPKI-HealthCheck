@@ -29,13 +29,14 @@ BeforeAll {
     }
 
     # The patterns of the repository scans (files, and the whole history in the Audit 2 M14 tests below).
-        $script:hostCi = '(?i)(?<![\w$.\\-])((?:[a-z0-9-]+\.)+(?:com|net|org|local|lan|corp|internal|intra|gov|edu|io|uk|de|nl|ie|eu|fr|ch|be|au|info|biz|cloud|online|tech|test|lab))\b'
+        $script:hostCi = '(?i)(?<![\w$.\\-])((?:[a-z0-9-]+\.)+(?:com|net|org|local|lan|corp|internal|intra|gov|edu|io|uk|de|nl|ie|eu|fr|ch|be|au|info|biz|cloud|online|tech|test|lab|example))\b'
         $script:hostLc = '(?-i)(?<![\w$.\\-])((?:[a-z0-9-]+\.)+(?:domain|ad|ca|co|us|int|home|site|priv|private))\b'
-        $script:hostAllowed = '(?i)^((?:[a-z0-9-]+\.)*example\.test|system\.(?:[a-z]+\.)*(?:io|net)|asp\.net|learn\.microsoft\.com|docs\.microsoft\.com|github\.com|claude\.com|anthropic\.com|www\.w3\.org|schemas\.xmlsoap\.org|schemas\.microsoft\.com|techcommunity\.microsoft\.com|support\.microsoft\.com|technet\.microsoft\.com|(?:[a-z0-9-]+\.)?specterops\.io)$'
+        # The demo world (docs/DEMO-WORLD.md) uses three names under the reserved .example TLD; any other .example name fails.
+        $script:hostAllowed = '(?i)^((?:[a-z0-9-]+\.)*example\.test|(?:[a-z0-9-]+\.)*(?:alcyone-orbital|flightops|launchpartner)\.example|system\.(?:[a-z]+\.)*(?:io|net)|asp\.net|learn\.microsoft\.com|docs\.microsoft\.com|github\.com|claude\.com|anthropic\.com|www\.w3\.org|schemas\.xmlsoap\.org|schemas\.microsoft\.com|techcommunity\.microsoft\.com|support\.microsoft\.com|technet\.microsoft\.com|(?:[a-z0-9-]+\.)?specterops\.io)$'
         $script:ipv4 = '(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])'
         $script:ipAllowed = '^(127\.|0\.0\.0\.0$|192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|2\.5\.29\.|2\.5\.4\.)'
         $script:email = '(?i)[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+'
-        $script:emailAllowed = '(?i)(@(?:[a-z0-9-]+\.)*example\.test|^noreply@anthropic\.com|@users\.noreply\.github\.com)$'
+        $script:emailAllowed = '(?i)(@(?:[a-z0-9-]+\.)*example\.test|@(?:[a-z0-9-]+\.)*alcyone-orbital\.example|^noreply@anthropic\.com|@users\.noreply\.github\.com)$'
 
     $script:forbidden = [ordered]@{
         'Invoke-Expression'            = '(?i)Invoke-Expression|\biex\b'

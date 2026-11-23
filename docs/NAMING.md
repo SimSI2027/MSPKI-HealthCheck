@@ -8,6 +8,8 @@ IP addresses may be real. Prefer the documentation ranges (`192.0.2.0/24`, `198.
 
 ## Reserved DNS names
 Only `example.test` and its sub-domains are used (`.test` is reserved by RFC 6761 and never resolves on the public internet).
+Documentation examples, screenshots, `demo/` and the demo site use the fictional company in `docs/DEMO-WORLD.md` instead
+(`alcyone-orbital.example`; `.example` is reserved by RFC 2606). Tests and fixtures keep `example.test`.
 
 | Role | Generic name | Notes |
 |---|---|---|

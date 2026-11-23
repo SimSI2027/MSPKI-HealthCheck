@@ -23,6 +23,8 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
 2. **No environment data in the project.** No real domain, forest, host, server, URL, IP, OU, account or
    organisation name may appear in code, comments, tests, fixtures, docs or commit messages. Use the reserved
    names `example.test`, `corp.example.test` and `pki.example.test` in examples and fixtures.
+   *Clarification:* documentation examples, screenshots, `demo/` and the demo site may instead use the fictional demo world in
+   `docs/DEMO-WORLD.md` (`alcyone-orbital.example`, reserved `.example` TLD). Tests and `tests/fixtures/` keep `example.test`.
 3. **No configuration.** Everything comes from discovery. The only optional inputs are parameters with
    defaults (thresholds, timeouts, output path, opt-in switches).
 4. **Bounded discovery.** Only probe hosts and URLs that came from an authoritative source: the AD
