@@ -118,7 +118,7 @@ Describe 'Audit 2 H1: an LDAP bind goes only to hosts proven by authoritative di
             $null = Add-MspkiLead -Url 'http://pki.corp.example.test/a.crl' -Kind CDP -Source 's1' -Trust Unverified
             $a = (Add-MspkiLead -Url 'http://pki.corp.example.test/a.crl' -Kind CDP -Source 's2' -Trust Verified).Trust
             $b = (Add-MspkiLead -Url 'http://pki.corp.example.test/a.crl' -Kind CDP -Source 's3' -Trust Unverified).Trust
-            $c = (Add-MspkiLead -Url 'http://pki.corp.example.test/b.crl' -Kind CDP -Source 's4').Trust
+            $c = (Add-MspkiLead -Url 'http://pki.corp.example.test/b.crl' -Kind CDP -Source 's4' -Trust Authoritative).Trust
             @($a, $b, $c) }
         $t | Should -Be @('Verified', 'Verified', 'Authoritative')
     }

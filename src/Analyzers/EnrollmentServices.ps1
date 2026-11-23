@@ -74,7 +74,7 @@ function Register-MspkiEnrollmentLead {
     if ($null -eq $Inventory) { return 0 }
     foreach ($p in @($Inventory.CepPolicies | Where-Object { $_ -and $_.IsWebService })) {
         $origin = 'Enrollment policy server on this computer ({0}, key {1}{2})' -f $p.Managed, $p.KeyName, $(if ($p.FriendlyName) { ', ' + $p.FriendlyName } else { '' })
-        if ($null -ne (Add-MspkiLead -Url $p.Url -Kind 'CEP' -Source $p.Source -Origin $origin)) { $n++ }
+        if ($null -ne (Add-MspkiLead -Url $p.Url -Kind 'CEP' -Source $p.Source -Origin $origin -Trust 'Authoritative')) { $n++ }
     }
     if ($SkipNetwork) { return $n }
     foreach ($ca in @($Inventory.EnterpriseCAs)) {
@@ -90,7 +90,7 @@ function Register-MspkiEnrollmentLead {
             $key = '{0}|{1}' -f $c.Kind, $norm.Key
             if (@(Get-MspkiLead -Kind $c.Kind | Where-Object { $_.Key -eq $key }).Count -gt 0) { continue }
             $origin = 'Constructed candidate: standard {0} path on the host of Enterprise CA {1}' -f $c.Kind, $ca.Name
-            if ($null -ne (Add-MspkiLead -Url $c.Url -Kind $c.Kind -Source 'Constructed:CAHost' -Origin $origin -RelatedCA $ca.Name -Confidence 'Inferred')) { $n++ }
+            if ($null -ne (Add-MspkiLead -Url $c.Url -Kind $c.Kind -Source 'Constructed:CAHost' -Origin $origin -RelatedCA $ca.Name -Confidence 'Inferred' -Trust 'Unverified')) { $n++ }
         }
     }
     return $n

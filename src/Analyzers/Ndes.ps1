@@ -404,7 +404,7 @@ function Invoke-MspkiNdesAnalysis {
             $n = ConvertTo-MspkiNormalizedUrl -Url $v
             if (-not $n.Valid -or $n.UrlType -ne 'Http') { continue }
             $nl = $null
-            try { $nl = Add-MspkiLead -Url (Get-MspkiNdesBaseUrl -HostName $n.Host -Scheme $n.Scheme -Port $n.Port) -Kind 'NDES' -Source (@($l.Sources)[0]) -Origin ('SCEP URL {0} referenced by lead {1} ({2})' -f $v, $l.Id, $l.Kind) -RelatedCA (@($l.RelatedCAs) -join ', ') }
+            try { $nl = Add-MspkiLead -Url (Get-MspkiNdesBaseUrl -HostName $n.Host -Scheme $n.Scheme -Port $n.Port) -Kind 'NDES' -Source (@($l.Sources)[0]) -Origin ('SCEP URL {0} referenced by lead {1} ({2})' -f $v, $l.Id, $l.Kind) -RelatedCA (@($l.RelatedCAs) -join ', ') -Trust $l.Trust }
             catch { Write-MspkiLog -Level Warning -Message ('SCEP URL ignored: {0}' -f $_.Exception.Message); continue }
             if ($null -eq $nl) { continue }
             if (-not $info.ContainsKey($nl.Host)) { $info[$nl.Host] = @{ Origin = 'Referenced'; Lines = (New-Object System.Collections.ArrayList); Sources = (New-Object System.Collections.ArrayList); RelatedCAs = (New-Object System.Collections.ArrayList) } }
@@ -464,8 +464,8 @@ function Invoke-MspkiNdesAnalysis {
         # Resolves (or not tested with -SkipNetwork): register both variants of the SCEP URL as one NDES lead.
         $u1 = Get-MspkiNdesBaseUrl -HostName $c.Fqdn -Scheme https
         $u2 = Get-MspkiNdesBaseUrl -HostName $c.Fqdn -Scheme http
-        $nl = Add-MspkiLead -Url $u1 -Kind 'NDES' -Source $src[0] -Origin ('NDES template evidence in the CA database of {0}' -f ($c.CAs -join ', ')) -RelatedCA ($c.CAs -join ', ') -Confidence 'Inferred'
-        $null = Add-MspkiLead -Url $u2 -Kind 'NDES' -Source $src[0] -Origin ('NDES template evidence in the CA database of {0}' -f ($c.CAs -join ', ')) -RelatedCA ($c.CAs -join ', ') -Confidence 'Inferred'
+        $nl = Add-MspkiLead -Url $u1 -Kind 'NDES' -Source $src[0] -Origin ('NDES template evidence in the CA database of {0}' -f ($c.CAs -join ', ')) -RelatedCA ($c.CAs -join ', ') -Confidence 'Inferred' -Trust 'Authoritative'
+        $null = Add-MspkiLead -Url $u2 -Kind 'NDES' -Source $src[0] -Origin ('NDES template evidence in the CA database of {0}' -f ($c.CAs -join ', ')) -RelatedCA ($c.CAs -join ', ') -Confidence 'Inferred' -Trust 'Authoritative'
         if ($null -eq $nl) { continue }
         if (-not $info.ContainsKey($nl.Host)) { $info[$nl.Host] = @{ Origin = 'Probable'; Lines = (New-Object System.Collections.ArrayList); Sources = (New-Object System.Collections.ArrayList); RelatedCAs = (New-Object System.Collections.ArrayList) } }
         $i = $info[$nl.Host]
@@ -503,8 +503,8 @@ function Invoke-MspkiNdesAnalysis {
                 continue
             }
             if ($h.Constructed) { $tLines += 'The host name was completed from a short SPN; it resolves in DNS.' }
-            $nl = Add-MspkiLead -Url (Get-MspkiNdesBaseUrl -HostName $h.Host -Scheme https) -Kind 'NDES' -Source $src[0] -Origin ('NDES RA template permissions: {0}' -f (@($h.Principals) -join ', ')) -Confidence 'Inferred'
-            $null = Add-MspkiLead -Url (Get-MspkiNdesBaseUrl -HostName $h.Host -Scheme http) -Kind 'NDES' -Source $src[0] -Origin ('NDES RA template permissions: {0}' -f (@($h.Principals) -join ', ')) -Confidence 'Inferred'
+            $nl = Add-MspkiLead -Url (Get-MspkiNdesBaseUrl -HostName $h.Host -Scheme https) -Kind 'NDES' -Source $src[0] -Origin ('NDES RA template permissions: {0}' -f (@($h.Principals) -join ', ')) -Confidence 'Inferred' -Trust 'Authoritative'
+            $null = Add-MspkiLead -Url (Get-MspkiNdesBaseUrl -HostName $h.Host -Scheme http) -Kind 'NDES' -Source $src[0] -Origin ('NDES RA template permissions: {0}' -f (@($h.Principals) -join ', ')) -Confidence 'Inferred' -Trust 'Authoritative'
             $key = $(if ($null -ne $nl) { $nl.Host } else { ConvertTo-MspkiHostName $h.Host })
             if (-not $info.ContainsKey($key)) { $info[$key] = @{ Origin = 'Probable'; Lines = (New-Object System.Collections.ArrayList); Sources = (New-Object System.Collections.ArrayList); RelatedCAs = (New-Object System.Collections.ArrayList) } }
             $i = $info[$key]

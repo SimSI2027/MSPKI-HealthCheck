@@ -94,8 +94,10 @@ function Add-MspkiLead {
         [string]$RelatedCA = '',
         [string]$Confidence = 'Referenced',
         [string[]]$Carrier = @(),
-        # See $script:MspkiLeadTrustRank. Discovery sources are Authoritative; links in downloaded objects pass Verified.
-        [ValidateSet('Authoritative', 'Verified', 'Unverified')][string]$Trust = 'Authoritative'
+        # See $script:MspkiLeadTrustRank. Fail-closed (audit 3 N15): a lead is Unverified unless the caller names its source. Discovery from AD,
+        # CA properties and local policy passes Authoritative; links in downloaded objects whose signature was verified pass Verified; a lead
+        # derived from another lead passes that lead's trust.
+        [ValidateSet('Authoritative', 'Verified', 'Unverified')][string]$Trust = 'Unverified'
     )
     $n = ConvertTo-MspkiNormalizedUrl -Url $Url
     if (-not $n.Valid) {
@@ -357,7 +359,7 @@ function Register-MspkiDiscoveredLead {
         foreach ($u in (Get-MspkiCertificateUrl -Certificate $cert)) {
             if ($u.Kind -eq 'Error') { Write-MspkiLog -Level Warning -Message ('Certificate {0}: {1}' -f $tp, $u.Error); continue }
             $origin = 'CA certificate {0} ({1})' -f $cert.Subject, $tp
-            if ($null -ne (Add-MspkiLead -Url $u.Url -Kind $u.Kind -Source ('Cert:{0}:{1}' -f $tp, $u.Kind) -Origin $origin -RelatedCA $ca)) { $n++ }
+            if ($null -ne (Add-MspkiLead -Url $u.Url -Kind $u.Kind -Source ('Cert:{0}:{1}' -f $tp, $u.Kind) -Origin $origin -RelatedCA $ca -Trust 'Authoritative')) { $n++ }
         }
     }
     foreach ($ca in @($inv.EnterpriseCAs)) {
@@ -368,15 +370,15 @@ function Register-MspkiDiscoveredLead {
                 $state = 'Historical'
                 if ([int]$s.Index -eq ([int]$ca.Properties.SigningCertCount - 1)) { $state = 'Current' }
                 $carrier = @(('CAIndex|{0}|{1}|{2}' -f $ca.Name, $s.Index, $state))
-                foreach ($u in @($s.CdpUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'CDP' -Source ('CA:{0}:CertCdpUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name -Carrier $carrier)) { $n++ } }
-                foreach ($u in @($s.AiaUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'AIA' -Source ('CA:{0}:CertAiaUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name -Carrier $carrier)) { $n++ } }
-                foreach ($u in @($s.OcspUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'OCSP' -Source ('CA:{0}:CertAiaOcspUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name -Carrier $carrier)) { $n++ } }
+                foreach ($u in @($s.CdpUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'CDP' -Source ('CA:{0}:CertCdpUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name -Carrier $carrier -Trust 'Authoritative')) { $n++ } }
+                foreach ($u in @($s.AiaUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'AIA' -Source ('CA:{0}:CertAiaUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name -Carrier $carrier -Trust 'Authoritative')) { $n++ } }
+                foreach ($u in @($s.OcspUrls)) { if ($null -ne (Add-MspkiLead -Url $u -Kind 'OCSP' -Source ('CA:{0}:CertAiaOcspUrls' -f $ca.Name) -Origin $origin -RelatedCA $ca.Name -Carrier $carrier -Trust 'Authoritative')) { $n++ } }
             }
         }
         foreach ($e in @($ca.EnrollmentServers)) {
             if ($e.Url) {
                 if ($null -ne (Add-MspkiLead -Url $e.Url -Kind 'CES' -Source 'AD:EnrollmentServices:msPKI-Enrollment-Servers' `
-                    -Origin ('Enrollment Services object of {0}' -f $ca.Name) -RelatedCA $ca.Name)) { $n++ }
+                    -Origin ('Enrollment Services object of {0}' -f $ca.Name) -RelatedCA $ca.Name -Trust 'Authoritative')) { $n++ }
             }
         }
     }

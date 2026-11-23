@@ -287,7 +287,7 @@ Describe 'Audit 2 N8: the LDAP host gate gets the forest domains and domain cont
             InModuleScope MspkiHealthCheck -Parameters @{ U = $Url } { param($U)
                 [void](Initialize-MspkiRun)
                 Reset-MspkiLeadRegistry -LocalDomains @('corp.example.test', 'second.example.test') -DomainControllers @('dc01.corp.example.test', 'dc02.disjoint.example.test')
-                $lead = Add-MspkiLead -Url $U -Kind CDP -Source 'CA:Example Issuing CA:CertCdpUrls' -Origin 'test'
+                $lead = Add-MspkiLead -Url $U -Kind CDP -Source 'CA:Example Issuing CA:CertCdpUrls' -Origin 'test' -Trust Authoritative
                 Test-MspkiLeadEndpoint -Lead $lead -Url $U -DomainController 'dc01.corp.example.test' }
         }
     }
