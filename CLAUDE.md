@@ -41,6 +41,9 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
    certificate); never with `-SkipNetwork` unless it is the selected domain controller, because a directory bind sends the running
    user's Windows credentials. A DNS name in the forest zone alone is not proof. Links inside a downloaded CRL are followed only
    when its signature verified. HTTP probes connect directly with no proxy unless `-UseSystemProxy` is given.
+   *Clarification (a limit, not an exception):* during a TLS handshake the Windows chain engine may itself contact an `ldap://` or `http://`
+   host named in the **server's certificate** (its AIA), which can be any host. Measured: anonymous searches only, never a bind, so no
+   credentials go out. The tool cannot bound it; it is listed in the run limits and in `docs/RESEARCH.md`. With `-SkipNetwork` no handshake is made.
 5. **Windows PowerShell 5.1 and .NET Framework 4.x only.** No PS7-only syntax (`? :`, `??`, `&&`, `||`,
    `-Parallel`). No external runtime modules (no RSAT ActiveDirectory module, no PSPKI, no ImportExcel).
    Use `System.DirectoryServices`, `System.Security.Cryptography.X509Certificates`, `System.Net` and

@@ -117,3 +117,20 @@ or on the remote host. Confidence: C = confirmed by direct observation, L = like
   enrollment without a policy that names the template, or a certificate with no Lifecycle event.
 - The Lifecycle logs also show deleted certificates of an earlier CA with another name (history). They are listed in the lifecycle summary;
   turning them into stale-reference leads is left for later.
+
+## TLS handshakes: the Windows chain engine contacts hosts the server certificate names (audit 3 N13, measured 2026-11-22)
+- **What happens.** When this tool opens a TLS connection (a TLS probe, an HTTPS request, CES/CEP, NDES, Web Enrollment) and the server's
+  certificate chain is not complete or not trusted, the Windows chain engine (CryptoAPI, inside `SslStream` / `HttpWebRequest`) may fetch
+  the issuer certificate from the **AIA of the server's certificate**. That AIA can hold an `ldap://` or an `http://` URL, and the host in it
+  can be **any host**, inside the forest or not. This tool does not choose it, bound it, cache it or log it.
+- **What was measured** (Windows 11, .NET Framework 4.8, a TLS server on the loopback interface whose certificate carried an `ldap://`
+  AIA that pointed at a loopback responder claiming to be Active Directory and offering GSS-SPNEGO): the engine opened about four connections
+  per handshake. Every message was an **anonymous search** (the AIA object, `supportedCapabilities`, `supportedSASLMechanisms`) or an
+  unbind. There was **no bind request and no Kerberos or NTLM token**. Building a chain with revocation checking off behaves the same.
+- **What it means.** No Windows credentials go to that host through this path. But a TLS server that the tool reaches under its own rules
+  (directly, or through a redirect to the same host) can make this computer open anonymous connections to a host it names. Rule 4 of
+  `CLAUDE.md` (bounded discovery) does not cover that, because the connection is made by Windows, not by this tool.
+- **What the tool does.** The run limits of every run that makes network checks say so ("Run limits" in the report and the window).
+  With `-SkipNetwork` no TLS handshake is made. If a later Windows build ever binds on that path, the credential guarantee would be
+  broken: repeat this measurement after a Windows upgrade (a loopback TLS server with an `ldap://` AIA, and a responder that records only
+  the operation types and never a token).

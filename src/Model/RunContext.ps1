@@ -67,7 +67,8 @@ function Initialize-MspkiRun {
     if (-not [bool]$Parameters['SkipNetwork']) {
         # CryptoAPI builds the certificate chain of a TLS server certificate itself and may fetch missing intermediate certificates from its AIA
         # (audit 2 L1). Those fetches are not bounded, cached or logged by this tool; with -SkipNetwork no TLS handshake is made.
-        Add-MspkiRunLimit -Text 'While Windows validates a TLS server certificate (chain building) it may fetch missing intermediate certificates on its own, from the AIA of that certificate. Those fetches are not bounded, cached or logged by this tool.'
+        # Audit 3 N13: the host can be any host, an ldap:// one too; measured: anonymous searches and GETs only, never a bind (docs/RESEARCH.md).
+        Add-MspkiRunLimit -Text 'While Windows validates a TLS server certificate (chain building) it may itself contact the hosts named in that certificate''s AIA (an ldap:// or http:// URL) to fetch a missing intermediate certificate. That host is chosen by the server''s certificate, not by this tool, and can be any host: inside this forest or not, an ldap:// host too. Measured on Windows 11 with .NET Framework 4.8: only anonymous searches and GET requests, never a directory bind, so no Windows credentials are sent. These contacts are not bounded, cached or logged by this tool.'
     }
     return $script:MspkiRun
 }
