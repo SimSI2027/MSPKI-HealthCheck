@@ -93,13 +93,14 @@ in WPF on Windows PowerShell 5.1 (details in §8).
 - **Areas** (each finding belongs to one by its category): *CA hierarchy* (CA, hierarchy, certificate generations), *Revocation* (CRL, delta,
   OCSP), *Publication* (AIA and CDP endpoints, TLS), *Enrollment security* (templates, ESC rules), *Enrollment services* (Web Enrollment,
   CES, CEP, NDES, Intune), *Directory* (AD containers, NTAuth, stale references).
-- **Penalty** per finding: Fail 20, Warning 6; severity multiplies (Critical 1.75, High 1.4, Medium 1, Low 0.6, None 1). Information and
-  Pass cost nothing. Error, PermissionDenied, Unsupported, Skipped and NotTested cost nothing but count as **not checked**.
+- **Penalty** per finding: Critical 35, Fail 20, Warning 6; severity multiplies (High x1.4, Low x0.6, any other x1). Information,
+  Pass and NotApplicable cost nothing. Error and Skipped (permission denied, unsupported, not tested) cost nothing but count as
+  **not checked**. Run and LocalEvidence findings (about the run or this computer) are not scored.
 - **Area score** = round(100 x 0.5 ^ (penalties / 40)): every 40 penalty points halve it. One failure gives 71; one warning 90.
 - **Overall** = the mean of the checked areas, capped at the worst area + 30 (one critical area always pulls the whole down).
 - **Bands**: 90-100 *Healthy* (good tone), 60-89 *Needs attention* (warning tone), 0-59 *At risk* (danger tone).
 - **Coverage**: an area with a not-checked finding shows "partial" and the count; the overall score says "partial" when any area is partial
-  or the run was cancelled. With no CA found there is no score, only the reason.
+  or the run was cancelled. With no CA found there is no score (overall or per area), only the reason, shown as text under the ring.
 - The ring's tooltip and a "How is this scored?" link show this formula in plain words. The score summarises findings; it is not a
   certification. The formula lives in one GUI helper (`Get-MspkiGuiHealthScore`) with tests.
 
@@ -167,3 +168,26 @@ Never animated: numbers in grids, filters, typing, the log, anything during keyb
 - Animations on a software-rendered remote session (RDP) can be slow: when `RenderCapability.Tier` is 0 the window uses reduced motion.
 - Comparing runs needs a stable finding identity; findings do not carry one yet (GX6 adds a deterministic `Key`).
 - A score can be misread as a certification: the wording and the "How is this scored?" link are part of the Must.
+
+## 11. What the GX0 prototype taught (2026-11-23)
+The mission-control Overview and the discovery map were built in the real window (`src/Gui/GuiMission.ps1`, `src/Gui/GuiMapView.ps1`) and
+judged on PNGs in two rounds (`docs/GUI-DESIGN.md` §7). Decisions that change this design:
+- **Composition.** One hero card is the control strip: score ring with band (left), the run's headline and the top 3 "What to do next"
+  rows (middle), the area bars (right). The map gets the **full width** below it: four columns need about 1000 px for readable labels,
+  and side by side with the actions they were cut to 110 px. At 1360 x 860 the hero and the top of the map share the first screen.
+- **One status voice.** The run-state icon next to the headline was removed: the ring and its band carry health, so a red icon never
+  sits beside an amber band. "Partial score" is a small pill under the band with the full sentence in its tooltip.
+- **Data colours.** The status foreground colours (#7A4F00 for warning) read as muddy brown on a ring or bar. Mid-tone data colours were
+  added (`B.GoodData`, `B.WarnData`, `B.BadData`, `B.AdminData`, `B.NeutralData`, `B.InfoData`), each at least 3:1 on white.
+- **Map columns.** Root CAs, issuing CAs, the addresses the CAs publish, and what serves them (a host, or Active Directory for `ldap:///`
+  addresses). Column widths follow the longest label; labels drop the first word all CA names share (the organisation) and keep the full
+  name in the tooltip; two addresses with the same file name show their host. A CA whose properties could not be read sits with the
+  issuing CAs in the "could not check" colour. Hosts follow the **median** of their addresses, so one far-away link does not pull a
+  shared host out of its group. Links start where the label text ends; the chain link is the accent colour.
+- **Honest motion.** The build is a replay of the finished graph in discovery order (CAs, then each address with two probe pulses, then
+  its health colour; hosts after their first address; CAs graded last; about 3 s). During a live run the map cannot build yet: the engine
+  sends no graph events until GX1. "Replay discovery" plays it again; reduced motion shows the final state at once.
+- **Snapshots.** `-Snapshot` holds the one Storyboard at 300, 1250 and 2100 ms (`05-build-*`, `06-build-map-*`) and at the end for every
+  other frame. WPF clamps the window to the screen, so a 1920 x 1080 frame needs a screen at least that large.
+- **Open for GX2.** "Top issues" further down repeats part of "What to do next" (merge or drop it); a healthy-run celebration; the
+  count-up of the score; the area bars as filters are in, the actions page ("All actions" opens Findings filtered for now).

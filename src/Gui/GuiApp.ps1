@@ -4,6 +4,11 @@
 
 $script:MspkiGui = $null
 
+# The mission-control Overview (score, actions, discovery map) lives in two files next to this one; they are loaded with it, so
+# every caller of this file (the start script, the tests) gets them.
+. (Join-Path $PSScriptRoot 'GuiMission.ps1')
+. (Join-Path $PSScriptRoot 'GuiMapView.ps1')
+
 function Import-MspkiGuiAssembly {
     <#
     .SYNOPSIS
@@ -339,6 +344,7 @@ function Update-MspkiGuiFilter {
     $g.View.Refresh()
     $shown = @($ui.FindingsGrid.Items).Count
     $ui.TxtShowing.Text = 'Showing {0} of {1}' -f $shown, (Format-MspkiGuiCount -Count $g.Rows.Count -Singular 'finding')
+    if ($null -ne $g.Filter.Area) { $ui.TxtShowing.Text += ('{0}area: {1}' -f $script:MspkiGuiDot, $g.Filter.Area.Name) }
     $ui.TxtGridEmpty.Visibility = 'Collapsed'
     if ($g.Rows.Count -gt 0 -and $shown -eq 0) {
         $ui.TxtGridEmpty.Text = 'No finding matches the current filters. Use "Clear filters" to see all of them.'
@@ -360,9 +366,42 @@ function Clear-MspkiGuiFilter {
     $g = $script:MspkiGui
     $ui = $g.Ui
     $ui.FltText.Text = ''
+    $g.Filter.Area = $null
     foreach ($c in $g.Chips) { $c.IsChecked = $false }
     foreach ($n in @('FltSeverity', 'FltCategory', 'FltConfidence')) { if ($null -ne $ui[$n].Items -and $ui[$n].Items.Count -gt 0) { $ui[$n].SelectedIndex = 0 } }
     Update-MspkiGuiFilter
+}
+
+function Show-MspkiGuiArea {
+    <#
+    .SYNOPSIS
+    From an area bar on the Overview: opens the Findings page filtered to that area's categories ("Clear filters" removes it).
+    #>
+    [CmdletBinding()]
+    param([string]$Tag)
+    $g = $script:MspkiGui
+    if (-not $Tag -or -not $Tag.StartsWith('area:') -or $null -eq $g.View) { return }
+    $area = @(Get-MspkiGuiScoreAreaList | Where-Object { $_.Key -eq $Tag.Substring(5) })[0]
+    if ($null -eq $area) { return }
+    Clear-MspkiGuiFilter
+    $g.Filter.Area = $area
+    Update-MspkiGuiFilter
+    $g.Ui.Tabs.SelectedItem = $g.Ui.TabFindings
+}
+
+function Show-MspkiGuiAllActions {
+    <#
+    .SYNOPSIS
+    "All actions": the Findings page filtered to every finding that needs attention (critical, failing, error, warning).
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    if ($null -eq $g.View) { return }
+    Clear-MspkiGuiFilter
+    foreach ($c in $g.Chips) { if ([string]$c.Tag -in @('Critical', 'Fail', 'Error', 'Warning')) { $c.IsChecked = $true } }
+    Update-MspkiGuiFilter
+    $g.Ui.Tabs.SelectedItem = $g.Ui.TabFindings
 }
 
 function New-MspkiGuiChip {
@@ -616,7 +655,11 @@ function Clear-MspkiGuiResult {
     $ui.TxtObjShowing.Text = ''
     $ui.TxtObjEmpty.Text = 'There are no objects yet. Run a health check, or open an earlier results.json.'
     $ui.TxtObjEmpty.Visibility = 'Visible'
-    foreach ($n in @('KpiList', 'TileList', 'SevTileList', 'CaList', 'TopList', 'CoverageList', 'CoverageOkList')) { $ui[$n].ItemsSource = $null }
+    foreach ($n in @('KpiList', 'TileList', 'SevTileList', 'CaList', 'TopList', 'CoverageList', 'CoverageOkList', 'ActionList')) { $ui[$n].ItemsSource = $null }
+    if ($null -ne $g.Storyboard) { try { $g.Storyboard.Stop($ui.PanelResults); $g.Storyboard.Remove($ui.PanelResults) } catch { $null = $_ } }
+    $g.Storyboard = $null; $g.MapModel = $null; $g.MapDrawn = $null; $g.MapDrawnWidth = 0; $g.MapAnimatePending = $false; $g.Score = $null; $g.Actions = $null
+    $ui.MapCanvas.Children.Clear()
+    $ui.AreaPanel.Children.Clear()
     $ui.TxtNoSeverity.Visibility = 'Collapsed'
     $ui.ExpCoverageOk.Visibility = 'Collapsed'
     $ui.PanelResults.Visibility = 'Collapsed'
@@ -631,7 +674,7 @@ function Clear-MspkiGuiResult {
     $ui.FltText.Text = ''
     foreach ($n in @('FltSeverity', 'FltCategory', 'FltConfidence')) { $ui[$n].ItemsSource = @('All'); $ui[$n].SelectedIndex = 0 }
     $ui.ChkGroup.IsChecked = $false
-    $g.Filter.Text = ''; $g.Filter.Status = @(); $g.Filter.Category = ''; $g.Filter.Confidence = ''; $g.Filter.Severity = ''
+    $g.Filter.Text = ''; $g.Filter.Status = @(); $g.Filter.Category = ''; $g.Filter.Confidence = ''; $g.Filter.Severity = ''; $g.Filter.Area = $null
     $ui.BtnOpenReport.IsEnabled = $false
     $ui.TxtCount.Text = '0 findings'
     $ui.TxtOutputPath.Text = $g.OutputRoot
@@ -708,6 +751,7 @@ function Show-MspkiGuiResult {
     $g.View.Filter = [System.Predicate[object]]{
         param($row)
         $f = $script:MspkiGui.Filter
+        if ($null -ne $f.Area -and $f.Area.Categories -notcontains [string]$row.Category) { return $false }
         return (Test-MspkiGuiRowFilter -Row $row -Text $f.Text -Status $f.Status -Category $f.Category -Confidence $f.Confidence -Severity $f.Severity)
     }
     [void]$g.View.SortDescriptions.Add((New-Object System.ComponentModel.SortDescription('StatusRank', [System.ComponentModel.ListSortDirection]::Descending)))
@@ -782,6 +826,9 @@ function Show-MspkiGuiResult {
     # A partial run is already called out in the health banner (text and state), so it gets no second note here.
     if ($notes.Count -gt 0) { $ui.TxtNote.Text = ($notes -join ' '); $ui.TxtNote.Visibility = 'Visible' }
     if ($s.Duration) { $ui.TxtElapsed.Text = 'Took {0}' -f $s.Duration } else { $ui.TxtElapsed.Text = '' }
+
+    # Mission control: score, areas, what to do next, and the discovery map (built on screen once the Overview has a size).
+    Update-MspkiGuiMission -Data $Data -Animate
 }
 
 function Show-MspkiGuiLogFile {
@@ -1200,7 +1247,9 @@ function Initialize-MspkiGuiApplication {
         Run = $null; Timer = $null; Data = $null; Summary = $null; Rows = (New-Object 'System.Collections.Generic.List[object]'); View = $null; RowById = @{}
         Chips = @(); MapPane = $null; LastExport = ''
         Index = $null; ObjRows = @(); ObjView = $null; ObjFilter = @{ Text = ''; Type = ''; Attention = $false }; Nav = @{}
-        Filter = @{ Text = ''; Status = @(); Category = ''; Confidence = ''; Severity = '' }
+        Filter = @{ Text = ''; Status = @(); Category = ''; Confidence = ''; Severity = ''; Area = $null }
+        Score = $null; Actions = $null; MapModel = $null; MapDrawn = $null; MapDrawnWidth = 0; MapAnimatePending = $false; MapTotalMs = 0
+        Storyboard = $null; AreaFills = $null; ForceMotion = $false
         LogFilter = @{ Text = ''; Level = '' }
         LogRows = (New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'); LogView = $null
         FinishedStages = (New-Object 'System.Collections.Generic.List[string]')
@@ -1328,6 +1377,13 @@ function Initialize-MspkiGuiApplication {
     # Overview: KPI tiles open the Objects page for their type, CA cards open the CA object
     $ui.KpiList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t -and $t.StartsWith('type:')) { Show-MspkiGuiObjectsOfType -Type $t.Substring(5) } })
     $ui.CaList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t -and $t.StartsWith('ent:')) { Show-MspkiGuiObject -Id $t.Substring(4) } })
+    # Mission control: actions open their finding (causes and checks), area bars filter the Findings page, the map redraws on resize.
+    $ui.ActionList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFinding -Id $t } })
+    $ui.AreaPanel.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Show-MspkiGuiArea -Tag (& $script:MspkiGuiTagOf $e) })
+    $ui.BtnAllActions.Add_Click({ Show-MspkiGuiAllActions })
+    $ui.BtnScoreHow.Add_Click({ $sc = $script:MspkiGui.Score; if ($null -ne $sc) { Show-MspkiGuiMessage -Text $sc.HowText -Title 'How the health score is calculated' } })
+    $ui.BtnReplay.Add_Click({ Start-MspkiGuiMissionAnimation })
+    $ui.MapCanvasHost.Add_SizeChanged({ try { Invoke-MspkiGuiMapDraw } catch { [void](Invoke-MspkiGuiUnhandledError -Exception $_.Exception -Source 'map') } })
 
     # Details panes (Findings, Discovery map, Objects): Copy, Back, related objects, breadcrumbs, findings. One handler each.
     $ui.FindingHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'FindingHost' -Tag (& $script:MspkiGuiTagOf $e) })

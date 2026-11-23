@@ -153,11 +153,39 @@ function Invoke-MspkiGuiSnapshot {
         Update-MspkiGuiLogView
 
         if ($ResultsFile) {
+            # Motion is forced on so that the Overview build can be held at chosen times (mid-animation frames); every later
+            # frame is held at the end of the build, which is the state a user sees once it has played.
+            $g.ForceMotion = $true
+            $settle = {
+                Wait-MspkiGuiIdle -Rounds 3
+                Set-MspkiGuiMissionFrame -Ms ([double]$g.MapTotalMs + 500)
+                Wait-MspkiGuiIdle -Rounds 2
+            }
+            & $page $ui.TabSummary
             Open-MspkiGuiResultsFile -Path $ResultsFile
             if ($null -eq $g.Data) { throw 'The results file could not be opened.' }
             $data = $g.Data
             Wait-MspkiGuiIdle -Rounds 4
-            & $page $ui.TabSummary
+            $osv = $ui.PanelResults.Parent
+            while ($null -ne $osv -and $osv -isnot [System.Windows.Controls.ScrollViewer]) { $osv = [System.Windows.LogicalTreeHelper]::GetParent($osv) }
+            foreach ($ms in @(300, 1250, 2100)) {
+                Set-MspkiGuiMissionFrame -Ms $ms
+                Wait-MspkiGuiIdle -Rounds 2
+                & $shot ('05-build-{0:0000}ms' -f $ms)
+                if ($null -ne $osv) {
+                    $top = $ui.MapCanvasHost.TransformToAncestor($ui.PanelResults).Transform((New-Object System.Windows.Point(0, 0))).Y
+                    $osv.ScrollToVerticalOffset([math]::Max(0, $top - 120)); Wait-MspkiGuiIdle -Rounds 2
+                    & $shot ('06-build-map-{0:0000}ms' -f $ms)
+                    $osv.ScrollToTop(); Wait-MspkiGuiIdle -Rounds 2
+                }
+            }
+            & $settle
+            if ($null -ne $osv) {
+                $top = $ui.MapCanvasHost.TransformToAncestor($ui.PanelResults).Transform((New-Object System.Windows.Point(0, 0))).Y
+                $osv.ScrollToVerticalOffset([math]::Max(0, $top - 120)); Wait-MspkiGuiIdle -Rounds 2
+                & $shot '12-summary-map'
+                $osv.ScrollToTop(); Wait-MspkiGuiIdle -Rounds 2
+            }
             & $shot '10-summary'
             # Scrolled to the bottom of the overview (CAs, top issues, coverage).
             $sv = $ui.PanelResults.Parent
@@ -243,6 +271,7 @@ function Invoke-MspkiGuiSnapshot {
             Show-MspkiGuiResult -Data $partial
             Set-MspkiGuiState -Text 'Cancelled. Partial results are shown and were saved.' -State Warn
             & $page $ui.TabSummary
+            & $settle
             & $shot '50-partial'
 
             # No CA found: the same run without Enterprise CAs (and without the CA findings).
@@ -254,6 +283,7 @@ function Invoke-MspkiGuiSnapshot {
             Show-MspkiGuiResult -Data $none
             Set-MspkiGuiState -Text ('Loaded {0} from an earlier run' -f (Format-MspkiGuiCount -Count @($none.Findings).Count -Singular 'finding')) -State Warn
             & $page $ui.TabSummary
+            & $settle
             & $shot '60-no-ca'
             $ui.TxtNoCa.BringIntoView()
             Wait-MspkiGuiIdle -Rounds 3

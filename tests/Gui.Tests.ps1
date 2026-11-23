@@ -467,7 +467,7 @@ Describe 'GUI window (single-threaded runspace)' {
             Import-MspkiGuiAssembly
             $w = New-MspkiGuiWindow -XamlPath (Join-Path $folder 'MainWindow.xaml')
             # Every $ui.Name used in the app code must exist in the window.
-            $code = (Get-Content -LiteralPath (Join-Path $folder 'GuiApp.ps1') -Raw) + (Get-Content -LiteralPath (Join-Path $folder 'GuiSnapshot.ps1') -Raw)
+            $code = (Get-Content -LiteralPath (Join-Path $folder 'GuiApp.ps1') -Raw) + (Get-Content -LiteralPath (Join-Path $folder 'GuiSnapshot.ps1') -Raw) + (Get-Content -LiteralPath (Join-Path $folder 'GuiMapView.ps1') -Raw)
             $used = [regex]::Matches($code, '\$(?:ui|u|s\.Ui|g\.Ui|script:MspkiGui\.Ui|st\.Ui)\.(\w+)') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
             $missing = @($used | Where-Object { -not $w.Ui.ContainsKey($_) -and $_ -notin @('ContainsKey', 'Keys', 'Count') })
             [pscustomobject]@{

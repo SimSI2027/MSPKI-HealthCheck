@@ -90,6 +90,9 @@ run-options strip (collapsed summary; expands to the form), a 3 px progress bar 
 | Success fg / tint / stroke | `#0E700E` / `#F1FAF1` / `#9FD89F` | Warning fg / tint / stroke | `#7A4F00` / `#FFF8E6` / `#F2CF7A` |
 | Danger fg / tint / stroke | `#B10E1C` / `#FDF3F4` / `#EEACB2` | Info fg / tint / stroke | `#0F548C` / `#EBF3FC` / `#B4D6FA` |
 | Elevation (admin) fg / tint / stroke | `#5C2E91` / `#F7F4FB` / `#C6B1DE` | Neutral fg / tint / stroke | `#424242` / `#F5F5F5` / `#D1D1D1` |
+| Data: good / warning / danger | `#107C10` / `#C27C0E` / `#D13438` | Data: admin / neutral / info | `#8764B8` / `#8A8A8A` / `#0F6CBD` |
+
+Data colours fill the score ring and the area bars only (at least 3:1 on white); text and icons keep the foreground colours.
 
 Tones: Good = Pass / succeeded, Warn = Warning / unsupported, Bad = Fail / Critical / failed, Info = Information,
 Admin = Error / permission denied / administrator, Neutral = skipped / not applicable / not tested.
@@ -109,6 +112,9 @@ focusable control. Layout rounding on, so lines stay crisp from 100 % to 200 % D
 
 ## 4. Feature inventory (every one must survive a redesign)
 
+Mission control on the Overview (GX0): health score ring with band, "Partial score" and "How is this scored?"; area bars that open the
+Findings page filtered to the area; "What to do next" (top 3 ranked actions with their most probable cause and an Observed mark, "All
+actions"); the discovery map that builds itself (Replay discovery; each node opens its object; legend; reduced motion respected).
 Run (F5) / Cancel (Esc) with a background runspace; open an earlier results.json (Ctrl+O); open report and output folder;
 run options (timeout, skip network, system proxy, NDES admin probe opt-in) with a one-line summary; header facts and the
 Administrator / standard-user badge; welcome state; health banner with exit code, state and start time; partial/loaded note;
@@ -232,3 +238,22 @@ notice**. Checked at minimum size, 1920 x 1080 and maximised, light and dark (on
 discovery frames (start, mid-build, probing, finished, healthy celebration), with reduced motion on and off.
 
 ## 7. Rounds on the upgraded rubric
+
+### GX0 round 1 (2026-11-23; prototype: mission-control Overview + discovery map; demo-world `mixed-sample` results; PNGs at 1080 x 700 and 1360 x 788, build frames at 300 / 1250 / 2100 ms)
+Before the round, the generator fixed what its own first render showed: status foreground brown on the ring and bars (data colours added),
+a red run-state icon beside the amber band (icon removed), causes wrapping to three lines, the map below the fold (note moved under the map).
+Scores: A1 8, A2 8, A3 7, A4 8, A5 8, A6 8, A7 7, A8 7, A9 8, A10 7; B1-B5 8; C1 8, C2 8, C3 8, C4 8. **Not a pass.**
+Defects: action titles cut at minimum size ("...ends at a root that is n..."); map status badges 14 px with a 7 px glyph (unreadable); no-CA
+state showed "no score" on the ring but scored the areas, and the reason was only a tooltip; at 300 ms the area numbers stood next to empty
+bars; links from shared hosts crossed three times.
+Generator: titles wrap to two lines; badges 16 px with a 9 px bold glyph; without a CA no area is scored and the reason is shown under the
+ring; each number fades in with its bar; addresses grouped by host inside each CA, hosts placed at the median of their addresses.
+
+### GX0 round 2 (same sizes and frames)
+Scores: A1 9, A2 8, A3 8, A4 8, A5 8, A6 8, A7 8, A8 8, A9 8, A10 8; B1 8, B2 8, B3 8, B4 8, B5 8; C1 8, C2 9, C3 8, C4 8. **PASS** (prototype scope:
+the Overview and its states; the other pages were not changed).
+Known, accepted for the prototype (each has a GX work package): one long link remains where a root's own CRL is served by a shared host;
+"Top issues" lower on the page repeats part of "What to do next" (GX2); the map replays the finished graph instead of building during a
+live run (GX1); no healthy celebration yet (GX9); a 1920 x 1080 frame could not be rendered because WPF clamps the window to this
+session's 1386 x 788 screen; in the synthetic no-CA frame the map still shows the CAs of the unchanged graph (a real run without a CA has
+none); generator and discriminator were the same model.

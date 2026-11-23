@@ -35,15 +35,22 @@ Addresses come from the documentation range `192.0.2.0/24` (RFC 5737).
 | Enterprise Root CA (online, domain-joined) | `root-ca.vault.alcyone-orbital.example` | 192.0.2.21 | IIS answers on 80; `/certsrv/` returns 403; HTTPS resets the connection; an Online Responder service runs but no certificate names it (`/ocsp/` returns 500); no PTR record |
 | Enterprise issuing CA | `issuing-ca.vault.alcyone-orbital.example` | 192.0.2.22 | no web server; 80/443 filtered; no PTR record |
 | NDES / SCEP server | `scep-gateway.vault.alcyone-orbital.example` | 192.0.2.24 | GetCACaps and GetCACert answer on HTTP and HTTPS; remote service control refused (RPC 1722); TLS certificate from the issuing CA |
-| Ground-station web server, where the tool runs | `groundstation-web.alcyone-orbital.example` | 192.0.2.32 | an RDP certificate from a GPO-driven template and a manually requested web certificate whose SAN names an alias with no DNS record |
+| Ground-station web server, where the tool runs (NetBIOS `GROUND-WEB`) | `ground-web.alcyone-orbital.example` | 192.0.2.32 | an RDP certificate from a GPO-driven template and a manually requested web certificate whose SAN names an alias with no DNS record |
 | Dead alias in that web certificate | `telemetry.alcyone-orbital.example` | (none) | no record: shown as expected but missing |
-| Shared CDP/AIA web alias (the `healthy` scenario only) | `pki.alcyone-orbital.example` | CNAME to root-ca | |
+| Shared CDP/AIA web alias (`healthy`, `mixed-sample`) | `pki.alcyone-orbital.example` | CNAME to root-ca | |
+| Second CDP/AIA web alias (`mixed-sample`) | `pki-dr.alcyone-orbital.example` | 192.0.2.41 | serves an older CRL |
+| Second issuing CA (`mixed-sample`) | `issuing-ca2.vault.alcyone-orbital.example` | 192.0.2.23 | the standard user cannot read its properties |
+| Certificate Enrollment Web Service (`mixed-sample`) | `enroll.vault.alcyone-orbital.example` | 192.0.2.25 | |
+| Online Responder (`mixed-sample`) | `ocsp.vault.alcyone-orbital.example` | 192.0.2.26 | |
+| Retired PKI web host, still named in an AIA URL (`mixed-sample`) | `legacy-pki.alcyone-orbital.example` | (none) | no DNS record |
+| PKI zone apex, used in older URLs (`mixed-sample`) | `vault.alcyone-orbital.example` | | |
 
 ## Certification authorities
 | CA | Host | Certificate generations | Notes |
 |---|---|---|---|
 | **Alcyone Lodestar Root CA** (Enterprise Root) | root-ca | one: 5 years, RSA 2048, SHA-256 | no CDP or AIA in its own certificate; in Certification Authorities, AIA, NTAuth, Enrollment Services; publishes 3 templates (CA, CrossCA, SubCA) |
 | **Alcyone Meridian Issuing CA** (Enterprise Subordinate) | issuing-ca | two: the current one (2 years) and an older one 11 days earlier | the older generation is in NTAuth but not in AIA, and the CA's own signing list holds only the current one: "no clear current/historical split" |
+| **Alcyone Zenith Issuing CA** (`mixed-sample` only) | issuing-ca2 | unknown (not readable) | the flight-operations issuing CA; DCOM refuses the standard user |
 
 - **Publication: LDAP only.** Every AIA and CDP URL written by both CAs is `ldap:///CN=...,CN=AIA|CDP,CN=Public Key Services,...`. No HTTP
   CDP or AIA, no OCSP URL (the CA's OCSP property is empty). The issuing CA's CDP URL has no attribute part (valid: clients use the defaults).
@@ -57,6 +64,7 @@ Addresses come from the documentation range `192.0.2.0/24` (RFC 5737).
 | `Alcyone-NDES-Agent`, `Alcyone-NDES-Encryption` | NDES registration authority (Enrollment Agent offline, CEP Encryption) |
 | `Alcyone-NDES-Device`, `Alcyone-NDES-HTTPS` | ground-station device certificates issued through SCEP; the gateway's HTTPS |
 | `Alcyone-Telemetry`, `Alcyone-Telemetry2` | application certificates for the telemetry service |
+| `AlcyoneGroundDevice` (`mixed-sample`) | ground-station device certificates (an older naming style) |
 
 ## Accounts and NDES trail
 | Object | Name | Notes |
@@ -81,6 +89,11 @@ Each scenario changes one thing in the simulated environment and lets the real a
 | `forged-aia` | A forged certificate at an AIA URL | the AIA URL serves a certificate with the right name but a different key; the signature check fails |
 | `ndes-found` | NDES found without the CA database view | the gateway is found from template permissions and SPNs, then confirmed by GetCACaps |
 | `renewal-drift` | Renewal leftovers | a third CA generation, an expired one still in NTAuth and AIA |
+| `mixed-sample` | Mixed estate (the GUI prototype's sample) | an offline root (certificate only), HTTP and LDAP publication on `pki` and `pki-dr`, a retired host still in an AIA URL, CES and OCSP, a second issuing CA the standard user cannot read |
+
+**Sample files.** `demo/world/alcyone-mixed-results.json` is the `mixed-sample` scenario. It is a **hand-made sample**: the `example.test`
+demo results (`tests/fixtures/demo-results-v2.json`) with every name replaced by this world's names. It was **not** produced by the
+analysers. The generator in `docs/DEMO-SITE.md` (DS3) replaces it with results the real analysers produce from simulated fixtures.
 
 ## Rules for this world
 1. Use it in documentation examples, screenshots, the demo site and `demo/`. Tests and `tests/fixtures/` keep `example.test`.

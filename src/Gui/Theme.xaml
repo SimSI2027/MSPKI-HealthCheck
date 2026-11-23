@@ -51,6 +51,13 @@
   <SolidColorBrush x:Key="B.NeutralFore" Color="#424242"/>
   <SolidColorBrush x:Key="B.NeutralLine" Color="#D1D1D1"/>
   <SolidColorBrush x:Key="B.White" Color="#FFFFFF"/>
+  <!-- Data colours (score ring, area bars): mid tones with at least 3:1 against the white card, so a bar reads without its label. -->
+  <SolidColorBrush x:Key="B.GoodData" Color="#107C10"/>
+  <SolidColorBrush x:Key="B.WarnData" Color="#C27C0E"/>
+  <SolidColorBrush x:Key="B.BadData" Color="#D13438"/>
+  <SolidColorBrush x:Key="B.AdminData" Color="#8764B8"/>
+  <SolidColorBrush x:Key="B.NeutralData" Color="#8A8A8A"/>
+  <SolidColorBrush x:Key="B.InfoData" Color="#0F6CBD"/>
 
   <!-- Segoe Fluent Icons (Windows 11) with Segoe MDL2 Assets (Windows 10) as the fallback, per glyph. -->
   <FontFamily x:Key="F.Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>

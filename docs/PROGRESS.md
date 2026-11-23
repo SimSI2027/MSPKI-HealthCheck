@@ -492,3 +492,12 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   tokens, feasibility in PS 5.1 WPF), `docs/GUI-DESIGN.md` §6 (fixed rubric: A1-A10 visual, B1-B5 usability, C1-C4 delight), `docs/DEMO-SITE.md`
   (generator = the real module with only the I/O boundary replaced; static site; Pages workflow), ROADMAP GX0-GX11 and DS1-DS8 with acceptance criteria.
 - Open: DS2 needs an owner decision (a developer-only tool that generates throw-away keys to sign the world's certificates and CRLs). Next: GX0 prototype.
+
+## GX0 (2026-11-23): mission-control Overview + discovery map prototype - DONE (PASS in round 2)
+- `src/Gui/GuiMission.ps1` (pure: health score per docs/GUI-EXPERIENCE.md §6, "What to do next" grouped by diagnosis topic, map model, column layout,
+  build timeline) and `src/Gui/GuiMapView.ps1` (WPF: score ring, area bars, map canvas, one Storyboard; reduced motion = final state at once). Loaded by
+  `GuiApp.ps1`. Overview hero = ring + headline + top 3 actions + area bars; full-width map below; area bars filter Findings by area; data colours in Theme.xaml.
+- Demo-world sample `demo/world/alcyone-mixed-results.json` (hand-made: the example.test demo results renamed; DEMO-WORLD says so). `-Snapshot` adds build
+  frames at 300/1250/2100 ms (`05-build-*`, `06-build-map-*`) and `12-summary-map`. Two discriminator rounds logged in GUI-DESIGN §7; lessons in GUI-EXPERIENCE §11.
+- Tests: `tests/GuiMission.Tests.ps1` (16); the window test also checks the names used in GuiMapView.ps1.
+- Open: the map replays the finished graph (live build needs GX1 engine events); 1920 x 1080 frames need a larger screen than this session's; next is GX1.

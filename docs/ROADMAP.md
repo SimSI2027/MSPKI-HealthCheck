@@ -67,7 +67,7 @@ Design: `docs/GUI-EXPERIENCE.md`. Judged on the upgraded rubric (`docs/GUI-DESIG
 
 | WP | Scope (build order) | Status |
 |---|---|---|
-| GX0 | Prototype: mission-control Overview + live discovery map (replay), world fixture, mid-animation snapshots, 2 discriminator rounds | IN PROGRESS |
+| GX0 | Prototype: mission-control Overview + live discovery map (replay), world fixture, mid-animation snapshots, 2 discriminator rounds | DONE (2026-11-23, PASS in round 2) |
 | GX1 | Engine events for the live map (`Entity`, `Relation`, `Probe` queue items) | TODO |
 | GX2 | Mission-control Overview, production quality | TODO |
 | GX3 | Guided troubleshooting walkthrough, Observed highlighting, copy the checks, mark as checked | TODO |
