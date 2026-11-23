@@ -506,9 +506,9 @@ Describe 'GUI window (single-threaded runspace)' {
                 Version = $ui.HdrVersion.Text; Stage = $ui.TxtStage.Text; Options = $ui.TxtOptionsSummary.Text; Output = $ui.TxtOutputPath.Text
                 RunEnabled = [bool]$ui.BtnRun.IsEnabled; CancelEnabled = [bool]$ui.BtnCancel.IsEnabled; Count = $ui.TxtCount.Text
                 Forest = @($ui.HdrContext.ItemsSource)[0].Value; Error = [string]$ui.WelcomeError.Visibility
-                Running = [string]$ui.PanelRunning.Visibility
-                BusyRunning = $(Set-MspkiGuiBusy -Busy $true; [string]$ui.PanelRunning.Visibility); BusyWelcome = [string]$ui.PanelWelcome.Visibility
-                IdleRunning = $(Set-MspkiGuiBusy -Busy $false; [string]$ui.PanelRunning.Visibility)
+                Running = [string]$ui.RunStrip.Visibility
+                BusyRunning = $(Set-MspkiGuiBusy -Busy $true; [string]$ui.RunStrip.Visibility); BusyWelcome = [string]$ui.PanelWelcome.Visibility; BusyResults = [string]$ui.PanelResults.Visibility; BusyRest = [string]$ui.PanelSummaryRest.Visibility; BusyTitle = $ui.BannerTitle.Text; BusyActions = [string]$ui.ActionBlock.Visibility
+                IdleRunning = $(Clear-MspkiGuiResult; [string]$ui.RunStrip.Visibility)
             }
         }
         $r = $out[0]
@@ -516,9 +516,13 @@ Describe 'GUI window (single-threaded runspace)' {
         $r.Forest | Should -Be 'Known after a run'
         $r.Error | Should -Be 'Collapsed'
         $r.Running | Should -Be 'Collapsed'
-        # While busy the Overview shows the running panel instead of the welcome card.
+        # While busy the Overview is the live mission control (the same hero and map, no separate running panel); a finished or failed run restores the rest.
         $r.BusyRunning | Should -Be 'Visible'
         $r.BusyWelcome | Should -Be 'Collapsed'
+        $r.BusyResults | Should -Be 'Visible'
+        $r.BusyRest | Should -Be 'Collapsed'
+        $r.BusyActions | Should -Be 'Collapsed'
+        $r.BusyTitle | Should -Be 'Checking your PKI'
         $r.IdleRunning | Should -Be 'Collapsed'
         $r.Welcome | Should -Be 'Visible'
         $r.Results | Should -Be 'Collapsed'
@@ -551,7 +555,7 @@ Describe 'GUI window (single-threaded runspace)' {
             $r.Welcome = [string]$ui.PanelWelcome.Visibility; $r.Results = [string]$ui.PanelResults.Visibility
             $r.GridCount = @($ui.FindingsGrid.Items).Count
             $r.Kpis = @($ui.KpiList.ItemsSource).Count; $r.Tiles = @($ui.TileList.ItemsSource).Count; $r.SevTiles = @($ui.SevTileList.ItemsSource).Count
-            $r.Cas = @($ui.CaList.ItemsSource).Count; $r.Top = @($ui.TopList.ItemsSource).Count; $r.Coverage = @($ui.CoverageList.ItemsSource).Count; $r.CoverageOk = @($ui.CoverageOkList.ItemsSource).Count; $r.SevNote = [string]$ui.TxtNoSeverity.Visibility; $r.Mapsel = ($null -ne $ui.MapHost.Content)
+            $r.Cas = @($ui.CaList.ItemsSource).Count; $r.Top = @($ui.ActionList.ItemsSource).Count; $r.Coverage = @($ui.CoverageList.ItemsSource).Count; $r.CoverageOk = @($ui.CoverageOkList.ItemsSource).Count; $r.SevNote = [string]$ui.TxtNoSeverity.Visibility; $r.Mapsel = ($null -ne $ui.MapHost.Content)
             $r.Banner = $ui.BannerTitle.Text; $r.BannerText = $ui.BannerText.Text; $r.BannerTone = $ui.Banner.DataContext.Tone
             $r.Forest = @($ui.HdrContext.ItemsSource)[0].Value
             $r.Note = $ui.TxtNote.Text
@@ -588,7 +592,7 @@ Describe 'GUI window (single-threaded runspace)' {
             $script:MspkiGui.Ui.Tabs.SelectedItem = $ui.TabSummary
             Show-MspkiGuiFilteredStatus -Value 'Warning'
             $r.TileFiltered = @($ui.FindingsGrid.Items).Count; $r.TileTab = ($ui.Tabs.SelectedItem -eq $ui.TabFindings)
-            $topId = @($ui.TopList.ItemsSource)[0].Id
+            $topId = @($ui.ActionList.ItemsSource)[0].Tag
             Show-MspkiGuiFinding -Id $topId
             $r.TopSelected = $ui.FindingsGrid.SelectedItem.Id; $r.TopId = $topId
             Clear-MspkiGuiFilter
@@ -629,7 +633,7 @@ Describe 'GUI window (single-threaded runspace)' {
         $r.Coverage | Should -Be 1
         $r.CoverageOk | Should -Be 3
         $r.SevNote | Should -Be 'Visible'
-        $r.Banner | Should -Be 'Action needed'
+        $r.Banner | Should -BeLike '* need* attention. Most urgent: *'
         $r.BannerTone | Should -Be 'Bad'
         $r.Forest | Should -Be 'corp.example.test'
         $r.Note | Should -BeLike '*earlier run*Nothing was scanned*'
@@ -799,6 +803,98 @@ Describe 'GUI window (single-threaded runspace)' {
         $out[0].Rows | Should -Be 0
         $out[0].RunEnabled | Should -BeTrue
         $out[0].Welcome | Should -Be 'Visible'
+    }
+
+    It 'is one live mission control while a run is in progress: the same hero, a map that fills as items arrive, no separate running panel; the results then restore the hero' {
+        $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, (Join-Path $script:FixturePath 'demo-results-v2.json'), $TestDrive) -Script {
+            param($folder, $module, $results, $outRoot)
+            Import-Module $module -Force
+            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiEntity.ps1'); . (Join-Path $folder 'GuiApp.ps1'); . (Join-Path $folder 'GuiSnapshot.ps1')
+            Import-MspkiGuiAssembly
+            $win = Initialize-MspkiGuiApplication -ModulePath $module -XamlPath (Join-Path $folder 'MainWindow.xaml') -OutputPath $outRoot
+            $g = $script:MspkiGui; $ui = $g.Ui
+            $win.WindowStartupLocation = 'Manual'; $win.Left = -32000; $win.Top = 0; $win.Width = 1360; $win.Height = 860; $win.Show()
+            Wait-MspkiGuiIdle -Rounds 4
+            $r = [ordered]@{}
+            Set-MspkiGuiBusy -Busy $true
+            $g.ForceMotion = $true   # motion on: the animations are real WPF animations, so they can be asked about
+            Wait-MspkiGuiIdle -Rounds 4
+            $r.StartTitle = $ui.BannerTitle.Text; $r.StartEmpty = [string]$ui.TxtMapEmpty.Visibility; $r.StartCanvas = $ui.MapCanvas.Children.Count
+            $r.AreasDisabled = (@($ui.AreaPanel.Children | Where-Object { $_.IsEnabled }).Count -eq 0)
+            $graph = (Read-MspkiGuiResults -Path $results).Graph
+            $items = Get-MspkiGuiSnapshotLiveItems -Graph $graph
+            foreach ($i in @($items.Phases[1])) { [void](Add-MspkiGuiLiveItem -State $g.Live -Item $i) }
+            $ui.Progress.Value = 37
+            Update-MspkiGuiRunningHero; Update-MspkiGuiLiveMap
+            $r.FadingIn = @($g.MapDrawn.Nodes | Where-Object { $_.Body.HasAnimatedProperties }).Count
+            Wait-MspkiGuiIdle -Rounds 3
+            $r.Percent = $ui.TxtScore.Text; $r.Found1 = $ui.TxtRunFound.Text; $r.Nodes1 = $g.MapDrawn.Nodes.Count; $r.Canvas1 = $ui.MapCanvas.Children.Count
+            foreach ($i in @($items.Phases[2])) { [void](Add-MspkiGuiLiveItem -State $g.Live -Item $i) }
+            Update-MspkiGuiLiveMap
+            $r.Pulsing = @($g.MapDrawn.Nodes | Where-Object { $null -ne $_.Pulse -and $_.Pulse.HasAnimatedProperties }).Count; $r.Pending = $g.Live.Probes.Count
+            foreach ($i in @($items.Phases[3])) { [void](Add-MspkiGuiLiveItem -State $g.Live -Item $i) }
+            Update-MspkiGuiLiveMap
+            $r.PulsingEnd = @($g.MapDrawn.Nodes | Where-Object { $null -ne $_.Pulse -and $_.Pulse.HasAnimatedProperties }).Count
+            Wait-MspkiGuiIdle -Rounds 3
+            $r.Nodes2 = $g.MapDrawn.Nodes.Count; $r.Shown = $g.Live.Shown.Count
+            $r.RunStrip = [string]$ui.RunStrip.Visibility; $r.Rest = [string]$ui.PanelSummaryRest.Visibility
+            $final = Get-MspkiGuiMapModel -Index (New-MspkiGuiGraphIndex -Graph $graph -Findings @()) -FindingStatus @{}
+            $r.FinalNodes = @($final.Nodes).Count
+            $r.SameNodes = ((@($g.MapDrawn.Nodes | ForEach-Object { $_.Node.Id } | Sort-Object) -join '|') -eq (@($final.Nodes | ForEach-Object { $_.Id } | Sort-Object) -join '|'))
+            # The run ends with results: the hero is restored, the live map is not built a second time, "All actions" lists every action.
+            $g.LiveWasShown = ($null -ne $g.Live -and $g.Live.Shown.Count -gt 0)
+            Set-MspkiGuiBusy -Busy $false
+            Open-MspkiGuiResultsFile -Path $results
+            Wait-MspkiGuiIdle -Rounds 4
+            $r.EndStrip = [string]$ui.RunStrip.Visibility; $r.EndActions = [string]$ui.ActionBlock.Visibility; $r.EndRest = [string]$ui.PanelSummaryRest.Visibility
+            $r.Shown5 = @($ui.ActionList.ItemsSource).Count; $r.Total = $g.Actions.Total
+            $r.Headline = $ui.BannerTitle.Text; $r.LiveCleared = ($null -eq $g.Live)
+            Switch-MspkiGuiActionList
+            $r.ShownAll = @($ui.ActionList.ItemsSource).Count; $r.AllLabel = [string]$ui.BtnAllActions.Content
+            Switch-MspkiGuiActionList
+            $r.Back = @($ui.ActionList.ItemsSource).Count
+            # The ring opens the Findings page filtered to what lowers the score.
+            $ui.BtnScoreRing.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent)))
+            $r.RingTab = ($ui.Tabs.SelectedItem -eq $ui.TabFindings); $r.RingCount = @($ui.FindingsGrid.Items).Count
+            $r.NeedsAttention = @($g.Rows | Where-Object { $_.Status -in @('Critical', 'Fail', 'Error', 'Warning') }).Count; $r.AllRows = $g.Rows.Count
+            # "How is this scored?" opens a themed popup in the window (no Windows message box).
+            $ui.BtnScoreHow.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent)))
+            $r.HowOpen = [bool]$ui.PopScore.IsOpen; $r.HowText = $ui.TxtScoreHow.Text
+            $ui.PopScore.IsOpen = $false
+            $win.Close()
+            [pscustomobject]$r
+        }
+        $r = $out[0]
+        $r.StartTitle | Should -Be 'Checking your PKI'
+        $r.StartEmpty | Should -Be 'Visible'
+        $r.StartCanvas | Should -Be 0
+        $r.AreasDisabled | Should -BeTrue
+        $r.Percent | Should -Be '37%'
+        $r.Found1 | Should -BeLike '*found so far'
+        $r.Nodes1 | Should -BeGreaterThan 0
+        $r.FadingIn | Should -Be $r.Nodes1 -Because 'every node of the first batch fades in'
+        $r.Pending | Should -Be 3
+        $r.Pulsing | Should -Be 3 -Because 'a node pulses while its probe runs'
+        $r.PulsingEnd | Should -Be 0 -Because 'and stops when the probe ended'
+        $r.Canvas1 | Should -BeGreaterThan 0
+        $r.Nodes2 | Should -BeGreaterThan $r.Nodes1
+        $r.SameNodes | Should -BeTrue -Because ('live {0} vs finished {1} nodes' -f $r.Nodes2, $r.FinalNodes)
+        $r.RunStrip | Should -Be 'Visible'
+        $r.Rest | Should -Be 'Collapsed'
+        $r.EndStrip | Should -Be 'Collapsed'
+        $r.EndActions | Should -Be 'Visible'
+        $r.EndRest | Should -Be 'Visible'
+        $r.Shown5 | Should -BeLessOrEqual 5
+        $r.Total | Should -BeGreaterThan $r.Shown5
+        $r.Headline | Should -BeLike '* need* attention. Most urgent: *'
+        $r.ShownAll | Should -Be $r.Total
+        $r.AllLabel | Should -Be 'Show fewer'
+        $r.Back | Should -Be $r.Shown5
+        $r.RingTab | Should -BeTrue
+        $r.HowOpen | Should -BeTrue
+        $r.HowText | Should -BeLike '*not a certification*'
+        $r.RingCount | Should -Be $r.NeedsAttention
+        $r.RingCount | Should -BeLessThan $r.AllRows
     }
 
     It 'renders every tab to a PNG snapshot with RenderTargetBitmap' {

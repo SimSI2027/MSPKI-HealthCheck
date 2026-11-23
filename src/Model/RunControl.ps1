@@ -117,12 +117,33 @@ function Send-MspkiProbeEvent {
     Send-MspkiProgress -Kind 'Probe' -Text ('{0} {1} {2}' -f $Probe, $Phase, $Subject) -Data @{ Phase = $Phase; Probe = $Probe; Id = $id; Outcome = $Outcome }
 }
 
+function Get-MspkiLiveProperty {
+    <#
+    .SYNOPSIS
+    The few properties of a new entity the window's live map needs to place and label it (a copy; the graph is not touched).
+    #>
+    [CmdletBinding()]
+    param([AllowNull()][hashtable]$Properties = $null, [hashtable]$Extra = @{})
+    $out = @{}
+    if ($null -eq $script:MspkiControl) { return $out }
+    if ($null -eq $Properties) { $Properties = @{} }
+    foreach ($k in $Extra.Keys) { $Properties = $Properties.Clone(); $Properties[$k] = $Extra[$k] }
+    foreach ($n in @('Url', 'UrlType', 'Kinds', 'Kind', 'CAType', 'PropertiesRead', 'Role', 'Scope')) {
+        if ($Properties.ContainsKey($n) -and $null -ne $Properties[$n] -and -not ($Properties[$n] -is [string] -and $Properties[$n] -eq '')) {
+            $v = $Properties[$n]
+            if ($v -is [System.Array]) { $v = @($v | ForEach-Object { [string]$_ }) }
+            $out[$n] = $v
+        }
+    }
+    return $out
+}
+
 function Send-MspkiLeadEntityEvent {
     <#
     .SYNOPSIS
-    Announces to the window the endpoints (and their hosts) that the lead registry already holds, before the final graph pass creates them
-    (GX1: the live map should not wait for the end of the run). Announce only: the graph is not touched, and the final pass does not
-    announce an entity twice. Nothing happens without a run control.
+    Announces to the window the endpoints (their hosts, and which CA or CA certificate references them) that the lead registry already holds,
+    before the final graph pass creates them (GX1: the live map should not wait for the end of the run). Announce only: the graph is not
+    touched, and the final pass does not announce an entity or a relation twice. Nothing happens without a run control.
     #>
     [CmdletBinding()]
     param()
@@ -133,19 +154,35 @@ function Send-MspkiLeadEntityEvent {
         try {
             $n = ConvertTo-MspkiNormalizedUrl -Url ([string]$l.Url)
             $id = Get-MspkiEndpointEntityId -Url ([string]$l.Url)
-            if ($g.Entities.Contains($id) -or $g.Announced.ContainsKey($id)) { continue }
-            $parents = @()
-            if ($n.Host) {
-                $h = ([string]$n.Host).Trim().TrimEnd('.')
-                $hid = Get-MspkiEntityId -Type 'Host' -Key $h
-                $parents = @($hid)
-                if (-not $g.Entities.Contains($hid) -and -not $g.Announced.ContainsKey($hid)) {
-                    $g.Announced[$hid] = $true
-                    Send-MspkiGraphEvent -Kind 'Entity' -Data @{ Id = $hid; Type = 'Host'; Name = $h.ToLowerInvariant(); Parents = @() }
+            if (-not $g.Entities.Contains($id) -and -not $g.Announced.ContainsKey($id)) {
+                $parents = @()
+                if ($n.Host) {
+                    $h = ([string]$n.Host).Trim().TrimEnd('.')
+                    $hid = Get-MspkiEntityId -Type 'Host' -Key $h
+                    $parents = @($hid)
+                    if (-not $g.Entities.Contains($hid) -and -not $g.Announced.ContainsKey($hid)) {
+                        $g.Announced[$hid] = $true
+                        Send-MspkiGraphEvent -Kind 'Entity' -Data @{ Id = $hid; Type = 'Host'; Name = $h.ToLowerInvariant(); Parents = @(); Props = @{} }
+                    }
                 }
+                $g.Announced[$id] = $true
+                $url = [string]$(if ($n.Url) { $n.Url } else { $l.Url })
+                Send-MspkiGraphEvent -Kind 'Entity' -Data @{ Id = $id; Type = 'Endpoint'; Name = $url; Parents = $parents
+                    Props = @{ Url = $url; UrlType = [string]$n.UrlType; Kinds = @([string]$l.Kind) } }
             }
-            $g.Announced[$id] = $true
-            Send-MspkiGraphEvent -Kind 'Entity' -Data @{ Id = $id; Type = 'Endpoint'; Name = [string]$(if ($n.Url) { $n.Url } else { $l.Url }); Parents = $parents }
+            # Who references it: the CAs the lead names, and the CA certificates whose AIA/CDP carried it.
+            $owners = New-Object System.Collections.ArrayList
+            foreach ($rc in @($l.RelatedCAs | Where-Object { $_ })) { $cid = Get-MspkiCAIdByName -Name ([string]$rc); if ($cid) { [void]$owners.Add($cid) } }
+            foreach ($s in @($l.Sources | Where-Object { $_ })) {
+                if ([string]$s -match '^Cert:([0-9A-Fa-f]{40}):') { [void]$owners.Add((Get-MspkiEntityId -Type 'CACertificate' -Key $Matches[1])) }
+            }
+            foreach ($o in @($owners | Select-Object -Unique)) {
+                if (-not $g.Entities.Contains($o)) { continue }
+                $rk = ('{0}|{1}|{2}' -f $o, 'references', $id).ToLowerInvariant()
+                if ($g.RelKeys.ContainsKey($rk) -or $g.Announced.ContainsKey('rel|' + $rk)) { continue }
+                $g.Announced['rel|' + $rk] = $true
+                Send-MspkiGraphEvent -Kind 'Relation' -Data @{ From = $o; Type = 'references'; To = $id }
+            }
         }
         catch { continue }
     }

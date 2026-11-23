@@ -236,9 +236,8 @@ function Set-MspkiGuiBusy {
     $ui.BtnCancel.IsEnabled = $Busy
     $ui.BtnOpenResults.IsEnabled = -not $Busy
     foreach ($n in @('TxtTimeout', 'ChkSkipNetwork', 'ChkProxy', 'ChkNdesAdmin')) { $ui[$n].IsEnabled = -not $Busy }
-    # The Overview shows the running panel while busy; when the run ends, the results or the welcome state take over.
-    if ($Busy) { $ui.PanelWelcome.Visibility = 'Collapsed'; $ui.PanelResults.Visibility = 'Collapsed'; $ui.PanelRunning.Visibility = 'Visible' }
-    else { $ui.PanelRunning.Visibility = 'Collapsed' }
+    # While busy the Overview is the live mission control (same hero, live map); when the run ends, the results or the welcome state take over.
+    if ($Busy) { Enter-MspkiGuiRunningMode }
 }
 
 function Update-MspkiGuiNavMode {
@@ -251,7 +250,10 @@ function Update-MspkiGuiNavMode {
     $g = $script:MspkiGui
     if ($null -eq $g) { return }
     $ui = $g.Ui
-    $compact = ($g.Window.ActualWidth -gt 0 -and $g.Window.ActualWidth -lt 1280)
+    # A developer snapshot lays the window out at a fixed size off the window (GuiSnapshot.ps1): its width stands in for the window's.
+    $viewWidth = $g.Window.ActualWidth
+    if ($g.ContainsKey('ViewWidth') -and [double]$g.ViewWidth -gt 0) { $viewWidth = [double]$g.ViewWidth }
+    $compact = ($viewWidth -gt 0 -and $viewWidth -lt 1280)
     if ($compact) {
         $ui.NavColumn.Width = New-Object System.Windows.GridLength(56)
         $ui.NavList.Tag = 'Compact'; $ui.NavEnv.Visibility = 'Collapsed'; $ui.NavEnvCompact.Visibility = 'Visible'
@@ -262,7 +264,7 @@ function Update-MspkiGuiNavMode {
     }
     # Status tiles: one row of eight on a wide window, two rows of four otherwise.
     $cols = 4
-    if ($g.Window.ActualWidth -ge 1600) { $cols = 8 }
+    if ($viewWidth -ge 1600) { $cols = 8 }
     $ui.TileList.Tag = $cols
 }
 
@@ -655,15 +657,17 @@ function Clear-MspkiGuiResult {
     $ui.TxtObjShowing.Text = ''
     $ui.TxtObjEmpty.Text = 'There are no objects yet. Run a health check, or open an earlier results.json.'
     $ui.TxtObjEmpty.Visibility = 'Visible'
-    foreach ($n in @('KpiList', 'TileList', 'SevTileList', 'CaList', 'TopList', 'CoverageList', 'CoverageOkList', 'ActionList')) { $ui[$n].ItemsSource = $null }
+    foreach ($n in @('KpiList', 'TileList', 'SevTileList', 'CaList', 'CoverageList', 'CoverageOkList', 'ActionList')) { $ui[$n].ItemsSource = $null }
     if ($null -ne $g.Storyboard) { try { $g.Storyboard.Stop($ui.PanelResults); $g.Storyboard.Remove($ui.PanelResults) } catch { $null = $_ } }
     $g.Storyboard = $null; $g.MapModel = $null; $g.MapDrawn = $null; $g.MapDrawnWidth = 0; $g.MapAnimatePending = $false; $g.Score = $null; $g.Actions = $null
+    $g.Live = $null; $g.ActionsExpanded = $false
     $ui.MapCanvas.Children.Clear()
     $ui.AreaPanel.Children.Clear()
     $ui.TxtNoSeverity.Visibility = 'Collapsed'
     $ui.ExpCoverageOk.Visibility = 'Collapsed'
     $ui.PanelResults.Visibility = 'Collapsed'
     $ui.PanelWelcome.Visibility = 'Visible'
+    Set-MspkiGuiHeroMode -Mode Results
     $ui.WelcomeError.Visibility = 'Collapsed'
     $ui.TxtNote.Visibility = 'Collapsed'
     $ui.TxtShowing.Text = ''
@@ -730,8 +734,6 @@ function Show-MspkiGuiResult {
     }
     $ui.CaList.ItemsSource = @($s.CAs)
     $ui.TxtNoCa.Visibility = $(if (@($s.CAs).Count -eq 0) { 'Visible' } else { 'Collapsed' })
-    $ui.TopList.ItemsSource = @($s.TopIssues)
-    $ui.TxtNoTop.Visibility = $(if (@($s.TopIssues).Count -eq 0) { 'Visible' } else { 'Collapsed' })
     $ui.TxtCoverage.Text = $s.Coverage.Text
     $ui.CoverageList.ItemsSource = @($s.Coverage.Attention)
     $ui.CoverageOkList.ItemsSource = @($s.Coverage.Succeeded)
@@ -964,7 +966,7 @@ function Start-MspkiGuiRun {
     $ui.TxtTarget.Text = ''
     $ui.TxtElapsed.Text = 'Elapsed 0:00'
     $ui.TxtWelcomeContext.Text = 'A run is in progress. Findings appear here when it finishes; the Run log page shows the run live.'
-    $ui.Tabs.SelectedItem = $ui.TabLog
+    $ui.Tabs.SelectedItem = $ui.TabSummary
     $control = New-MspkiRunControl
     try {
         $g.Run = Start-MspkiGuiRunspace -ModulePath $g.ModulePath -Parameters $params -Control $control
@@ -1007,7 +1009,13 @@ function Receive-MspkiGuiProgress {
             }
             'Target' { $ui.TxtTarget.Text = [string]$item.Text }
             'Log' { Add-MspkiGuiLogRow -Row (ConvertTo-MspkiGuiLogRow -Message $item); $added = $true }
+            { $_ -in @('Entity', 'Relation', 'Probe') } { if ($null -ne $g.Live) { [void](Add-MspkiGuiLiveItem -State $g.Live -Item $item) } }
         }
+    }
+    if ($null -ne $g.Live) {
+        Update-MspkiGuiRunningHero
+        # The map is redrawn at most twice a second, and only when something changed.
+        if ($g.Live.Version -ne $g.Live.DrawnVersion -and ([DateTime]::Now - $g.Live.LastDraw).TotalMilliseconds -ge 500) { Update-MspkiGuiLiveMap }
     }
     if ($added) { Update-MspkiGuiLogView -Scroll }
     $el = [DateTime]::Now - $run.Started
@@ -1035,6 +1043,8 @@ function Complete-MspkiGuiRun {
     $ui = $g.Ui
     $run = $g.Run
     $g.Timer.Stop()
+    # A map that was built live is not built a second time when the results arrive (only its health colours settle).
+    $g.LiveWasShown = ($null -ne $g.Live -and $g.Live.Shown.Count -gt 0)
     $result = $null
     $problem = ''
     try {
@@ -1372,7 +1382,6 @@ function Initialize-MspkiGuiApplication {
     $script:MspkiGuiTagOf = $tagOf
     $ui.TileList.AddHandler($btnClick, $tileHandler)
     $ui.SevTileList.AddHandler($btnClick, $tileHandler)
-    $ui.TopList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFinding -Id $t } })
 
     # Overview: KPI tiles open the Objects page for their type, CA cards open the CA object
     $ui.KpiList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t -and $t.StartsWith('type:')) { Show-MspkiGuiObjectsOfType -Type $t.Substring(5) } })
@@ -1380,8 +1389,9 @@ function Initialize-MspkiGuiApplication {
     # Mission control: actions open their finding (causes and checks), area bars filter the Findings page, the map redraws on resize.
     $ui.ActionList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFinding -Id $t } })
     $ui.AreaPanel.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Show-MspkiGuiArea -Tag (& $script:MspkiGuiTagOf $e) })
-    $ui.BtnAllActions.Add_Click({ Show-MspkiGuiAllActions })
-    $ui.BtnScoreHow.Add_Click({ $sc = $script:MspkiGui.Score; if ($null -ne $sc) { Show-MspkiGuiMessage -Text $sc.HowText -Title 'How the health score is calculated' } })
+    $ui.BtnAllActions.Add_Click({ Switch-MspkiGuiActionList })
+    $ui.BtnScoreRing.Add_Click({ Show-MspkiGuiAllActions })
+    $ui.BtnScoreHow.Add_Click({ $sc = $script:MspkiGui.Score; if ($null -ne $sc) { $script:MspkiGui.Ui.TxtScoreHow.Text = $sc.HowText; $script:MspkiGui.Ui.PopScore.IsOpen = $true } })
     $ui.BtnReplay.Add_Click({ Start-MspkiGuiMissionAnimation })
     $ui.MapCanvasHost.Add_SizeChanged({ try { Invoke-MspkiGuiMapDraw } catch { [void](Invoke-MspkiGuiUnhandledError -Exception $_.Exception -Source 'map') } })
 

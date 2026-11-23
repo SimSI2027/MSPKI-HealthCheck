@@ -880,43 +880,6 @@
                   </Border>
                 </StackPanel>
 
-                <!-- Running: everything here is bound to the status bar and progress bar, so it updates with them. -->
-                <StackPanel x:Name="PanelRunning" Margin="24,32,24,24" MaxWidth="880" HorizontalAlignment="Center" Visibility="Collapsed">
-                  <Border Style="{StaticResource Card}" Padding="32,28">
-                    <StackPanel>
-                      <DockPanel>
-                        <Border DockPanel.Dock="Left" Width="48" Height="48" CornerRadius="8" Background="{StaticResource B.AccentSoft}" Margin="0,0,16,0">
-                          <TextBlock Style="{StaticResource Glyph}" Text="&#xE895;" FontSize="22" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
-                        </Border>
-                        <StackPanel VerticalAlignment="Center">
-                          <TextBlock Text="Health check in progress" FontSize="20" FontWeight="SemiBold"/>
-                          <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0" Text="Nothing is changed. Results appear here when the run finishes; partial results are kept if you cancel."/>
-                        </StackPanel>
-                      </DockPanel>
-                      <DockPanel Margin="0,24,0,8">
-                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Small}" VerticalAlignment="Bottom">
-                          <Run Text="{Binding Value, ElementName=Progress, Mode=OneWay, StringFormat={}{0:0}}"/><Run Text=" %"/>
-                        </TextBlock>
-                        <TextBlock Text="{Binding Text, ElementName=TxtStage}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                      </DockPanel>
-                      <ProgressBar Height="4" Minimum="0" Maximum="100" Value="{Binding Value, ElementName=Progress, Mode=OneWay}" IsTabStop="False" AutomationProperties.Name="Run progress"/>
-                      <Grid Margin="0,12,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <TextBlock Text="Now checking" Style="{StaticResource Small}" Margin="0,0,8,0"/>
-                        <TextBlock Grid.Column="1" Text="{Binding Text, ElementName=TxtTarget}" Style="{StaticResource Small}" FontFamily="{StaticResource F.Mono}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, ElementName=TxtTarget}"/>
-                        <TextBlock Grid.Column="2" Text="{Binding Text, ElementName=TxtElapsed}" Style="{StaticResource Small}" Margin="16,0,0,0"/>
-                      </Grid>
-                      <StackPanel Orientation="Horizontal" Margin="0,24,0,0">
-                        <Button x:Name="BtnRunningLog" AutomationProperties.Name="View the live log" Padding="16,0" Margin="0,0,8,0" ToolTip="Follow the run step by step (Ctrl+4)">
-                          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE9D5;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="View live log"/></StackPanel>
-                        </Button>
-                        <Button x:Name="BtnRunningCancel" AutomationProperties.Name="Cancel the run" Padding="16,0" IsEnabled="{Binding IsEnabled, ElementName=BtnCancel}" ToolTip="Stop the run at the next step (Esc). Partial results are still saved.">
-                          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE711;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Cancel run"/></StackPanel>
-                        </Button>
-                      </StackPanel>
-                    </StackPanel>
-                  </Border>
-                </StackPanel>
 
                 <!-- Results -->
                 <StackPanel x:Name="PanelResults" Margin="24,20,24,24" Visibility="Collapsed">
@@ -931,6 +894,7 @@
                         <ColumnDefinition Width="Auto"/><ColumnDefinition Width="28"/><ColumnDefinition Width="*" MinWidth="300"/><ColumnDefinition Width="28"/><ColumnDefinition Width="320"/>
                       </Grid.ColumnDefinitions>
                       <StackPanel Width="148" VerticalAlignment="Top">
+                        <Button x:Name="BtnScoreRing" Style="{StaticResource RowButton}" Padding="4" HorizontalAlignment="Center" Tag="area:All" ToolTip="Show the findings that lower the score" AutomationProperties.Name="Health score. Select to see the findings that lower it.">
                         <Grid x:Name="ScoreRing" Width="136" Height="136" HorizontalAlignment="Center" Background="Transparent" ToolTipService.ShowDuration="30000" AutomationProperties.Name="Health score">
                           <Ellipse StrokeThickness="10" Stroke="{StaticResource B.Divider}"/>
                           <Ellipse x:Name="ScoreArc" StrokeThickness="10" StrokeDashCap="Flat" RenderTransformOrigin="0.5,0.5">
@@ -941,6 +905,7 @@
                             <TextBlock x:Name="TxtScoreOf" Text="out of 100" Style="{StaticResource Small}" HorizontalAlignment="Center"/>
                           </StackPanel>
                         </Grid>
+                        </Button>
                         <ContentPresenter x:Name="ScoreBand" ContentTemplate="{StaticResource PillTemplate}" HorizontalAlignment="Center" Margin="0,12,0,0"/>
                         <TextBlock x:Name="TxtScoreReason" Visibility="Collapsed" Style="{StaticResource Small}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,6,0,0"/>
                         <Border x:Name="ScorePartial" Visibility="Collapsed" Background="{StaticResource B.AdminBack}" BorderBrush="{StaticResource B.AdminLine}" BorderThickness="1" CornerRadius="4" Padding="8,2" Margin="0,6,0,0" HorizontalAlignment="Center" ToolTipService.ShowDuration="30000">
@@ -950,6 +915,16 @@
                           </StackPanel>
                         </Border>
                         <Button x:Name="BtnScoreHow" Style="{StaticResource LinkButton}" Content="How is this scored?" HorizontalAlignment="Center" Margin="0,8,0,0" FontSize="12" ToolTipService.ShowDuration="30000" AutomationProperties.Name="How is this scored?"/>
+                        <Popup x:Name="PopScore" PlacementTarget="{Binding ElementName=BtnScoreHow}" Placement="Right" HorizontalOffset="12" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+                          <Border Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.BorderStrong}" BorderThickness="1" CornerRadius="8" Padding="18,14" Margin="8" MaxWidth="400">
+                            <Border.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.22"/></Border.Effect>
+                            <StackPanel>
+                              <TextBlock Text="How the score works" Style="{StaticResource H2}"/>
+                              <TextBlock x:Name="TxtScoreHow" TextWrapping="Wrap" Margin="0,8,0,0" AutomationProperties.Name="How the health score is calculated"/>
+                              <TextBlock Text="Select anywhere else to close this." Style="{StaticResource Small}" Margin="0,10,0,0"/>
+                            </StackPanel>
+                          </Border>
+                        </Popup>
                       </StackPanel>
                       <StackPanel Grid.Column="2">
                         <DockPanel>
@@ -957,18 +932,45 @@
                           <TextBlock x:Name="BannerTitle" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
                         </DockPanel>
                         <TextBlock x:Name="BannerText" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{StaticResource B.Muted}"/>
-                        <TextBlock Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,6,0,0">
+                        <TextBlock x:Name="BannerMetaLine" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,6,0,0">
                           <Run x:Name="BannerMeta1"/><Run Text=" &#x00B7; "/><Run x:Name="BannerMeta2"/><Run Text=" &#x00B7; "/><Run x:Name="BannerMeta3"/>
                         </TextBlock>
-                        <DockPanel Margin="0,16,0,4">
-                          <Button x:Name="BtnAllActions" DockPanel.Dock="Right" Style="{StaticResource LinkButton}" FontSize="12" Content="All actions" ToolTip="Show every finding that needs attention on the Findings page" AutomationProperties.Name="Show all actions on the Findings page"/>
-                          <TextBlock Text="What to do next" Style="{StaticResource Label}"/>
-                        </DockPanel>
-                        <Border Style="{StaticResource Divider}"/>
-                        <ItemsControl x:Name="ActionList" ItemTemplate="{StaticResource NextAction}" Margin="-8,0" IsTabStop="False" Focusable="False"/>
-                        <StackPanel x:Name="PanelNoAction" Orientation="Horizontal" Margin="0,12,0,4" Visibility="Collapsed">
-                          <TextBlock Style="{StaticResource Glyph}" Text="&#xE73E;" FontSize="14" Foreground="{StaticResource B.GoodFore}" Margin="0,0,8,0"/>
-                          <TextBlock Text="Nothing needs action: every finding is passing or informational."/>
+                        <!-- While the run is going: the same hero is the live mission control (progress, what is being checked, controls). -->
+                        <StackPanel x:Name="RunStrip" Visibility="Collapsed" Margin="0,18,0,0">
+                          <DockPanel Margin="0,0,0,6">
+                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Small}" VerticalAlignment="Bottom">
+                              <Run Text="{Binding Value, ElementName=Progress, Mode=OneWay, StringFormat={}{0:0}}"/><Run Text=" %"/>
+                            </TextBlock>
+                            <TextBlock x:Name="TxtRunStage" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                          </DockPanel>
+                          <ProgressBar Height="4" Minimum="0" Maximum="100" Value="{Binding Value, ElementName=Progress, Mode=OneWay}" IsTabStop="False" AutomationProperties.Name="Run progress"/>
+                          <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock Text="Now checking" Style="{StaticResource Small}" Margin="0,0,8,0"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Text, ElementName=TxtTarget}" Style="{StaticResource Small}" FontFamily="{StaticResource F.Mono}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, ElementName=TxtTarget}"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Text, ElementName=TxtElapsed}" Style="{StaticResource Small}" Margin="16,0,0,0"/>
+                          </Grid>
+                          <TextBlock x:Name="TxtRunFound" Style="{StaticResource Small}" Margin="0,6,0,0"/>
+                          <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                            <Button x:Name="BtnRunningLog" AutomationProperties.Name="View the live log" Padding="16,0" Margin="0,0,8,0" ToolTip="Follow the run step by step (Ctrl+4)">
+                              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE9D5;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="View live log"/></StackPanel>
+                            </Button>
+                            <Button x:Name="BtnRunningCancel" AutomationProperties.Name="Cancel the run" Padding="16,0" IsEnabled="{Binding IsEnabled, ElementName=BtnCancel}" ToolTip="Stop the run at the next step (Esc). Partial results are still saved.">
+                              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE711;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Cancel run"/></StackPanel>
+                            </Button>
+                          </StackPanel>
+                        </StackPanel>
+                        <StackPanel x:Name="ActionBlock">
+                          <DockPanel Margin="0,16,0,4">
+                            <Button x:Name="BtnAllActions" DockPanel.Dock="Right" Style="{StaticResource LinkButton}" FontSize="12" Content="All actions" ToolTip="Show or hide the full list of actions" AutomationProperties.Name="Show all actions"/>
+                            <TextBlock Text="What to do next" Style="{StaticResource Label}"/>
+                          </DockPanel>
+                          <Border Style="{StaticResource Divider}"/>
+                          <ItemsControl x:Name="ActionList" ItemTemplate="{StaticResource NextAction}" Margin="-8,0" IsTabStop="False" Focusable="False"/>
+                          <StackPanel x:Name="PanelNoAction" Orientation="Horizontal" Margin="0,12,0,4" Visibility="Collapsed">
+                            <TextBlock Style="{StaticResource Glyph}" Text="&#xE73E;" FontSize="14" Foreground="{StaticResource B.GoodFore}" Margin="0,0,8,0"/>
+                            <TextBlock Text="Nothing needs action: every finding is passing or informational."/>
+                          </StackPanel>
                         </StackPanel>
                       </StackPanel>
                       <StackPanel Grid.Column="4">
@@ -1017,6 +1019,7 @@
                     </DockPanel>
                   </Border>
 
+                  <StackPanel x:Name="PanelSummaryRest">
                   <ItemsControl x:Name="KpiList" ItemTemplate="{StaticResource KpiTile}" Margin="0,0,-16,16" IsTabStop="False" Focusable="False">
                     <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" Columns="4"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                   </ItemsControl>
@@ -1057,19 +1060,7 @@
 
                   <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <Border Style="{StaticResource Card}" Padding="20,16,20,8" VerticalAlignment="Top">
-                      <StackPanel>
-                        <TextBlock Text="Top issues" Style="{StaticResource H2}"/>
-                        <TextBlock Text="The ten most serious findings. Select one to open it." Style="{StaticResource Small}" Margin="0,2,0,8"/>
-                        <Border Style="{StaticResource Divider}"/>
-                        <ItemsControl x:Name="TopList" ItemTemplate="{StaticResource TopIssue}" IsTabStop="False" Focusable="False" Margin="-8,0"/>
-                        <StackPanel Visibility="{Binding Visibility, ElementName=TxtNoTop}" Orientation="Horizontal" Margin="0,12,0,8">
-                          <TextBlock Style="{StaticResource Glyph}" Text="&#xE73E;" FontSize="14" Foreground="{StaticResource B.GoodFore}" Margin="0,0,8,0"/>
-                          <TextBlock x:Name="TxtNoTop" Visibility="Collapsed" Text="No failing or warning findings."/>
-                        </StackPanel>
-                      </StackPanel>
-                    </Border>
-                    <Border Grid.Column="2" Style="{StaticResource Card}" VerticalAlignment="Top">
+                    <Border Grid.Column="0" Grid.ColumnSpan="3" Style="{StaticResource Card}" VerticalAlignment="Top">
                       <StackPanel>
                         <TextBlock Text="Discovery coverage" Style="{StaticResource H2}"/>
                         <TextBlock x:Name="TxtCoverage" Style="{StaticResource Small}" Margin="0,2,0,8"/>
@@ -1083,6 +1074,7 @@
                       </StackPanel>
                     </Border>
                   </Grid>
+                  </StackPanel>
                 </StackPanel>
               </Grid>
             </ScrollViewer>

@@ -49,19 +49,40 @@ function Get-MspkiGuiSnapshotMinimumSize {
 function Set-MspkiGuiSnapshotLayout {
     <#
     .SYNOPSIS
-    Lays the window's content out at a fixed size, off the window: Measure and Arrange at exactly Width x Height, whatever the screen
-    or the window's real size is (WPF clamps a window to the screen of this computer, so frames would differ from machine to machine).
-    The next normal layout pass puts the content back at the window's size.
+    Lays the window's content out at a fixed size, off the window: the content gets exactly Width x Height as its own size, whatever the
+    screen or the window's real size is (WPF clamps a window to the screen of this computer, so frames would differ from machine to machine).
+    An explicit size survives every later layout pass (the map redraws, the navigation changes); Clear-MspkiGuiSnapshotLayout removes it.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Window, [Parameter(Mandatory = $true)][double]$Width, [Parameter(Mandatory = $true)][double]$Height)
     $root = $Window.Content
     if ($null -eq $root) { return }
-    $root.Measure((New-Object System.Windows.Size($Width, $Height)))
-    $root.Arrange((New-Object System.Windows.Rect(0, 0, $Width, $Height)))
+    $root.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
+    $root.VerticalAlignment = [System.Windows.VerticalAlignment]::Top
+    $root.Width = $Width
+    $root.Height = $Height
+    # Width-dependent layout (compact navigation, tile columns) follows the fixed width, as it would in a real window of that size.
+    if ($null -ne $script:MspkiGui) { $script:MspkiGui.ViewWidth = $Width; Update-MspkiGuiNavMode }
+    $Window.UpdateLayout()
     $root.UpdateLayout()
 }
 
+function Clear-MspkiGuiSnapshotLayout {
+    <#
+    .SYNOPSIS
+    Puts the content back to the window's size after Set-MspkiGuiSnapshotLayout.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Window)
+    $root = $Window.Content
+    if ($null -eq $root) { return }
+    $root.ClearValue([System.Windows.FrameworkElement]::WidthProperty)
+    $root.ClearValue([System.Windows.FrameworkElement]::HeightProperty)
+    $root.ClearValue([System.Windows.FrameworkElement]::HorizontalAlignmentProperty)
+    $root.ClearValue([System.Windows.FrameworkElement]::VerticalAlignmentProperty)
+    if ($null -ne $script:MspkiGui) { $script:MspkiGui.ViewWidth = 0; Update-MspkiGuiNavMode }
+    $Window.UpdateLayout()
+}
 function Save-MspkiGuiSnapshotImage {
     <#
     .SYNOPSIS
@@ -70,12 +91,13 @@ function Save-MspkiGuiSnapshotImage {
     screen) and put back afterwards. The window's own background is drawn behind it.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Window, [Parameter(Mandatory = $true)][string]$Path, [double]$Scale = 1.0, [double]$Width = 0, [double]$Height = 0)
+    param([Parameter(Mandatory = $true)]$Window, [Parameter(Mandatory = $true)][string]$Path, [double]$Scale = 1.0, [double]$Width = 0, [double]$Height = 0, [switch]$KeepLayout)
     Wait-MspkiGuiIdle
     $fixed = ($Width -gt 0 -and $Height -gt 0 -and $null -ne $Window.Content)
     $dpi = 96.0 * $Scale
     if ($fixed) {
         Set-MspkiGuiSnapshotLayout -Window $Window -Width $Width -Height $Height
+        Wait-MspkiGuiIdle -Rounds 2
         $w = [int][math]::Ceiling($Width * $Scale)
         $h = [int][math]::Ceiling($Height * $Scale)
         $rect = New-Object System.Windows.Rect(0, 0, $Width, $Height)
@@ -101,12 +123,67 @@ function Save-MspkiGuiSnapshotImage {
     }
     $rtb = New-Object System.Windows.Media.Imaging.RenderTargetBitmap($w, $h, $dpi, $dpi, [System.Windows.Media.PixelFormats]::Pbgra32)
     $rtb.Render($visual)
-    if ($fixed) { $Window.Content.InvalidateMeasure(); $Window.UpdateLayout() }
+    if ($fixed -and -not $KeepLayout) { Clear-MspkiGuiSnapshotLayout -Window $Window }
     $enc = New-Object System.Windows.Media.Imaging.PngBitmapEncoder
     $enc.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($rtb))
     $fs = [System.IO.File]::Create($Path)
     try { $enc.Save($fs) } finally { $fs.Dispose() }
     return $Path
+}
+
+function Get-MspkiGuiSnapshotLiveItems {
+    <#
+    .SYNOPSIS
+    Turns a results graph into the queue items the engine would have sent during a run (Entity, Relation, Probe), in four phases, for the
+    live-map snapshots: 0 nothing yet, 1 the forest, CAs and their certificates, 2 half of the published addresses (the last three still
+    being probed), 3 everything (every probe finished). Developer tool; only the names in the results file are used.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Graph)
+    $keep = @('Url', 'UrlType', 'Kinds', 'Kind', 'CAType', 'PropertiesRead', 'Role', 'Scope')
+    $item = {
+        param($e)
+        $props = @{}
+        if ($null -ne $e.Properties) { foreach ($k in $keep) { if ($null -ne $e.Properties.PSObject.Properties[$k] -and $null -ne $e.Properties.$k -and [string]$e.Properties.$k -ne '') { $props[$k] = $e.Properties.$k } } }
+        [pscustomobject]@{ Kind = 'Entity'; Id = [string]$e.Id; Type = [string]$e.Type; Name = [string]$e.Name; Parents = @(); Props = $props; Time = [DateTime]::Now }
+    }
+    $rel = { param($r) [pscustomobject]@{ Kind = 'Relation'; From = [string]$r.From; Type = [string]$r.Type; To = [string]$r.To; Time = [DateTime]::Now } }
+    $ents = @($Graph.Entities | Where-Object { $_ })
+    $rels = @($Graph.Relations | Where-Object { $_ })
+    $early = @($ents | Where-Object { $_.Type -in @('Forest', 'CA', 'CACertificate') })
+    $earlyIds = @{}; foreach ($e in $early) { $earlyIds[[string]$e.Id] = $true }
+    $phase1 = @(foreach ($e in $early) { & $item $e })
+    $phase1 += @($rels | Where-Object { $earlyIds.ContainsKey([string]$_.From) -and $earlyIds.ContainsKey([string]$_.To) } | ForEach-Object { & $rel $_ })
+    $eps = @($ents | Where-Object { $_.Type -eq 'Endpoint' } | Sort-Object { [string]$_.Id })
+    $hostOf = @{}
+    foreach ($r in $rels) { if ([string]$r.Type -eq 'hostedOn') { $hostOf[[string]$r.From] = [string]$r.To } }
+    $missing = @{}
+    foreach ($o in @($Graph.Observations | Where-Object { $_ -and [string]$_.Kind -eq 'ExpectedMissing' })) { $missing[[string]$o.EntityId] = $true }
+    $made = @{}
+    $stepFor = {
+        param($list, [bool]$finish)
+        $out = @()
+        foreach ($e in $list) {
+            $id = [string]$e.Id
+            $hid = $hostOf[$id]
+            if ($hid -and -not $made.ContainsKey($hid)) { $made[$hid] = $true; $h = $ents | Where-Object { [string]$_.Id -eq $hid } | Select-Object -First 1; if ($h) { $out += (& $item $h) } }
+            $out += (& $item $e)
+            foreach ($r in @($rels | Where-Object { [string]$_.To -eq $id -and [string]$_.Type -eq 'references' })) { $out += (& $rel $r) }
+            if ($hid) { $out += [pscustomobject]@{ Kind = 'Relation'; From = $id; Type = 'hostedOn'; To = $hid; Time = [DateTime]::Now } }
+            $out += [pscustomobject]@{ Kind = 'Probe'; Phase = 'Start'; Probe = 'HTTP'; Id = $id; Outcome = ''; Time = [DateTime]::Now }
+            if ($finish) { $out += [pscustomobject]@{ Kind = 'Probe'; Phase = 'End'; Probe = 'HTTP'; Id = $id; Outcome = $(if ($missing.ContainsKey($id)) { 'HTTP_404' } else { 'OK' }); Time = [DateTime]::Now } }
+        }
+        , $out
+    }
+    $half = [math]::Floor($eps.Count / 2)
+    $p2 = @(); $p3 = @()
+    $head = @($eps | Select-Object -First $half)
+    $p2 += (& $stepFor ($head | Select-Object -SkipLast ([math]::Min(3, $head.Count))) $true)
+    $p2 += (& $stepFor ($head | Select-Object -Last ([math]::Min(3, $head.Count))) $false)
+    # Phase 3: the rest of the addresses, and every probe that was still running finishes.
+    $p3 += @($head | Select-Object -Last ([math]::Min(3, $head.Count)) | ForEach-Object { [pscustomobject]@{ Kind = 'Probe'; Phase = 'End'; Probe = 'HTTP'; Id = [string]$_.Id; Outcome = $(if ($missing.ContainsKey([string]$_.Id)) { 'HTTP_404' } else { 'OK' }); Time = [DateTime]::Now } })
+    $p3 += (& $stepFor @($eps | Select-Object -Skip $half) $true)
+    return [pscustomobject]@{ Phases = @(, @(), $phase1, $p2, $p3) }
 }
 
 function Invoke-MspkiGuiSnapshot {
@@ -158,7 +235,7 @@ function Invoke-MspkiGuiSnapshot {
     $shot = {
         param([string]$Name)
         $p = Join-Path $Folder ($Name + '.png')
-        [void](Save-MspkiGuiSnapshotImage -Window $Window -Path $p -Scale $Scale -Width $renderW -Height $renderH)
+        [void](Save-MspkiGuiSnapshotImage -Window $Window -Path $p -Scale $Scale -Width $renderW -Height $renderH -KeepLayout)
         $files.Add($p)
     }
     # Scroll targets are computed in the same fixed layout the frame is rendered in.
@@ -214,6 +291,56 @@ function Invoke-MspkiGuiSnapshot {
         & $shot '02-running-log'
         & $page $ui.TabSummary
         & $shot '03-running-overview'
+        # The live mission control: the engine's Entity, Relation and Probe items, replayed from the results graph (nothing is scanned).
+        # Frames are rendered with reduced motion so that they are deterministic: nodes appear at once and a probed node shows a still ring.
+        $liveGraph = $null
+        if ($ResultsFile) { $liveGraph = (Read-MspkiGuiResults -Path $ResultsFile).Graph }
+        if ($null -ne $liveGraph) {
+            $live = Get-MspkiGuiSnapshotLiveItems -Graph $liveGraph
+            $steps = @(
+                @{ Name = '03a-live-start'; Phase = 0; Pct = 6; Stage = 'Running: Reading Active Directory'; Target = 'LDAP CN=Enrollment Services' }
+                @{ Name = '03b-live-cas'; Phase = 1; Pct = 28; Stage = 'Running: Reading the CAs'; Target = 'COM CA properties' }
+                @{ Name = '03c-live-probing'; Phase = 2; Pct = 55; Stage = 'Running: Checking the published addresses'; Target = 'HTTP pki-dr/CertEnroll/Meridian Issuing CA.crl' }
+                @{ Name = '03d-live-late'; Phase = 3; Pct = 86; Stage = 'Running: Reviewing the hierarchy'; Target = '' }
+            )
+            $g.ForceMotion = $false
+            foreach ($s in $steps) {
+                foreach ($i in @($live.Phases[$s.Phase])) { [void](Add-MspkiGuiLiveItem -State $g.Live -Item $i) }
+                $ui.Progress.Value = $s.Pct
+                Set-MspkiGuiState -Text $s.Stage -State Running
+                $ui.TxtTarget.Text = $s.Target
+                Update-MspkiGuiRunningHero
+                Update-MspkiGuiLiveMap
+                Wait-MspkiGuiIdle -Rounds 3
+                & $shot $s.Name
+                $osv = $ui.PanelResults.Parent
+                while ($null -ne $osv -and $osv -isnot [System.Windows.Controls.ScrollViewer]) { $osv = [System.Windows.LogicalTreeHelper]::GetParent($osv) }
+                if ($null -ne $osv -and $s.Phase -eq 2) {
+                    & $scrollTo $osv $ui.MapCanvasHost $ui.PanelResults 120
+                    & $shot ($s.Name + '-map')
+                    $osv.ScrollToTop(); Wait-MspkiGuiIdle -Rounds 2
+                }
+            }
+        }
+        if ($null -ne $liveGraph) {
+            # One frame with motion on: the nodes of a batch fade in and grow, and the probed addresses pulse. It is captured 150 ms after
+            # the redraw, so it shows what a user sees in the middle of the animation.
+            $g.ForceMotion = $true
+            $g.Live = New-MspkiGuiLiveState
+            foreach ($i in (@($live.Phases[1]) + @($live.Phases[2]))) { [void](Add-MspkiGuiLiveItem -State $g.Live -Item $i) }
+            $ui.Progress.Value = 55
+            Update-MspkiGuiRunningHero
+            $osv = $ui.PanelResults.Parent
+            while ($null -ne $osv -and $osv -isnot [System.Windows.Controls.ScrollViewer]) { $osv = [System.Windows.LogicalTreeHelper]::GetParent($osv) }
+            Update-MspkiGuiLiveMap
+            if ($null -ne $osv) { & $scrollTo $osv $ui.MapCanvasHost $ui.PanelResults 120 }
+            Update-MspkiGuiLiveMap
+            $clock = [System.Diagnostics.Stopwatch]::StartNew()
+            while ($clock.ElapsedMilliseconds -lt 150) { Wait-MspkiGuiIdle -Rounds 1 }
+            & $shot '03e-live-motion'
+            if ($null -ne $osv) { $osv.ScrollToTop() }
+            $g.ForceMotion = $false
+        }
         Set-MspkiGuiBusy -Busy $false
         $ui.Progress.Visibility = 'Hidden'
         $ui.TxtTarget.Text = ''
@@ -368,6 +495,6 @@ function Invoke-MspkiGuiSnapshot {
             & $shot '40-log'
         }
     }
-    finally { $Window.Close() }
+    finally { if ($renderW -gt 0) { try { Clear-MspkiGuiSnapshotLayout -Window $Window } catch { $null = $_ } }; $Window.Close() }
     return $files.ToArray()
 }

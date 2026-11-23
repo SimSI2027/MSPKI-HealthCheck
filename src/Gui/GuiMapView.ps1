@@ -163,13 +163,27 @@ function Update-MspkiGuiActionView {
     Shows the first "What to do next" actions in the hero and the link to all of them.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Actions, [int]$Show = 3)
+    param([Parameter(Mandatory = $true)]$Actions, [int]$Show = 5, [switch]$Expanded)
     $ui = $script:MspkiGui.Ui
-    $items = @($Actions.Items | Select-Object -First $Show)
+    $items = @($Actions.Items | Select-Object -First $(if ($Expanded) { [int]$Actions.Total } else { $Show }))
     $ui.ActionList.ItemsSource = $items
-    $ui.PanelNoAction.Visibility = $(if ($items.Count -eq 0) { 'Visible' } else { 'Collapsed' })
-    $ui.BtnAllActions.Visibility = $(if ($Actions.Total -gt $items.Count) { 'Visible' } else { 'Collapsed' })
-    $ui.BtnAllActions.Content = 'All {0}' -f (Format-MspkiGuiCount -Count $Actions.Total -Singular 'action')
+    $ui.PanelNoAction.Visibility = $(if ($Actions.Total -eq 0) { 'Visible' } else { 'Collapsed' })
+    $ui.BtnAllActions.Visibility = $(if ($Actions.Total -gt $Show) { 'Visible' } else { 'Collapsed' })
+    $ui.BtnAllActions.Content = $(if ($Expanded) { 'Show fewer' } else { 'All {0}' -f (Format-MspkiGuiCount -Count $Actions.Total -Singular 'action') })
+    [System.Windows.Automation.AutomationProperties]::SetName($ui.BtnAllActions, $(if ($Expanded) { 'Show only the five most urgent actions' } else { 'Show all {0}' -f (Format-MspkiGuiCount -Count $Actions.Total -Singular 'action') }))
+}
+
+function Switch-MspkiGuiActionList {
+    <#
+    .SYNOPSIS
+    "All N actions" / "Show fewer": lists every action under "What to do next" instead of the five most urgent (and back).
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    if ($null -eq $g.Actions) { return }
+    $g.ActionsExpanded = -not [bool]$g.ActionsExpanded
+    Update-MspkiGuiActionView -Actions $g.Actions -Expanded:([bool]$g.ActionsExpanded)
 }
 
 function Measure-MspkiGuiTextWidth {
@@ -276,7 +290,7 @@ function Show-MspkiGuiMap {
         [void]$cv.Children.Add($hit)
 
         $pulse = $null
-        if ($n.Kind -eq 'Endpoint') {
+        if ($n.Kind -in @('Endpoint', 'Host')) {
             $pulse = New-Object System.Windows.Shapes.Ellipse
             $pulse.Width = 26; $pulse.Height = 26; $pulse.Stroke = $w.FindResource('B.Accent'); $pulse.StrokeThickness = 2
             $pulse.Opacity = 0; $pulse.IsHitTestVisible = $false
@@ -334,7 +348,7 @@ function New-MspkiGuiMissionStoryboard {
     builds itself (CAs, then each published address with a probe pulse, then its health colour, hosts after their first address).
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Drawn, [double]$TotalMs = 3000)
+    param([Parameter(Mandatory = $true)]$Drawn, [double]$TotalMs = 3000, [switch]$NoMap)
     $g = $script:MspkiGui
     $ui = $g.Ui
     $sb = New-Object System.Windows.Media.Animation.Storyboard
@@ -368,6 +382,20 @@ function New-MspkiGuiMissionStoryboard {
         $c.RenderTransform = New-Object System.Windows.Media.TranslateTransform(0, 0)
         Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $c -Path $op -StartMs (300 + 50 * $k) -DurationMs 220 -From 0 -To 1 -Ease $out
         Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $c -Path $ty -StartMs (300 + 50 * $k) -DurationMs 220 -From 8 -To 0 -Ease $out
+    }
+    # The map was built live during the run (-NoMap): the nodes are already there, so only their health colour fades from the
+    # neutral live look to the graded one (staggered 40 ms), then the badge.
+    if ($NoMap) {
+        $k = 0
+        foreach ($d in @($Drawn.Nodes | Sort-Object { [double]$_.Node.Y })) {
+            $tr = 200.0 + 40 * $k; $k++
+            Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Circle -Path $fillC -StartMs $tr -DurationMs 280 -From $d.NeutralFill -To $d.Fill -Color
+            Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Circle -Path $lineC -StartMs $tr -DurationMs 280 -From $d.NeutralLine -To $d.Line -Color
+            Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Icon -Path $foreC -StartMs $tr -DurationMs 280 -From $d.NeutralFore -To $d.Fore -Color
+            if ($null -ne $d.Mark) { Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Mark -Path $op -StartMs ($tr + 160) -DurationMs 200 -From 0 -To 1 -Ease $out }
+        }
+        $sb.Duration = New-Object System.Windows.Duration([TimeSpan]::FromMilliseconds([math]::Max(1200.0, 200 + 40 * $k + 700)))
+        return $sb
     }
     # The map builds itself.
     foreach ($d in $Drawn.Nodes) {
@@ -434,15 +462,21 @@ function Update-MspkiGuiMission {
     if ($null -ne $Data.RunInfo -and $null -ne $Data.RunInfo.PSObject.Properties['Completed']) { $completed = [bool]$Data.RunInfo.Completed }
     $hasCa = (@($Data.Inventory.EnterpriseCAs | Where-Object { $null -ne $_ }).Count -gt 0)
     $g.Score = Get-MspkiGuiHealthScore -Findings $findings -Completed $completed -HasCa $hasCa
-    $g.Actions = Get-MspkiGuiNextAction -Findings $findings -Max 50
+    $g.Actions = Get-MspkiGuiNextAction -Findings $findings -Max 1000
+    $g.ActionsExpanded = $false
     Update-MspkiGuiScoreView -Score $g.Score
     Update-MspkiGuiActionView -Actions $g.Actions
+    # The headline: one sentence that answers "is my PKI healthy?" (journey J2).
+    $ui.BannerTitle.Text = Get-MspkiGuiHeadline -Health $(if ($null -ne $g.Summary) { $g.Summary.Health } else { $null }) -Actions $g.Actions -Score $g.Score -Completed $completed -HasCa $hasCa
     $status = @{}
     foreach ($f in $findings) { $status[[string]$f.Id] = [string]$f.Status }
     $g.MapModel = Get-MspkiGuiMapModel -Index $g.Index -FindingStatus $status
     $g.MapDrawnWidth = 0
     $g.MapAnimatePending = [bool]$Animate
-    $hasMap = ($null -ne $g.MapModel -and @($g.MapModel.Nodes).Count -gt 0)
+    # A map that was built live during the run is not built a second time: only the health colours settle (Replay plays the full build).
+    $g.MapNoMapOnce = ([bool]$Animate -and [bool]$g.LiveWasShown)
+    $g.LiveWasShown = $false
+    $hasMap =($null -ne $g.MapModel -and @($g.MapModel.Nodes).Count -gt 0)
     $ui.MapCanvas.Children.Clear()
     $ui.MapCanvas.Height = $(if ($hasMap) { 240 } else { 0 })
     $ui.TxtMapEmpty.Visibility = $(if ($hasMap) { 'Collapsed' } else { 'Visible' })
@@ -472,7 +506,9 @@ function Invoke-MspkiGuiMapDraw {
     $g.MapTotalMs = Set-MspkiGuiMapTimeline -Model $g.MapModel
     if ($g.MapAnimatePending) {
         $g.MapAnimatePending = $false
-        Start-MspkiGuiMissionAnimation
+        $noMap = [bool]$g.MapNoMapOnce
+        $g.MapNoMapOnce = $false
+        Start-MspkiGuiMissionAnimation -NoMap:$noMap
     }
 }
 
@@ -482,12 +518,12 @@ function Start-MspkiGuiMissionAnimation {
     Plays the Overview build (also the "Replay discovery" button). With reduced motion it does nothing: the final state is already shown.
     #>
     [CmdletBinding()]
-    param()
+    param([switch]$NoMap)
     $g = $script:MspkiGui
     if ($null -eq $g.MapDrawn) { return }
     if (Test-MspkiGuiReducedMotion) { return }
     if ($null -ne $g.Storyboard) { try { $g.Storyboard.Stop($g.Ui.PanelResults); $g.Storyboard.Remove($g.Ui.PanelResults) } catch { $null = $_ } }
-    $g.Storyboard = New-MspkiGuiMissionStoryboard -Drawn $g.MapDrawn -TotalMs ([double]$g.MapTotalMs)
+    $g.Storyboard = New-MspkiGuiMissionStoryboard -Drawn $g.MapDrawn -TotalMs ([double]$g.MapTotalMs) -NoMap:$NoMap
     $g.Storyboard.Begin($g.Ui.PanelResults, $true)
 }
 
@@ -503,4 +539,171 @@ function Set-MspkiGuiMissionFrame {
     $o = $g.Ui.PanelResults
     $g.Storyboard.Pause($o)
     $g.Storyboard.SeekAlignedToLastTick($o, [TimeSpan]::FromMilliseconds($Ms), [System.Windows.Media.Animation.TimeSeekOrigin]::BeginTime)
+}
+
+function Set-MspkiGuiHeroMode {
+    <#
+    .SYNOPSIS
+    Switches the Overview hero between the finished run (score, headline, actions, the cards below the map) and the run in progress
+    (progress ring, what is being checked, the controls). There is no separate "running" panel: it is the same mission control.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][ValidateSet('Running', 'Results')][string]$Mode)
+    $ui = $script:MspkiGui.Ui
+    $running = ($Mode -eq 'Running')
+    $ui.RunStrip.Visibility = $(if ($running) { 'Visible' } else { 'Collapsed' })
+    $ui.ActionBlock.Visibility = $(if ($running) { 'Collapsed' } else { 'Visible' })
+    $ui.PanelSummaryRest.Visibility = $(if ($running) { 'Collapsed' } else { 'Visible' })
+    $ui.BannerMetaLine.Visibility = $(if ($running) { 'Collapsed' } else { 'Visible' })
+    $ui.BtnScoreHow.Visibility = $(if ($running) { 'Collapsed' } else { 'Visible' })
+    if ($running) { $ui.BannerGlyph.Visibility = 'Collapsed' }
+}
+
+function Update-MspkiGuiRunningHero {
+    <#
+    .SYNOPSIS
+    The hero while a run is in progress (called every timer tick): the ring shows the progress, the headline says what the tool is doing,
+    and one line says how much it has found so far. Scores and actions stay empty until the findings exist; the window says so.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $pct = [math]::Max(0.0, [math]::Min(100.0, [double]$ui.Progress.Value))
+    $ring = $ui.ScoreArc
+    $circ = [math]::PI * ($ui.ScoreRing.Width - $ring.StrokeThickness) / $ring.StrokeThickness
+    $dash = New-Object System.Windows.Media.DoubleCollection
+    [void]$dash.Add([math]::Max(0.0001, $pct / 100.0 * $circ)); [void]$dash.Add($circ + 2)
+    $ring.StrokeDashArray = $dash
+    $ring.StrokeDashOffset = 0
+    $ring.Stroke = $g.Window.FindResource('B.Accent')
+    $ring.Visibility = 'Visible'
+    $ui.TxtScore.Opacity = 1
+    $ui.TxtScore.Text = '{0:0}%' -f $pct
+    $ui.TxtScoreOf.Text = 'checked'
+    $ui.BannerTitle.Text = 'Checking your PKI'
+    $ui.BannerText.Text = 'Nothing is changed. The map below builds as objects are found; the score and what to do next appear when the run finishes.'
+    $ui.TxtRunStage.Text = [string]$ui.TxtStage.Text
+    $found = ''
+    if ($null -ne $g.Live) { $found = Get-MspkiGuiLiveFoundText -State $g.Live }
+    $ui.TxtRunFound.Text = $found
+    $ui.TxtRunFound.Visibility = $(if ($found) { 'Visible' } else { 'Collapsed' })
+}
+
+function Enter-MspkiGuiRunningMode {
+    <#
+    .SYNOPSIS
+    Starts the live mission control for a new run: the hero in its running form, empty (neutral) area rows, an empty live map.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    if ($null -ne $g.Storyboard) { try { $g.Storyboard.Stop($ui.PanelResults); $g.Storyboard.Remove($ui.PanelResults) } catch { $null = $_ }; $g.Storyboard = $null }
+    $g.Live = New-MspkiGuiLiveState
+    $g.LiveWasShown = $false
+    $g.MapModel = $null; $g.MapDrawn = $null; $g.MapDrawnWidth = 0; $g.MapAnimatePending = $false; $g.MapNoMapOnce = $false
+    # Area rows in their neutral, waiting form.
+    $s = Get-MspkiGuiHealthScore -Findings @() -Completed $true -HasCa $true
+    foreach ($a in @($s.Areas)) {
+        $a.Detail = 'Scored when the run finishes'
+        $a.AccessibleName = '{0}: scored when the run finishes' -f $a.Name
+        $a.Count = 0
+    }
+    Update-MspkiGuiScoreView -Score $s
+    foreach ($b in @($ui.AreaPanel.Children)) { $b.IsEnabled = $false; $b.ToolTip = 'Scored when the run finishes.' }
+    $ui.ScoreRing.ToolTip = 'Progress of the run. The health score appears when it finishes.'
+    $ui.ScoreBand.Content = New-MspkiGuiPill -Text 'Checking' -Tone Info -Code 0xE895
+    $ui.ScoreBand.ToolTip = 'The run is in progress.'
+    $ui.ScorePartial.Visibility = 'Collapsed'
+    $ui.TxtScoreReason.Visibility = 'Collapsed'
+    Set-MspkiGuiHeroMode -Mode Running
+    $ui.Tabs.SelectedItem = $ui.TabSummary
+    $ui.PanelWelcome.Visibility = 'Collapsed'
+    $ui.PanelResults.Visibility = 'Visible'
+    $ui.MapCanvas.Children.Clear(); $ui.MapCanvas.Height = 0
+    $ui.TxtMapEmpty.Text = 'Discovery has started. The first objects appear here as they are found.'
+    $ui.TxtMapEmpty.Visibility = 'Visible'
+    $ui.BtnReplay.IsEnabled = $false
+    $ui.MapLegend.Visibility = 'Collapsed'
+    $ui.TxtMapStats.Text = ''
+    Update-MspkiGuiRunningHero
+}
+
+function Start-MspkiGuiLivePulse {
+    # A repeating ring from a node while its probe runs (WPF animation: no PowerShell work per frame).
+    param($Drawn)
+    $pulse = $Drawn.Pulse
+    if ($null -eq $pulse) { return }
+    $dur = New-Object System.Windows.Duration([TimeSpan]::FromMilliseconds(1200))
+    $ease = New-Object System.Windows.Media.Animation.QuadraticEase
+    $ease.EasingMode = [System.Windows.Media.Animation.EasingMode]::EaseOut
+    $a = New-Object System.Windows.Media.Animation.DoubleAnimation(0.7, 0.0, $dur); $a.RepeatBehavior = [System.Windows.Media.Animation.RepeatBehavior]::Forever
+    $s = New-Object System.Windows.Media.Animation.DoubleAnimation(1.0, 2.3, $dur); $s.RepeatBehavior = [System.Windows.Media.Animation.RepeatBehavior]::Forever; $s.EasingFunction = $ease
+    $pulse.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $a)
+    $pulse.RenderTransform.BeginAnimation([System.Windows.Media.ScaleTransform]::ScaleXProperty, $s)
+    $pulse.RenderTransform.BeginAnimation([System.Windows.Media.ScaleTransform]::ScaleYProperty, $s)
+}
+
+function Update-MspkiGuiLiveMap {
+    <#
+    .SYNOPSIS
+    Redraws the discovery map from what the engine has announced so far. New nodes fade in (280 ms) and links draw in; a node whose
+    probe is running pulses (at most six at once). Called at most every 500 ms and only when something changed. With reduced motion the
+    nodes simply appear and a probed node shows a still ring.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $st = $g.Live
+    if ($null -eq $st) { return }
+    $st.DrawnVersion = $st.Version
+    $st.LastDraw = [DateTime]::Now
+    $model = Get-MspkiGuiLiveMapModel -State $st
+    if ($null -eq $model -or @($model.Nodes).Count -eq 0) { return }
+    $width = [math]::Floor($ui.MapCanvasHost.ActualWidth)
+    if ($width -lt 200) { $st.DrawnVersion = -1; return }
+    $g.MapModel = $model
+    $drawn = Show-MspkiGuiMap -Model $model -Width $width
+    $g.MapDrawn = $drawn
+    $g.MapDrawnWidth = $width
+    $ui.TxtMapEmpty.Visibility = 'Collapsed'
+    $ui.MapLegend.Visibility = 'Collapsed'
+    $ui.TxtMapStats.Text = '{0}{1}{2}{1}Live: blue answered, amber did not answer. Health is graded when the run ends.' -f (Format-MspkiGuiCount -Count @($model.Nodes).Count -Singular 'object'), $script:MspkiGuiDot, (Format-MspkiGuiCount -Count @($model.Links).Count -Singular 'link')
+    $reduced = Test-MspkiGuiReducedMotion
+    $out = New-MspkiGuiEase -Mode Out
+    $newIds = @{}
+    $pulsing = 0
+    foreach ($d in $drawn.Nodes) {
+        $id = [string]$d.Node.Id
+        $isNew = -not $st.Shown.ContainsKey($id)
+        $st.Shown[$id] = $true
+        if ($isNew) {
+            $newIds[$id] = $true
+            if (-not $reduced) {
+                $dur = New-Object System.Windows.Duration([TimeSpan]::FromMilliseconds(280))
+                $fade = New-Object System.Windows.Media.Animation.DoubleAnimation(0.0, 1.0, $dur); $fade.EasingFunction = $out
+                $grow = New-Object System.Windows.Media.Animation.DoubleAnimation(0.6, 1.0, $dur); $grow.EasingFunction = $out
+                $d.Body.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $fade)
+                $d.Body.RenderTransform.BeginAnimation([System.Windows.Media.ScaleTransform]::ScaleXProperty, $grow)
+                $d.Body.RenderTransform.BeginAnimation([System.Windows.Media.ScaleTransform]::ScaleYProperty, $grow)
+                $d.Label.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $fade)
+                if ($null -ne $d.Mark) { $d.Mark.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $fade) }
+            }
+        }
+        if ($null -ne $d.Pulse -and $st.Probes.Contains([string]$d.Node.EntityId) -and $pulsing -lt 6) {
+            $pulsing++
+            if ($reduced) { $d.Pulse.Opacity = 0.75; $d.Pulse.RenderTransform.ScaleX = 1.45; $d.Pulse.RenderTransform.ScaleY = 1.45 } else { Start-MspkiGuiLivePulse -Drawn $d }
+        }
+    }
+    if (-not $reduced) {
+        $dur = New-Object System.Windows.Duration([TimeSpan]::FromMilliseconds(260))
+        foreach ($l in $drawn.Links) {
+            if ($newIds.ContainsKey([string]$l.From.Id) -or $newIds.ContainsKey([string]$l.To.Id)) {
+                $fade = New-Object System.Windows.Media.Animation.DoubleAnimation(0.0, 1.0, $dur); $fade.EasingFunction = $out
+                $l.Path.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $fade)
+            }
+        }
+    }
 }

@@ -104,7 +104,8 @@ function Add-MspkiEntity {
         [string]$Name = '',
         [hashtable]$Properties = @{},
         [switch]$Overwrite,
-        [string[]]$Parents = @()
+        [string[]]$Parents = @(),
+        [hashtable]$LiveProperties = @{}
     )
     $g = Get-MspkiEntityGraphState
     if (-not $Id) { $Id = Get-MspkiEntityId -Type $Type -Key $Key }
@@ -113,7 +114,7 @@ function Add-MspkiEntity {
         # The window's live map hears about a new entity once (GX1); -Parents are the ids it sits under, known when it is created.
         # (An entity the lead announcer already named early is not announced a second time.)
         if (-not $g.Announced.ContainsKey($Id)) {
-            Send-MspkiGraphEvent -Kind 'Entity' -Data @{ Id = $Id; Type = $Type; Name = [string]$g.Entities[$Id].Name; Parents = @($Parents | Where-Object { $_ -and $_ -ne $Id }) }
+            Send-MspkiGraphEvent -Kind 'Entity' -Data @{ Id = $Id; Type = $Type; Name = [string]$g.Entities[$Id].Name; Parents = @($Parents | Where-Object { $_ -and $_ -ne $Id }); Props = (Get-MspkiLiveProperty -Properties $Properties -Extra $LiveProperties) }
         }
     }
     $e = $g.Entities[$Id]
@@ -196,7 +197,7 @@ function Add-MspkiRelation {
     $r = [ordered]@{ From = $From; Type = $Type; To = $To; Sources = @($(if ($Source) { $Source })); Confidence = $Confidence }
     $g.RelKeys[$k] = $r
     [void]$g.Relations.Add($r)
-    Send-MspkiGraphEvent -Kind 'Relation' -Data @{ From = $From; Type = $Type; To = $To }
+    if (-not $g.Announced.ContainsKey('rel|' + $k)) { Send-MspkiGraphEvent -Kind 'Relation' -Data @{ From = $From; Type = $Type; To = $To } }
 }
 
 function Get-MspkiObservation {

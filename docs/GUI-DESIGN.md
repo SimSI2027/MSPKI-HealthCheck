@@ -257,3 +257,23 @@ Known, accepted for the prototype (each has a GX work package): one long link re
 live run (GX1); no healthy celebration yet (GX9); a 1920 x 1080 frame could not be rendered because WPF clamps the window to this
 session's 1386 x 788 screen; in the synthetic no-CA frame the map still shows the CAs of the unchanged graph (a real run without a CA has
 none); generator and discriminator were the same model.
+
+### GX2 round 1 (2026-11-23; Overview in production form; Alcyone `mixed-sample` results plus a real lab run kept under out\ only; PNGs at 1080 x 700 (minimum), 1360 x 860 and 1920 x 1080; live frames at 6 / 28 / 55 / 86 percent and one with motion on)
+Scores: A1 9, A2 8, A3 8, A4 8, A5 8, A6 7, A7 8, A8 8, A9 8, A10 7; B1-B5 8; C1 8, C2 8, C3 7, C4 8. **Not a pass.**
+Defects: (1) the first minimum-size frames were cut at the right edge (area bars missing): the snapshot laid the content out at the fixed size but left the
+navigation at its wide mode, because the compact-navigation rule read the real window's width (a method defect, fixed: width-dependent rules read the fixed
+width, and the fixed size is now the content's own size so later layout passes keep it); (2) "How is this scored?" opened a Windows message box (A6);
+(3) the live motion had never been seen (C3); (4) at minimum size the cause line of an action was cut hard (kept: one line keeps the map near the first screen,
+the full text is in the tooltip and the walkthrough).
+Generator: the score explanation is a themed popup in the window; animations are asserted in tests (the first batch of nodes fades in, a node pulses exactly while
+its probe runs and stops when it ends); a frame is captured 150 ms into the live motion.
+
+### GX2 round 2 (same sizes and frames)
+Scores: A1 9, A2 8, A3 8, A4 8, A5 8, A6 8, A7 8, A8 8, A9 8, A10 8; B1 8, B2 8, B3 8, B4 8, B5 8; C1 8, C2 8, C3 8, C4 8. **PASS** (scope: the Overview, in its running,
+finished, partial and no-CA states).
+Journeys: J1 starts on the Overview (Run, then the same hero turns into the live mission control: ring = progress, the map fills as the engine announces objects,
+probes pulse, the controls stay in the hero); J2 is answered by the headline sentence at the top (no scrolling at 1360 x 860); the ring, the area bars and "All N actions"
+lead to the Findings page or the full list.
+Known, accepted (each has a work package): the popup is a separate window, so it is not in the PNGs (judged from its code and a test); the live colours say "answered" or
+"did not answer", health is graded when the run ends (findings only exist then); a redraw of the live map repositions earlier nodes when a batch changes the columns (GX6
+adds clustering and a stable layout); no healthy celebration yet (GX9); generator and discriminator are the same model.

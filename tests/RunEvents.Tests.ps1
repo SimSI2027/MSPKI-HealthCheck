@@ -161,6 +161,36 @@ Describe 'Entity and Relation events (GX1)' {
         foreach ($e in @($out.Early | Where-Object { $_.Kind -eq 'Entity' })) { @($out.Graph.Entities | Where-Object { $_.Id -eq $e.Id }).Count | Should -Be 1 }
     }
 
+    It 'carries the display properties of a new entity, and announces who references an early endpoint, once' {
+        $out = InModuleScope MspkiHealthCheck {
+            Mock Get-MspkiLead { [pscustomobject]@{ Url = 'http://pki.example.test/CertEnroll/Example-Root-CA.crl'; Kind = 'CDP'; Scope = 'Local'; RelatedCAs = @('Example Root CA'); Sources = @('Cert:0123456789ABCDEF0123456789ABCDEF01234567:CDP') } }
+            $c = New-MspkiRunControl
+            Set-MspkiRunControl -Control $c
+            try {
+                Reset-MspkiEntityGraph
+                $ca = Add-MspkiEntity -Type 'CA' -Key 'ca01.example.test\Example Root CA' -Name 'Example Root CA' -Properties @{ CAType = 'EnterpriseRootCA'; PropertiesRead = $true; Config = 'not shown' }
+                $cert = Add-MspkiEntity -Type 'CACertificate' -Key '0123456789ABCDEF0123456789ABCDEF01234567' -Name 'CN=Example Root CA'
+                Send-MspkiLeadEntityEvent
+                Add-MspkiRelation -From $ca -Type 'references' -To (Get-MspkiEndpointEntityId -Url 'http://pki.example.test/CertEnroll/Example-Root-CA.crl') -Source 'later'   # already announced: no second item
+                $items = @(); $x = $null
+                while ($c['Queue'].TryDequeue([ref]$x)) { $items += $x }
+            }
+            finally { Set-MspkiRunControl -Control $null }
+            $items
+        }
+        $caEv = $out | Where-Object { $_.Kind -eq 'Entity' -and $_.Type -eq 'CA' }
+        $caEv.Props.CAType | Should -Be 'EnterpriseRootCA'
+        $caEv.Props.PropertiesRead | Should -BeTrue
+        $caEv.Props.ContainsKey('Config') | Should -BeFalse
+        $ep = $out | Where-Object { $_.Kind -eq 'Entity' -and $_.Type -eq 'Endpoint' }
+        $ep.Props.Url | Should -Be 'http://pki.example.test/CertEnroll/Example-Root-CA.crl'
+        @($ep.Props.Kinds) | Should -Be @('CDP')
+        $rels = @($out | Where-Object { $_.Kind -eq 'Relation' -and $_.Type -eq 'references' })
+        $rels.Count | Should -Be 2   # the CA and the CA certificate, once each
+        @($rels.To | Select-Object -Unique) | Should -Be @($ep.Id)
+        @($rels.From | Sort-Object) | Should -Be @('ca:ca01.example.test\example root ca', 'cacert:0123456789abcdef0123456789abcdef01234567' | Sort-Object)
+    }
+
     It 'queues nothing without a run control' {
         $n = InModuleScope MspkiHealthCheck -Parameters @{ I = $script:inv } {
             param($I)

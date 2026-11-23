@@ -63,7 +63,7 @@ function Add-MspkiEndpointEntity {
     if ($Scope) { $props['Scope'] = $Scope }
     $hostParent = @()
     if ($n.Host) { $hostParent = @(Get-MspkiEntityId -Type 'Host' -Key ([string]$n.Host).Trim().TrimEnd('.')) }
-    [void](Add-MspkiEntity -Type 'Endpoint' -Id $id -Name $props.Url -Properties $props -Parents $hostParent)
+    [void](Add-MspkiEntity -Type 'Endpoint' -Id $id -Name $props.Url -Properties $props -Parents $hostParent -LiveProperties @{ Kinds = @($Kind) })
     $e = Get-MspkiEntity -Id $id
     if ($Kind -and @($e.Properties['Kinds']) -notcontains $Kind) { $e.Properties['Kinds'] = @(@($e.Properties['Kinds']) + $Kind | Where-Object { $_ }) }
     if ($n.Host) {

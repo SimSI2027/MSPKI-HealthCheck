@@ -518,3 +518,13 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   only in the final pass, so the lead registry's endpoints are now announced early, announce-only); 26 probe starts, 26 ends; run time 19.5 s with and 19.4 s without a control (limit 5 %).
 - Tests: `tests/RunEvents.Tests.ps1` (9). Full suite: 1575 passed, 0 failed, 1 skipped, 163 s. No GUI change, so there is no new snapshot to judge (rubric pass skipped; the next package uses the events).
 - Next: GX2 (mission-control Overview, production quality; the running state becomes the live map fed by these events).
+
+## GX2 (2026-11-23): mission-control Overview, production quality - DONE (PASS in round 2)
+- The running state is the live mission control (no separate panel): same hero (progress ring, what is being checked, found so far, Cancel / View live log), neutral area rows, and the map fills
+  from the engine's Entity / Relation / Probe items (`Add-MspkiGuiLiveItem`, `Get-MspkiGuiLiveMapModel`, `Update-MspkiGuiLiveMap`: redraw at most twice a second; new nodes fade in 280 ms, a node pulses while its probe runs, at most 6).
+  When results arrive the map is not built again; its health colours settle. Engine: events carry the few display properties; the lead registry's endpoints and who references them are announced early (announce-only).
+- Finished state: headline sentence (`Get-MspkiGuiHeadline`: "N actions need attention. Most urgent: ..."), 5 actions with "All N actions" / "Show fewer" in place, the ring opens the Findings page filtered to what lowers the score,
+  "How is this scored?" is a themed popup, "Top issues" removed (it repeated the actions). Score bands, cap, partial and no-CA are covered by tests.
+- Snapshots: width-dependent rules (compact navigation, tile columns) follow the fixed render width and the fixed size is the content's own size, so 1080 x 700, 1360 x 860 and 1920 x 1080 frames are faithful on this 1386 x 788 VM; live frames `03a-d`, `03e-live-motion`.
+- Tests: Gui 39, GuiMission 32 (+16), RunEvents 10. Round 1 found a snapshot defect of mine (frames cut at minimum size), a Windows message box, and unseen motion; all fixed (GUI-DESIGN section 7).
+- Next: GX3 (guided troubleshooting walkthrough, Observed highlighting, copy the checks, mark as checked).

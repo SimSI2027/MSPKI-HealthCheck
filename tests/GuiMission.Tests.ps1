@@ -195,3 +195,125 @@ Describe 'Get-MspkiGuiMapModel and its layout' {
         Get-MspkiGuiMapModel -Index $null | Should -BeNullOrEmpty
     }
 }
+
+Describe 'Score bands and the plain-words explanation (GX2)' {
+    It 'puts every score in its band: 100 and 90 Healthy, 89 and 60 Needs attention, 59 and 0 At risk' -TestCases @(
+        @{ Sc = 100; Bd = 'Healthy'; Tn = 'Good' }, @{ Sc = 90; Bd = 'Healthy'; Tn = 'Good' }, @{ Sc = 89; Bd = 'Needs attention'; Tn = 'Warn' }
+        @{ Sc = 60; Bd = 'Needs attention'; Tn = 'Warn' }, @{ Sc = 59; Bd = 'At risk'; Tn = 'Bad' }, @{ Sc = 0; Bd = 'At risk'; Tn = 'Bad' }
+    ) {
+        $band = Get-MspkiGuiScoreBand -Score $Sc
+        $band.Band | Should -Be $Bd
+        $band.Tone | Should -Be $Tn
+    }
+    It 'a clean run scores 100 and Healthy, and is not partial' {
+        $s = Get-MspkiGuiHealthScore -Findings @((& $script:F 'P1' 'CA' 'Pass'), (& $script:F 'P2' 'CRL' 'Pass'))
+        $s.Overall | Should -Be 100
+        $s.Band | Should -Be 'Healthy'
+        $s.Partial | Should -BeFalse
+    }
+    It 'the explanation names the penalties, the halving, the average, the weakest area, partial scores and that it is not a certification, in plain words' {
+        $h = (Get-MspkiGuiHealthScore -Findings @()).HowText
+        $h | Should -Match '20 points'
+        $h | Should -Match 'critical finding 35'
+        $h | Should -Match 'warning 6'
+        $h | Should -Match 'halve'
+        $h | Should -Match 'weakest'
+        $h | Should -Match 'partial'
+        $h | Should -Match 'not a certification'
+    }
+}
+
+Describe 'Get-MspkiGuiHeadline (journey J2: the sentence that answers "is my PKI healthy?")' {
+    BeforeAll {
+        $script:Act = { param($n, $title = 'A CRL has expired') [pscustomobject]@{ Total = $n; Items = @(if ($n -gt 0) { [pscustomobject]@{ Title = $title } }) } }
+        $script:Sc = { param($v) [pscustomobject]@{ HasScore = $true; Overall = $v } }
+        $script:Hl = { param($level, $title = 'Healthy') [pscustomobject]@{ Level = $level; Title = $title } }
+    }
+    It 'names the number of actions and the most urgent one' {
+        Get-MspkiGuiHeadline -Health (& $script:Hl 'Red' 'Action needed') -Actions (& $script:Act 3) -Score (& $script:Sc 60) | Should -Be '3 actions need attention. Most urgent: A CRL has expired.'
+        Get-MspkiGuiHeadline -Health (& $script:Hl 'Amber') -Actions (& $script:Act 1 'The CA certificate will expire soon.') -Score (& $script:Sc 90) | Should -Be '1 action needs attention. Most urgent: The CA certificate will expire soon.'
+    }
+    It 'says everything checked is healthy only for a healthy run with nothing to do' {
+        Get-MspkiGuiHeadline -Health (& $script:Hl 'Green') -Actions (& $script:Act 0) -Score (& $script:Sc 100) | Should -Be 'Everything checked is healthy.'
+        Get-MspkiGuiHeadline -Health (& $script:Hl 'Amber' 'Needs review') -Actions (& $script:Act 0) -Score (& $script:Sc 100) | Should -Be 'Needs review'
+        Get-MspkiGuiHeadline -Health (& $script:Hl 'Green') -Actions (& $script:Act 0) -Score (& $script:Sc 85) | Should -Not -Be 'Everything checked is healthy.'
+    }
+    It 'says so when there is no CA, and when the run did not finish' {
+        Get-MspkiGuiHeadline -Health (& $script:Hl 'Green') -Actions (& $script:Act 0) -Score $null -HasCa $false | Should -Be 'No Enterprise CA was found'
+        Get-MspkiGuiHeadline -Health (& $script:Hl 'Amber') -Actions (& $script:Act 0) -Score (& $script:Sc 100) -Completed $false | Should -BeLike 'This run did not finish*'
+        Get-MspkiGuiHeadline -Health (& $script:Hl 'Red') -Actions (& $script:Act 2) -Score (& $script:Sc 70) -Completed $false | Should -BeLike 'Partial run: 2 actions need attention*'
+    }
+}
+
+Describe 'The live state of a run (GX1 items to the live map)' {
+    BeforeAll {
+        $script:Ent = { param($id, $type, $name, $props = @{}) [pscustomobject]@{ Kind = 'Entity'; Id = $id; Type = $type; Name = $name; Parents = @(); Props = $props; Time = [DateTime]::Now } }
+        $script:Rel = { param($from, $type, $to) [pscustomobject]@{ Kind = 'Relation'; From = $from; Type = $type; To = $to; Time = [DateTime]::Now } }
+        $script:Prb = { param($phase, $id, $outcome = '') [pscustomobject]@{ Kind = 'Probe'; Phase = $phase; Probe = 'HTTP'; Id = $id; Outcome = $outcome; Time = [DateTime]::Now } }
+        $script:Feed = {
+            $st = New-MspkiGuiLiveState
+            $items = @(
+                (& $script:Ent 'forest:corp.example.test' 'Forest' 'corp.example.test')
+                (& $script:Ent 'cacert:aa' 'CACertificate' 'CN=Example Root CA')
+                (& $script:Ent 'cacert:bb' 'CACertificate' 'CN=Example Issuing CA')
+                (& $script:Ent 'ca:ca01.corp.example.test\example issuing ca' 'CA' 'Example Issuing CA' @{ CAType = 'EnterpriseSubordinate'; PropertiesRead = $true })
+                (& $script:Rel 'cacert:bb' 'certificateOf' 'ca:ca01.corp.example.test\example issuing ca')
+                (& $script:Rel 'cacert:bb' 'issuedBy' 'cacert:aa')
+                (& $script:Ent 'endpoint:http://pki.corp.example.test/a.crl' 'Endpoint' 'http://pki.corp.example.test/a.crl' @{ Url = 'http://pki.corp.example.test/a.crl'; Kinds = @('CDP') })
+                (& $script:Ent 'host:pki.corp.example.test' 'Host' 'pki.corp.example.test')
+                (& $script:Rel 'cacert:bb' 'references' 'endpoint:http://pki.corp.example.test/a.crl')
+                (& $script:Rel 'endpoint:http://pki.corp.example.test/a.crl' 'hostedOn' 'host:pki.corp.example.test')
+            )
+            foreach ($i in $items) { [void](Add-MspkiGuiLiveItem -State $st -Item $i) }
+            $st
+        }
+    }
+    It 'adds each entity and relation once, and says whether the picture changed' {
+        $st = New-MspkiGuiLiveState
+        Add-MspkiGuiLiveItem -State $st -Item (& $script:Ent 'host:a' 'Host' 'a') | Should -BeTrue
+        Add-MspkiGuiLiveItem -State $st -Item (& $script:Ent 'host:a' 'Host' 'a') | Should -BeFalse
+        Add-MspkiGuiLiveItem -State $st -Item (& $script:Rel 'host:a' 'aliasOf' 'host:b') | Should -BeTrue
+        Add-MspkiGuiLiveItem -State $st -Item (& $script:Rel 'host:a' 'aliasOf' 'host:b') | Should -BeFalse
+        Add-MspkiGuiLiveItem -State $st -Item ([pscustomobject]@{ Kind = 'Log'; Text = 'x' }) | Should -BeFalse
+        $st.Entities.Count | Should -Be 1
+        @($st.Relations).Count | Should -Be 1
+        $st.Version | Should -Be 2
+    }
+    It 'tracks the probes that run now and keeps the worst outcome of each object' {
+        $st = New-MspkiGuiLiveState
+        [void](Add-MspkiGuiLiveItem -State $st -Item (& $script:Prb 'Start' 'endpoint:x'))
+        $st.Probes.Contains('endpoint:x') | Should -BeTrue
+        [void](Add-MspkiGuiLiveItem -State $st -Item (& $script:Prb 'End' 'endpoint:x' 'OK'))
+        $st.Probes.Contains('endpoint:x') | Should -BeFalse
+        $st.Outcomes['endpoint:x'] | Should -Be 'OK'
+        [void](Add-MspkiGuiLiveItem -State $st -Item (& $script:Prb 'End' 'endpoint:x' 'TCP_FAIL'))
+        $st.Outcomes['endpoint:x'] | Should -Be 'TCP_FAIL'
+        [void](Add-MspkiGuiLiveItem -State $st -Item (& $script:Prb 'End' 'endpoint:x' 'OK'))
+        $st.Outcomes['endpoint:x'] | Should -Be 'TCP_FAIL'
+        [void](Add-MspkiGuiLiveItem -State $st -Item (& $script:Prb 'End' 'endpoint:y' 'NOT_APPLICABLE'))
+        $st.Outcomes.ContainsKey('endpoint:y') | Should -BeFalse
+    }
+    It 'builds the same map as a finished run: roots, issuing CAs, addresses and hosts in columns, from the announced items only' {
+        $m = Get-MspkiGuiLiveMapModel -State (& $script:Feed)
+        $m.Layers | Should -Be 4
+        $kinds = @($m.Nodes | ForEach-Object { $_.Kind } | Sort-Object)
+        $kinds | Should -Be @('CA', 'CA', 'Endpoint', 'Host')
+        @($m.Links | Where-Object { $_.Kind -eq 'chain' }).Count | Should -Be 1
+        @($m.Links | Where-Object { $_.Kind -eq 'publishes' }).Count | Should -Be 1
+        @($m.Links | Where-Object { $_.Kind -eq 'hostedOn' }).Count | Should -Be 1
+        (Get-MspkiGuiLiveMapModel -State (New-MspkiGuiLiveState)) | Should -BeNullOrEmpty
+    }
+    It 'colours a probed object by its probe (answered: Info; did not answer: Warn) and leaves the CAs neutral, never green or red' {
+        $st = & $script:Feed
+        [void](Add-MspkiGuiLiveItem -State $st -Item (& $script:Prb 'End' 'endpoint:http://pki.corp.example.test/a.crl' 'OK'))
+        $ep = @((Get-MspkiGuiLiveMapModel -State $st).Nodes | Where-Object { $_.Kind -eq 'Endpoint' })[0]
+        $ep.Tone | Should -Be 'Info'
+        [void](Add-MspkiGuiLiveItem -State $st -Item (& $script:Prb 'End' 'endpoint:http://pki.corp.example.test/a.crl' 'TIMEOUT'))
+        @((Get-MspkiGuiLiveMapModel -State $st).Nodes | Where-Object { $_.Kind -eq 'Endpoint' })[0].Tone | Should -Be 'Warn'
+        @((Get-MspkiGuiLiveMapModel -State $st).Nodes | Where-Object { $_.Kind -eq 'CA' } | ForEach-Object { $_.Tone } | Select-Object -Unique) | Should -Be @('Neutral')
+    }
+    It 'says what has been found so far, in words' {
+        Get-MspkiGuiLiveFoundText -State (New-MspkiGuiLiveState) | Should -Be ''
+        Get-MspkiGuiLiveFoundText -State (& $script:Feed) | Should -Be '1 CA, 1 published address and 1 host found so far'
+    }
+}
