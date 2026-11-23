@@ -488,6 +488,21 @@ Describe 'Audit 2 M14: the whole history is checked, author and committer, messa
         $r.Identity | Should -BeGreaterThan 0
     }
 
+    # N14 (audit 3): the test above plants a real-looking committer e-mail address, which the old check (author and committer e-mail addresses
+    # searched with the e-mail pattern) also found, so it does not separate the old logic from the new. This one plants the case the old logic
+    # really missed: a committer NAME other than the project identity with the allowed noreply address. It also runs the old logic on the same
+    # history and asserts that it finds nothing, so the test can only pass because of the new check.
+    It 'finds a committer NAME that is not the project identity even when the committer e-mail is the noreply address (the case the old check missed)' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $d = & $script:newRepo 'committername'
+        & $script:commit $d 'clean message' @{ 'a.txt' = 'clean' } -Committer ('Some Name|1+ed@users' + '.noreply.github.com')
+        $r = & $script:scanHistory $d
+        $r.Identity | Should -BeGreaterThan 0
+        Push-Location $d
+        try { $ident = (@(& git log --all --format='%an|%ae|%cn|%ce' 2>$null)) -join "`n" } finally { Pop-Location }
+        $oldHits = @([regex]::Matches($ident, $script:email) | Where-Object { $_.Value -notmatch $script:emailAllowed })
+        $oldHits.Count | Should -Be 0 -Because 'the old check searched the e-mail addresses only, and the noreply address is allowed'
+    }
+
     It 'finds a real name in a file of an OLD commit that a later commit removed' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
         $d = & $script:newRepo 'oldcontent'
         & $script:commit $d 'add' @{ 'notes.txt' = ('see ' + $script:plantHost) }
