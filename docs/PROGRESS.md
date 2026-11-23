@@ -462,6 +462,8 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   name map (content, paths, messages, identities). The "2 of 19 names in 47 commits" of the audits are the bare short names `ndes01` and
   `ndes01-mscep-ra` (47 of the 84 commits at the audited commit), which `docs/NAMING.md` uses as generic names. A rewrite would change nothing unless
   the owner decides those two are lab names; then NAMING.md changes and 47 commits are rewritten.
+- Step 5 CLOSED (2026-11-23, owner decision): `ndes01` and `ndes01-mscep-ra` are acceptable generic names. No history rewrite, no repo recreation.
+  The mirror backup stays in `C:\ClaudeCode\private\`; the local name-guard hooks stay as they are. Batch G is closed.
 
 ## Batch H, step 1: "Probable causes and next steps" for every non-passing finding (2026-11-22)
 - Research: Microsoft Learn, Tech Community / AskDS, SpecterOps and Certipy pages were fetched or searched (RPC/DCOM, CRL/AIA/delta, OCSP, CES/CEP, NDES, Intune, TLS, NTAuth, ESC1-16,
