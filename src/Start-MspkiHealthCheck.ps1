@@ -176,6 +176,7 @@ function Start-MspkiHealthCheck {
                     -Target 'Endpoints' -Sources 'Run' -Action 'checking AIA/CDP/OCSP endpoints' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Probe:Endpoints' -Stopwatch $sw
+            Send-MspkiLeadEntityEvent
             $sw = Start-MspkiStageTimer -Stage 'Discovery:LocalPolicy'
             try {
                 $cep = Get-MspkiLocalCepPolicy
@@ -198,6 +199,7 @@ function Start-MspkiHealthCheck {
                     -Target 'EnrollmentServices' -Sources 'Run' -Action 'checking CEP and CES endpoints' -Stage 'Run'))
             }
             Add-MspkiStageTiming -Stage 'Probe:EnrollmentServices' -Stopwatch $sw
+            Send-MspkiLeadEntityEvent
             $sw = Start-MspkiStageTimer -Stage 'Probe:NDES'
             $ndesHosts = @()
             try {

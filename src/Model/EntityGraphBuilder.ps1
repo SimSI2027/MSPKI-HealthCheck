@@ -61,7 +61,9 @@ function Add-MspkiEndpointEntity {
     $id = Get-MspkiEndpointEntityId -Url $Url
     $props = @{ Url = $(if ($n.Url) { $n.Url } else { $Url }); UrlType = $n.UrlType }
     if ($Scope) { $props['Scope'] = $Scope }
-    [void](Add-MspkiEntity -Type 'Endpoint' -Id $id -Name $props.Url -Properties $props)
+    $hostParent = @()
+    if ($n.Host) { $hostParent = @(Get-MspkiEntityId -Type 'Host' -Key ([string]$n.Host).Trim().TrimEnd('.')) }
+    [void](Add-MspkiEntity -Type 'Endpoint' -Id $id -Name $props.Url -Properties $props -Parents $hostParent)
     $e = Get-MspkiEntity -Id $id
     if ($Kind -and @($e.Properties['Kinds']) -notcontains $Kind) { $e.Properties['Kinds'] = @(@($e.Properties['Kinds']) + $Kind | Where-Object { $_ }) }
     if ($n.Host) {
@@ -88,7 +90,7 @@ function Add-MspkiInventoryToEntityGraph {
             Add-MspkiObservation -EntityId $forestId -Kind 'Seen' -Source 'AD' -Location ([string]$ctx.ConfigNC) -Confidence 'Confirmed'
         }
         foreach ($d in @($ctx.ForestDomains | Where-Object { $_ })) {
-            $did = Add-MspkiEntity -Type 'Domain' -Key $d -Name $d -Properties @{ InForest = $true }
+            $did = Add-MspkiEntity -Type 'Domain' -Key $d -Name $d -Properties @{ InForest = $true } -Parents @($forestId)
             if ($forestId) { Add-MspkiRelation -From $did -Type 'partOf' -To $forestId -Source 'AD:Forest' -Confidence 'Confirmed' }
         }
         foreach ($d in @($ctx.TrustedDomains | Where-Object { $_ })) {
@@ -103,7 +105,7 @@ function Add-MspkiInventoryToEntityGraph {
     }
 
     foreach ($c in @($Inventory.Containers | Where-Object { $_ -and $_.DistinguishedName })) {
-        $id = Add-MspkiEntity -Type 'ADObject' -Key $c.DistinguishedName -Name $c.Name -Properties @{ DistinguishedName = $c.DistinguishedName; ObjectKind = $c.Kind; ChildCount = $c.ChildCount; WhenChanged = $c.WhenChanged }
+        $id = Add-MspkiEntity -Type 'ADObject' -Key $c.DistinguishedName -Name $c.Name -Properties @{ DistinguishedName = $c.DistinguishedName; ObjectKind = $c.Kind; ChildCount = $c.ChildCount; WhenChanged = $c.WhenChanged } -Parents @($forestId)
         if ($c.Exists) { Add-MspkiObservation -EntityId $id -Kind 'Seen' -Source 'AD' -Location $c.DistinguishedName -Confidence 'Confirmed' }
         elseif ($c.Outcome -eq 'Success' -or $c.Outcome -eq 'NotFound') {
             Add-MspkiObservation -EntityId $id -Kind 'ExpectedMissing' -Source 'AD' -Location $c.DistinguishedName -Confidence 'Confirmed' -Detail 'Standard PKI container not found in the Configuration partition.'
@@ -117,7 +119,7 @@ function Add-MspkiInventoryToEntityGraph {
         $key = $(if ($ca.Config) { $ca.Config } else { $ca.Name })
         $props = @{ CommonName = $ca.CommonName; DisplayName = $ca.DisplayName; DnsHostName = $ca.DnsHostName; Config = $ca.Config; Kind = 'Enterprise'; DistinguishedName = $ca.DistinguishedName }
         if ($null -ne $ca.Properties) { $props['CAType'] = $ca.Properties.CATypeName; $props['PropertiesRead'] = $true } else { $props['PropertiesRead'] = $false }
-        $id = Add-MspkiEntity -Type 'CA' -Key $key -Name $ca.Name -Properties $props
+        $id = Add-MspkiEntity -Type 'CA' -Key $key -Name $ca.Name -Properties $props -Parents @($forestId)
         $caIdByName[[string]$ca.Name] = $id
         if ($ca.DistinguishedName) {
             Add-MspkiObservation -EntityId $id -Kind 'Seen' -Source 'AD' -Location $ca.DistinguishedName -Confidence 'Confirmed' -Detail 'Enrollment Services object (Enterprise CA)'
@@ -154,7 +156,7 @@ function Add-MspkiInventoryToEntityGraph {
             }
         }
         $name = $(if ($null -ne $i -and $i.Subject) { $i.Subject } else { $c.Thumbprint })
-        $id = Add-MspkiEntity -Type 'CACertificate' -Key $c.Thumbprint -Name $name -Properties $props
+        $id = Add-MspkiEntity -Type 'CACertificate' -Key $c.Thumbprint -Name $name -Properties $props -Parents @($caIdByName[[string]$c.CAName])
         $certIds += $id
         foreach ($s in @($c.Sources | Where-Object { $_ })) {
             if ($s -eq 'CA:GetCAProperty') {
@@ -361,7 +363,8 @@ function Register-MspkiProbeResult {
         $crl = $Result.Crl
         $cid = Get-MspkiCrlEntityId -AuthorityKeyId ([string]$crl.AuthorityKeyId) -Issuer $crl.Issuer -CAVersion ([string]$crl.CAVersion) -IsDelta ([bool]$crl.IsDelta)
         [void](Add-MspkiEntity -Type 'CRL' -Id $cid -Name ('{0} CRL of {1}' -f $(if ($crl.IsDelta) { 'Delta' } else { 'Base' }), $crl.Issuer) -Properties @{
-            Issuer = $crl.Issuer; IsDelta = [bool]$crl.IsDelta; AuthorityKeyId = [string]$crl.AuthorityKeyId; CAVersion = [string]$crl.CAVersion })
+            Issuer = $crl.Issuer; IsDelta = [bool]$crl.IsDelta; AuthorityKeyId = [string]$crl.AuthorityKeyId; CAVersion = [string]$crl.CAVersion } `
+            -Parents @(Get-MspkiCACertificateIdByKeyId -KeyId ([string]$crl.AuthorityKeyId)))
         Set-MspkiCrlEntityDate -Id $cid -Crl $crl
         Add-MspkiObservation -EntityId $cid -Kind 'Seen' -Source $src -Location $Url -Confidence 'Confirmed' `
             -Detail ('CRL number {0}, this update {1}, next update {2}' -f $crl.CrlNumber, (Format-MspkiGraphDate $crl.ThisUpdate), (Format-MspkiGraphDate $crl.NextUpdate))
@@ -399,7 +402,7 @@ function Register-MspkiProbeResult {
             if (-not (Test-MspkiEntity -Id $cid)) {
                 $sig = @(Get-MspkiCACertificateIdByKeyId -KeyId $k) | Select-Object -First 1
                 $iname = $(if ($sig) { (Get-MspkiEntity -Id $sig).Name } else { $k })
-                [void](Add-MspkiEntity -Type 'CRL' -Id $cid -Name ('{0} CRL of {1}' -f $(if ($Lead.Kind -eq 'FreshestCRL') { 'Delta' } else { 'Base' }), $iname) -Properties @{ AuthorityKeyId = $k; IsDelta = ($Lead.Kind -eq 'FreshestCRL') })
+                [void](Add-MspkiEntity -Type 'CRL' -Id $cid -Name ('{0} CRL of {1}' -f $(if ($Lead.Kind -eq 'FreshestCRL') { 'Delta' } else { 'Base' }), $iname) -Properties @{ AuthorityKeyId = $k; IsDelta = ($Lead.Kind -eq 'FreshestCRL') } -Parents @($sig))
             }
             Add-MspkiObservation -EntityId $cid -Kind 'ExpectedMissing' -Source $src -Location $Url -Confidence 'Confirmed' -Detail ('Named in {0} of a certificate; not retrieved from this location.' -f $Lead.Kind)
             Register-MspkiUrlCrl -Url $Url -CrlId $cid
@@ -418,7 +421,8 @@ function Register-MspkiCaOwnCrl {
         $crl = $o.Crl
         $cid = Get-MspkiCrlEntityId -AuthorityKeyId ([string]$crl.AuthorityKeyId) -Issuer $crl.Issuer -CAVersion ([string]$crl.CAVersion) -IsDelta ([bool]$crl.IsDelta)
         [void](Add-MspkiEntity -Type 'CRL' -Id $cid -Name ('{0} CRL of {1}' -f $(if ($crl.IsDelta) { 'Delta' } else { 'Base' }), $crl.Issuer) -Properties @{
-            Issuer = $crl.Issuer; IsDelta = [bool]$crl.IsDelta; AuthorityKeyId = [string]$crl.AuthorityKeyId; CAVersion = [string]$crl.CAVersion })
+            Issuer = $crl.Issuer; IsDelta = [bool]$crl.IsDelta; AuthorityKeyId = [string]$crl.AuthorityKeyId; CAVersion = [string]$crl.CAVersion } `
+            -Parents @(Get-MspkiCACertificateIdByKeyId -KeyId ([string]$crl.AuthorityKeyId)))
         Set-MspkiCrlEntityDate -Id $cid -Crl $crl
         Add-MspkiObservation -EntityId $cid -Kind 'Seen' -Source 'CA' -Location ([string]$o.Config) -Confidence 'Confirmed' `
             -Detail ('The CA''s own current CRL: number {0}, this update {1}, next update {2}' -f $crl.CrlNumber, (Format-MspkiGraphDate $crl.ThisUpdate), (Format-MspkiGraphDate $crl.NextUpdate))

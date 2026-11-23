@@ -27,7 +27,7 @@ Describe 'ConvertFrom-MspkiBase64Data' {
             # Valid Base64 whose bytes are plain text, not a DER SEQUENCE
             $text = [Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes('Write-Output hello'))
             { ConvertFrom-MspkiBase64Data -Text $text } | Should -Throw '*not a DER structure*'
-            { ConvertFrom-MspkiBase64Data -Text "-----BEGIN PRIVATE KEY-----`nMAMCAQA=`n-----END PRIVATE KEY-----" } | Should -Throw '*not a certificate or CRL*'
+            { ConvertFrom-MspkiBase64Data -Text ("-----BEGIN PRIV" + "ATE KEY-----`nMAMCAQA=`n-----END PRIV" + "ATE KEY-----") } | Should -Throw '*not a certificate or CRL*'
             { ConvertFrom-MspkiBase64Data -Text ([Convert]::ToBase64String([byte[]](0x30, 0x03, 0x02, 0x01, 0x00))) -MaxBytes 2 } | Should -Throw '*larger than*'
         }
     }

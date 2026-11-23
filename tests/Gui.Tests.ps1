@@ -819,6 +819,40 @@ Describe 'GUI window (single-threaded runspace)' {
         # The PNG header and the size we asked for.
         $bytes = [System.IO.File]::ReadAllBytes($files[0])
         [System.Text.Encoding]::ASCII.GetString($bytes, 1, 3) | Should -Be 'PNG'
+        # Fixed-size off-window render: every frame is exactly the size asked for (IHDR width and height), whatever the screen is.
+        foreach ($f in $files) {
+            $b = [System.IO.File]::ReadAllBytes($f)
+            $pw = ([int]$b[16] -shl 24) + ([int]$b[17] -shl 16) + ([int]$b[18] -shl 8) + [int]$b[19]
+            $ph = ([int]$b[20] -shl 24) + ([int]$b[21] -shl 16) + ([int]$b[22] -shl 8) + [int]$b[23]
+            ('{0}x{1}' -f $pw, $ph) | Should -Be '1100x700' -Because (Split-Path -Leaf $f)
+        }
+    }
+
+    It 'renders at the window minimum size when asked, and at a size larger than the screen' {
+        $snap = Join-Path $TestDrive 'out\snapmin'
+        $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, (Join-Path $TestDrive 'out'), $snap) -Script {
+            param($folder, $module, $outRoot, $snap)
+            Import-Module $module -Force
+            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiEntity.ps1'); . (Join-Path $folder 'GuiApp.ps1'); . (Join-Path $folder 'GuiSnapshot.ps1')
+            Import-MspkiGuiAssembly
+            $win = Initialize-MspkiGuiApplication -ModulePath $module -XamlPath (Join-Path $folder 'MainWindow.xaml') -OutputPath $outRoot
+            [void][System.IO.Directory]::CreateDirectory($snap)
+            $win.WindowStartupLocation = 'Manual'; $win.Left = -32000; $win.Top = 0; $win.Show()
+            Wait-MspkiGuiIdle -Rounds 4
+            $min =Get-MspkiGuiSnapshotMinimumSize -Window $win
+            $a = Save-MspkiGuiSnapshotImage -Window $win -Path (Join-Path $snap 'min.png') -Width $min.Width -Height $min.Height
+            $b = Save-MspkiGuiSnapshotImage -Window $win -Path (Join-Path $snap 'huge.png') -Width 3000 -Height 2000
+            $win.Close()
+            [pscustomobject]@{ MinW = $min.Width; MinH = $min.Height; Files = @($a, $b) }
+        }
+        $out[0].MinW | Should -BeGreaterThan 900
+        $out[0].MinW | Should -BeLessOrEqual 1080
+        $out[0].MinH | Should -BeLessOrEqual 700
+        $sizes = foreach ($f in $out[0].Files) {
+            $b = [System.IO.File]::ReadAllBytes($f)
+            '{0}x{1}' -f (([int]$b[18] -shl 8) + [int]$b[19] + ([int]$b[17] -shl 16)), (([int]$b[22] -shl 8) + [int]$b[23] + ([int]$b[21] -shl 16))
+        }
+        $sizes[1] | Should -Be '3000x2000'
     }
 }
 

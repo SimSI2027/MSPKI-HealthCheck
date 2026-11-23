@@ -26,10 +26,14 @@ with RenderTargetBitmap (never a screen capture), and the script exits. Snapshot
 With -Snapshot: the results.json to load before the tabs are rendered. Without it, only the welcome state and the empty tabs are rendered.
 
 .PARAMETER SnapshotWidth
-With -Snapshot: window width in pixels (default 1360).
+With -Snapshot: frame width in pixels (default 1360). The content is laid out off-window at exactly this size (Measure/Arrange), so the
+frame size does not depend on this computer's screen (for example 1920 x 1080 on a small screen).
 
 .PARAMETER SnapshotHeight
-With -Snapshot: window height in pixels (default 860).
+With -Snapshot: frame height in pixels (default 860).
+
+.PARAMETER SnapshotMinimum
+With -Snapshot: render at the window's minimum size instead of -SnapshotWidth x -SnapshotHeight.
 
 .PARAMETER SnapshotMaximized
 With -Snapshot: render the window maximised on the primary screen (it is visible there for a few seconds) instead of off-screen.
@@ -49,7 +53,8 @@ param(
     [ValidateRange(900, 4000)][int]$SnapshotWidth = 1360,
     [ValidateRange(560, 3000)][int]$SnapshotHeight = 860,
     [ValidateRange(1, 4)][double]$SnapshotScale = 1,
-    [switch]$SnapshotMaximized
+    [switch]$SnapshotMaximized,
+    [switch]$SnapshotMinimum
 )
 
 # Constrained Language Mode (AppLocker or WDAC) blocks COM objects, System.DirectoryServices, sockets and WPF. Say so now and stop,
@@ -98,7 +103,7 @@ if ($Snapshot) {
     }
     try {
         $window = Initialize-MspkiGuiApplication -ModulePath $modulePath -XamlPath (Join-Path $guiFolder 'MainWindow.xaml') -OutputPath $OutputPath
-        $files = Invoke-MspkiGuiSnapshot -Window $window -Folder $Snapshot -AllowedRoot (Join-Path $PSScriptRoot 'out') -ResultsFile $ResultsFile -Width $SnapshotWidth -Height $SnapshotHeight -Scale $SnapshotScale -Maximized:$SnapshotMaximized
+        $files = Invoke-MspkiGuiSnapshot -Window $window -Folder $Snapshot -AllowedRoot (Join-Path $PSScriptRoot 'out') -ResultsFile $ResultsFile -Width $SnapshotWidth -Height $SnapshotHeight -Scale $SnapshotScale -Maximized:$SnapshotMaximized -Minimum:$SnapshotMinimum
         foreach ($f in $files) { Write-Host $f }
     }
     catch {

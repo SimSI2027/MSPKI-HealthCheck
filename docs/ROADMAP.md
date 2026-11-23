@@ -68,7 +68,7 @@ Design: `docs/GUI-EXPERIENCE.md`. Judged on the upgraded rubric (`docs/GUI-DESIG
 | WP | Scope (build order) | Status |
 |---|---|---|
 | GX0 | Prototype: mission-control Overview + live discovery map (replay), world fixture, mid-animation snapshots, 2 discriminator rounds | DONE (2026-11-23, PASS in round 2) |
-| GX1 | Engine events for the live map (`Entity`, `Relation`, `Probe` queue items) | TODO |
+| GX1 | Engine events for the live map (`Entity`, `Relation`, `Probe` queue items) | DONE (2026-11-23) |
 | GX2 | Mission-control Overview, production quality | TODO |
 | GX3 | Guided troubleshooting walkthrough, Observed highlighting, copy the checks, mark as checked | TODO |
 | GX4 | Ctrl+K command palette, keyboard-first paths, in-app toasts | TODO |
@@ -117,7 +117,7 @@ Plan: `docs/DEMO-SITE.md`. World: `docs/DEMO-WORLD.md`.
 | WP | Scope (build order) | Status |
 |---|---|---|
 | DS1 | Simulation boundary and world fixture format (baseline scenario) | TODO |
-| DS2 | World PKI material (certificates and CRLs); owner gate for the key-generating developer tool | TODO (gate) |
+| DS2 | World PKI material (certificates and CRLs); developer tool in `tools/dev/` (owner approved 2026-11-23, CLAUDE.md rule added) | TODO |
 | DS3 | Generator: real engine per scenario, recorded events, manifest, guards | TODO |
 | DS4 | Site shell, design tokens generated from Theme.xaml | TODO |
 | DS5 | Scenario view: mission control, map replay, findings, details with the walkthrough | TODO |

@@ -54,6 +54,7 @@ function Resolve-MspkiDnsName {
 
     Assert-MspkiNotCancelled
     Send-MspkiProgress -Kind 'Target' -Text ('DNS {0}' -f $h)
+    Send-MspkiProbeEvent -Phase Start -Probe DNS -Subject $h
     $r = New-MspkiProbeResult -Probe 'DNS' -Target $h
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
@@ -74,6 +75,7 @@ function Resolve-MspkiDnsName {
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     Set-MspkiProbeCacheEntry -Key $key -Value $r
+    Send-MspkiProbeEvent -Phase End -Probe DNS -Subject $h -Outcome $r.StatusCode
     Write-MspkiLog -Message ('DNS {0}: {1} {2} ms {3}' -f $h, $r.Status, $r.ElapsedMs, $r.Error).Trim()
     return $r
 }
@@ -138,6 +140,7 @@ function Test-MspkiTcpPort {
 
     Assert-MspkiNotCancelled
     Send-MspkiProgress -Kind 'Target' -Text ('TCP {0}:{1}' -f $h, $Port)
+    Send-MspkiProbeEvent -Phase Start -Probe TCP -Subject $h
     $r = New-MspkiProbeResult -Probe 'TCP' -Target ('{0}:{1}' -f $h, $Port)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $client = New-Object System.Net.Sockets.TcpClient
@@ -158,6 +161,7 @@ function Test-MspkiTcpPort {
     finally { $client.Close() }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     Set-MspkiProbeCacheEntry -Key $key -Value $r
+    Send-MspkiProbeEvent -Phase End -Probe TCP -Subject $h -Outcome $r.StatusCode
     Write-MspkiLog -Message ('TCP {0}:{1}: {2} {3} ms {4}' -f $h, $Port, $r.Status, $r.ElapsedMs, $r.Error).Trim()
     return $r
 }

@@ -79,6 +79,16 @@ investigation only. The product must never depend on them: a normal user on a cl
 Never change anything on other lab servers; if a lab fix is needed, write exact steps for the owner. Captures, logs, `out\` and
 `C:\ClaudeCode\private\LAB-FACTS.md` hold real names: keep them outside the repo and never commit them.
 
+## Developer-only tools (`tools\dev\`)
+(Owner decision, 2026-11-23, for the demo site, DS2.) `tools\dev\` holds developer-only generators that never ship and that the product
+never references.
+- The demo-certificate generator may create throw-away signing keys IN MEMORY ONLY. Never write a key to disk or to any key store, and commit
+  only public certificates and CRLs, clearly fictional.
+- It may use PowerShell 7 or OpenSSL installed for this user (lab dev-tool rule).
+- The demo uses a fixed demo-clock date so CRLs and certificates never appear expired.
+`tests/Hygiene.Tests.ps1` enforces it: `src\`, the entry scripts and `demo\` never reference `tools\dev\`, and no private-key file (by type
+or by content) is anywhere in the repository.
+
 ## The `ref/` folder
 - `ref/` holds the previous toolkit (v2.5.0). Use it for **ideas only**.
 - Never edit, move, rename, run or dot-source anything in `ref/`. Do not copy code blocks from it.
@@ -102,6 +112,7 @@ src/Knowledge/   # Diagnosis.psd1 (sources, status-code defaults, rules) + Diagn
 src/Gui/         # GUI only: MainWindow.xaml + Theme.xaml (look: see docs/GUI-DESIGN.md), GuiModel.ps1 / GuiView.ps1 (pure data helpers and view models),
                  # GuiApp.ps1 (window, runspace, events), GuiSnapshot.ps1 (developer PNG snapshots; writes only inside out\)
 demo/            # demo script: runs the reporters on the example.test fixture, writes out/demo
+tools/dev/       # developer-only generators (demo world PKI, demo site data); never shipped, never referenced by the product
 tests/fixtures/  # sanitised recorded samples (example.test only)
 tests/*.Tests.ps1
 out/             # run output (git-ignored)

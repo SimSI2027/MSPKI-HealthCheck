@@ -501,3 +501,20 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   frames at 300/1250/2100 ms (`05-build-*`, `06-build-map-*`) and `12-summary-map`. Two discriminator rounds logged in GUI-DESIGN §7; lessons in GUI-EXPERIENCE §11.
 - Tests: `tests/GuiMission.Tests.ps1` (16); the window test also checks the names used in GuiMapView.ps1.
 - Open: the map replays the finished graph (live build needs GX1 engine events); 1920 x 1080 frames need a larger screen than this session's; next is GX1.
+
+## Owner decisions applied (2026-11-23)
+- The Alcyone Orbital Systems rename is approved (the demo world stays as in `docs/DEMO-WORLD.md`). DS2 is approved as a developer-only tool: CLAUDE.md has the new
+  section "Developer-only tools (`tools\dev\`)" (keys in memory only, only public certificates and CRLs committed, PowerShell 7 or OpenSSL allowed for the developer, fixed demo clock).
+  `tests/Hygiene.Tests.ps1` enforces it: `src\`, the entry scripts and `demo\` never reference `tools\dev\`; no private-key file type or PEM private-key block is in the repository.
+- Snapshots render off-window at a fixed size: `Set-MspkiGuiSnapshotLayout` (Measure/Arrange at exactly Width x Height, content drawn through a VisualBrush on the window background),
+  `-SnapshotWidth/-SnapshotHeight` now mean the frame size (1920 x 1080 works on this 1386 x 788 VM), `-SnapshotMinimum` renders at the window minimum. Tests: exact PNG size, minimum, 3000 x 2000.
+- Next: GX1 (engine events for the live map).
+
+## GX1 (2026-11-23): engine events for the live map - DONE
+- `-Control` now also queues `Entity` (id, type, name, parent ids), `Relation` (from, type, to) and `Probe` (Start/End, keyed by endpoint id or host id, with the outcome) items:
+  `src/Model/RunControl.ps1` (`Send-MspkiGraphEvent`, `Send-MspkiProbeEvent`, `Send-MspkiLeadEntityEvent`), `Add-MspkiEntity -Parents`, probes in `Probes/NetworkProbes.ps1` and `WebProbes.ps1`.
+  Without a control nothing is queued; a test proves the graph built with and without one is identical (the CLI results.json is unchanged). Format in `docs/DATA-MODEL.md`.
+- Lab (normal user, read-only): 100 of 100 entities and 122 of 122 relations announced, none twice; all 100 before the last stage ended (first version had 88: CES/CEP endpoints are
+  only in the final pass, so the lead registry's endpoints are now announced early, announce-only); 26 probe starts, 26 ends; run time 19.5 s with and 19.4 s without a control (limit 5 %).
+- Tests: `tests/RunEvents.Tests.ps1` (9). Full suite: 1575 passed, 0 failed, 1 skipped, 163 s. No GUI change, so there is no new snapshot to judge (rubric pass skipped; the next package uses the events).
+- Next: GX2 (mission-control Overview, production quality; the running state becomes the live map fed by these events).

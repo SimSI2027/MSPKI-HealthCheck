@@ -132,6 +132,7 @@ function Invoke-MspkiHttpGet {
     if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
     Assert-MspkiNotCancelled
     Send-MspkiProgress -Kind 'Target' -Text ('HTTP {0}' -f $Url)
+    Send-MspkiProbeEvent -Phase Start -Probe HTTP -Subject $Url
     $r = [pscustomobject][ordered]@{
         Url = $Url; FinalUrl = $Url; HttpStatus = 0; Code = 'RETRIEVAL_FAIL'; Redirected = $false
         Hops = (New-Object System.Collections.ArrayList); ContentType = ''; Bytes = $null; Error = ''; ElapsedMs = 0; FromCache = $false
@@ -278,6 +279,7 @@ function Invoke-MspkiHttpGet {
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     Set-MspkiProbeCacheEntry -Key $key -Value $r
+    Send-MspkiProbeEvent -Phase End -Probe HTTP -Subject $Url -Outcome $r.Code
     Write-MspkiLog -Message ('HTTP GET {0}: {1} {2} ({3} hop(s), {4} ms, proxy: {5}) {6}' -f $Url, $r.HttpStatus, $r.Code, $r.Hops.Count, $r.ElapsedMs, $r.ProxyMode, $r.Error).Trim()
     return $r
 }
@@ -343,6 +345,7 @@ function Test-MspkiTlsEndpoint {
     if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
     Assert-MspkiNotCancelled
     Send-MspkiProgress -Kind 'Target' -Text ('TLS {0}:{1}' -f $h, $Port)
+    Send-MspkiProbeEvent -Phase Start -Probe TLS -Subject $h
     $r = [pscustomobject][ordered]@{
         Probe = 'TLS'; Target = ('{0}:{1}' -f $h, $Port); Status = 'Fail'; Code = 'TLS_HANDSHAKE_FAIL'; Protocol = ''
         NameMatch = $null; ChainErrors = @(); Subject = ''; Issuer = ''; Thumbprint = ''; NotAfter = ''; Error = ''; ElapsedMs = 0; FromCache = $false
@@ -425,6 +428,7 @@ function Test-MspkiTlsEndpoint {
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     Set-MspkiProbeCacheEntry -Key $key -Value $r
+    Send-MspkiProbeEvent -Phase End -Probe TLS -Subject $h -Outcome $r.Code
     Write-MspkiLog -Message ('TLS {0}: {1} {2} (offered: {3}) {4} ms {5}' -f $r.Target, $r.Code, $r.Protocol, $r.OfferedProtocols, $r.ElapsedMs, $r.Error).Trim()
     return $r
 }
@@ -497,6 +501,7 @@ function Get-MspkiLdapUrlContent {
     if ($null -ne $cached) { return $cached }
     Assert-MspkiNotCancelled
     Send-MspkiProgress -Kind 'Target' -Text ('LDAP {0}' -f $Url)
+    Send-MspkiProbeEvent -Phase Start -Probe LDAP -Subject $Url
     $r = [pscustomobject][ordered]@{ Url = $Url; Server = ''; Code = 'RETRIEVAL_FAIL'; Bytes = $null; ValueCount = 0; Error = ''; ElapsedMs = 0; Contacted = $true; Attribute = ''; AttributeDefaulted = $false; Referral = $false }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
@@ -507,6 +512,7 @@ function Get-MspkiLdapUrlContent {
         if (-not $allowed.Allowed) {
             $r.Contacted = $false; $r.Code = 'NOT_APPLICABLE'; $r.Error = ('Not contacted: {0}.' -f $allowed.Reason)
             Set-MspkiProbeCacheEntry -Key $key -Value $r
+            Send-MspkiProbeEvent -Phase End -Probe LDAP -Subject $Url -Outcome $r.Code
             Write-MspkiLog -Message ('LDAP {0}: not contacted ({1})' -f $Url, $allowed.Reason)
             return $r
         }
@@ -546,6 +552,7 @@ function Get-MspkiLdapUrlContent {
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     Set-MspkiProbeCacheEntry -Key $key -Value $r
+    Send-MspkiProbeEvent -Phase End -Probe LDAP -Subject $Url -Outcome $r.Code
     Write-MspkiLog -Message ('LDAP {0} (server {1}): {2} {3} ms {4}' -f $Url, $r.Server, $r.Code, $r.ElapsedMs, $r.Error).Trim()
     return $r
 }

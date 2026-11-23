@@ -144,6 +144,50 @@ Describe 'Function naming and help' {
     }
 }
 
+Describe 'Developer-only tools (CLAUDE.md, tools\dev)' {
+    BeforeAll {
+        # Built by concatenation so that this file itself stays clean for the content scan.
+        $script:pkMarker = '(?i)-----BEGIN (?:[A-Z0-9]+ )*PRIV' + 'ATE KEY-----'
+        $script:pkExt = @('.pfx', '.p12', '.pkcs12', '.key', '.pvk', '.pk8', '.jks', '.keystore', '.ppk', '.snk', '.kdb')
+        $script:devRef = '(?i)tools[\\/]+dev\b'
+    }
+
+    It 'no product code, entry script or demo script references tools\dev' {
+        $files = @(Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot 'src') -Recurse -File)
+        $files += @(Get-ChildItem -LiteralPath $script:RepoRoot -File -Filter '*.ps1')
+        $files += @(Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot 'demo') -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in @('.ps1', '.psm1', '.psd1') })
+        $files.Count | Should -BeGreaterThan 10
+        $hits = @($files | Where-Object { [System.IO.File]::ReadAllText($_.FullName) -match $script:devRef } | ForEach-Object { $_.Name })
+        $hits.Count | Should -Be 0 -Because ($hits -join ', ')
+    }
+
+    It 'no private-key file type and no private-key content is anywhere in the repository' {
+        $skip = '(?i)[\\/](\.git|ref|out)([\\/]|$)'
+        $all = @(Get-ChildItem -LiteralPath $script:RepoRoot -Recurse -File -Force | Where-Object { $_.FullName -notmatch $skip })
+        $all.Count | Should -BeGreaterThan 10
+        $byType = @($all | Where-Object { $script:pkExt -contains $_.Extension.ToLowerInvariant() } | ForEach-Object { $_.Name })
+        $byType.Count | Should -Be 0 -Because ('file types: ' + ($byType -join ', '))
+        $byContent = New-Object System.Collections.ArrayList
+        foreach ($f in $all) {
+            if ($f.Length -gt 20MB) { continue }
+            $text = [System.Text.Encoding]::GetEncoding(28591).GetString([System.IO.File]::ReadAllBytes($f.FullName))
+            if ($text -match $script:pkMarker) { [void]$byContent.Add($f.Name) }
+        }
+        $byContent.Count | Should -Be 0 -Because ('content: ' + ($byContent -join ', '))
+    }
+
+    It 'the scanners match what they are meant to catch (self-test) and not a public certificate' {
+        ('-----BEGIN RSA PRIV' + 'ATE KEY-----') | Should -Match $script:pkMarker
+        ('-----BEGIN PRIV' + 'ATE KEY-----') | Should -Match $script:pkMarker
+        ('-----BEGIN ENCRYPTED PRIV' + 'ATE KEY-----') | Should -Match $script:pkMarker
+        '-----BEGIN CERTIFICATE-----' | Should -Not -Match $script:pkMarker
+        'x = Join-Path $root "tools\dev\New-World.ps1"' | Should -Match $script:devRef
+        'tools/dev/x' | Should -Match $script:devRef
+        'tools\devices' | Should -Not -Match $script:devRef
+        '.pfx' | Should -BeIn $script:pkExt
+    }
+}
+
 Describe 'Public repository hygiene' {
     BeforeAll {
         $skip = '(?i)[\\/](\.git|ref|out)([\\/]|$)'

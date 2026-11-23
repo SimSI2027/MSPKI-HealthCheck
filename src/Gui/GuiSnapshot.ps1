@@ -29,19 +29,79 @@ function Wait-MspkiGuiIdle {
     }
 }
 
+function Get-MspkiGuiSnapshotMinimumSize {
+    <#
+    .SYNOPSIS
+    The smallest client size the window allows (its MinWidth and MinHeight minus the non-client frame), for a fixed-size render
+    at the minimum size. Returns a Size.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Window)
+    $root = $Window.Content
+    $frameW = 0.0; $frameH = 0.0
+    if ($null -ne $root -and $Window.ActualWidth -gt 0 -and $root.ActualWidth -gt 0) {
+        $frameW = [math]::Max(0.0, $Window.ActualWidth - $root.ActualWidth)
+        $frameH = [math]::Max(0.0, $Window.ActualHeight - $root.ActualHeight)
+    }
+    return (New-Object System.Windows.Size(([double]$Window.MinWidth - $frameW), ([double]$Window.MinHeight - $frameH)))
+}
+
+function Set-MspkiGuiSnapshotLayout {
+    <#
+    .SYNOPSIS
+    Lays the window's content out at a fixed size, off the window: Measure and Arrange at exactly Width x Height, whatever the screen
+    or the window's real size is (WPF clamps a window to the screen of this computer, so frames would differ from machine to machine).
+    The next normal layout pass puts the content back at the window's size.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Window, [Parameter(Mandatory = $true)][double]$Width, [Parameter(Mandatory = $true)][double]$Height)
+    $root = $Window.Content
+    if ($null -eq $root) { return }
+    $root.Measure((New-Object System.Windows.Size($Width, $Height)))
+    $root.Arrange((New-Object System.Windows.Rect(0, 0, $Width, $Height)))
+    $root.UpdateLayout()
+}
+
 function Save-MspkiGuiSnapshotImage {
     <#
     .SYNOPSIS
     Renders the window (as it is now) to a PNG file with RenderTargetBitmap. Returns the file path.
+    With -Width and -Height the content is laid out at exactly that size first (an off-window render: the frame size does not depend on the
+    screen) and put back afterwards. The window's own background is drawn behind it.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Window, [Parameter(Mandatory = $true)][string]$Path, [double]$Scale = 1.0)
+    param([Parameter(Mandatory = $true)]$Window, [Parameter(Mandatory = $true)][string]$Path, [double]$Scale = 1.0, [double]$Width = 0, [double]$Height = 0)
     Wait-MspkiGuiIdle
-    $w = [int][math]::Ceiling($Window.ActualWidth * $Scale)
-    $h = [int][math]::Ceiling($Window.ActualHeight * $Scale)
+    $fixed = ($Width -gt 0 -and $Height -gt 0 -and $null -ne $Window.Content)
     $dpi = 96.0 * $Scale
+    if ($fixed) {
+        Set-MspkiGuiSnapshotLayout -Window $Window -Width $Width -Height $Height
+        $w = [int][math]::Ceiling($Width * $Scale)
+        $h = [int][math]::Ceiling($Height * $Scale)
+        $rect = New-Object System.Windows.Rect(0, 0, $Width, $Height)
+        $brush = New-Object System.Windows.Media.VisualBrush($Window.Content)
+        $brush.Stretch = [System.Windows.Media.Stretch]::None
+        $brush.AlignmentX = [System.Windows.Media.AlignmentX]::Left
+        $brush.AlignmentY = [System.Windows.Media.AlignmentY]::Top
+        $brush.ViewboxUnits = [System.Windows.Media.BrushMappingMode]::Absolute
+        $brush.Viewbox = $rect
+        $brush.ViewportUnits = [System.Windows.Media.BrushMappingMode]::Absolute
+        $brush.Viewport = $rect
+        $dv = New-Object System.Windows.Media.DrawingVisual
+        $dc = $dv.RenderOpen()
+        $dc.DrawRectangle($Window.Background, $null, $rect)
+        $dc.DrawRectangle($brush, $null, $rect)
+        $dc.Close()
+        $visual = $dv
+    }
+    else {
+        $w = [int][math]::Ceiling($Window.ActualWidth * $Scale)
+        $h = [int][math]::Ceiling($Window.ActualHeight * $Scale)
+        $visual = $Window
+    }
     $rtb = New-Object System.Windows.Media.Imaging.RenderTargetBitmap($w, $h, $dpi, $dpi, [System.Windows.Media.PixelFormats]::Pbgra32)
-    $rtb.Render($Window)
+    $rtb.Render($visual)
+    if ($fixed) { $Window.Content.InvalidateMeasure(); $Window.UpdateLayout() }
     $enc = New-Object System.Windows.Media.Imaging.PngBitmapEncoder
     $enc.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($rtb))
     $fs = [System.IO.File]::Create($Path)
@@ -66,7 +126,8 @@ function Invoke-MspkiGuiSnapshot {
         [int]$Width = 1360,
         [int]$Height = 860,
         [double]$Scale = 1.0,
-        [switch]$Maximized
+        [switch]$Maximized,
+        [switch]$Minimum
     )
     if (-not (Test-MspkiGuiSnapshotFolder -Folder $Folder -AllowedRoot $AllowedRoot)) { throw ('Snapshots can only be written inside {0} (they can contain real names).' -f $AllowedRoot) }
     $g = $script:MspkiGui
@@ -86,12 +147,27 @@ function Invoke-MspkiGuiSnapshot {
         $Window.Show()
     }
     Wait-MspkiGuiIdle -Rounds 4
+    # Frame size: fixed (an off-window Measure/Arrange at Width x Height, or at the window's minimum size with -Minimum), so it does not
+    # depend on this computer's screen. Only -Maximized renders the real window.
+    $renderW = 0.0; $renderH = 0.0
+    if (-not $Maximized) {
+        if ($Minimum) { $sz = Get-MspkiGuiSnapshotMinimumSize -Window $Window; $renderW = $sz.Width; $renderH = $sz.Height }
+        else { $renderW = [double]$Width; $renderH = [double]$Height }
+    }
     $files = New-Object 'System.Collections.Generic.List[string]'
     $shot = {
         param([string]$Name)
         $p = Join-Path $Folder ($Name + '.png')
-        [void](Save-MspkiGuiSnapshotImage -Window $Window -Path $p -Scale $Scale)
+        [void](Save-MspkiGuiSnapshotImage -Window $Window -Path $p -Scale $Scale -Width $renderW -Height $renderH)
         $files.Add($p)
+    }
+    # Scroll targets are computed in the same fixed layout the frame is rendered in.
+    $scrollTo = {
+        param($Viewer, $Target, $Parent, [double]$Pad)
+        if ($renderW -gt 0) { Set-MspkiGuiSnapshotLayout -Window $Window -Width $renderW -Height $renderH }
+        $top = $Target.TransformToAncestor($Parent).Transform((New-Object System.Windows.Point(0, 0))).Y
+        $Viewer.ScrollToVerticalOffset([math]::Max(0, $top - $Pad))
+        Wait-MspkiGuiIdle -Rounds 2
     }
     $page = {
         param($Tab)
@@ -173,16 +249,14 @@ function Invoke-MspkiGuiSnapshot {
                 Wait-MspkiGuiIdle -Rounds 2
                 & $shot ('05-build-{0:0000}ms' -f $ms)
                 if ($null -ne $osv) {
-                    $top = $ui.MapCanvasHost.TransformToAncestor($ui.PanelResults).Transform((New-Object System.Windows.Point(0, 0))).Y
-                    $osv.ScrollToVerticalOffset([math]::Max(0, $top - 120)); Wait-MspkiGuiIdle -Rounds 2
+                    & $scrollTo $osv $ui.MapCanvasHost $ui.PanelResults 120
                     & $shot ('06-build-map-{0:0000}ms' -f $ms)
                     $osv.ScrollToTop(); Wait-MspkiGuiIdle -Rounds 2
                 }
             }
             & $settle
             if ($null -ne $osv) {
-                $top = $ui.MapCanvasHost.TransformToAncestor($ui.PanelResults).Transform((New-Object System.Windows.Point(0, 0))).Y
-                $osv.ScrollToVerticalOffset([math]::Max(0, $top - 120)); Wait-MspkiGuiIdle -Rounds 2
+                & $scrollTo $osv $ui.MapCanvasHost $ui.PanelResults 120
                 & $shot '12-summary-map'
                 $osv.ScrollToTop(); Wait-MspkiGuiIdle -Rounds 2
             }

@@ -107,3 +107,15 @@ this computer when there is no forest), so the list is never empty.
   An account that cannot be read gets `ExpectedMissing AD <SID=...>` (Unknown: deleted, or hidden from this account).
 - The NDES Service is `Seen` only when it answered GetCACaps/GetCACert (ConfirmedEndpoint); candidates are `Referenced` (Inferred) and their
   host has the role `NDESCandidate`. The CA certificates in GetCACert get a `Seen HTTP` observation (issuing CA or "chain").
+
+## Live events for the window (GX1)
+With `-Control` (the window's run control, `src/Model/RunControl.ps1`) the engine also queues graph and probe items next to the stage and log items. Without a
+control nothing is queued and nothing else changes (the command line writes the same results.json). Items are plain data with `Kind` and `Time`:
+- `Entity`: `Id`, `Type`, `Name`, `Parents` (ids the entity sits under, when known at creation: a domain, container or CA under its forest, a CA certificate under
+  its CA, a CRL under its signing certificate, an endpoint under its host). One item per new entity; a merge into an existing entity sends nothing.
+  The endpoints of the lead registry and their hosts are announced as soon as the endpoint and enrollment-service stages have run (`Send-MspkiLeadEntityEvent`,
+  announce-only: the graph is not touched and the final pass does not announce them twice), so the map does not wait for the end of the run.
+- `Relation`: `From`, `Type`, `To`, one item per new relation (an entity is always announced before a relation that names it).
+- `Probe`: `Phase` (`Start` or `End`), `Probe` (`DNS`, `TCP`, `TLS`, `HTTP`, `LDAP`), `Id` (the endpoint id for a URL, the host id for DNS, TCP and TLS) and, on `End`,
+  `Outcome` (the probe's status code). A cached answer sends nothing. A TLS probe contains a nested TCP pair.
+Measured on the lab (2026-11-23): all 100 entities and 122 relations announced, 100 % before the last stage ended; run time with and without a control 19.5 s and 19.4 s.
