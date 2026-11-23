@@ -287,3 +287,37 @@ from the Deny handling (N10).
 - N6: a live referral chase is still not shown. The serverless cross-domain group lookup was not tested (no such link in the lab).
 - The LLMNR/NetBIOS fallback for LDAP binds (Part 2, residual) was not tested.
 - N9 was shown on the endpoint stage. The CES/CEP stage was checked by reading only.
+
+---
+
+## Fix log 3
+
+Each fix is red first: the new tests were run against the code before the fix and failed on the old behaviour (an exception, or a wrong
+result), then pass after it. Hosts are `127.0.0.1` and `example.test` names only.
+
+### N9 (Medium): a redirect to a non-HTTP scheme never throws
+- **Fix:** `src/Probes/WebProbes.ps1` (`Invoke-MspkiHttpGet`). A `Location` is followed only when it is an absolute `http` or `https` URI.
+  `file:`, `ftp:`, `ldap:`, `gopher:`, `javascript:` and an unreadable value are recorded as evidence: `Code = HTTP_REDIRECT`, `HttpStatus` = the
+  redirect's own status (302), `RedirectNotFollowed` = the target (capped at 300 characters), and one hop. No request is sent to it. The
+  request is no longer cast blindly (`WebRequest.Create(...) -as HttpWebRequest`, and the scheme of every URL is checked first), and an
+  unexpected exception inside a hop becomes that URL's `RETRIEVAL_FAIL` (a cancel still reaches the caller).
+  `src/Analyzers/EndpointHealth.ps1` (`Invoke-MspkiEndpointAnalysis`): each URL is probed in its own try/catch; a failure is one `Error` /
+  `INTERNAL_ERROR` finding for that URL and the other URLs are still probed. The CES/CEP stage uses the same function, so it is covered too.
+- **Tests:** `tests/Audit3.N9.Tests.ps1` (9). Before the fix: 8 red, all behavioural (`PSInvalidCastException` for `file:` and `ftp:`,
+  `NotSupportedException` for `ldap:` and `gopher:`, `UriFormatException` for a malformed `Location`, and the stage threw so the second AIA URL
+  of the same certificate was never probed). After: 9 green, and the loopback server saw exactly one request per redirect.
+
+### N10 (Medium): ESC3 and the other patterns look at what a Deny ACE denies
+- **Fix:** `src/Analyzers/TemplateSecurity.ps1`. `Get-MspkiBroadAce` marks a grant as `Denied` only when a Deny ACE for the same principal, or a
+  well-known group that contains it, covers the **same right** (`Test-MspkiAceGrant -AnyType`: Enroll = control access with the Enroll GUID, no
+  object type, or generic/full control; Write = the write rights of ESC4). Deny Everyone *Delete*, or a Deny of *AutoEnroll*, no longer hides
+  or downgrades a match, for ESC3 or for any other pattern. A Deny that really removes Enroll still suppresses ESC3 for that principal, and
+  now the summary says so: `<template>: ESC3 not reported: the target template User is not enrollable by the agent principals: a Deny ACE for
+  Domain Users removes Enroll for Domain Users` (or the agent-side reason), never "no review pattern matched". Templates that match nothing
+  still say that.
+- **Tests:** `tests/Audit3.N10.Tests.ps1` (12): S11, S12, S13, S15 and S16 of part 3, S14 as the negative, the two summary cases, and the
+  same rule for ESC1 and ESC4. Before the fix: 9 red, all behavioural (no ESC3 for S11, S15, S16; User missing for S12, S13; the summary text;
+  ESC1 and ESC4 downgraded to Inferred by an unrelated Deny). After: 12 green; `TemplateSecurity.Tests.ps1`, `Audit2.Security.Tests.ps1` and
+  `Audit2.Verify.Tests.ps1` stay green (156 in the four files).
+- **Decision:** a Deny that covers Enroll still suppresses ESC3 (not a review item), because for ESC3 the agent and target principals are
+  matched by fixed group containment and the Deny ACE comes first in a canonical ACL. The suppression is visible in the summary evidence.

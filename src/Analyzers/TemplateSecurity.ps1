@@ -55,8 +55,11 @@ function Test-MspkiAceGrant {
     to any other single attribute is not one.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Ace, [Parameter(Mandatory = $true)][ValidateSet('Enroll', 'Write')][string]$Right)
-    if ($Ace.Type -ne 'Allow' -or $Ace.InheritOnly) { return $false }
+    param([Parameter(Mandatory = $true)]$Ace, [Parameter(Mandatory = $true)][ValidateSet('Enroll', 'Write')][string]$Right,
+        # Ask whether the ACE covers the right whatever its type: used for a Deny ACE, which cancels a grant only when it covers the same
+        # right (audit 3 N10). Inherit-only ACEs never count.
+        [switch]$AnyType)
+    if ((-not $AnyType -and $Ace.Type -ne 'Allow') -or $Ace.InheritOnly) { return $false }
     $m = [int64]$Ace.Mask
     $full = (($m -band $script:MspkiAdRightBit.GenericAll) -ne 0) -or (($m -band 0xF01FF) -eq 0xF01FF)
     if ($full) { return $true }
@@ -126,7 +129,9 @@ function Get-MspkiBroadAce {
         if (-not $label) { continue }
         # A Deny ACE for the same principal, or for a well-known group that contains it (audit 2 M11: a Deny for Everyone also
         # applies to Authenticated Users), may cancel this grant. Effective access is not computed, so such a match is a review item.
-        $denyAces = @($acl | Where-Object { $_.Type -eq 'Deny' -and -not $_.InheritOnly -and (Test-MspkiSidContains -Outer ([string]$_.Sid) -Inner ([string]$a.Sid)) })
+        # Only a Deny that covers the same right counts (audit 3 N10): Deny Everyone Delete, or a Deny of AutoEnroll, does not remove Enroll
+        # and must not hide or downgrade the match.
+        $denyAces = @($acl | Where-Object { $_.Type -eq 'Deny' -and -not $_.InheritOnly -and (Test-MspkiSidContains -Outer ([string]$_.Sid) -Inner ([string]$a.Sid)) -and (Test-MspkiAceGrant -Ace $_ -Right $Right -AnyType) })
         $denied = ($denyAces.Count -gt 0)
         $deniedBy = @($denyAces | ForEach-Object { $l = Get-MspkiBroadPrincipal -Sid ([string]$_.Sid); if ($l) { $l } elseif ($_.Principal) { [string]$_.Principal } else { [string]$_.Sid } } | Select-Object -Unique)
         $name = [string]$a.Principal
@@ -211,7 +216,10 @@ function Get-MspkiTemplatePatternMatch {
         [Parameter(Mandatory = $true)]$Facts,
         [Parameter(Mandatory = $true)][hashtable]$AllFacts,
         [Parameter(Mandatory = $true)][hashtable]$Published,
-        [hashtable]$OidLinks = @{}
+        [hashtable]$OidLinks = @{},
+        # Collects the rules that were NOT reported because a Deny ACE removes Enroll, as { Rule, Reason }, so the summary can say why
+        # (audit 3 N10: never "no review pattern matched" when a rule was suppressed).
+        [System.Collections.ArrayList]$Suppressed = $null
     )
     $found = New-Object System.Collections.ArrayList
     $f = $Facts
@@ -244,13 +252,27 @@ function Get-MspkiTemplatePatternMatch {
     if ($f.BroadEnroll.Count -gt 0 -and $f.AgentEku -and -not $f.ManagerApproval -and $f.RaSignatures -eq 0) {
         $agentSids = @($f.BroadEnroll | Where-Object { -not $_.Denied } | ForEach-Object { $_.Sid })
         $others = New-Object System.Collections.ArrayList
+        $why = New-Object System.Collections.ArrayList
+        $deniedAgent = @($f.BroadEnroll | Where-Object { $_.Denied })
+        if ($deniedAgent.Count -gt 0 -and $agentSids.Count -eq 0) {
+            [void]$why.Add(('every broad principal that can enroll for this agent template ({0}) is denied Enroll by a Deny ACE for {1}' -f `
+                ((@($deniedAgent | ForEach-Object { $_.Principal }) | Select-Object -Unique) -join ', '), ((@($deniedAgent | ForEach-Object { @($_.DeniedBy) }) | Select-Object -Unique) -join ', ')))
+        }
         foreach ($k in ($AllFacts.Keys | Sort-Object)) {
             if ($k -eq $Template.Name.ToLowerInvariant()) { continue }
             if (-not $Published.ContainsKey($k)) { continue }
             $o = $AllFacts[$k]
             if (-not ($o.Facts.AcceptsAgentSig -and $o.Facts.ClientAuthCapable -and -not $o.Facts.ManagerApproval)) { continue }
             $shared = @($o.Facts.BroadEnroll | Where-Object { $t = $_; -not $t.Denied -and @($agentSids | Where-Object { Test-MspkiSidOverlap -A $_ -B $t.Sid }).Count -gt 0 })
-            if ($shared.Count -eq 0) { continue }
+            if ($shared.Count -eq 0) {
+                # Would the target have matched without the Deny ACEs? Then say which Deny ACE removed it.
+                $blocked = @($o.Facts.BroadEnroll | Where-Object { $t = $_; $t.Denied -and @($agentSids | Where-Object { Test-MspkiSidOverlap -A $_ -B $t.Sid }).Count -gt 0 })
+                if ($blocked.Count -gt 0) {
+                    [void]$why.Add(('the target template {0} is not enrollable by the agent principals: a Deny ACE for {1} removes Enroll for {2}' -f $o.Template.Name, `
+                        ((@($blocked | ForEach-Object { @($_.DeniedBy) }) | Select-Object -Unique) -join ', '), ((@($blocked | ForEach-Object { $_.Principal }) | Select-Object -Unique) -join ', ')))
+                }
+                continue
+            }
             [void]$others.Add([pscustomobject]@{ Entry = $o; Shared = $shared })
         }
         if ($others.Count -gt 0) {
@@ -263,6 +285,9 @@ function Get-MspkiTemplatePatternMatch {
                 Conditions = @((& $enrollText), ('EKU includes Certificate Request Agent: {0}' -f $f.EkuText), $noApprovalText,
                     ('No authorised signatures required on the agent template (msPKI-RA-Signature = {0})' -f $f.RaSignatures)) + $oc
                 Notes = 'Enrollment agent restrictions configured on the CA cannot be read from here and may limit this.' })
+        }
+        elseif ($why.Count -gt 0 -and $null -ne $Suppressed) {
+            [void]$Suppressed.Add([pscustomobject]@{ Rule = 'ESC3'; Reason = ($why -join '; ') })
         }
     }
     # Pattern ESC4: a broad group has write, owner or full-control rights on the template object.
@@ -356,9 +381,18 @@ function Test-MspkiTemplateEnrollmentRisk {
         $isPub = $published.ContainsKey($key)
         $cas = @(); $viaCa = $false
         if ($isPub) { $cas = @($published[$key].Cas); $viaCa = [bool]$published[$key].CA }
-        $hits = (Get-MspkiTemplatePatternMatch -Template $t -Facts $facts -AllFacts $allFacts -Published $published -OidLinks $oidLinks)
-        if ($hits.Count -eq 0) { [void]$lines.Add(('{0}: no review pattern matched' -f $t.Name)); continue }
-        [void]$lines.Add(('{0}: matched {1}' -f $t.Name, (($hits | ForEach-Object { $_.Rule }) -join ', ')))
+        $suppressed = New-Object System.Collections.ArrayList
+        $hits = (Get-MspkiTemplatePatternMatch -Template $t -Facts $facts -AllFacts $allFacts -Published $published -OidLinks $oidLinks -Suppressed $suppressed)
+        $suppressedText = ''
+        if ($suppressed.Count -gt 0) { $suppressedText = (@($suppressed | ForEach-Object { '{0} not reported: {1}' -f $_.Rule, $_.Reason }) -join '; ') }
+        if ($hits.Count -eq 0) {
+            if ($suppressed.Count -gt 0) { [void]$lines.Add(('{0}: {1}. The Deny ACE is in the template''s own ACL; effective access is not computed, so check that it applies.' -f $t.Name, $suppressedText)) }
+            else { [void]$lines.Add(('{0}: no review pattern matched' -f $t.Name)) }
+            continue
+        }
+        $matchText = ('{0}: matched {1}' -f $t.Name, (($hits | ForEach-Object { $_.Rule }) -join ', '))
+        if ($suppressed.Count -gt 0) { $matchText += ('; also {0}' -f $suppressedText) }
+        [void]$lines.Add($matchText)
         foreach ($h in $hits) {
             $matched++
             $sev = $h.Severity

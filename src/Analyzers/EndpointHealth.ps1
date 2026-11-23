@@ -703,8 +703,18 @@ function Invoke-MspkiEndpointAnalysis {
             # What carries this URL decides how a failure is graded: a URL that only expired or historical certificates carry is a review item.
             $grade = Get-MspkiLeadGrading -Lead $lead -Inventory $Discovery.Inventory -KnownCertificates $certMap
             foreach ($url in @($lead.Variants)) {
-                $r = Test-MspkiLeadEndpoint -Lead $lead -Url $url -DomainController $dc -TimeoutSeconds $TimeoutSeconds `
-                    -SkipNetwork:$SkipNetwork -ExpectedIssuer $expected -KnownCertificate $certMap -AuthoritativeCertificate $authMap
+                # One URL that fails in an unexpected way is one finding for that URL; the other URLs of the run are still probed (N9).
+                try {
+                    $r = Test-MspkiLeadEndpoint -Lead $lead -Url $url -DomainController $dc -TimeoutSeconds $TimeoutSeconds `
+                        -SkipNetwork:$SkipNetwork -ExpectedIssuer $expected -KnownCertificate $certMap -AuthoritativeCertificate $authMap
+                }
+                catch {
+                    if ($_.Exception -is [System.OperationCanceledException]) { throw }
+                    $r = [pscustomobject]@{ Findings = (New-Object System.Collections.ArrayList); Certificate = $null; Validated = $false; Crl = $null; Url = $url }
+                    [void]$r.Findings.Add((New-MspkiEndpointFinding -Lead $lead -Url $url -Status 'Error' -Code 'INTERNAL_ERROR' `
+                        -Message ('Checking {0} stopped with an unexpected error: {1}' -f $url, (Get-MspkiErrorInfo $_).Message) -Confidence 'Confirmed' `
+                        -Notes 'This is a fault in the tool, not in the location. The other locations of the run were still checked.'))
+                }
                 foreach ($f in $r.Findings) {
                     if ($grade.ReviewOnly) { $f = ConvertTo-MspkiReviewFinding -Finding $f -Reason $grade.Reason }
                     [void]$findings.Add($f)

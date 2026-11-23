@@ -149,7 +149,22 @@ function Invoke-MspkiHttpGet {
     for ($hop = 0; $hop -le $MaxRedirects; $hop++) {
         $resp = $null
         try {
-            $req = [System.Net.HttpWebRequest][System.Net.WebRequest]::Create($current)
+            # Only http and https are ever requested: WebRequest.Create would otherwise return a file or FTP request (or throw) for another
+            # scheme (N9). The type of the request is checked, never cast blindly.
+            $currentUri = $null
+            if (-not [System.Uri]::TryCreate($current, [System.UriKind]::Absolute, [ref]$currentUri) -or ($currentUri.Scheme -ne 'http' -and $currentUri.Scheme -ne 'https')) {
+                $r.Code = 'RETRIEVAL_FAIL'
+                $r.Error = 'Only http and https URLs are requested; no request was sent.'
+                [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = 0; Location = ''; Error = $r.Error })
+                break
+            }
+            $req = [System.Net.WebRequest]::Create($current) -as [System.Net.HttpWebRequest]
+            if ($null -eq $req) {
+                $r.Code = 'RETRIEVAL_FAIL'
+                $r.Error = 'The URL did not give an HTTP request; no request was sent.'
+                [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = 0; Location = ''; Error = $r.Error })
+                break
+            }
             $req.Method = 'GET'
             $req.Timeout = $TimeoutMs
             $req.ReadWriteTimeout = $TimeoutMs
@@ -190,7 +205,25 @@ function Invoke-MspkiHttpGet {
             [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = $sc; Location = $loc; Error = ''; Server = $r.Server })
             if ($sc -ge 300 -and $sc -lt 400 -and $loc) {
                 $r.Redirected = $true
-                $next = New-Object System.Uri((New-Object System.Uri($current)), $loc)
+                # A Location that cannot be read as an absolute URI, or that names a scheme other than http/https (file:, ftp:, ldap:, ...),
+                # is evidence and is never followed. It must not throw: one plain-HTTP answer would otherwise stop the whole stage (N9).
+                $next = $null
+                $nextUri = $null
+                if (-not [System.Uri]::TryCreate((New-Object System.Uri($current)), $loc, [ref]$nextUri)) { $nextUri = $null }
+                if ($null -eq $nextUri -or ($nextUri.Scheme -ne 'http' -and $nextUri.Scheme -ne 'https')) {
+                    $r.Code = 'HTTP_REDIRECT'
+                    $r.HttpStatus = $sc
+                    $r.FinalUrl = $current
+                    $shown = $loc
+                    if ($null -ne $nextUri) { $shown = $nextUri.AbsoluteUri }
+                    if ($shown.Length -gt 300) { $shown = $shown.Substring(0, 300) }
+                    $r.RedirectNotFollowed = $shown
+                    $what = 'an unreadable location'
+                    if ($null -ne $nextUri) { $what = ('the scheme {0}:' -f $nextUri.Scheme) }
+                    $r.Error = ('HTTP {0} redirect to {1} not followed: it names {2}; only http and https are followed.' -f $sc, $shown, $what)
+                    break
+                }
+                $next = $nextUri
                 # Bounded discovery (rule 4): a hop goes only to the host this request named, or to a host that trusted evidence
                 # already named (Test-MspkiTrustedLeadHost). Any other target is recorded and never contacted.
                 $nextHost = ConvertTo-MspkiHostName $next.Host
@@ -231,6 +264,14 @@ function Invoke-MspkiHttpGet {
             elseif ($sc -eq 404) { $r.Code = 'HTTP_404' }
             elseif ($sc -ge 500) { $r.Code = 'HTTP_500' }
             else { $r.Code = 'HTTP_OTHER' }   # 1xx, 2xx other than 200, 3xx without a Location, 405, 407, 410 and so on
+            break
+        }
+        catch {
+            # A cancel must reach the caller; anything unexpected becomes this URL's own result and never stops the stage (N9).
+            if ($_.Exception -is [System.OperationCanceledException]) { throw }
+            $r.Code = 'RETRIEVAL_FAIL'
+            $r.Error = (Get-MspkiErrorInfo $_).Message
+            [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = 0; Location = ''; Error = $r.Error })
             break
         }
         finally { if ($null -ne $resp) { $resp.Close() } }
