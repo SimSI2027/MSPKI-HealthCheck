@@ -457,4 +457,8 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   a baseline/leftover test pair added. Each fix is red on the old behaviour, green now. Non-elevated lab run: same 99 findings, same tally, 0 stage errors.
 - Local hooks (not committed): `pre-commit` and `commit-msg` call `C:\ClaudeCode\private\precommit-namemap.ps1`, which blocks a real name in staged
   content, paths, message or identity; tested with planted names in all four places.
-- Next: Step 5 (history clean-up). Result so far: the private-list scan finds 0 names in the whole history (content, messages, paths, identities).
+- Step 5 (history clean-up) is paused at 5b/5c for an owner decision. Done: everything committed and pushed; a mirror backup was taken outside the
+  repository. Finding: the whole reachable history, and a fresh clone from the public repository (92 commits), hold 0 names from the full private
+  name map (content, paths, messages, identities). The "2 of 19 names in 47 commits" of the audits are the bare short names `ndes01` and
+  `ndes01-mscep-ra` (47 of the 84 commits at the audited commit), which `docs/NAMING.md` uses as generic names. A rewrite would change nothing unless
+  the owner decides those two are lab names; then NAMING.md changes and 47 commits are rewritten.
