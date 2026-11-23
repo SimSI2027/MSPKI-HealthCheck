@@ -188,3 +188,47 @@ and search box already are).
 Scores: hierarchy 8, alignment 8, typography 8, colour 9, density 8, controls 8, icons 8, states 8, data readability 8, polish 8. **PASS.**
 Known, accepted: on an ultra-wide screen the state badge of a service card sits far from its title (right-aligned in a wide card); the object
 id is a second, long monospace line under the title; generator and discriminator were the same model in this loop.
+
+## 6. Upgraded rubric (fixed from 2026-11-23; do not change after its round 0)
+
+Replaces §2 for every round from the GUI program (GX work packages in `docs/ROADMAP.md`) on. The experience it judges is in
+`docs/GUI-EXPERIENCE.md`. The discriminator judges only rendered PNGs (still frames, including frames captured mid-animation) and, for
+the usability and delight categories, a written click path of the journeys J1-J6 replayed on those PNGs. It assumes the window is **not**
+enterprise grade until the images prove otherwise, lists every defect by page and control, and scores 1-10 per category.
+
+### A. Visual (the ten categories of §2, unchanged)
+| # | Category | 10 means | 5 means |
+|---|---|---|---|
+| A1 | Visual hierarchy | The eye lands on health first, then KPIs, then detail; one primary action per screen | Several elements compete; primary action unclear |
+| A2 | Alignment and spacing grid | Every edge sits on the 4 px grid; equal gutters; columns line up across cards | Uneven gaps, ragged edges, odd one-offs |
+| A3 | Typography | One ramp, sentence case, clear weights, no truncation of key text | Mixed sizes/weights, caps labels, cramped text |
+| A4 | Colour and contrast (WCAG AA) | Neutral frame, one accent, soft status tints, all text >= 4.5:1 | Loud blocks, low-contrast greys, colour as the only signal |
+| A5 | Information density (admin tool) | Lots of data visible without crowding; no wasted bands | Sparse or crammed |
+| A6 | Control consistency | Same heights, radii, borders and states everywhere | Mixed control styles, default OS controls leaking through |
+| A7 | Iconography | One icon family, consistent sizes and alignment, meaningful glyphs | Mixed sizes, misaligned or missing glyphs (boxes) |
+| A8 | Empty, loading, error and partial states | Every state designed, with guidance and an action | Blank areas or bare text |
+| A9 | Data readability (grid, tree, map, details) | Scannable columns, clear selection, readable details and node labels | Dense walls of text, unclear selection, overlapping labels |
+| A10 | Polish | No clipping, blur, overlap, overflow or misalignment at any size or animation frame | Visible glitches |
+
+### B. Usability
+| # | Category | 10 means | 5 means |
+|---|---|---|---|
+| B1 | First-run clarity | A first-time user knows what the tool does, that it changes nothing, and what to press, from the welcome screen alone; the finished screen explains its own score | The user must guess what Run does or what the numbers mean |
+| B2 | Findability | Every journey's goal is visible or one obvious click away; the palette, nav labels and links name things the way users think of them | Key functions hidden in menus or only reachable from one place |
+| B3 | Task-completion speed | Journeys J1-J6 meet their targets in `docs/GUI-EXPERIENCE.md` §3 (clicks and seconds) | Each journey needs detours, scrolling or the Findings grid |
+| B4 | Error recovery | Every failure says what happened, what it means and what to do, with the action next to it; nothing is lost; Back always works | Raw errors, dead ends, lost context after an error |
+| B5 | Feedback and responsiveness | Every action answers within 100 ms (visual change); long work shows live progress and what is being checked; the window never freezes | Silent clicks, frozen frames, progress that does not move |
+
+### C. Delight
+| # | Category | 10 means | 5 means |
+|---|---|---|---|
+| C1 | Engagement | The window invites exploring: the map, the walkthrough and the history reward curiosity; users want to open it again | Functional but inert |
+| C2 | Moments of insight | At least one "now I see it" moment per journey (the chain shows which link breaks; the timeline shows the CRL will lapse on Friday) | Facts without meaning; users must connect the dots |
+| C3 | Motion quality | Motion has meaning (something found, checked or done), is smooth and short, never delays input, and stops with reduced motion; mid-animation frames look composed | No motion, gratuitous motion, or janky frames |
+| C4 | "Would users show it to colleagues" | A PKI admin would put it on a shared screen in a meeting without apology | It works, but nobody would show it off |
+
+**PASS** = every category (A1-A10, B1-B5, C1-C4) scores **8 or more** **and** there are **zero defects a Fortune 500 customer would
+notice**. Checked at minimum size, 1920 x 1080 and maximised, light and dark (once dark exists), in every state of §2 plus the live
+discovery frames (start, mid-build, probing, finished, healthy celebration), with reduced motion on and off.
+
+## 7. Rounds on the upgraded rubric
