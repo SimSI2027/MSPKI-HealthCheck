@@ -87,7 +87,11 @@ function Get-MspkiRetrievalOutcome {
         $s = [string]$f.Status
         if ($s -in @('Fail', 'Critical', 'Error')) { $state[$k].Failed = $true }
         elseif ($s -eq 'Warning') {
-            if ([string]$f.StatusCode -match $failureCode) { $state[$k].Failed = $true } else { $state[$k].Usable = $true }
+            # An AIA answer above the size cap was not a certificate, so it is not a working URL even when the scope rule made its Fail a
+            # Warning (audit 3 N11). A CRL above its cap was not read: that is neither working nor failing.
+            if ([string]$f.StatusCode -eq 'SIZE_LIMIT') { if ([string]$f.Category -eq 'AIA') { $state[$k].Failed = $true } }
+            elseif ([string]$f.StatusCode -match $failureCode) { $state[$k].Failed = $true }
+            else { $state[$k].Usable = $true }
         }
         elseif ($s -eq 'Pass') { $state[$k].Usable = $true }
     }

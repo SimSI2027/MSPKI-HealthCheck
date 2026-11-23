@@ -80,7 +80,14 @@ function ConvertTo-MspkiLocalCertificateInfo {
     $ti = $null
     try { $ti = ConvertFrom-MspkiTemplateExtension -Certificate $c } catch { $ti = $null }
     $urls = @()
-    try { $urls = @(Get-MspkiCertificateUrl -Certificate $c | Where-Object { $_.Kind -ne 'Error' } | ForEach-Object { '{0}: {1}' -f $_.Kind, $_.Url }) } catch { $urls = @() }
+    # Get-MspkiCertificateUrl returns its list as ONE object ("return , array"): a pipeline would hand the whole list to Where-Object and
+    # ForEach-Object as a single item and format it as "System.Object[]" (audit 3 N12). foreach enumerates the list itself.
+    try {
+        $urlList = New-Object System.Collections.ArrayList
+        foreach ($u in (Get-MspkiCertificateUrl -Certificate $c)) { if ($u.Kind -ne 'Error') { [void]$urlList.Add(('{0}: {1}' -f $u.Kind, $u.Url)) } }
+        $urls = @($urlList)
+    }
+    catch { $urls = @() }
     $names = @()
     try { $names = @(Get-MspkiCertificateDnsName -Certificate $c) } catch { $names = @() }
     $na = $c.NotAfter.ToUniversalTime()
