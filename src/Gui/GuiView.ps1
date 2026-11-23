@@ -140,6 +140,58 @@ function Get-MspkiGuiEmptyPane {
     return [pscustomobject][ordered]@{ Kind = 'None'; Title = ''; Text = $Text }
 }
 
+function ConvertTo-MspkiGuiDiagnosisView {
+    <#
+    .SYNOPSIS
+    The "Probable causes and next steps" of a finding as plain view-model text for the details pane (and a plain-text copy of it).
+    A $null diagnosis (a passing finding) gives HasDiagnosis = $false.
+    #>
+    [CmdletBinding()]
+    param([AllowNull()]$Diagnosis)
+    $d = $Diagnosis
+    if ($null -eq $d) {
+        return [pscustomobject][ordered]@{ HasDiagnosis = $false; Title = ''; Summary = ''; BasisNote = ''; Causes = @(); SourcesText = ''; CopyText = '' }
+    }
+    $bullet = [string][char]0x2022
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    $lines.Add('Probable causes and next steps: ' + [string]$d.Title)
+    $lines.Add([string]$d.Summary)
+    $lines.Add([string]$d.BasisNote)
+    $causes = @(foreach ($c in @($d.Causes)) {
+        $because = @($c.Because | Where-Object { $_ })
+        $confirm = @($c.Confirm | Where-Object { $_ })
+        $fix = @($c.Fix | Where-Object { $_ })
+        $bt = (($because | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
+        $ct = (($confirm | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
+        $ft = (($fix | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
+        $lines.Add(('{0}. {1} [{2}]' -f $c.Rank, $c.Cause, $c.Likelihood))
+        if ($bt) { $lines.Add('   Observed in this run:'); $lines.Add($bt) }
+        if ($ct) { $lines.Add('   How to confirm (read-only):'); $lines.Add($ct) }
+        if ($ft) { $lines.Add(('   How to fix (action for the {0}):' -f $c.FixOwner)); $lines.Add($ft) }
+        [pscustomobject][ordered]@{
+            Heading    = ('{0}. {1}' -f $c.Rank, $c.Cause)
+            Likelihood = [string]$c.Likelihood
+            IsTop      = ([int]$c.Rank -eq 1)
+            HasBecause = [bool]$bt
+            BecauseText = $bt
+            ConfirmText = $ct
+            FixLabel   = ('How to fix (action for the {0}; this tool changes nothing)' -f $c.FixOwner)
+            FixText    = $ft
+        }
+    })
+    $srcText = ((@($d.Sources) | ForEach-Object { '{0} ({1}){2}{3}' -f $_.Title, $_.Publisher, "`r`n", $_.Url }) -join "`r`n`r`n")
+    if ($srcText) { $lines.Add('Sources:'); $lines.Add($srcText) }
+    return [pscustomobject][ordered]@{
+        HasDiagnosis = $true
+        Title        = [string]$d.Title
+        Summary      = [string]$d.Summary
+        BasisNote    = [string]$d.BasisNote
+        Causes       = $causes
+        SourcesText  = $srcText
+        CopyText     = ($lines -join "`r`n")
+    }
+}
+
 function Get-MspkiGuiFindingDetail {
     <#
     .SYNOPSIS
@@ -167,6 +219,9 @@ function Get-MspkiGuiFindingDetail {
     $sources = [string[]]@($f.Sources | Where-Object { $_ })
     $evidence = ((@($f.Evidence) | Where-Object { $null -ne $_ }) -join "`r`n")
     $title = (@($f.Category, $f.Target) | Where-Object { $_ }) -join $script:MspkiGuiDot
+    $dg = $null
+    try { $dg = Get-MspkiFindingDiagnosis -Finding $f } catch { $dg = $null }
+    $diag = ConvertTo-MspkiGuiDiagnosisView -Diagnosis $dg
     $copy = New-Object 'System.Collections.Generic.List[string]'
     $copy.Add(('{0} [{1}] {2}' -f $f.Id, $f.Status, $title))
     $copy.Add([string]$f.Message)
@@ -174,9 +229,16 @@ function Get-MspkiGuiFindingDetail {
     if ($sources.Count -gt 0) { $copy.Add(('Sources: {0}' -f ($sources -join '; '))) }
     if ($evidence) { $copy.Add('Evidence:'); $copy.Add($evidence) }
     if ($f.Remediation) { $copy.Add(('Remediation: {0}' -f $f.Remediation)) }
+    if ($diag.HasDiagnosis) { $copy.Add(''); $copy.Add($diag.CopyText) }
     if ($f.Notes) { $copy.Add(('Notes: {0}' -f $f.Notes)) }
     return [pscustomobject][ordered]@{
         Kind           = 'Finding'
+        HasDiagnosis   = $diag.HasDiagnosis
+        DiagTitle      = $diag.Title
+        DiagSummary    = $diag.Summary
+        DiagBasis      = $diag.BasisNote
+        DiagCauses     = $diag.Causes
+        DiagSources    = $diag.SourcesText
         Id             = [string]$f.Id
         Status         = [string]$f.Status
         StatusPill     = (Get-MspkiGuiStatusPill -Value ([string]$f.Status))

@@ -62,6 +62,10 @@ environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state
    `ConvertFrom-Json` limit; data only). `Add-Type` with `-TypeDefinition` or
    `-MemberDefinition`, which compiles code, stays banned. Everything else in this rule still applies. `tests/Hygiene.Tests.ps1`
    enforces it.
+   *Clarification:* `src/Knowledge/Diagnosis*.psd1` is DATA that is shown to the user ("Probable causes and next steps"). It is read only
+   with `Import-PowerShellDataFile`, never run, and its advice text may name `certutil` and other commands as read-only checks or as
+   actions for the PKI owner (the hygiene test exempts those files from the `certutil` pattern only). `tests/Diagnosis.Tests.ps1`
+   checks that the file holds only literals and that no "how to confirm" step is a change.
 7. **No secrets.** Never read, log or export private keys, passwords, tokens, challenge passwords or
    protected configuration values.
 8. **Honest results.** Every finding carries its sources, evidence and confidence. Never present an Inferred
@@ -91,6 +95,8 @@ src/Discovery/   # AD Configuration partition, CA COM properties, local policy a
 src/Probes/      # DNS, TCP, HTTP, TLS, LDAP: cached and time-limited
 src/Analyzers/   # CA/hierarchy, CRL, endpoints, AD containers, templates, CEP/CES, NDES, stale refs
 src/Reporters/   # JSON, CSV, HTML, log
+src/Knowledge/   # Diagnosis.psd1 (sources, status-code defaults, rules) + Diagnosis.Topics.<Area>.psd1 (causes, checks, fixes): data only; loader and ranking in src/Model/Diagnosis.ps1;
+                 # sources with dates in docs/KNOWLEDGE-SOURCES.md
 src/Gui/         # GUI only: MainWindow.xaml + Theme.xaml (look: see docs/GUI-DESIGN.md), GuiModel.ps1 / GuiView.ps1 (pure data helpers and view models),
                  # GuiApp.ps1 (window, runspace, events), GuiSnapshot.ps1 (developer PNG snapshots; writes only inside out\)
 demo/            # demo script: runs the reporters on the example.test fixture, writes out/demo

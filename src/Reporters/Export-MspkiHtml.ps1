@@ -86,6 +86,52 @@ function ConvertTo-MspkiHtmlNode {
     return $sb.ToString()
 }
 
+function New-MspkiHtmlDiagnosis {
+    <#
+    .SYNOPSIS
+    The "Probable causes and next steps" block of one finding (causes ranked, how to confirm, how to fix, sources). Source addresses are
+    plain text, not links: the report is one offline file with no link in it.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Diagnosis)
+    $d = $Diagnosis
+    $e = { param($v) ConvertTo-MspkiHtmlText $v }
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.Append('<div class="dg"><h4>Probable causes and next steps</h4>')
+    [void]$sb.AppendFormat('<p class="dgt">{0}</p><p>{1}</p><p class="dgb">{2}</p><ol class="dgc">', (& $e $d.Title), (& $e $d.Summary), (& $e $d.BasisNote))
+    foreach ($c in @($d.Causes)) {
+        [void]$sb.AppendFormat('<li><div class="dgh"><b>{0}</b> <span class="dgl dgl-{1}">{2}</span></div>', (& $e $c.Cause), ((& $e $c.Likelihood) -replace '\s', ''), (& $e $c.Likelihood))
+        $because = @($c.Because | Where-Object { $_ })
+        if ($because.Count -gt 0) {
+            [void]$sb.Append('<div class="dgo"><span class="dgk">What this run observed</span><ul>')
+            foreach ($x in $because) { [void]$sb.AppendFormat('<li>{0}</li>', (& $e $x)) }
+            [void]$sb.Append('</ul></div>')
+        }
+        $confirm = @($c.Confirm | Where-Object { $_ })
+        if ($confirm.Count -gt 0) {
+            [void]$sb.Append('<div><span class="dgk">How to confirm (read-only)</span><ul>')
+            foreach ($x in $confirm) { [void]$sb.AppendFormat('<li>{0}</li>', (& $e $x)) }
+            [void]$sb.Append('</ul></div>')
+        }
+        $fix = @($c.Fix | Where-Object { $_ })
+        if ($fix.Count -gt 0) {
+            [void]$sb.AppendFormat('<div><span class="dgk">How to fix (action for the {0}; this tool changes nothing)</span><ul>', (& $e $c.FixOwner))
+            foreach ($x in $fix) { [void]$sb.AppendFormat('<li>{0}</li>', (& $e $x)) }
+            [void]$sb.Append('</ul></div>')
+        }
+        [void]$sb.Append('</li>')
+    }
+    [void]$sb.Append('</ol>')
+    $srcs = @($d.Sources)
+    if ($srcs.Count -gt 0) {
+        [void]$sb.Append('<div class="dgs"><span class="dgk">Sources</span><ul>')
+        foreach ($s in $srcs) { [void]$sb.AppendFormat('<li>{0} ({1}): <code>{2}</code></li>', (& $e $s.Title), (& $e $s.Publisher), (& $e $s.Url)) }
+        [void]$sb.Append('</ul></div>')
+    }
+    [void]$sb.Append('</div>')
+    return $sb.ToString()
+}
+
 function ConvertTo-MspkiHtmlFinding {
     <#
     .SYNOPSIS
@@ -124,6 +170,8 @@ function ConvertTo-MspkiHtmlFinding {
         foreach ($x in @($f.Evidence)) { [void]$sb.AppendFormat('<li>{0}</li>', (& $e $x)) }
         [void]$sb.Append('</ul>')
     }
+    $dg = Get-MspkiFindingDiagnosis -Finding $f
+    if ($null -ne $dg) { [void]$sb.Append((New-MspkiHtmlDiagnosis -Diagnosis $dg)) }
     if ($f.Remediation) { [void]$sb.AppendFormat('<h4>Remediation</h4><div>{0}</div>', (& $e $f.Remediation)) }
     if ($f.Notes) { [void]$sb.AppendFormat('<h4>Notes</h4><div>{0}</div>', (& $e $f.Notes)) }
     [void]$sb.Append('</div></details>')

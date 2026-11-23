@@ -227,7 +227,10 @@ Describe 'report.html from the example.test demo data' {
 
     It 'contains only example.test data' {
         $names = [regex]::Matches($script:html, '(?i)\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(test|com|net|org|local|lan)\b') | ForEach-Object { $_.Value.ToLowerInvariant() } | Select-Object -Unique
-        foreach ($n in $names) { $n | Should -Match 'example\.test$' }
+        # The only other names allowed are the public documentation sites that the "Probable causes and next steps" sections cite as sources
+        # (printed as plain text, never as a link; src/Knowledge/Diagnosis.psd1 holds the list).
+        $docHosts = @(InModuleScope MspkiHealthCheck { (Get-MspkiDiagnosisKnowledge).Sources.Values | ForEach-Object { ([uri]$_.Url).Host.ToLowerInvariant() } } | Select-Object -Unique)
+        foreach ($n in $names) { ($n -match 'example\.test$' -or $docHosts -contains $n) | Should -BeTrue -Because $n }
     }
 }
 

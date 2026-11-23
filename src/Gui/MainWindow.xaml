@@ -280,6 +280,58 @@
                 </DockPanel>
               </Border>
 
+              <!-- Probable causes and next steps (docs/KNOWLEDGE-SOURCES.md): ranked causes, how to confirm (read-only), how to fix (PKI owner), sources -->
+              <StackPanel Visibility="{Binding HasDiagnosis, Converter={StaticResource BoolToVis}}" Margin="0,20,0,0">
+                <TextBlock Text="Probable causes and next steps" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                <Border Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Divider}" BorderThickness="1" CornerRadius="6" Padding="14,12">
+                  <StackPanel>
+                    <TextBlock Text="{Binding DiagTitle}" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap"/>
+                    <TextBox Text="{Binding DiagSummary, Mode=OneWay}" Style="{StaticResource ValueText}" Margin="0,4,0,0"/>
+                    <TextBlock Text="{Binding DiagBasis}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                    <ItemsControl ItemsSource="{Binding DiagCauses}" Focusable="False" Margin="0,8,0,0">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border BorderBrush="{StaticResource B.Divider}" BorderThickness="0,1,0,0" Padding="0,10,0,4" Margin="0,6,0,0">
+                            <StackPanel>
+                              <DockPanel>
+                                <Border DockPanel.Dock="Right" CornerRadius="10" Padding="8,1" Margin="8,0,0,0" BorderThickness="1" VerticalAlignment="Top">
+                                  <Border.Style>
+                                    <Style TargetType="Border">
+                                      <Setter Property="Background" Value="{StaticResource B.InfoBack}"/>
+                                      <Setter Property="BorderBrush" Value="{StaticResource B.InfoLine}"/>
+                                      <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTop}" Value="True">
+                                          <Setter Property="Background" Value="{StaticResource B.GoodBack}"/>
+                                          <Setter Property="BorderBrush" Value="{StaticResource B.GoodLine}"/>
+                                        </DataTrigger>
+                                      </Style.Triggers>
+                                    </Style>
+                                  </Border.Style>
+                                  <TextBlock Text="{Binding Likelihood}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource B.InfoFore}"/>
+                                </Border>
+                                <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                              </DockPanel>
+                              <Border Visibility="{Binding HasBecause, Converter={StaticResource BoolToVis}}" Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoLine}" BorderThickness="1" CornerRadius="4" Padding="10,6" Margin="0,6,0,0">
+                                <StackPanel>
+                                  <TextBlock Text="Observed in this run" Style="{StaticResource Small}" Foreground="{StaticResource B.InfoFore}" FontWeight="SemiBold"/>
+                                  <TextBox Text="{Binding BecauseText, Mode=OneWay}" Style="{StaticResource ValueText}"/>
+                                </StackPanel>
+                              </Border>
+                              <TextBlock Text="How to confirm (read-only)" Style="{StaticResource Small}" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                              <TextBox Text="{Binding ConfirmText, Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="{StaticResource F.Mono}" FontSize="12"/>
+                              <TextBlock Text="{Binding FixLabel}" Style="{StaticResource Small}" FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                              <TextBox Text="{Binding FixText, Mode=OneWay}" Style="{StaticResource ValueText}"/>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="Sources" Style="{StaticResource Small}" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                    <TextBox Text="{Binding DiagSources, Mode=OneWay}" Style="{StaticResource ValueText}" FontSize="12"/>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
               <StackPanel Visibility="{Binding HasObjects, Converter={StaticResource BoolToVis}}" Margin="0,20,0,0">
                 <TextBlock Style="{StaticResource Label}" Margin="0,0,0,4"><Run Text="Objects this finding is about ("/><Run Text="{Binding ObjectCount, Mode=OneWay}"/><Run Text=")"/></TextBlock>
                 <ItemsControl ItemsSource="{Binding Objects}" ItemTemplate="{StaticResource ObjectLink}" Focusable="False"/>

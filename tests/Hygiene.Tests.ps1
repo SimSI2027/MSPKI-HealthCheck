@@ -31,7 +31,7 @@ BeforeAll {
     # The patterns of the repository scans (files, and the whole history in the Audit 2 M14 tests below).
         $script:hostCi = '(?i)(?<![\w$.\\-])((?:[a-z0-9-]+\.)+(?:com|net|org|local|lan|corp|internal|intra|gov|edu|io|uk|de|nl|ie|eu|fr|ch|be|au|info|biz|cloud|online|tech|test|lab))\b'
         $script:hostLc = '(?-i)(?<![\w$.\\-])((?:[a-z0-9-]+\.)+(?:domain|ad|ca|co|us|int|home|site|priv|private))\b'
-        $script:hostAllowed = '(?i)^((?:[a-z0-9-]+\.)*example\.test|system\.(?:[a-z]+\.)*(?:io|net)|asp\.net|learn\.microsoft\.com|docs\.microsoft\.com|github\.com|claude\.com|anthropic\.com|www\.w3\.org|schemas\.xmlsoap\.org|schemas\.microsoft\.com)$'
+        $script:hostAllowed = '(?i)^((?:[a-z0-9-]+\.)*example\.test|system\.(?:[a-z]+\.)*(?:io|net)|asp\.net|learn\.microsoft\.com|docs\.microsoft\.com|github\.com|claude\.com|anthropic\.com|www\.w3\.org|schemas\.xmlsoap\.org|schemas\.microsoft\.com|techcommunity\.microsoft\.com|support\.microsoft\.com|technet\.microsoft\.com|(?:[a-z0-9-]+\.)?specterops\.io)$'
         $script:ipv4 = '(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])'
         $script:ipAllowed = '^(127\.|0\.0\.0\.0$|192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|2\.5\.29\.|2\.5\.4\.)'
         $script:email = '(?i)[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+'
@@ -83,6 +83,9 @@ Describe 'Code file <Name>' -ForEach $script:codeFiles {
             if ($k -eq 'Base64 decoding' -and $Name -eq 'BinaryData.ps1') { continue }
             # The NDES request table is the one place that may name the admin path (anonymous GET only; see tests/Ndes.Tests.ps1).
             if ($k -eq 'credentials to mscep_admin' -and $Name -eq 'NdesProbe.ps1') { continue }
+            # The diagnosis knowledge files are DATA (read with Import-PowerShellDataFile, never run): their advice text may name certutil
+            # (read-only checks for the PKI owner). tests/Diagnosis.Tests.ps1 checks that every check in them is read-only.
+            if ($k -eq 'certutil' -and $Name -like 'Diagnosis*.psd1') { continue }
             if ($k -eq 'certificate loading' -and $Name -eq 'Certificate.ps1') { continue }
             if ($k -eq 'certificate loading' -and $Name -eq 'WebProbes.ps1') {
                 # Only the copy of the X509Certificate that the TLS callback receives (never bytes).

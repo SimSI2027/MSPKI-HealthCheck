@@ -281,6 +281,9 @@ function Start-MspkiHealthCheck {
         Restore-MspkiClientTlsProtocol -State $tlsState
         Complete-MspkiRun -Completed $completed
         $exitCode = Get-MspkiExitCode -Findings @($findings) -Incomplete:(-not $completed)
+        # "Probable causes and next steps" for every non-passing finding (docs/KNOWLEDGE-SOURCES.md). A failure here never stops the run.
+        $nDiag = Add-MspkiFindingDiagnosis -Findings @($findings)
+        Write-MspkiLog -Message ('Probable causes and next steps added to {0} finding(s).' -f $nDiag)
         $graph = $null
         try {
             if ($null -ne $inventory) { Add-MspkiInventoryToEntityGraph -Inventory $inventory }
@@ -307,6 +310,7 @@ function Start-MspkiHealthCheck {
             $csvPath = $rep.CsvPath; $reportPath = $rep.HtmlPath
             if ($rep.Errors.Count -gt 0) {
                 foreach ($f in $rep.Errors) { [void]$findings.Add($f) }
+                [void](Add-MspkiFindingDiagnosis -Findings @($findings))
                 $exitCode = Get-MspkiExitCode -Findings @($findings) -Incomplete:(-not $completed)
                 & $writeJson
             }

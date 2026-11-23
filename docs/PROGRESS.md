@@ -462,3 +462,14 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   name map (content, paths, messages, identities). The "2 of 19 names in 47 commits" of the audits are the bare short names `ndes01` and
   `ndes01-mscep-ra` (47 of the 84 commits at the audited commit), which `docs/NAMING.md` uses as generic names. A rewrite would change nothing unless
   the owner decides those two are lab names; then NAMING.md changes and 47 commits are rewritten.
+
+## Batch H, step 1: "Probable causes and next steps" for every non-passing finding (2026-11-22)
+- Research: Microsoft Learn, Tech Community / AskDS, SpecterOps and Certipy pages were fetched or searched (RPC/DCOM, CRL/AIA/delta, OCSP, CES/CEP, NDES, Intune, TLS, NTAuth, ESC1-16,
+  CA renewal, time skew). 42 sources with how far each was read and the date: `docs/KNOWLEDGE-SOURCES.md`. Paraphrased only; nothing copied.
+- Knowledge base (data only): `src/Knowledge/Diagnosis.psd1` (sources, a default topic per status code, ordered rules) and five `Diagnosis.Topics.<Area>.psd1` files (120 topics: ranked causes, read-only
+  checks, fixes marked as PKI-owner actions). It is split because `Import-PowerShellDataFile` refuses a data file above a node limit (one 170 KB file failed between 98 and 119 topics).
+- Engine `src/Model/Diagnosis.ps1`: topic by rule then status code; causes ranked by the knowledge order plus signals from the finding's own text, evidence and layers; `Basis` says whether anything
+  observed separated the causes ("Observed") or the order is only how common each is ("Typical"). Added to results.json (`Diagnosis` per finding), the HTML report (plain-text sources, no link) and the GUI details pane.
+- Tests: `tests/Diagnosis.Tests.ps1` (322): every schema status code has an entry, every topic is complete and cited, no check is a write, ESC1-16 covered, rule routing, ranking, round trip, HTML, GUI view model.
+  Hygiene: `Diagnosis*.psd1` may name certutil in advice text; public documentation hosts allowed for the source addresses. CLAUDE.md clarified.
+- Next: adversarial check against the lab (normal user, max 3 rounds), then ROADMAP and the full suite. Round 1 on the saved lab result already fixed two rankings (NTAuth/AIA leftover versus renewal; a timeout is not proof of a missing role).
