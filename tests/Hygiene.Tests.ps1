@@ -427,7 +427,7 @@ Describe 'Audit 2 M14: the whole history is checked, author and committer, messa
         $script:scanHistoryNames = {
             param([string]$Repo, [string]$NamesFile)
             $r = @{ Commits = 0; Names = 0; InContent = 0; InMessage = 0; InPath = 0; InIdentity = 0; CommitsWithContentHit = 0 }
-            $names = @([System.IO.File]::ReadAllLines($NamesFile) | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ -and -not $_.StartsWith('#') } | Sort-Object -Unique)
+            $names = @([System.IO.File]::ReadAllLines($NamesFile) | ForEach-Object { ($_ -split '=>')[0].Trim().ToLowerInvariant() } | Where-Object { $_ -and -not $_.StartsWith('#') } | Sort-Object -Unique)
             $r.Names = $names.Count
             Push-Location $Repo
             try {

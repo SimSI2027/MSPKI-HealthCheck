@@ -6,6 +6,17 @@ domain-joined Windows computer with Windows PowerShell 5.1. It needs no config f
 environment data. Requirements and phases: `docs/REQUIREMENTS.md`. Current state: `docs/PROGRESS.md`.
 **The repository is public on GitHub: treat everything written here as visible to the world.**
 
+## Standing directives (they apply to every session)
+- **Users only ever use the GUI.** Once the backend is solid, the GUI gets major investment and must be outstanding: polished,
+  engaging, even enjoyable. Backend work is judged by what the window can show.
+- **GitHub never contains lab host or domain names**, in current files or in history. IP addresses are allowed. Replace names with the
+  generic ones in `docs/NAMING.md`. The real-to-generic map lives only in `C:\ClaudeCode\private\NAME-MAP.txt` (never committed).
+- **Lab infrastructure access is for OBSERVATION ONLY:** collecting information and understanding how things work. Never change
+  anything on a lab server.
+- **Every non-passing finding must explain itself:** likely causes (ranked), how to confirm each one, how to fix it, and sources.
+- **Online research is encouraged** (Microsoft Learn, GitHub, other reputable sources). Learn from it and cite it, but never copy code
+  from other projects (licences).
+
 ## Hard rules (never break these)
 1. **Read-only.** Never install, enroll, request, revoke, publish, restart, repair or configure anything.
    Never write to AD, the registry, a CA or any remote system. The only writes allowed are files under `out/`.
