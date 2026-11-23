@@ -156,7 +156,13 @@ things worth trying, and what you should see:
    Enrollment, NDES and OCSP, that CES and CEP say "none" when you have none, and that the Intune connector says it was only
    checked on this computer. Select a service or a finding to see its details on the right.
 
-If something looks wrong, tell us which of the eight it was and what you saw, and send `run.log` from that run (see "What to
+9. **Probable causes and next steps.** Select any finding that is not green (for example the Root CA read that was refused, or a CA
+   that publishes only over LDAP). Under **Probable causes and next steps** read: what it means, the causes in order, what the run
+   observed for each, how to check it, and how to fix it. Check three things: the first cause is plausible for your system, a cause
+   that says Most likely has a fact listed under Observed in this run (otherwise it says Most common), and nothing in the checks
+   asks you to change anything. Open eport.html and look at the same finding: the section is there, and the source addresses are plain text.
+
+If something looks wrong, tell us which of the nine it was and what you saw, and send `run.log` from that run (see "What to
 send back"). Please do not send screenshots or the result files: they contain real names.
 
 ## What the tool does and does not do

@@ -473,3 +473,11 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Tests: `tests/Diagnosis.Tests.ps1` (322): every schema status code has an entry, every topic is complete and cited, no check is a write, ESC1-16 covered, rule routing, ranking, round trip, HTML, GUI view model.
   Hygiene: `Diagnosis*.psd1` may name certutil in advice text; public documentation hosts allowed for the source addresses. CLAUDE.md clarified.
 - Next: adversarial check against the lab (normal user, max 3 rounds), then ROADMAP and the full suite. Round 1 on the saved lab result already fixed two rankings (NTAuth/AIA leftover versus renewal; a timeout is not proof of a missing role).
+
+## Batch H, step 2: adversarial check against the lab (3 rounds) and honest wording (2026-11-22)
+- Normal-user run on the lab: 99 findings, exit 6, identical tally; all 27 non-passing findings carry the section (the others are all-clear Information/Pass). Details (sanitised) in `docs/RESEARCH.md`.
+- Round 1: NTAuth-versus-AIA now ranks "earlier installation" first on the tool's own evidence (lifecycle Unknown) instead of "renewal"; Web Enrollment no longer reads a timeout as proof of a missing role.
+  Round 2: signals no longer see Notes/Remediation (boilerplate was shown as an observation); "Most likely" only when something observed backs that cause, otherwise "Most common"; CES Kerberos cause needs a 401.
+  Round 3: every top cause matches the lab facts; no overclaim left.
+- Docs: README, TESTING (step 9 of the click-through), ROADMAP (WP9), RESEARCH. Tests: `tests/Diagnosis.Tests.ps1` 325.
+- Next: GUI program (a "what to do" overview over all findings, copy-the-checks, Observed highlighting). Open: the PTR, template and KRA topics are "Typical" (nothing observed separates the causes).

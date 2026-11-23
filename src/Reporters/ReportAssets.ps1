@@ -70,7 +70,7 @@ details.f>summary::-webkit-details-marker{display:none}.f .id{font-family:ui-mon
 .dg h4{margin-top:0}.dg p{margin:4px 0}.dgt{font-weight:600}.dgb{color:var(--muted);font-size:12.5px}
 .dgc{margin:8px 0 0;padding-left:20px}.dgc>li{margin:10px 0;padding-bottom:8px;border-bottom:1px dashed var(--line)}.dgc>li:last-child{border-bottom:0}
 .dgh{margin-bottom:2px}.dgl{font-size:11.5px;border-radius:999px;padding:1px 8px;border:1px solid var(--line);color:var(--muted);margin-left:6px;white-space:nowrap}
-.dgl-Mostlikely{color:var(--pass);border-color:var(--pass);background:var(--pass-bg)}.dgl-Likely{color:var(--info);border-color:var(--info)}
+.dgl-Mostlikely,.dgl-Mostcommon{color:var(--pass);border-color:var(--pass);background:var(--pass-bg)}.dgl-Likely,.dgl-Common{color:var(--info);border-color:var(--info)}
 .dgk{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:6px}
 .dgo{background:var(--info-bg);border-radius:6px;padding:2px 10px 4px;margin-top:6px}.dgs code{overflow-wrap:anywhere;font-size:11.5px}
 ul.tree,ul.tree ul{list-style:none;margin:0;padding-left:20px;border-left:1px dashed var(--line)}ul.tree{padding-left:0;border:0}

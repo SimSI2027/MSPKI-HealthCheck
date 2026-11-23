@@ -86,7 +86,7 @@
             What = 'The CA lists only LDAP URLs for its CDP or AIA. Only computers that can query this forest''s directory can fetch the CRL or the CA certificate. Computers outside the domain, non-Windows systems, devices and other forests cannot, so their revocation checks fail or are skipped.'
             Sources = @('S14', 'S15')
             Causes = @(
-                @{ Id = 'default-enterprise-design'; Cause = 'It is a deliberate or inherited choice: an Enterprise CA can serve a domain-only audience with LDAP alone, and nobody added an HTTP location.'
+                @{ Id = 'ldap-only-by-choice'; Cause = 'It is a deliberate or inherited choice: an Enterprise CA can serve a domain-only audience with LDAP alone, and nobody added an HTTP location.'
                    Confirm = @('Ask which computers and devices need to check certificates from this CA (non-domain computers, Linux, network devices, other forests).')
                    Fix = @('If any such client exists, add an HTTP CDP and AIA location on a simple web server (port 80), publish the files there, and put the HTTP URLs first. This only affects certificates issued afterwards.')
                    Signals = @(@{ When = 'no HTTP URL'; Weight = 10; Because = 'the extension lists no HTTP URL at all' }) }
@@ -202,8 +202,7 @@
                 @{ Id = 'earlier-installation'; Cause = 'The CA was rebuilt or reinstalled with the same name (a new key), and the objects of the earlier installation were never cleaned out of AD.'
                    Confirm = @('Compare the validity dates and key of the "Unknown" certificate with the current one: an earlier installation has its own key and start date, not a renewal of the same key.', 'The CA''s own list of signing certificates (CA console > Properties > General > CA certificates) names only the current certificate.', 'certutil -viewstore -enterprise NTAuth lists which generations AD trusts for logon.')
                    Fix = @('If nothing issued under the earlier installation is still in use, remove the old certificate from the AD containers that hold it (Certification Authorities, AIA, NTAuth, Enrollment Services). If something still depends on it, keep it and note why. Both are actions for the PKI owner (Enterprise Admin rights).')
-                   Signals = @(@{ When = 'earlier installation|same name'; Weight = 15; Because = 'the finding says the certificate may belong to an earlier installation of a CA with the same name' }
-                               @{ When = 'not among the CA''s own signing certificates'; Weight = 10; Because = 'the CA does not list it among its own signing certificates' }) }
+                   Signals = @(@{ When = '(?m)^Evidence:.*not among the CA''s own signing certificates'; Weight = 20; Because = 'the CA does not list this certificate among its own signing certificates' }) }
                 @{ Id = 'renewal-generation'; Cause = 'It is an older generation from a renewal with a new key, and the CA no longer lists it as a signing certificate because it expired or was archived.'
                    Confirm = @('Check whether the certificate has the same subject and was signed by the same root, and whether its dates precede the current certificate.')
                    Fix = @('Keep it while certificates issued under it are valid; remove it afterwards.') }

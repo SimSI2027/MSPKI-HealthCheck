@@ -273,6 +273,35 @@ Describe 'Ranking uses what the tool observed' {
         $anon.Causes[0].Id | Should -Be 'user-rights-gpo'
     }
 
+    It 'standing text in Notes or Remediation is never shown as an observation (only the message, the evidence and the layers are)' {
+        $msg = 'The CA host ca01.pki.example.test turned down this account''s request to read the CA (error 0x800706BA).'
+        $notes = 'On a lab CA this was RPC fault 5 for one ordinary account, while an administrator account read the same CA. Another CA answered the same account elsewhere.'
+        $d = & $script:Diag (& $script:NewF -Category 'CA' -Status 'Skipped' -Code 'PERMISSION_DENIED' -Message $msg -Notes $notes)
+        $d.Topic | Should -Be 'RPC_ACCESS_DENIED'
+        @($d.Causes | ForEach-Object { $_.Because } | Where-Object { $_ -match 'another CA|administrator' }).Count | Should -Be 0
+        $real = & $script:Diag (& $script:NewF -Category 'CA' -Status 'Skipped' -Code 'PERMISSION_DENIED' -Message $msg -Evidence @('Another CA answered the same account in this run: ca02.pki.example.test'))
+        @($real.Causes[0].Because | Where-Object { $_ -match 'another CA answered' }).Count | Should -Be 1
+    }
+
+    It 'a weak hint does not earn "most likely": a timeout cannot tell a missing web role from a filtering firewall' {
+        $msg = 'Web Enrollment (/certsrv/) was not found on ca02.pki.example.test. No web server answered at all on ca02.pki.example.test.'
+        $weak = & $script:Diag (& $script:NewF -Category 'WebEnrollment' -Status 'Information' -Code 'NOT_DISCOVERED' -Message $msg -Evidence @('http://ca02.pki.example.test/certsrv/: no web server answered (TIMEOUT)'))
+        $weak.Causes[0].Id | Should -Be 'role-not-installed'
+        $weak.Causes[0].Likelihood | Should -Be 'Most common'
+        $refused = & $script:Diag (& $script:NewF -Category 'WebEnrollment' -Status 'Information' -Code 'NOT_DISCOVERED' -Message $msg -Evidence @('http://ca02.pki.example.test/certsrv/: No connection could be made because the target machine actively refused it'))
+        $refused.Causes[0].Id | Should -Be 'role-not-installed'
+        $refused.Causes[0].Likelihood | Should -Be 'Most likely' -Because 'a refusal is something observed that backs a missing role'
+    }
+
+    It 'an enrollment service that fails in TLS or at the network is not blamed on Kerberos delegation first; a 401 is' {
+        $tls = & $script:Diag (& $script:NewF -Category 'CES' -Status 'Warning' -Code 'TLS_HANDSHAKE_FAIL' -Message 'TLS to ces01.pki.example.test failed.' -Layers @{ TlsStatus = 'Fail' })
+        $net = & $script:Diag (& $script:NewF -Category 'CES' -Status 'Warning' -Code 'TCP_FAIL' -Message 'ces01.pki.example.test does not accept connections on TCP 443.' -Layers @{ TcpStatus = 'Fail' })
+        $auth = & $script:Diag (& $script:NewF -Category 'CES' -Status 'Warning' -Code 'HTTP_401_403' -Message 'The CES endpoint answers HTTP 401.')
+        $tls.Causes[0].Id | Should -Be 'tls-binding'
+        $net.Causes[0].Id | Should -Be 'service-down'
+        $auth.Causes[0].Id | Should -Be 'kerberos-delegation'
+    }
+
     It 'an anonymous refusal on a CRL URL points at anonymous access; the same 403 on an enrollment service points at "TLS required"' {
         $crl = & $script:Diag (& $script:NewF -Category 'CRL' -Status 'Fail' -Code 'HTTP_401_403' -Message 'The CRL could not be downloaded: HTTP 403.')
         $web = & $script:Diag (& $script:NewF -Category 'WebEnrollment' -Status 'Warning' -Code 'HTTP_401_403' -Message 'The page answers HTTP 403.')
@@ -290,7 +319,11 @@ Describe 'Ranking uses what the tool observed' {
 
     It 'ranks are 1..n, the first cause is "Most likely", and every cause says who acts and keeps the checks separate from the fixes' {
         $d = & $script:Diag (& $script:NewF -Category 'CA' -Status 'Skipped' -Code 'PERMISSION_DENIED' -Message 'The CA host x turned down this account''s request.')
-        $d.Causes[0].Likelihood | Should -Be 'Most likely'
+        $d.Basis | Should -Be 'Typical'
+        $d.Causes[0].Likelihood | Should -Be 'Most common' -Because 'nothing observed separates the causes here, so it must not say "most likely"'
+        $seen = & $script:Diag (& $script:NewF -Category 'CA' -Status 'Skipped' -Code 'PERMISSION_DENIED' -Message 'The CA host x turned down this account''s request (answered within 22 ms).' -Evidence @('Answered within 5000 ms after TCP 135 was reachable.'))
+        $seen.Basis | Should -Be 'Observed'
+        $seen.Causes[0].Likelihood | Should -Be 'Most likely'
         foreach ($c in $d.Causes) { $c.FixOwner | Should -Be 'PKI owner' }
         $d.Causes[0].Confirm | Should -Not -Be $d.Causes[0].Fix
     }

@@ -17,6 +17,17 @@ From 2026-11-22 this section is the plan of record. Statuses: DONE, IN PROGRESS,
 | WP6 | PKI Services page (G3) | DONE (2026-11-22) |
 | WP7 | GUI adversarial polish (max 3 rounds) | DONE (2026-11-22, PASS in round 2) |
 | WP8 | Ready for audit | DONE (2026-11-22) |
+| WP9 (Batch H) | "Probable causes and next steps": researched knowledge base (`src/Knowledge`, `docs/KNOWLEDGE-SOURCES.md`), ranking from each finding's own evidence, in results.json, the HTML report and the details pane | DONE (2026-11-22) |
+
+**WP9 Batch H: probable causes and next steps.** DONE (2026-11-22). Every non-passing finding explains itself:
+- Researched knowledge base, data only: `src/Knowledge/Diagnosis.psd1` (42 dated sources, a default topic for every status code, ordered rules) and
+  five `Diagnosis.Topics.<Area>.psd1` files (120 topics: plain explanation, causes ranked, a read-only check and a fix for each cause, sources).
+  Covers RPC/DCOM, CRL/AIA/delta, LDAP versus HTTP, OCSP, CES/CEP, NDES, Intune, TLS, NTAuth, ESC1-16, CA renewal, time skew. `docs/KNOWLEDGE-SOURCES.md` lists each source with the date and how far it was read.
+- Ranking (`src/Model/Diagnosis.ps1`): the knowledge order is the prior; signals from the finding's own message, evidence and layer results move causes; Notes and Remediation are never evidence. Wording is honest: "Most likely" only
+  when something observed backs the cause, otherwise "Most common"; a cause is probable, never proven.
+- Shown in results.json (`Diagnosis` on each finding), the HTML report (plain text, no link) and the GUI details pane; results.json from older runs get it computed when read.
+- Checked against the lab as a normal user in three rounds (`docs/RESEARCH.md`). Tests: `tests/Diagnosis.Tests.ps1`.
+- Next for the GUI program: a "what to do" overview (the top causes of all findings grouped), a one-click copy of the checks, and highlighting `Observed` evidence in the Findings table.
 
 **WP5 GUI drill-down (G1, G2, G4).** DONE: Objects page, object details pane, links from every pane, tiles and cards. Scope was:
 - Load the helpers in the window.

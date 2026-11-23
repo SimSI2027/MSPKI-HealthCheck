@@ -117,7 +117,7 @@
                 @{ Id = 'agent-template-open'; Cause = 'The enrollment agent template was left open to a broad group (for a smart card or help desk process that is now narrower).'
                    Confirm = @('Read the template permissions in the CA console or certutil -v -template <TemplateName>.', 'List who truly acts as an enrollment agent.')
                    Fix = @('Limit Enroll on the agent template to the few agent accounts, require approval, and configure "Restrict enrollment agents" on the CA so agents can only act for named templates and users.')
-                   Signals = @(@{ When = 'Enrollment agent restrictions .* cannot be read'; Weight = 5; Because = 'the CA''s agent restrictions could not be read from here' }) }
+                   }
             ) }
 
         'ESC4' = @{

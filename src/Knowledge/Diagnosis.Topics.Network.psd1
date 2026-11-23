@@ -102,7 +102,7 @@
                 @{ Id = 'ssl-required'; Cause = 'The path requires TLS (HTTP 403.4) or a client certificate, which is normal for Web Enrollment and enrollment services but wrong for CRL and AIA.'
                    Confirm = @('Request the same path over https:// and compare the answer.')
                    Fix = @('For CRL/AIA: serve the directory over plain HTTP without "Require SSL". For enrollment pages a 403 over HTTP is expected and not a fault.')
-                   Signals = @(@{ When = 'Category=(WebEnrollment|CES|CEP|NDES)'; Weight = 25; Because = 'enrollment services normally answer 401 or 403 to an anonymous request' }) }
+                   Signals = @(@{ When = 'Category=(WebEnrollment|CES|CEP|NDES)'; Weight = 25; Because = 'the failing address is an enrollment service, where a 401 or 403 to an anonymous request is the normal answer' }) }
                 @{ Id = 'proxy-or-waf'; Cause = 'A reverse proxy or web application firewall in front of the server blocks the request or the tool user agent.'
                    Confirm = @('Compare the answer from a computer inside the server network with the answer from here.')
                    Fix = @('Add a rule that lets the PKI paths through without authentication.') }
@@ -134,7 +134,7 @@
                 @{ Id = 'app-pool-identity'; Cause = 'The application pool identity cannot read what it needs (the IIS_IUSRS group lacks rights, the account is locked, or a certificate private key is unreadable).'
                    Confirm = @('On the server (owner): read the IIS log line for the request and the Application event log at that time.')
                    Fix = @('Give the application pool identity the permissions the service documents; for NDES see the NDES topics.')
-                   Signals = @(@{ When = 'Category=NDES'; Weight = 20; Because = 'NDES answers 500 when its application pool cannot read its RA certificates' }) }
+                   Signals = @(@{ When = 'Category=NDES'; Weight = 20; Because = 'the failing address is an NDES server, whose usual cause of an HTTP 500 is an application pool that cannot read its RA certificates' }) }
                 @{ Id = 'role-half-installed'; Cause = 'A role such as the Online Responder is installed but not configured, so its web path exists and fails.'
                    Confirm = @('On the server (owner): open the Online Responder console and check the array and revocation configuration state.')
                    Fix = @('Finish configuring the role, or remove the role and the URL that points to it.')

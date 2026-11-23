@@ -72,7 +72,9 @@ function Get-MspkiDiagnosisSearchText {
     $f = $Finding
     $lines = New-Object System.Collections.Generic.List[string]
     foreach ($n in @('Category', 'Status', 'StatusCode', 'Confidence', 'Role', 'Scope', 'Severity')) { $lines.Add(('{0}={1}' -f $n, [string]$f.$n)) }
-    foreach ($n in @('Target', 'Endpoint', 'RelatedCA', 'Message', 'Notes', 'Remediation')) {
+    # Notes and Remediation are explanations the analyzers write for every finding of a kind (possible causes, standing advice). They are not
+    # observations of this run, so a signal never sees them: otherwise boilerplate would be shown as something that was observed.
+    foreach ($n in @('Target', 'Endpoint', 'RelatedCA', 'Message')) {
         $v = [string]$f.$n
         if ($v) { $lines.Add(('{0}: {1}' -f $n, $v)) }
     }
@@ -130,17 +132,18 @@ function Get-MspkiRankedCause {
         $score = ($n - $i) * 10
         $because = New-Object System.Collections.Generic.List[string]
         $matched = 0
+        $support = 0
         if ($c.ContainsKey('Signals')) {
             foreach ($s in @($c.Signals)) {
                 $hit = $false
                 try { $hit = [regex]::IsMatch($SearchText, [string]$s.When, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) } catch { $hit = $false }
                 if ($hit) {
-                    $score += [int]$s.Weight; $matched++
+                    $score += [int]$s.Weight; $matched++; if ([int]$s.Weight -gt 0) { $support += [int]$s.Weight }
                     if ($s.ContainsKey('Because') -and $s.Because) { $because.Add([string]$s.Because) }
                 }
             }
         }
-        [void]$ranked.Add([pscustomobject]@{ Index = $i; Score = $score; Matched = $matched; Cause = $c; Because = @($because) })
+        [void]$ranked.Add([pscustomobject]@{ Index = $i; Score = $score; Matched = $matched; Support = $support; Cause = $c; Because = @($because) })
     }
     return @($ranked | Sort-Object -Property @{ Expression = 'Score'; Descending = $true }, @{ Expression = 'Index'; Descending = $false })
 }
@@ -166,13 +169,19 @@ function Get-MspkiFindingDiagnosis {
     $topic = $Knowledge.Topics[$res.Topic]
     $text = Get-MspkiDiagnosisSearchText -Finding $Finding
     $ranked = @(Get-MspkiRankedCause -Topic $topic -SearchText $text)
-    $observed = (@($ranked | Where-Object { $_.Matched -gt 0 }).Count -gt 0)
+    # A cause is "supported" when what this run observed adds at least 10 points for it; weaker hints are listed but do not change the wording.
+    $observed = (@($ranked | Where-Object { $_.Support -ge 10 }).Count -gt 0)
     $out = New-Object System.Collections.ArrayList
     $rank = 0
     foreach ($r in $ranked) {
         $rank++
         $c = $r.Cause
-        $like = $(if ($rank -eq 1) { 'Most likely' } elseif ($rank -le 3) { 'Likely' } else { 'Possible' })
+        # The wording follows the support of THIS cause: "most likely" / "likely" only when something observed backs it; otherwise the order is
+        # only how common the cause is, and it says so.
+        $supported = ($r.Support -ge 10)
+        $like = $(if ($rank -eq 1) { if ($supported) { 'Most likely' } else { 'Most common' } }
+                  elseif ($rank -le 3) { if ($supported) { 'Likely' } else { 'Common' } }
+                  else { 'Possible' })
         [void]$out.Add([pscustomobject][ordered]@{
             Rank       = $rank
             Id         = [string]$c.Id

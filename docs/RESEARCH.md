@@ -134,3 +134,19 @@ or on the remote host. Confidence: C = confirmed by direct observation, L = like
   With `-SkipNetwork` no TLS handshake is made. If a later Windows build ever binds on that path, the credential guarantee would be
   broken: repeat this measurement after a Windows upgrade (a loopback TLS server with an `ldap://` AIA, and a responder that records only
   the operation types and never a token).
+
+## Batch H: "Probable causes and next steps" checked against the lab (2026-11-22, standard user, sanitised)
+- **Setup.** A normal-user run of the product (99 findings, exit code 6, the same finding tally as before the change) and the lab facts kept outside the repository. Every non-passing
+  finding (27 of 99) now has the section; the 72 others are passing or informational all-clear results. The check compared the top-ranked cause of each finding with the real cause.
+- **Round 1.** Wrong or weak rankings found and fixed: (a) the NTAuth-versus-AIA warning blamed a CA renewal, but the lab fact is a Sub CA rebuilt with the same name (a new key); the
+  tool's own evidence ("lifecycle Unknown": the CA does not list that certificate among its signing certificates) separates the two, so "earlier installation" is now ranked first
+  on that evidence, and a new topic covers the two-certificates-no-clear-split warning the same way; (b) Web Enrollment "no web server answered" claimed more than a timeout can show: on
+  a CA host with no web server both a missing role and a filtering firewall give a timeout, so the hint is weak and only a refusal raises "missing role".
+- **Round 2.** Overclaims found and fixed: (a) a signal fired on the standing explanation in a finding's Notes ("an administrator account read the same CA") and showed it as something observed in
+  this run; signals now see only the message, the evidence and the layer results; (b) "most likely" was shown even when the only supporting observation was weak; the wording now follows
+  the support of each cause ("Most likely" only when something observed backs it, otherwise "Most common"); (c) the CES Kerberos cause fired for every CES failure instead of an HTTP 401.
+- **Round 3.** No wrong top cause left. Matches the lab: the Root CA refusal ranks the DCOM access group of the CA host first (the lab cause, a per-account DCOM permission); the HTTPS
+  reset ranks "an HTTPS binding without a usable certificate" first; the unused Online Responder (HTTP 500 on its path) ranks "role installed, OCSP URL never published" first; the
+  LDAP-only CDP/AIA ranks "LDAP only by choice" first; the dead certificate alias ranks "never created" first; the Intune connector is reported as "not checked from here", never as fine.
+- **Limits left.** The ranking cannot see what only the CA host or a domain controller knows (its registry, event logs, firewall); the section says so by listing checks for the PKI owner. PTR
+  causes and the template/KRA topics are "Typical" (no observation separates the causes).

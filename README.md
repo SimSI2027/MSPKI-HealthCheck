@@ -70,7 +70,11 @@ If it says it needs a single-threaded session, start it as `powershell.exe -STA 
   tile per status, and the CAs that were found. **Discovery Map**: a tree of forest, CAs, CA certificates and their endpoints,
   templates, CES and NDES, each with its status and confidence. **Findings**: every finding in a table you can search, filter
   by status, category and confidence, and sort by clicking a column heading. **Details**: select a finding to see all of it
-  (sources, evidence, the DNS/TCP/TLS/HTTP/redirect/content/chain results, remediation, notes).
+  (sources, evidence, the DNS/TCP/TLS/HTTP/redirect/content/chain results, remediation, notes). Every finding that is not passing also has
+  **Probable causes and next steps**: what it means in plain words, the likely causes in order (ranked with what the run actually saw),
+  a read-only way to check each one, how to fix it (an action for the PKI owner: this tool changes nothing) and the sources. The same
+  section is in esults.json and in eport.html. The advice comes from src/Knowledge and is listed with its dates in
+  docs/KNOWLEDGE-SOURCES.md; a cause is probable, never proven.
 - **Objects** (Ctrl+5): everything the run found (forest, domains, CAs, CA certificates, CRLs, URLs, hosts, PKI services,
   templates, certificates on this computer, AD objects, accounts), grouped by type, with a search box, a type filter and
   "Only objects that need attention". Select one to see what it is and why it matters, its properties, **where it exists** (every

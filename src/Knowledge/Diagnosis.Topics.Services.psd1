@@ -168,7 +168,7 @@
                 @{ Id = 'kerberos-delegation'; Cause = 'For CES (HTTP 401 on the service while the policy service answers): the CES service account is not trusted for constrained delegation to the CA host, or its SPN is missing or duplicated, so the service cannot pass the user''s identity to the CA.'
                    Confirm = @('setspn -L <CesServiceAccount> (read only) and check for duplicates: setspn -Q HTTP/<Host>', 'Active Directory Users and Computers > the account > Delegation tab (view).')
                    Fix = @('Register the SPN once, and set constrained delegation to the CA host''s services (the Microsoft CES guide lists the exact steps), or use renewal-only mode when only renewals are needed.')
-                   Signals = @(@{ When = 'HTTP_401|401|Category=CES'; Weight = 20; Because = 'the enrollment service answers 401, which is the typical sign of a delegation problem' }) }
+                   Signals = @(@{ When = 'StatusCode=HTTP_401_403|HTTP 401'; Weight = 20; Because = 'the enrollment service answered 401 or 403, which is the typical sign of a delegation or SPN problem' }) }
                 @{ Id = 'tls-binding'; Cause = 'The TLS certificate of the site is untrusted, expired or does not cover the name.'
                    Confirm = @('Open the URL in a browser from a domain computer.')
                    Fix = @('Bind a certificate from the enterprise CA that names the host.')

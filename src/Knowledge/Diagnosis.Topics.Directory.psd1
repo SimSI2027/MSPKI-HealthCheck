@@ -77,7 +77,7 @@
                 @{ Id = 'certsvc-stopped'; Cause = 'The Certificate Services service on the CA host is stopped, hung or still starting, so no endpoint answers behind the mapper.'
                    Confirm = @('Ask the CA owner to run: Get-Service CertSvc on the CA host', 'certutil -config "<CAHost>\<CAName>" -ping from the CA host itself')
                    Fix = @('Start Certificate Services; if it stops again, read the Application log of the CA host (events from CertificationAuthority) and fix the cause, such as an expired CRL (see the CRL topics).')
-                   Signals = @(@{ When = 'Certificate Services service'; Weight = 5; Because = 'the message names the service as a possible cause' }) }
+                   }
                 @{ Id = 'dcom-hardening'; Cause = 'DCOM hardening (KB5004442) rejects the call because client and server do not agree on the authentication level.'
                    Confirm = @('On the CA host (owner): System log, source DistributedCOM, events 10036 and 10037.')
                    Fix = @('Update the older side so both use packet integrity; do not turn the hardening off.') }
@@ -91,7 +91,7 @@
                 @{ Id = 'dcom-access-group'; Cause = 'The local group "Certificate Service DCOM Access" on the CA host does not contain Authenticated Users (the CA setup adds it; a rebuild or an upgrade can lose it), or the account is in none of the groups that group allows.'
                    Confirm = @('On the CA host (owner): lusrmgr.msc > Groups > Certificate Service DCOM Access > members.', 'From this computer as the same account: certutil -config "<CAHost>\<CAName>" -ping  (the same 0x800706BA in a fraction of a second confirms the refusal).')
                    Fix = @('Add NT AUTHORITY\Authenticated Users to the "Certificate Service DCOM Access" group on the CA host (the Microsoft default), then run the check again.')
-                   Signals = @(@{ When = 'another CA|answered the same account|administrator account'; Weight = 20; Because = 'another CA, or an administrator, can read the same CA, so the cause is a per-account setting on this host' }
+                   Signals = @(@{ When = '(?m)^Evidence:.*(another CA answered|answered the same account)'; Weight = 20; Because = 'another CA answered the same account in this run, so the cause is a per-account setting on this host' }
                                @{ When = 'within \d+ ms|Answered within'; Weight = 10; Because = 'the refusal came back within a few seconds after TCP 135 answered' }) }
                 @{ Id = 'com-security-limits'; Cause = 'The machine-wide COM Security limits of the CA host (Access and Launch/Activation permissions) no longer grant "Certificate Service DCOM Access" the Remote Access and Remote Activation rights.'
                    Confirm = @('On the CA host (owner): dcomcnfg > Component Services > Computers > My Computer > Properties > COM Security > Edit Limits (both Access and Launch and Activation).', 'System log: DistributedCOM events 10027 / 10028 / 10036 at the time of a run name the account and the reason.')

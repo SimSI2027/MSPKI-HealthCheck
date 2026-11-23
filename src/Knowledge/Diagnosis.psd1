@@ -8,8 +8,9 @@
 #            Sources (ids from the Sources table below).
 # Cause    : Id, Cause, Confirm (safe, read-only checks), Fix (actions for the PKI owner; this tool never changes anything),
 #            Signals (optional: @{ When = regex on the finding text; Weight = score change; Because = what was observed }).
-# The text a Signal sees is built from Category, Status, StatusCode, Confidence, Target, Endpoint, Message, Notes, Evidence, layer
-# results (for example "TcpStatus=Pass") and Remediation of the finding.
+# The text a Signal sees holds what this run OBSERVED: Category, Status, StatusCode, Confidence, Role, Target, Endpoint, Message, each
+# Evidence line (as "Evidence: ...") and the layer results (for example "TcpStatus=Pass"). Notes and Remediation are standing explanations
+# written by the analyzers, not observations, so a Signal never sees them. A Because text must say what was seen.
 # Placeholders in commands: <CAHost>, <CAName>, <Host>, <Url>, <Account>. Real names never appear here (docs/NAMING.md).
 # Rules: the first matching rule wins; a rule may name Category, StatusCode (string or list) and Match (regex on Message, Target
 # and Notes). Codes: the default topic of each StatusCode, so every code has an entry (tests/Diagnosis.Tests.ps1).
