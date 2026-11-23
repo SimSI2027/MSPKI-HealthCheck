@@ -330,3 +330,41 @@ function New-TestSecurityDescriptor {
     $sd.GetBinaryForm($bytes, 0)
     return , $bytes
 }
+
+function Remove-TestCertificateKey {
+    <#
+    Deletes the persisted private key of a test certificate that was loaded with PersistKeySet (a key in this user's key store). Safe to
+    call for any certificate, more than once, and for a certificate without a key. A test that creates such a key calls this in a
+    finally block (or registers the certificate the moment it exists and calls this for every one in AfterAll), so a failure part-way
+    cannot leave a key behind. tests/zzz-KeyStoreLeftovers.Tests.ps1 checks that no key remains after the suite.
+    #>
+    param($Certificate)
+    if ($null -eq $Certificate) { return }
+    $rsa = $null
+    try { $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($Certificate) } catch { $rsa = $null }
+    if ($null -eq $rsa) { return }
+    try {
+        if ($rsa -is [System.Security.Cryptography.RSACng]) { $rsa.Key.Delete() }
+        elseif ($rsa -is [System.Security.Cryptography.RSACryptoServiceProvider]) { $rsa.PersistKeyInCsp = $false; $rsa.Clear() }
+    }
+    catch { }
+    try { $rsa.Dispose() } catch { }
+}
+
+function Get-TestKeyStoreSnapshot {
+    <#
+    The names of the private-key containers in this user's key store (CNG and CryptoAPI files) and the thumbprints of the certificates in
+    CurrentUser\My, as sorted text lines. Names only: no key material is read.
+    #>
+    $lines = New-Object System.Collections.ArrayList
+    $roots = @(
+        @{ Tag = 'cng'; Path = (Join-Path $env:APPDATA 'Microsoft\Crypto\Keys') }
+        @{ Tag = 'capi'; Path = (Join-Path $env:APPDATA 'Microsoft\Crypto\RSA') }
+    )
+    foreach ($r in $roots) {
+        if (-not (Test-Path -LiteralPath $r.Path)) { continue }
+        foreach ($f in @(Get-ChildItem -LiteralPath $r.Path -Recurse -File -ErrorAction SilentlyContinue)) { [void]$lines.Add(('{0}:{1}' -f $r.Tag, $f.FullName.Substring($r.Path.Length))) }
+    }
+    foreach ($c in @(Get-ChildItem -LiteralPath 'Cert:\CurrentUser\My' -ErrorAction SilentlyContinue)) { [void]$lines.Add(('cert:{0}' -f $c.Thumbprint)) }
+    return @($lines | Sort-Object)
+}

@@ -11,12 +11,16 @@ BeforeAll {
     $script:planted = New-TestCertificate -Subject 'CN=Example Root CA, DC=example, DC=test' -DaysValid 3000 `
         -CdpUrls @('ldap://ldap.example.test/CN=x,DC=example,DC=test?certificateRevocationList?base?objectClass=cRLDistributionPoint') -AiaUrls @('http://planted.example.test/x.crt')
 
-    # A server certificate with a usable private key (a PFX round trip; the key container is removed again in AfterAll).
+    # A server certificate with a usable private key (a PFX round trip; the key container is removed again in AfterAll). The certificate is
+    # registered for cleanup the moment it exists, so a failure while a later certificate is created cannot leave this key behind.
+    $script:cleanup = New-Object System.Collections.ArrayList
     $script:newServerCert = {
         param([string]$Subject, [int]$DaysBefore = 1, [int]$DaysValid = 30)
         $c = New-TestCertificate -Subject $Subject -IsCA $false -DaysBefore $DaysBefore -DaysValid $DaysValid
         $pfx = $c.Full.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, 'test-only')
-        New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfx, 'test-only', ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]'Exportable,PersistKeySet,UserKeySet'))
+        $loaded = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfx, 'test-only', ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]'Exportable,PersistKeySet,UserKeySet'))
+        [void]$script:cleanup.Add($loaded)
+        return $loaded
     }
     # A TLS listener on 127.0.0.1 that completes the handshake and closes. Mode 'tls' speaks TLS, 'plain' accepts and closes at once.
     $script:startTls = {
@@ -42,13 +46,12 @@ BeforeAll {
         [pscustomobject]@{ Listener = $listener; PowerShell = $ps; Handle = $h; Port = $listener.LocalEndpoint.Port }
     }
     $script:stopTls = { param($S) try { $S.Listener.Stop() } catch { }; try { [void]$S.PowerShell.BeginStop($null, $null) } catch { } }
-    $script:cleanup = New-Object System.Collections.ArrayList
 }
 
 AfterAll {
+    # Every key created above is removed, one failing removal never stops the others (see Remove-TestCertificateKey).
     foreach ($c in @($script:cleanup)) {
-        try { $k = $c.PrivateKey; if ($null -ne $k) { $k.PersistKeyInCsp = $false; $k.Clear() } } catch { }
-        try { $k = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($c); if ($null -ne $k -and $k.Key) { $k.Key.Delete() } } catch { }
+        try { Remove-TestCertificateKey -Certificate $c } finally { }
     }
 }
 
@@ -256,7 +259,7 @@ Describe 'M6 and M11: the TLS probe against a real TLS listener' {
         $script:cLocal = & $script:newServerCert 'CN=localhost'
         $script:cOther = & $script:newServerCert 'CN=other.example.test'
         $script:cExpired = & $script:newServerCert 'CN=localhost' 60 -30
-        foreach ($c in @($script:cLocal, $script:cOther, $script:cExpired)) { [void]$script:cleanup.Add($c) }
+
         $script:probe = { param([int]$Port, [string]$HostName = 'localhost') InModuleScope MspkiHealthCheck -Parameters @{ P = $Port; H = $HostName } { param($P, $H) Reset-MspkiProbeCache; Test-MspkiTlsEndpoint -HostName $H -Port $P -TimeoutMs 8000 } }
     }
 
@@ -346,7 +349,7 @@ Describe 'M6 and M11: the TLS probe against a real TLS listener' {
             # Audit 2 M9: the redirect host must be known from trusted evidence, or the redirect is not followed at all.
             $r = InModuleScope MspkiHealthCheck -Parameters @{ U = ($origin.Base + '/go'); P = $s.Port } { param($U, $P)
                 Reset-MspkiProbeCache; Reset-MspkiLeadRegistry
-                $null = Add-MspkiLead -Url ('https://localhost:{0}/other' -f $P) -Kind CDP -Source 'AD:test'
+                $null = Add-MspkiLead -Url ('https://localhost:{0}/other' -f $P) -Kind CDP -Source 'AD:test' -Trust Authoritative
                 Invoke-MspkiHttpGet -Url $U -TimeoutMs 8000 }
             $r.Redirected | Should -BeTrue
             $r.Code | Should -Be 'TLS_NAME_MISMATCH'
