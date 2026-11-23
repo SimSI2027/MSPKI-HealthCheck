@@ -447,3 +447,14 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   can stop the endpoint stage with a file:/ftp:/ldap: redirect (N9). The TLS chain engine contacts certificate-named hosts anonymously (N13).
 - ESC3 on the lab's default templates: correct for every broad-agent case; any Deny ACE (even Delete) silently removes the match (N10).
 - Next: fix N9, then N10, N11 (SIZE_LIMIT counted usable outside the forest), N12 (local certificate URLs garbled), then the nits.
+
+## Batch G, steps 1-4: standing directives, naming scheme, Fix log 3 (N9-N15), local name guard - done (1186 tests)
+- `CLAUDE.md`: standing directives (GUI-only users, no lab names in files or history, lab access is observation only, every non-passing finding
+  explains itself, research is encouraged but never copy code). `docs/NAMING.md`: the generic naming scheme. The real-to-generic map is only in
+  `C:\ClaudeCode\private\NAME-MAP.txt` (never committed); the M14 history check now accepts that file (text left of `=>`).
+- Fix log 3 in `docs/AUDIT-3-VERIFY.md`: N9 (non-HTTP redirect is evidence, per-URL guard), N10 (a Deny counts only when it covers the right; the
+  summary names a suppressed rule), N11, N12, N13 (documented as a limit), N14, N15 (leads Unverified by default), the leftover test key removed and
+  a baseline/leftover test pair added. Each fix is red on the old behaviour, green now. Non-elevated lab run: same 99 findings, same tally, 0 stage errors.
+- Local hooks (not committed): `pre-commit` and `commit-msg` call `C:\ClaudeCode\private\precommit-namemap.ps1`, which blocks a real name in staged
+  content, paths, message or identity; tested with planted names in all four places.
+- Next: Step 5 (history clean-up). Result so far: the private-list scan finds 0 names in the whole history (content, messages, paths, identities).

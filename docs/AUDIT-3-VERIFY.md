@@ -321,3 +321,81 @@ result), then pass after it. Hosts are `127.0.0.1` and `example.test` names only
   `Audit2.Verify.Tests.ps1` stay green (156 in the four files).
 - **Decision:** a Deny that covers Enroll still suppresses ESC3 (not a review item), because for ESC3 the agent and target principals are
   matched by fixed group containment and the Deny ACE comes first in a canonical ACL. The suppression is visible in the summary evidence.
+
+### N11 (Low): an AIA answer above the size cap is not a working URL, also outside the forest
+- **Fix:** `src/Analyzers/HierarchyHealth.ps1` (`Get-MspkiRetrievalOutcome`). A Warning with `SIZE_LIMIT` on an AIA is counted as **Failed** (the scope
+  rule had turned the Fail into a Warning, and the old failure-code list did not name `SIZE_LIMIT`). On a CRL (not read, Information, or a
+  capped Warning) it is neither working nor failing: **NotTested**. A Warning about the age of a retrieved certificate is still Usable.
+- **Tests:** `tests/Audit3.N11N12.Tests.ps1`. Before the fix: 2 of the 4 N11 tests red, both behavioural (the capped AIA was `Usable`, and so was a
+  capped CRL Warning). After: green.
+
+### N12 (Low, pre-existing): local certificate URLs
+- **Fix:** `src/Discovery/LocalEvidence.ps1` (`ConvertTo-MspkiLocalCertificateInfo`). `Get-MspkiCertificateUrl` returns its list as one object, so a
+  pipeline treated the whole list as one item. The URLs are now enumerated with `foreach` (the same fix as N8). Two CDP and one AIA URL are
+  recorded as `CDP: ...`, `CDP: ...`, `AIA: ...`; `Error` entries are filtered on every item.
+- **Tests:** `tests/Audit3.N11N12.Tests.ps1`. Before: red, behavioural (1 entry, `System.Object[]: System.Object[]`, instead of 3). After: 3 entries.
+
+### N13 (Low, documentation): the Windows chain engine and hosts named by the server certificate
+- **Done:** the run limit in `src/Model/RunContext.ps1` now says the host is chosen by the server's certificate, can be any host (an `ldap://` one
+  too), and that it was measured as anonymous searches and GETs only, never a directory bind; `docs/RESEARCH.md` has a section with the
+  measurement and when to repeat it (after a Windows upgrade); `CLAUDE.md` rule 4 carries a clarification (a limit, not an exception).
+- **Tests:** `tests/Audit3.N13.Tests.ps1` (3): the limit text, the `-SkipNetwork` case, and the two documents. The old limit text did not say
+  "any host", "ldap://", "anonymous" or "never a directory bind" (red on the old text).
+- **Not done:** a regression probe with a loopback TLS server and an LDAP responder (the A10 probe) is not part of the suite. It would assert
+  the behaviour of the Windows chain engine, which a Windows update may change. Repeat the measurement by hand after a Windows upgrade.
+
+### N14 (Nit): the M14 committer self-test now separates the old logic from the new
+- **Fix:** `tests/Hygiene.Tests.ps1`. A new self-test plants a committer **name** that is not `ED` with the allowed noreply e-mail address, the case
+  the old check really missed, asserts that the new check finds it, and runs the old logic (e-mail addresses searched with the e-mail pattern)
+  on the same history and asserts that it finds **nothing**.
+- **Checked:** with the identity line of the scan replaced by the old logic, the new test is red (behavioural: expected more than 0, got 0), and
+  the older committer test (a committer e-mail that is not the noreply address) stays green, which confirms that it never separated the two.
+  The wrong claim in `docs/AUDIT-2-VERIFY.md` ("3 red ... committer") is corrected there to 2 red.
+
+### N15 (Nit): lead trust is fail-closed
+- **Fix:** `src/Model/LeadRegistry.ps1`: `Add-MspkiLead` defaults to `-Trust Unverified`. Every discovery caller now names its source:
+  Authoritative for AD, CA properties and local policy (`Register-MspkiDiscoveredLead`, the CEP leads from local policy, the NDES leads from
+  template ACEs and the CA database), Verified for links in a downloaded object, and an NDES lead derived from another lead takes **that lead's
+  trust** (`src/Analyzers/Ndes.ps1`). The constructed CES/CEP candidates on a CA host (standard paths, nothing proves they exist) are Unverified.
+- **Tests:** `tests/Audit3.N15.Tests.ps1` (7). Before: 4 red, all behavioural (a lead without `-Trust` was Authoritative and its host trusted; the
+  trust was not kept for a derived NDES lead; constructed candidates were Authoritative). The discovery test is green before and after (it guards
+  against the new default breaking discovery).
+
+### Test key leftover
+- **Removed:** one leftover RSA test key container (a CNG key created by a test at 19:28 on 2026-11-22, in this user's key store, referenced by no
+  certificate) was deleted with `certutil -user -csp "Microsoft Software Key Storage Provider" -delkey`. The other key in the store is a
+  Windows system key and was left alone.
+- **Cause:** `tests/Audit.Probes.Tests.ps1` created three server certificates with a persisted key and added them to its cleanup list only after
+  all three existed; a failure while creating the second or third left the first one behind.
+- **Fix:** each certificate is registered for cleanup the moment it exists, `AfterAll` removes every key with the new `Remove-TestCertificateKey`
+  (`tests/TestHelpers.ps1`: CNG and CryptoAPI keys, safe to call twice), and one failing removal does not stop the others.
+- **New tests:** `tests/000-KeyStoreBaseline.Tests.ps1` records the key containers and personal certificates before the suite;
+  `tests/zzz-KeyStoreLeftovers.Tests.ps1` (runs last, Pester runs a folder in name order) fails when a new one exists, checks statically that
+  every test file that uses `PersistKeySet` removes the key in `finally`/`AfterAll`, and has a self-test that creates a persisted key and
+  proves the helper removes it. A run of the old `Audit.Probes` file in that sequence is red on the static check.
+
+### Existing tests that relied on the old default
+Three older tests added a lead without `-Trust` and expected it to be trusted (they stand for a lead from AD or a CA property): the strongest-trust
+test, the redirect-host test in `Audit.Probes`, and the second-domain LDAP test in `Audit2.Verify`. They now name `-Trust Authoritative`, which is
+what the source they model would pass. This is the intended effect of N15, not a regression.
+
+### Lab run (observation only, non-elevated)
+Run as the standard (non-elevated) account after all fixes: exit code 6, 99 findings, **the same tally by category, status and status code as the
+last baseline run** (no difference in any bucket), 0 stage errors. Against `C:\ClaudeCode\private\LAB-FACTS.md`: 2 Enterprise CAs, 43
+template objects, 3 CA certificates (the root and two generations of the sub CA), 3 and 22 published templates, an NDES host found, no
+RPC failure, and the template review reports the same 4 review findings as before. No regression.
+
+### Commits and the final run
+| Item | Commit |
+|---|---|
+| N9, N10 | `0cb8925` |
+| Test key leftover (cleanup, baseline and leftover tests; the key itself was deleted by hand) | `3dd4d58` |
+| N11, N12 | `7c8939a` |
+| N13 | `9bcab27` |
+| N14 | `8159830` |
+| N15 | `84dadff` |
+
+**Full suite after all fixes** (Pester 5.7.1, Windows PowerShell 5.1, with `MSPKI_PRIVATE_NAMES_FILE` pointing at the private name map, so the
+private-list history scan ran and found 0 names): **1186 run, 1186 passed, 0 failed, 0 skipped** (5 min 55 s). The run before the three older
+tests were corrected had 3 red, all because they relied on the old default trust (see above). After the suite the key store holds the same
+entries as before it (the new leftover test checks this).
