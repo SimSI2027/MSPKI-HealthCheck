@@ -520,6 +520,38 @@ function Show-MspkiGuiNodePane {
     $g.Ui.MapHost.Content = $p
 }
 
+function Sync-MspkiGuiTreeSelection {
+    <#
+    .SYNOPSIS
+    D-34: the Discovery map tree selects (and opens the branches down to) the item for the object the map's details pane now shows, without
+    resetting the pane's trail. Does nothing when the tree has no item for that object.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    if (-not $g.Nav.ContainsKey('MapHost') -or -not $g.Ui.MapTreePanel.IsVisible) { return }
+    $t = @($g.Nav.MapHost.Trail)
+    if ($t.Count -eq 0) { return }
+    $roots = @($g.Ui.MapTree.ItemsSource)
+    if ($roots.Count -eq 0) { return }
+    if ($null -eq $g.TreePathMap -or -not [object]::ReferenceEquals($g.TreePathRoot, $roots[0])) { $g.TreePathMap = @{}; $g.TreePathRoot = $roots[0] }
+    $path = @(Get-MspkiGuiTreeEntityPath -Index $g.Index -Root $roots[0] -Id ([string]$t[$t.Count - 1]) -RowById $g.RowById -Map $g.TreePathMap)
+    if ($path.Count -eq 0) { return }
+    $parent = $g.Ui.MapTree
+    $g.TreeSyncing = $true
+    try {
+        for ($i = 0; $i -lt $path.Count; $i++) {
+            $parent.UpdateLayout()
+            $c = $parent.ItemContainerGenerator.ContainerFromItem($path[$i])
+            if ($null -eq $c) { return }
+            if ($i -lt $path.Count - 1) { $c.IsExpanded = $true; $parent = $c; continue }
+            $c.IsSelected = $true
+            $c.BringIntoView()
+        }
+    }
+    finally { $g.TreeSyncing = $false }
+}
+
 function Reset-MspkiGuiPaneNav {
     <#
     .SYNOPSIS
@@ -615,7 +647,7 @@ function Invoke-MspkiGuiPaneCommand {
     }
     if ($Tag -eq 'Back') {
         if ($null -ne $nav.Return) { $ui[$HostName].Content = $nav.Return; $nav.Return = $null; return }
-        if (@($nav.Trail).Count -gt 1) { $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Back; Show-MspkiGuiEntityPane -HostName $HostName; if ($HostName -eq 'MapHost') { Sync-MspkiGuiMapSelection } elseif ($HostName -eq 'TimelineHost') { Sync-MspkiGuiTimelineSelection }; return }
+        if (@($nav.Trail).Count -gt 1) { $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Back; Show-MspkiGuiEntityPane -HostName $HostName; if ($HostName -eq 'MapHost') { Sync-MspkiGuiMapSelection; Sync-MspkiGuiTreeSelection } elseif ($HostName -eq 'TimelineHost') { Sync-MspkiGuiTimelineSelection }; return }
         if ($null -ne $nav.Origin) { $ui[$HostName].Content = $nav.Origin; $nav.Origin = $null; $nav.Trail = [string[]]@() }
         return
     }
@@ -624,13 +656,14 @@ function Invoke-MspkiGuiPaneCommand {
         $nav.Return = $null
         $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Push -Id $Tag.Substring(4)
         Show-MspkiGuiEntityPane -HostName $HostName
+        if ($HostName -eq 'MapHost') { Sync-MspkiGuiTreeSelection }
         return
     }
     if ($Tag.StartsWith('crumb:')) {
         $nav.Return = $null
         $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Crumb -Index ([int]$Tag.Substring(6))
         Show-MspkiGuiEntityPane -HostName $HostName
-        if ($HostName -eq 'MapHost') { Sync-MspkiGuiMapSelection } elseif ($HostName -eq 'TimelineHost') { Sync-MspkiGuiTimelineSelection }
+        if ($HostName -eq 'MapHost') { Sync-MspkiGuiMapSelection; Sync-MspkiGuiTreeSelection } elseif ($HostName -eq 'TimelineHost') { Sync-MspkiGuiTimelineSelection }
         return
     }
     if ($g.RowById.ContainsKey($Tag)) {
@@ -2020,7 +2053,7 @@ function Initialize-MspkiGuiApplication {
     $ui.SvcList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Open-MspkiGuiServiceItem -Tag (& $script:MspkiGuiTagOf $e) })
 
     # Discovery Map: selection, expand/collapse
-    $ui.MapTree.Add_SelectedItemChanged({ Show-MspkiGuiNodePane -Node $script:MspkiGui.Ui.MapTree.SelectedItem })
+    $ui.MapTree.Add_SelectedItemChanged({ if (-not $script:MspkiGui.TreeSyncing) { Show-MspkiGuiNodePane -Node $script:MspkiGui.Ui.MapTree.SelectedItem } })
     Initialize-MspkiGuiMapPage
     Initialize-MspkiGuiTimelinePage
     Initialize-MspkiGuiHistoryPage

@@ -132,6 +132,24 @@ Describe 'Object views' {
         $c.Seen[0].TimeText | Should -Be '22 Nov 2026, 00:00 UTC'
     }
 
+    It 'D-34: finds the tree path to the item that stands for an object (own item before a group that lists it)' {
+        $ix = New-MspkiGuiGraphIndex -Graph $script:graph
+        $cert = [pscustomobject]@{ Type = 'Certificate'; Label = 'CA certificate'; Detail = @('Thumbprint (SHA-1): AA'); FindingIds = @(); Children = @() }
+        $group = [pscustomobject]@{ Type = 'Group'; Label = 'CRLs held by the CA (1)'; Detail = @(); FindingIds = @('F-1'); Children = @() }
+        $ca = [pscustomobject]@{ Type = 'CA'; Label = 'Example Issuing CA'; Detail = @('CA configuration: ca01.corp.example.test\Example Issuing CA'); FindingIds = @(); Children = @($group, $cert) }
+        $root = [pscustomobject]@{ Type = 'Folder'; Label = 'Root'; Detail = @(); FindingIds = @(); Children = @($ca) }
+        $rows = @{ 'F-1' = [pscustomobject]@{ Finding = $script:findings[0] } }
+        $map = @{}
+        $p = @(Get-MspkiGuiTreeEntityPath -Index $ix -Root $root -Id 'cacert:aa' -RowById $rows -Map $map)
+        $p.Count | Should -Be 3
+        $p[2].Label | Should -Be 'CA certificate'
+        $p[1].Label | Should -Be 'Example Issuing CA'
+        @(Get-MspkiGuiTreeEntityPath -Index $ix -Root $root -Id 'ca:ca01.corp.example.test\example issuing ca' -RowById $rows -Map $map).Count | Should -Be 2
+        @(Get-MspkiGuiTreeEntityPath -Index $ix -Root $root -Id 'host:none' -Map $map).Count | Should -Be 0
+        @(Get-MspkiGuiTreeEntityPath -Index $ix -Root $null -Id 'cacert:aa').Count | Should -Be 0
+        $map.Count | Should -Be 4
+    }
+
     It 'finds the objects behind Discovery map items and adds them as links to a pane' {
         $ix = New-MspkiGuiGraphIndex -Graph $script:graph
         $ca = [pscustomobject]@{ Type = 'CA'; Label = 'Example Issuing CA'; Detail = @('Host: ca01.corp.example.test', 'CA configuration: ca01.corp.example.test\Example Issuing CA'); FindingIds = @() }

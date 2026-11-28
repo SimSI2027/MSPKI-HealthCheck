@@ -159,6 +159,7 @@ function Start-MspkiGuiMapDraw {
         $t = New-Object System.Windows.Controls.TextBlock
         $t.Text = $cap.Text; $t.Style = $g.Window.FindResource('Label')
         [System.Windows.Controls.Canvas]::SetLeft($t, [double]$cap.X); [System.Windows.Controls.Canvas]::SetTop($t, $(if ($Kind -eq 'Page') { 8 } else { 0 }))
+        if ($Kind -eq 'Overview') { $t.Tag = 'caption'; [System.Windows.Controls.Panel]::SetZIndex($t, 50); $t.SetResourceReference([System.Windows.Controls.TextBlock]::BackgroundProperty, 'B.Card') }
         [void]$cv.Children.Add($t)
     }
     $byId = @{}; foreach ($n in $Model.Nodes) { $byId[[string]$n.Id] = $n }
@@ -267,7 +268,23 @@ function Set-MspkiGuiOverviewCanvas {
     $ui.MapCanvasHost.Child = $Draw.Canvas
     $ui.MapCanvas = $Draw.Canvas
     # A map taller than the card (560 px) fades out at the bottom, with the way to the full-page map.
-    $more = ([double]$Draw.Canvas.Height -gt 560)
+    # D-09: a map taller than the card opens on its CA columns (the captions stay at the top of the card).
+    $off = Get-MspkiGuiMapCardOffset -Model $Draw.Model -ViewHeight 560 -HeaderHeight $script:MspkiGuiMapHeaderHeight
+    $Draw.Canvas.RenderTransform = $(if ($off -gt 0) { New-Object System.Windows.Media.TranslateTransform 0, (-$off) } else { $null })
+    foreach ($c in @($Draw.Canvas.Children)) {
+        if ([string]$c.Tag -eq 'captionband') { $Draw.Canvas.Children.Remove($c) }
+        elseif ($c -is [System.Windows.Controls.TextBlock] -and [string]$c.Tag -eq 'caption') { [System.Windows.Controls.Canvas]::SetTop($c, $off) }
+    }
+    if ($off -gt 0) {
+        # An opaque band behind the captions, so labels scrolled above the card's top edge never show through.
+        $band = New-Object System.Windows.Shapes.Rectangle
+        $band.Tag = 'captionband'; $band.IsHitTestVisible = $false; $band.Width = $Draw.Canvas.Width; $band.Height = $script:MspkiGuiMapHeaderHeight
+        $band.SetResourceReference([System.Windows.Shapes.Shape]::FillProperty, 'B.Card')
+        [System.Windows.Controls.Canvas]::SetTop($band, $off); [System.Windows.Controls.Panel]::SetZIndex($band, 49)
+        [void]$Draw.Canvas.Children.Add($band)
+    }
+    $g.MapCardOffset = $off
+    $more = ([double]$Draw.Canvas.Height - $off -gt 560)
     $ui.MapMoreStrip.Visibility = $(if ($more) { 'Visible' } else { 'Collapsed' })
     $ui.BtnMapMore.Visibility = $(if ($more) { 'Visible' } else { 'Collapsed' })
     $ui.TxtMapMore.Text = 'Open the whole map ({0})' -f (Format-MspkiGuiCount -Count ([int]$Draw.Model.Total) -Singular 'object')

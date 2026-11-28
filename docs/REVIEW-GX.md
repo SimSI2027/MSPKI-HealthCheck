@@ -235,7 +235,7 @@ Every Blocker, High and Medium is fixed. Commits are on `main`. "Open" items are
 | D-06 | Fixed | 7d53a19 | Pane opens only with a selection; one filter row; zoom bar beside the minimap; opens at 84 %+ (labels 10 px+). |
 | D-07 | Fixed | f55864e | `$settle` waits for the map; tree frames switch to the map page; `frames.csv` + test (page per frame, score in the ring). |
 | D-08 | Fixed | fbdd5a2 | Meaning, causes from the knowledge base with read-only checks, timeout hint, Open run log / Run again / Change options. |
-| D-09 | Partly fixed | 7d53a19 | Gaps crossed by > 30 links widen (160-420 px); links bundle as a trunk and fan out. Not done: opening focused on one CA (tried; it hid the other CAs' problems on first view and broke the keyboard journeys, so declined), centring the Overview card on the CA columns (open, GX11). |
+| D-09 | Fixed | 7d53a19, (this commit) | Gaps crossed by > 30 links widen (160-420 px); links bundle as a trunk and fan out. A map taller than the Overview card opens centred on its CA columns, never past the first CA, with the column captions pinned on an opaque band (`Get-MspkiGuiMapCardOffset`, tested; LARGE 1920 x 1080 frame checked). Opening focused on one CA was tried and declined (it hid the other CAs' problems on first view and broke the keyboard journeys). |
 | D-10 | Fixed | 231a8ff | Engine records each Enterprise CA as seen in Enrollment Services; older results get it as "named"; service panes count served-address findings like the cards. |
 | D-11 | Fixed | 710cbc3, e16b082 | One title helper with the qualifier ("at pki (HTTP)", "in AD (LDAP)", "at the CA (base CRL)") in grid, pane, palette and History. |
 | D-12 | Fixed | 710cbc3, e16b082 | Common names in titles; DNs stay in the properties; DN regex keeps the rest of a sentence. |
@@ -260,7 +260,7 @@ Every Blocker, High and Medium is fixed. Commits are on `main`. "Open" items are
 | D-31 | Fixed | 3394927, 4e6ef21 | "CRL 0x2B" in rows, copies, texts and the pane. |
 | D-32 | Fixed | 4e6ef21 | Short CA name in the Timeline heading; full name in the tooltip. |
 | D-33 | Fixed | 3394927 | Short dates carry the year when it is not this year. |
-| D-34 | Open | | Tree selection does not yet follow the pane's trail (GX11). |
+| D-34 | Fixed | (this commit) | The map tree selects (and opens the branches to) the item for the object the pane shows after an object link, Back or a breadcrumb, without resetting the trail (`Get-MspkiGuiTreeEntityPath` + `Sync-MspkiGuiTreeSelection`; pure and real-window tests). |
 | D-35 | Fixed | 3878509 | No count before the first result. |
 | D-36 | Fixed | 710cbc3 | Exit code in the run-details tooltip only. |
 | D-37 | Fixed | 3394927 | "contains critical", "V1.0 · current" / "replaced", directory glyph for containers. |

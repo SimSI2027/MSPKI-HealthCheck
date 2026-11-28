@@ -428,6 +428,42 @@ function Get-MspkiGuiNodeEntityId {
     return [string[]]$ids.ToArray()
 }
 
+function Get-MspkiGuiTreeEntityPath {
+    <#
+    .SYNOPSIS
+    The Discovery map tree items from the root down to the item that stands for one object (D-34: the tree follows the details pane's
+    trail). An item whose own first object is the id wins over one that merely lists it; the shallowest such item wins. Empty when the
+    tree has no item for the object. -Map caches the id lookup per item (pass the same hashtable for one tree).
+    #>
+    [CmdletBinding()]
+    param($Index, [AllowNull()]$Root, [string]$Id, [hashtable]$RowById = @{}, [hashtable]$Map = $null)
+    if ($null -eq $Root -or -not $Id) { return @() }
+    if ($null -eq $Map) { $Map = @{} }
+    $best = $null
+    $bestRank = 99
+    $stack = New-Object 'System.Collections.Generic.Stack[object]'
+    $stack.Push(@(, $Root))
+    while ($stack.Count -gt 0) {
+        $path = $stack.Pop()
+        $node = $path[$path.Count - 1]
+        $k = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($node)
+        if (-not $Map.ContainsKey($k)) {
+            # The item's own identity (no finding fallback) ranks above objects it only borrows from its findings.
+            $own = @(Get-MspkiGuiNodeEntityId -Index $Index -Node $node)
+            $Map[$k] = @{ Own = $own; Ids = $(if ($own.Count -gt 0) { $own } else { @(Get-MspkiGuiNodeEntityId -Index $Index -Node $node -RowById $RowById) }) }
+        }
+        $ids = @($Map[$k].Ids)
+        if ($ids.Count -gt 0 -and $ids -contains $Id) {
+            $rank = $(if (@($Map[$k].Own).Count -eq 0) { 2 } elseif ($ids[0] -eq $Id) { 0 } else { 1 })
+            if ($rank -lt $bestRank -or ($rank -eq $bestRank -and $path.Count -lt @($best).Count)) { $best = $path; $bestRank = $rank }
+        }
+        $kids = @($node.Children)
+        for ($i = $kids.Count - 1; $i -ge 0; $i--) { if ($null -ne $kids[$i]) { $stack.Push(@($path + , $kids[$i])) } }
+    }
+    if ($null -eq $best) { return @() }
+    return [object[]]$best
+}
+
 function Add-MspkiGuiPaneObject {
     <#
     .SYNOPSIS

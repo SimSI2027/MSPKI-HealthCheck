@@ -181,6 +181,23 @@ Describe 'Full-page map views: filters, focus, search and groups' {
     }
 }
 
+Describe 'D-09: the Overview card opens on the CA columns' {
+    It 'scrolls a tall map to centre its CAs, never past the first CA or the bottom; a map that fits stays put' {
+        $m = $script:LargeModel
+        [void](Set-MspkiGuiMapLayout -Model $m -Width 1100 -LabelWidth 190)
+        $ys = @($m.Nodes | Where-Object { $_.Kind -in @('CA', 'Unknown') } | ForEach-Object { [double]$_.Y })
+        $min = ($ys | Measure-Object -Minimum).Minimum; $max = ($ys | Measure-Object -Maximum).Maximum
+        $off = Get-MspkiGuiMapCardOffset -Model $m -ViewHeight 560 -HeaderHeight 28
+        $off | Should -BeGreaterOrEqual 0
+        $off | Should -BeLessOrEqual ($min - 8)
+        $off | Should -BeLessOrEqual ([double]$m.Height + 28 - 560)
+        if ([double]$m.Height + 28 -gt 560 -and $min -gt 300) { $off | Should -BeGreaterThan 0 }
+        Get-MspkiGuiMapCardOffset -Model ([pscustomobject]@{ Height = 300; Nodes = @([pscustomobject]@{ Kind = 'CA'; Y = 250 }) }) | Should -Be 0
+        Get-MspkiGuiMapCardOffset -Model ([pscustomobject]@{ Height = 2000; Nodes = @([pscustomobject]@{ Kind = 'Endpoint'; Y = 900 }) }) | Should -Be 0
+        Get-MspkiGuiMapCardOffset -Model ([pscustomobject]@{ Height = 2000; Nodes = @([pscustomobject]@{ Kind = 'CA'; Y = 900 }; [pscustomobject]@{ Kind = 'CA'; Y = 1100 }) }) | Should -Be 748
+    }
+}
+
 Describe 'Keyboard neighbours and zoom arithmetic' {
     It 'moves up and down a column, left and right to a linked node, Home and End to the ends' {
         $m = & $script:NewWorldModel

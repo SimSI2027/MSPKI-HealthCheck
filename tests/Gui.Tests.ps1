@@ -809,6 +809,45 @@ Describe 'GUI window (single-threaded runspace)' {
         $out[0].Welcome | Should -Be 'Visible'
     }
 
+    It 'D-34: the map tree follows the details pane''s trail (object links, Back) without losing the trail' {
+        $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, (Join-Path $script:FixturePath 'demo-results-v2.json'), $TestDrive) -Script {
+            param($folder, $module, $results, $outRoot)
+            Import-Module $module -Force
+            . (Join-Path $folder 'GuiModel.ps1'); . (Join-Path $folder 'GuiView.ps1'); . (Join-Path $folder 'GuiEntity.ps1'); . (Join-Path $folder 'GuiApp.ps1'); . (Join-Path $folder 'GuiSnapshot.ps1')
+            Import-MspkiGuiAssembly
+            function Show-MspkiGuiMessage { param([string]$Text, [string]$Title, [string]$Icon) }
+            $win = Initialize-MspkiGuiApplication -ModulePath $module -XamlPath (Join-Path $folder 'MainWindow.xaml') -OutputPath $outRoot -OpenResults $results
+            $g = $script:MspkiGui; $ui = $g.Ui
+            $win.WindowStartupLocation = 'Manual'; $win.Left = -32000; $win.Top = 0; $win.Width = 1360; $win.Height = 860; $win.Show()
+            Wait-MspkiGuiIdle -Rounds 4
+            $ui.Tabs.SelectedItem = $ui.TabMap; $ui.RbMapTree.IsChecked = $true
+            Wait-MspkiGuiIdle -Rounds 2
+            $r = [ordered]@{}
+            $root = $ui.MapTree.Items[0]
+            $cas = New-Object System.Collections.Generic.List[object]; $stack = New-Object System.Collections.Stack; $stack.Push($root)
+            while ($stack.Count -gt 0) { $n = $stack.Pop(); if ($n.Type -eq 'CA') { $cas.Add($n) }; foreach ($c in @($n.Children)) { $stack.Push($c) } }
+            # Start on the forest item, open a CA from its pane: the tree selects that CA (two levels in) and the pane keeps the object
+            $ui.MapTree.ItemContainerGenerator.ContainerFromIndex(0).IsSelected = $true
+            $target = $cas[$cas.Count - 1]
+            $caId = @(Get-MspkiGuiNodeEntityId -Index $g.Index -Node $target)[0]
+            $r.HasLink = [bool]$caId
+            Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag ('ent:' + $caId)
+            $r.Pane = $ui.MapHost.Content.Kind
+            $r.Selected = [object]::ReferenceEquals($ui.MapTree.SelectedItem, $target)
+            $r.Dbg = 'sel={0} target={1} cas={2}' -f $ui.MapTree.SelectedItem.Label, $target.Label, $cas.Count
+            $r.Trail = @($g.Nav.MapHost.Trail).Count
+            Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag 'Back'
+            $r.Back = $ui.MapHost.Content.Kind
+            $win.Close()
+            [pscustomobject]$r
+        }
+        $out[0].HasLink | Should -BeTrue
+        $out[0].Pane | Should -Be 'Entity'
+        $out[0].Selected | Should -BeTrue -Because $out[0].Dbg
+        $out[0].Trail | Should -Be 1
+        $out[0].Back | Should -Be 'Node'
+    }
+
     It 'is one live mission control while a run is in progress: the same hero, a map that fills as items arrive, no separate running panel; the results then restore the hero' {
         $out = Invoke-InStaRunspace -Arguments @($script:GuiFolder, $script:ModulePath, (Join-Path $script:FixturePath 'demo-results-v2.json'), $TestDrive) -Script {
             param($folder, $module, $results, $outRoot)

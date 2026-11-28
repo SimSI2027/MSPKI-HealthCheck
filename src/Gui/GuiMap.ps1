@@ -942,3 +942,23 @@ function Invoke-MspkiGuiMapJob {
     }
     return [pscustomobject]@{ Kind = $Request.Kind; Gen = $Request.Gen; Empty = $false; View = $v; Base = $b; ModelMs = $modelMs; LayoutMs = $sw.ElapsedMilliseconds }
 }
+
+function Get-MspkiGuiMapCardOffset {
+    <#
+    .SYNOPSIS
+    D-09: how far (px) the Overview card scrolls a map that is taller than the card, so that it opens centred on the CA columns instead of
+    on groups and a fan of links from nowhere. 0 when the map fits or has no CA. Never past the first CA, never past the bottom.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Model, [double]$ViewHeight = 560, [double]$HeaderHeight = 28)
+    $total = [double]$Model.Height + $HeaderHeight
+    if ($total -le $ViewHeight) { return 0.0 }
+    $ys = @(foreach ($n in @($Model.Nodes)) { if ([string]$n.Kind -in @('CA', 'Unknown')) { [double]$n.Y } })
+    if ($ys.Count -eq 0) { return 0.0 }
+    $min = ($ys | Measure-Object -Minimum).Minimum
+    $max = ($ys | Measure-Object -Maximum).Maximum
+    $off = ($min + $max) / 2 + $HeaderHeight - $ViewHeight / 2
+    $off = [math]::Min($off, $min - 8)
+    $off = [math]::Min($off, $total - $ViewHeight)
+    return [double][math]::Max(0, [math]::Floor($off))
+}
