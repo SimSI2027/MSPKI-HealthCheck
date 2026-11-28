@@ -765,7 +765,7 @@ Describe 'GUI window (single-threaded runspace)' {
         $r.CardTitle | Should -Be $r.CardName
         $r.Trail2 | Should -Be 2
         $r.Crumbs | Should -BeFalse
-        $r.Back2 | Should -Be ('Back to {0}' -f $r.CardName)
+        $r.Back2 | Should -BeLike ('Back to {0} (*)' -f $r.CardName)
         $r.AfterCrumb | Should -Be $r.CardName
         $r.BackAtStart | Should -Be $r.CardName
         $r.Attention | Should -BeGreaterThan 0

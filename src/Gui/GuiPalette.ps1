@@ -98,15 +98,18 @@ function Get-MspkiGuiPaletteIndex {
     $list = New-Object 'System.Collections.Generic.List[object]'
     foreach ($r in @($Rows)) {
         if ($null -eq $r) { continue }
-        # The message tells findings apart (many share a category and target); category, target and id go underneath.
-        $title = [string]$r.Message
+        # D-11 / D-12 / D-42: the shared finding title (readable name and where the copy was read) tells findings apart; the message and id
+        # go underneath, joined with a middle dot. The glyph is the finding's status glyph (D-16), never a command's.
+        $title = [string]$r.Title
+        if (-not $title) { $title = [string]$r.Message }
         if (-not $title) { $title = [string]$r.Id }
-        $detail = (@([string]$r.Category, [string]$r.Target, [string]$r.Id) | Where-Object { $_ }) -join ' - '
-        $list.Add((New-MspkiGuiPaletteEntry -Kind Finding -Title $title -Detail $detail -Glyph ([string][char]0xE8FD) -Action ('finding:' + [string]$r.Id) -Extra ([string]$r.SearchText) -Pill $r.StatusPill -Seq (100000 - [int]$r.StatusRank)))
+        $detail = (@([string]$r.Message, [string]$r.Id) | Where-Object { $_ }) -join (' ' + [string][char]0x00B7 + ' ')
+        $fg = [string][char]0xE8FD; if ($null -ne $r.StatusPill -and $r.StatusPill.Glyph) { $fg = [string]$r.StatusPill.Glyph }
+        $list.Add((New-MspkiGuiPaletteEntry -Kind Finding -Title $title -Detail $detail -Glyph $fg -Action ('finding:' + [string]$r.Id) -Extra ([string]$r.SearchText) -Pill $r.StatusPill -Seq (100000 - [int]$r.StatusRank)))
     }
     foreach ($o in @($ObjRows)) {
         if ($null -eq $o) { continue }
-        $list.Add((New-MspkiGuiPaletteEntry -Kind Object -Title ([string]$o.Name) -Detail ([string]$o.TypeText) -Glyph ([string]$o.Glyph) -Action ('ent:' + [string]$o.Id) -Extra ([string]$o.SearchText)))
+        $list.Add((New-MspkiGuiPaletteEntry -Kind Object -Title (Get-MspkiGuiReadableName -Name ([string]$o.Name)) -Detail ([string]$o.TypeText) -Glyph ([string]$o.Glyph) -Action ('ent:' + [string]$o.Id) -Extra ([string]$o.SearchText)))
     }
     return , $list.ToArray()
 }

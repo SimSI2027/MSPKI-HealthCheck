@@ -121,7 +121,7 @@ function Compare-MspkiGuiRun {
         param($f, [string]$kind, [string]$before, [string]$after)
         # The finding shown (its message), and its status in the older run (Before) and in the newer run (After); empty when it is not in that run.
         $st = [string]$f.Status
-        [pscustomobject]@{ Kind = $kind; Id = [string]$f.Id; Key = (& $keyOf $f); Category = [string]$f.Category; Target = [string]$f.Target; Status = $st; Before = $before; After = $after
+        [pscustomobject]@{ Kind = $kind; Id = [string]$f.Id; Key = (& $keyOf $f); Category = [string]$f.Category; Target = [string]$f.Target; Endpoint = $(if ($null -ne $f.PSObject.Properties['Endpoint']) { [string]$f.Endpoint } else { '' }); Status = $st; Before = $before; After = $after
             Severity = [string]$f.Severity; Code = [string]$f.StatusCode; Message = [string]$f.Message; Rank = [int]$script:MspkiGuiHistoryRank[$st] }
     }
     $listNew = New-Object System.Collections.ArrayList; $listResolved = New-Object System.Collections.ArrayList; $listChanged = New-Object System.Collections.ArrayList
@@ -318,8 +318,10 @@ function Get-MspkiGuiCompareView {
         $glyph = $glyphOf[$tone]
         $msg = [string]$x.Message
         $before = Get-MspkiGuiHistoryStatusWord -Status ([string]$x.Before); $after = Get-MspkiGuiHistoryStatusWord -Status ([string]$x.After)
+        $msg = Get-MspkiGuiReadableName -Name $msg
         $sub = $msg
-        $title = '{0} {1} {2}' -f $x.Category, $dot, (Get-MspkiGuiReadableName -Name ([string]$x.Target))
+        # D-11 / D-12: the same title as everywhere else (readable name and where the copy was read), so three CRL lines are told apart.
+        $title = Get-MspkiGuiFindingTitle -Finding $x
         switch ([string]$x.Kind) {
             'Resolved' { $tone = 'Good'; $glyph = $glyphOf.Good; $sub = 'Was {0}, now {1}. {2}' -f $before, $after, $msg }
             'Gone' { $tone = 'Good'; $glyph = $glyphOf.Good; $sub = 'Was {0}; the newer run does not report it. {1}' -f $before, $msg }

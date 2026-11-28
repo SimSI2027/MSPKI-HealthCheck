@@ -41,7 +41,7 @@ Describe 'Palette content' {
         @($ix).Count | Should -Be 2
         $ix[0].Action | Should -Be 'finding:F1'
         $ix[0].Title | Should -Be 'The CRL has expired'
-        $ix[0].Detail | Should -Be 'CRL - Issuing CA - F1'
+        $ix[0].Detail | Should -Be ('The CRL has expired {0} F1' -f [char]0x00B7)
         $ix[1].Action | Should -Be 'ent:h1'
         $ix[1].Kind | Should -Be 'Object'
     }

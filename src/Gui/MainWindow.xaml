@@ -153,7 +153,7 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
                     <StackPanel Orientation="Horizontal">
-                      <Button Tag="{Binding Tag}" Style="{StaticResource LinkButton}" ToolTip="{Binding Name}" AutomationProperties.Name="{Binding Name}">
+                      <Button Tag="{Binding Tag}" Style="{StaticResource LinkButton}" ToolTip="{Binding Tip}" AutomationProperties.Name="{Binding Name}">
                         <TextBlock Text="{Binding Name}" MaxWidth="180" TextTrimming="CharacterEllipsis" FontSize="12"/>
                       </Button>
                       <TextBlock Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="10" Foreground="{DynamicResource B.Muted}" Margin="6,0,6,0"/>

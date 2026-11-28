@@ -120,7 +120,7 @@ Describe 'Object views' {
         $from.CanGoBack | Should -BeTrue
         $from.BackText | Should -Be 'Back to the finding'
         $two = Get-MspkiGuiEntityPane -Index $ix -Id 'host:ca01.corp.example.test' -Trail @('cacert:aa', 'host:ca01.corp.example.test')
-        $two.BackText | Should -Be 'Back to CN=Example Issuing CA'
+        $two.BackText | Should -Be 'Back to Example Issuing CA (CA certificate)'
         $two.ShowCrumbs | Should -BeFalse
         $three = Get-MspkiGuiEntityPane -Index $ix -Id 'host:other.example.test' -Trail @('cacert:aa', 'host:ca01.corp.example.test', 'host:other.example.test')
         $three.ShowCrumbs | Should -BeTrue

@@ -169,9 +169,11 @@ function Get-MspkiGuiEntityPane {
     $n = @($Trail).Count
     # The breadcrumbs are the objects before this one (the title names this one); with only one before it, Back says the same, so they show
     # from the third object on.
-    $crumbs = @(for ($i = 0; $i -lt $n - 1; $i++) { [pscustomobject]@{ Name = (Get-MspkiGuiEntityName -Index $Index -Id $Trail[$i]); Tag = ('crumb:{0}' -f $i) } })
+    # D-26: crumbs and Back name the object (its readable name) and say what kind of object it is ("Machine (template)").
+    $crumbName = { param($cid) $nm = Get-MspkiGuiReadableName -Name (Get-MspkiGuiEntityName -Index $Index -Id $cid); $ty = ''; if ($null -ne $Index -and $Index.Entities.ContainsKey($cid)) { $ty = (Get-MspkiGuiEntityTypeInfo -Type ([string]$Index.Entities[$cid].Type)).Label }; [pscustomobject]@{ Name = $nm; Type = $ty } }
+    $crumbs = @(for ($i = 0; $i -lt $n - 1; $i++) { $cn = & $crumbName $Trail[$i]; [pscustomobject]@{ Name = $cn.Name; Tip = ('{0} ({1})' -f $cn.Name, $cn.Type); Tag = ('crumb:{0}' -f $i) } })
     $backText = ''
-    if ($n -gt 1) { $backText = 'Back to {0}' -f (Get-MspkiGuiEntityName -Index $Index -Id $Trail[$n - 2]) }
+    if ($n -gt 1) { $cb = & $crumbName $Trail[$n - 2]; $backText = $(if ($cb.Type) { 'Back to {0} ({1})' -f $cb.Name, $(if ($cb.Type.Length -gt 1 -and [char]::IsLower($cb.Type[1])) { $cb.Type.Substring(0, 1).ToLowerInvariant() + $cb.Type.Substring(1) } else { $cb.Type }) } else { 'Back to {0}' -f $cb.Name }) }
     elseif ($OriginText) { $backText = $OriginText }
     $nav = @{ Breadcrumbs = $crumbs; ShowCrumbs = ($n -gt 2); CanGoBack = [bool]$backText; BackText = $backText }
     if ($null -eq $Index -or -not $Index.Entities.ContainsKey($Id)) {
@@ -293,7 +295,7 @@ function Get-MspkiGuiObjectList {
         $stateWord = $(if ($worst) { (Get-MspkiGuiStatusLabel -Value $worst).ToLowerInvariant() } elseif ($nf -eq 0) { 'no findings' } else { '' })
         if ($miss -gt 0) { $stateWord = (@($stateWord, ('{0} missing' -f $miss)) | Where-Object { $_ }) -join ', ' }
         $sub = (@($t.Label, $hostPart, $stateWord) | Where-Object { $_ }) -join (' ' + [string][char]0x00B7 + ' ')
-        [pscustomobject][ordered]@{ Id = $id; SubText = $sub; Name = (Get-MspkiGuiEntityName -Index $Index -Id $id); Type = [string]$_.Type; TypeText = $t.Label; Glyph = $t.Glyph; TypeOrder = [Math]::Max(0, [array]::IndexOf($order, [string]$_.Type))
+        [pscustomobject][ordered]@{ Id = $id; SubText = $sub; Name = (Get-MspkiGuiReadableName -Name (Get-MspkiGuiEntityName -Index $Index -Id $id)); Type = [string]$_.Type; TypeText = $t.Label; Glyph = $t.Glyph; TypeOrder = [Math]::Max(0, [array]::IndexOf($order, [string]$_.Type))
             FindingCount = $nf; WorstStatus = $worst; FindingPill = $fpill; MissingCount = $miss; HasMissing = ($miss -gt 0); MissingPill = $mpill; NeedsAttention = [bool]$attention
             Tag = ('ent:{0}' -f $id); SearchText = ('{0} {1} {2}' -f $_.Name, $id, $t.Label).ToLowerInvariant() }
     } | Sort-Object TypeOrder, Name)
