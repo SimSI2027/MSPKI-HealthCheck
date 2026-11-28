@@ -950,6 +950,11 @@
                           </StackPanel>
                         </Border>
                       </UniformGrid>
+                      <!-- D-49: what it never does, quietly, under the three steps. -->
+                      <DockPanel Margin="2,16,0,0">
+                        <TextBlock Style="{StaticResource Glyph}" DockPanel.Dock="Left" Text="&#xE946;" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="0,1,8,0" VerticalAlignment="Top"/>
+                        <TextBlock Style="{StaticResource Small}" TextWrapping="Wrap" Text="What it never does: change anything in Active Directory, on a CA or on any server; send your password to a web address; scan networks or hosts it was not pointed to by your PKI."/>
+                      </DockPanel>
                       <Border x:Name="WelcomeError" Visibility="Collapsed" Background="{DynamicResource B.BadBack}" BorderBrush="{DynamicResource B.BadLine}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,20,0,0">
                         <DockPanel>
                           <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xEA39;" Foreground="{DynamicResource B.BadFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>

@@ -197,6 +197,8 @@ function Get-MspkiGuiEntityPane {
         $skip = @(); if ([string]$e.Type -eq 'Host') { $skip = @('A', 'AAAA', 'Ptr', 'AliasChain', 'CanonicalName', 'QueryName', 'DnsMethod', 'DnsLookup', 'TlsCertificates', 'HttpServer', 'Addresses') }
         $props = @($e.Properties.PSObject.Properties | Where-Object { $null -ne $_.Value -and [string]$_.Value -ne '' -and $skip -notcontains $_.Name } | Sort-Object Name | ForEach-Object { [pscustomobject]@{ Name = (Get-MspkiGuiPropertyLabel -Name $_.Name); Value = (ConvertTo-MspkiGuiValueText $_.Value) } } | Where-Object { $_.Value })
     }
+    # D-31: a CRL number is always written as hexadecimal (0x2B), as on the Timeline.
+    foreach ($p in @($props)) { if ($p.Name -eq 'CRL number' -and $p.Value -and $p.Value -notmatch '^0x') { $p.Value = '0x' + ([string]$p.Value).ToUpperInvariant() } }
     # D-13: the technical id is a property at the bottom (and in the copied text), not a line under the title.
     $props = @($props) + @([pscustomobject]@{ Name = 'Technical id'; Value = $Id })
     $obs = @(); if ($Index.Obs.ContainsKey($Id)) { $obs = @($Index.Obs[$Id]) }

@@ -259,7 +259,7 @@ function Get-MspkiGuiLifecycleModel {
         if ($copyTone -in @('Bad', 'Warn') -and $tone -eq 'Good') { $tone = 'Warn' }
         $tone = Get-MspkiGuiWorseTone $tone (& $findTone $id)
         $label = $(if ($delta) { 'Delta CRL' } else { 'Base CRL' })
-        $sub = $genText; if ($num) { $sub = 'number ' + $num + $(if ($genText) { ' ' + [char]0x00B7 + ' ' + $genText } else { '' }) }
+        $sub = $genText; if ($num) { $sub = 'CRL ' + (Format-MspkiGuiCrlNumber $num) + $(if ($genText) { ' ' + [char]0x00B7 + ' ' + $genText } else { '' }) }
         $tip = '{0} of {1}.' -f $label, $gp.Name
         if ($tu -and $nu) { $tip += ' Published {0}; valid until {1}.' -f (Format-MspkiGuiTimelineDate -Date $tu -WithTime), (Format-MspkiGuiTimelineDate -Date $nu -WithTime) }
         if ($np) { $tip += ' The CA plans the next one for {0} (Next CRL Publish): from then until the next update, the old and the new CRL overlap.' -f (Format-MspkiGuiTimelineDate -Date $np -WithTime) }
@@ -694,12 +694,14 @@ function ConvertTo-MspkiGuiTimelineItem {
             $item.Id = [string]$Source.CaId; $item.Group = [string]$Source.Key
             if (-not $item.Id) { $first = @(@($Source.Certs) + @($Source.Crls) | Where-Object { $_.Id }) | Select-Object -First 1; if ($null -ne $first) { $item.Id = [string]$first.Id } }
             $item.Tone = 'Neutral'; $item.Glyph = [string][char]0xEB95; $item.GlyphSize = 16
-            $item.Title = [string]$Source.Name; $item.TitleWeight = 'SemiBold'; $item.TitleSize = 15; $item.TitleWrap = 'Wrap'
+            # D-32: the heading uses the short name (the shared first word left out, as on the map) so it fits beside the pill; the full name is in the tooltip.
+            $short = $(if ($null -ne $Source.PSObject.Properties['Short'] -and $Source.Short) { ([string]$Source.Short).Trim() } else { [string]$Source.Name })
+            $item.Title = $short; $item.TitleWeight = 'SemiBold'; $item.TitleSize = 15; $item.TitleWrap = 'Wrap'
             $item.Sub = $(if ($Summary) { $Summary } else { [string]$Source.Summary }); $item.HasSub = [bool]$item.Sub
             $item.Pill = [pscustomobject]@{ Text = $word; Tone = $tone; Glyph = $script:MspkiGuiToneGlyph[$tone] }
             $item.RowHeight = 56.0; $item.LabelMargin = '12,8,12,8'
             if (-not $First) { $item.RuleThickness = '0,1,0,0' }
-            $item.Tip = '{0}: {1}. {2}' -f $item.Title, $word, $item.Sub
+            $item.Tip = '{0}: {1}. {2}' -f [string]$Source.Name, $word, $item.Sub
             if ($Source.Unread) { $item.Tip += ' This run could not read the CA itself; what is shown was read elsewhere (Active Directory or a published address).' }
             $item.AutomationName = '{0}, {1}. {2}' -f $item.Title, $word, $item.Sub
         }
