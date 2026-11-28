@@ -1,0 +1,17 @@
+{
+    "id":  "forged-aia",
+    "title":  "Forged certificate at an AIA URL",
+    "summary":  "The AIA object holds a certificate with the root\u0027s name but another key; the signature check finds that it did not sign the issuing CA.",
+    "expect": { "permissionDenied": [ "NDES" ] },
+    "world":  {
+                  "directory":  {
+                                    "objects":  {
+                                                    "CN=Alcyone Lodestar Root CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  {
+                                                                                                                                                                                 "cACertificate":  [
+                                                                                                                                                                                                       "pki:lodestar-forged.cer"
+                                                                                                                                                                                                   ]
+                                                                                                                                                                             }
+                                                }
+                                }
+              }
+}

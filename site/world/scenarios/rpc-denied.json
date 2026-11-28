@@ -1,0 +1,17 @@
+{
+    "id":  "rpc-denied",
+    "title":  "CA read refused",
+    "summary":  "The standard user may not read the root CA over DCOM: the CA turns the call down at once (RPC fault 5), which the tool reports apart from an outage.",
+    "expect": { "permissionDenied": [ "CA", "NDES" ] },
+    "world":  {
+                  "cas":  {
+                              "root-ca.vault.alcyone-orbital.example\\Alcyone Lodestar Root CA":  {
+                                                                                                      "fatal":  {
+                                                                                                                    "message":  "The RPC server is unavailable.",
+                                                                                                                    "hresult":  "800706BA"
+                                                                                                                },
+                                                                                                      "fatalMs":  25
+                                                                                                  }
+                          }
+              }
+}

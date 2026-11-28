@@ -1527,7 +1527,31 @@
                                                                                             "contentType":  "text/html",
                                                                                             "status":  500,
                                                                                             "server":  "Microsoft-IIS/10.0"
-                                                                                        }
+                                                                                        },
+                                 "http://scep-gateway.vault.alcyone-orbital.example/certsrv/mscep/mscep.dll?operation=GetCACaps":  {
+                                                                                                                                       "contentType":  "text/plain",
+                                                                                                                                       "status":  200,
+                                                                                                                                       "server":  "Microsoft-IIS/10.0",
+                                                                                                                                       "body":  "text:POSTPKIOperation\nGetNextCACert\nRenewal\nSHA-512\nSHA-256\nSHA-1\nDES3\n"
+                                                                                                                                   },
+                                 "http://scep-gateway.vault.alcyone-orbital.example/certsrv/mscep/mscep.dll?operation=GetCACert":  {
+                                                                                                                                       "contentType":  "application/x-x509-ca-ra-cert",
+                                                                                                                                       "status":  200,
+                                                                                                                                       "server":  "Microsoft-IIS/10.0",
+                                                                                                                                       "body":  "pki:ndes-getcacert.p7b"
+                                                                                                                                   },
+                                 "https://scep-gateway.vault.alcyone-orbital.example/certsrv/mscep/mscep.dll?operation=GetCACaps":  {
+                                                                                                                                        "contentType":  "text/plain",
+                                                                                                                                        "status":  200,
+                                                                                                                                        "server":  "Microsoft-IIS/10.0",
+                                                                                                                                        "body":  "text:POSTPKIOperation\nGetNextCACert\nRenewal\nSHA-512\nSHA-256\nSHA-1\nDES3\n"
+                                                                                                                                    },
+                                 "https://scep-gateway.vault.alcyone-orbital.example/certsrv/mscep/mscep.dll?operation=GetCACert":  {
+                                                                                                                                        "contentType":  "application/x-x509-ca-ra-cert",
+                                                                                                                                        "status":  200,
+                                                                                                                                        "server":  "Microsoft-IIS/10.0",
+                                                                                                                                        "body":  "pki:ndes-getcacert.p7b"
+                                                                                                                                    }
                              }
                 },
     "local":  {

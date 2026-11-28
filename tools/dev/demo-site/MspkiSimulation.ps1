@@ -159,13 +159,13 @@ function Read-MspkiSimWorld {
     }
     $lat = @{}; foreach ($p in $w.latency.PSObject.Properties) { $lat[$p.Name] = [double]$p.Value }
     return @{
-        Scenario = $Scenario; Title = [string]$scen.title; Clock = $clock; StartClock = $clock; RunId = [string]$w.runId
+        Scenario = $Scenario; Title = [string]$scen.title; Summary = [string]$scen.summary; Clock = $clock; StartClock = $clock; RunId = [string]$w.runId
         Computer = @{ Name = [string]$w.computer.name; User = [string]$w.computer.user; IsAdmin = [bool]$w.computer.isAdmin; PartOfDomain = [bool]$w.computer.partOfDomain
             Domain = [string]$w.computer.domain; DnsDomain = [string]$w.computer.dnsDomain; Site = [string]$w.computer.site; NetBios = [string]$w.computer.netbios }
         Forest = @{ Name = [string]$w.forest.name; RootDomain = [string]$w.forest.rootDomain; ForestMode = [string]$w.forest.forestMode; Domains = @($w.forest.domains)
             Trusts = @($w.forest.trusts | Where-Object { $_ } | ForEach-Object { @{ Source = [string]$_.source; TargetName = [string]$_.targetName; TrustType = [string]$_.trustType; TrustDirection = [string]$_.trustDirection } }) }
         Directory = $directory; Cas = $cas; Dns = $dns; Ptr = $ptr; Srv = $srv; Tcp = $tcp; Tls = $tls; Http = $http; Machine = $local; Latency = $lat
-        Expect = $scen.expect
+        Expect = $scen.expect; Gaps = (New-Object System.Collections.ArrayList)
     }
 }
 

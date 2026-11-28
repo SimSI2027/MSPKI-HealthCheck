@@ -1,0 +1,29 @@
+{
+    "id":  "expired-crl",
+    "title":  "Expired CRL",
+    "summary":  "The issuing CA stopped publishing: its base CRL is three days past Next Update, in Active Directory and at the CA.",
+    "expect": { "permissionDenied": [ "NDES" ] },
+    "world":  {
+                  "cas":  {
+                              "issuing-ca.vault.alcyone-orbital.example\\Alcyone Meridian Issuing CA":  {
+                                                                                                            "values":  {
+                                                                                                                           "DeltaCrl[0]":  "b64pki:meridian-expired-delta.crl",
+                                                                                                                           "BaseCrl[0]":  "b64pki:meridian-expired-crl.crl"
+                                                                                                                       }
+                                                                                                        }
+                          },
+                  "directory":  {
+                                    "objects":  {
+                                                    "CN=Alcyone Meridian Issuing CA,CN=issuing-ca,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  {
+                                                                                                                                                                                                  "certificateRevocationList":  [
+                                                                                                                                                                                                                                    "pki:meridian-expired-crl.crl"
+                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                  "whenChanged":  "time:2026-11-12T06:00:00Z",
+                                                                                                                                                                                                  "deltaRevocationList":  [
+                                                                                                                                                                                                                              "pki:meridian-expired-delta.crl"
+                                                                                                                                                                                                                          ]
+                                                                                                                                                                                              }
+                                                }
+                                }
+              }
+}

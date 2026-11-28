@@ -6,7 +6,12 @@
 
 function Assert-MspkiSimKnown {
     param([bool]$Known, [string]$What)
-    if (-not $Known) { throw ('SIMULATION: the simulated world has no answer for {0}. Add it to the scenario fixture.' -f $What) }
+    if (-not $Known) {
+        # Recorded as well as thrown: the engine turns some exceptions into ordinary results (an HTTP probe that "failed"), and a gap in the
+        # world must never pass for a finding. The generator refuses to write a scenario with any gap.
+        [void]$script:MspkiSim.Gaps.Add([string]$What)
+        throw ('SIMULATION: the simulated world has no answer for {0}. Add it to the scenario fixture.' -f $What)
+    }
 }
 
 function Step-MspkiSimClock {
@@ -214,6 +219,14 @@ function Get-MspkiSimDns {
     return @{ Name = $h; Canonical = $cur; Chain = $chain; A = @($(if ($null -ne $final) { $final.A })); AAAA = @($(if ($null -ne $final) { $final.AAAA })) }
 }
 
+function Get-MspkiSimEndpointKey {
+    # The world's key for host:port: the name asked for, else the canonical name its CNAME chain ends at (the same server).
+    param([string]$HostName, [int]$Port, [hashtable]$Table, [string]$What)
+    $x = Get-MspkiSimDns -HostName $HostName
+    foreach ($h in @($HostName.ToLowerInvariant(), [string]$x.Canonical)) { $k = '{0}:{1}' -f $h, $Port; if ($Table.ContainsKey($k)) { return $k } }
+    Assert-MspkiSimKnown $false ('{0} {1}:{2}' -f $What, $HostName, $Port)
+}
+
 function Resolve-MspkiDnsName {
     param([Parameter(Mandatory = $true)][string]$HostName, [int]$TimeoutMs = 5000)
     $h = ConvertTo-MspkiHostName $HostName
@@ -270,8 +283,7 @@ function Test-MspkiTcpPort {
     $x = Get-MspkiSimDns -HostName $h
     $state = 'nohost'
     if (@($x.A).Count -gt 0) {
-        Assert-MspkiSimKnown ($script:MspkiSim.Tcp.ContainsKey($k)) ('TCP {0}' -f $k)
-        $state = [string]$script:MspkiSim.Tcp[$k]
+        $state = [string]$script:MspkiSim.Tcp[(Get-MspkiSimEndpointKey -HostName $h -Port $Port -Table $script:MspkiSim.Tcp -What 'TCP')]
     }
     $ms = Get-MspkiSimLatency 'Tcp'
     switch ($state) {
@@ -306,9 +318,7 @@ function Test-MspkiTlsEndpoint {
     $tcp = Test-MspkiTcpPort -HostName $h -Port $Port -TimeoutMs $TimeoutMs
     if ($tcp.Status -ne 'Pass') { $r.Code = $tcp.StatusCode; $r.Error = $tcp.Error }
     else {
-        $k = '{0}:{1}' -f $h, $Port
-        Assert-MspkiSimKnown ($script:MspkiSim.Tls.ContainsKey($k)) ('the TLS handshake with {0}' -f $k)
-        $t = $script:MspkiSim.Tls[$k]
+        $t = $script:MspkiSim.Tls[(Get-MspkiSimEndpointKey -HostName $h -Port $Port -Table $script:MspkiSim.Tls -What 'the TLS handshake with')]
         Step-MspkiSimClock (Get-MspkiSimLatency 'Tls')
         $r.OfferedProtocols = 'Tls12, Tls13'
         if ($t.Reset) { $r.ServerClosed = $true; $r.Error = 'Unable to read data from the transport connection: An existing connection was forcibly closed by the remote host.' }
@@ -330,21 +340,18 @@ function Test-MspkiTlsEndpoint {
 
 function Invoke-MspkiHttpRequest {
     # One simulated anonymous GET (the engine's Invoke-MspkiHttpGet keeps its own redirect, bounding and code logic around it).
-    param([Parameter(Mandatory = $true)][string]$Url, [int]$TimeoutMs = 5000, [int]$MaxBytes = 10485760, [switch]$ReadBody, $Proxy = $null)
+    param([Parameter(Mandatory = $true)][string]$Url, [int]$TimeoutMs = 5000, [int]$MaxBytes = 10485760, [switch]$ReadBody, [switch]$UseSystemProxy, $SystemProxy = $null)
     $out = [pscustomobject][ordered]@{ Answered = $false; StatusCode = 0; Location = ''; Server = ''; AuthSchemes = @(); ContentType = ''; Bytes = $null; TooLarge = $false; FailStatus = ''; Error = '' }
     $u = [System.Uri]$Url
     $h = ConvertTo-MspkiHostName $u.Host
     $x = Get-MspkiSimDns -HostName $h
     Step-MspkiSimClock (Get-MspkiSimLatency 'Dns')
     if (@($x.A).Count -eq 0) { $out.FailStatus = 'NameResolutionFailure'; $out.Error = ('The remote name could not be resolved: ''{0}''' -f $h); return $out }
-    $k = '{0}:{1}' -f $h, $u.Port
-    Assert-MspkiSimKnown ($script:MspkiSim.Tcp.ContainsKey($k)) ('TCP {0}' -f $k)
-    $state = [string]$script:MspkiSim.Tcp[$k]
+    $state = [string]$script:MspkiSim.Tcp[(Get-MspkiSimEndpointKey -HostName $h -Port $u.Port -Table $script:MspkiSim.Tcp -What 'TCP')]
     if ($state -eq 'refused') { Step-MspkiSimClock (Get-MspkiSimLatency 'Tcp'); $out.FailStatus = 'ConnectFailure'; $out.Error = 'Unable to connect to the remote server'; return $out }
     if ($state -eq 'filtered') { Step-MspkiSimClock $TimeoutMs; $out.FailStatus = 'Timeout'; $out.Error = 'The operation has timed out'; return $out }
     if ($u.Scheme -eq 'https') {
-        Assert-MspkiSimKnown ($script:MspkiSim.Tls.ContainsKey($k)) ('the TLS handshake with {0}' -f $k)
-        $t = $script:MspkiSim.Tls[$k]
+        $t = $script:MspkiSim.Tls[(Get-MspkiSimEndpointKey -HostName $h -Port $u.Port -Table $script:MspkiSim.Tls -What 'the TLS handshake with')]
         Step-MspkiSimClock (Get-MspkiSimLatency 'Tls')
         if ($t.Reset) { $out.FailStatus = 'SecureChannelFailure'; $out.Error = 'The underlying connection was closed: An unexpected error occurred on a send.'; return $out }
         if ($t.Code -and $t.Code -ne 'OK') { $out.FailStatus = 'TrustFailure'; $out.Error = 'The underlying connection was closed: Could not establish trust relationship for the SSL/TLS secure channel.'; return $out }

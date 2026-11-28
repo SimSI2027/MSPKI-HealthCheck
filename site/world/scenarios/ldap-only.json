@@ -1,0 +1,15 @@
+{
+    "id":  "ldap-only",
+    "title":  "LDAP-only publication seen from outside",
+    "summary":  "The tool runs on a laptop that is not in the domain: it cannot read Active Directory, which is also all that an LDAP-only CDP or AIA offers.",
+    "expect": { "permissionDenied": [  ] },
+    "world":  {
+                  "computer":  {
+                                   "name":  "GROUND-LAPTOP",
+                                   "domain":  "WORKGROUP",
+                                   "user":  "GROUND-LAPTOP\\visitor",
+                                   "partOfDomain":  false,
+                                   "dnsDomain":  ""
+                               }
+              }
+}

@@ -1,0 +1,79 @@
+{
+    "id":  "renewal-drift",
+    "title":  "Renewal leftovers",
+    "summary":  "The issuing CA was renewed again; an expired generation is still published in NTAuth and AIA.",
+    "expect": { "permissionDenied": [ "NDES" ] },
+    "world":  {
+                  "local":  {
+                                "enterprise":  {
+                                                   "NTAuth":  [
+                                                                  "pki:lodestar-root.cer",
+                                                                  "pki:meridian-expired.cer",
+                                                                  "pki:meridian-g1.cer",
+                                                                  "pki:meridian-g2.cer"
+                                                              ]
+                                               },
+                                "stores":  {
+                                               "LocalMachine\\NTAuth":  [
+                                                                            "pki:lodestar-root.cer",
+                                                                            "pki:meridian-expired.cer",
+                                                                            "pki:meridian-g1.cer",
+                                                                            "pki:meridian-g2.cer"
+                                                                        ]
+                                           }
+                            },
+                  "directory":  {
+                                    "objects":  {
+                                                    "CN=Alcyone Meridian Issuing CA,CN=issuing-ca,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  {
+                                                                                                                                                                                                  "deltaRevocationList":  null,
+                                                                                                                                                                                                  "certificateRevocationList":  [
+                                                                                                                                                                                                                                    "pki:meridian-g2.crl"
+                                                                                                                                                                                                                                ]
+                                                                                                                                                                                              },
+                                                    "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  {
+                                                                                                                                                                    "cACertificate":  [
+                                                                                                                                                                                          "pki:lodestar-root.cer",
+                                                                                                                                                                                          "pki:meridian-expired.cer",
+                                                                                                                                                                                          "pki:meridian-g1.cer",
+                                                                                                                                                                                          "pki:meridian-g2.cer"
+                                                                                                                                                                                      ]
+                                                                                                                                                                },
+                                                    "CN=Alcyone Meridian Issuing CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  {
+                                                                                                                                                                                    "cACertificate":  [
+                                                                                                                                                                                                          "pki:meridian-expired.cer",
+                                                                                                                                                                                                          "pki:meridian-g1.cer",
+                                                                                                                                                                                                          "pki:meridian-g2.cer"
+                                                                                                                                                                                                      ]
+                                                                                                                                                                                },
+                                                    "CN=Alcyone Meridian Issuing CA,CN=Enrollment Services,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  {
+                                                                                                                                                                                                    "cACertificate":  [
+                                                                                                                                                                                                                          "pki:meridian-g2.cer"
+                                                                                                                                                                                                                      ]
+                                                                                                                                                                                                }
+                                                }
+                                },
+                  "cas":  {
+                              "issuing-ca.vault.alcyone-orbital.example\\Alcyone Meridian Issuing CA":  {
+                                                                                                            "errors":  {
+                                                                                                                           "DeltaCrl[1]":  {
+                                                                                                                                               "message":  "The system cannot find the file specified.",
+                                                                                                                                               "hresult":  "80070002"
+                                                                                                                                           }
+                                                                                                                       },
+                                                                                                            "values":  {
+                                                                                                                           "BaseCrl[1]":  "b64pki:meridian-g2.crl",
+                                                                                                                           "CACertState[1]":  3,
+                                                                                                                           "CACertVersion[1]":  131074,
+                                                                                                                           "CertAiaOcspUrls[1]":  "",
+                                                                                                                           "CertAiaUrls[1]":  "ldap:///CN=Alcyone Meridian Issuing CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example?cACertificate?base?objectClass=certificationAuthority",
+                                                                                                                           "CrlState[1]":  3,
+                                                                                                                           "CASigCert[1]":  "b64pki:meridian-g2.cer",
+                                                                                                                           "BaseCrlPublishStatus[1]":  1,
+                                                                                                                           "CASigCertCount":  2,
+                                                                                                                           "CertCdpUrls[1]":  "ldap:///CN=Alcyone Meridian Issuing CA,CN=issuing-ca,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example",
+                                                                                                                           "DeltaCrlPublishStatus[1]":  0
+                                                                                                                       }
+                                                                                                        }
+                          }
+              }
+}

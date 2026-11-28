@@ -1,0 +1,21 @@
+{
+    "id":  "esc8",
+    "title":  "Web enrollment over HTTP",
+    "summary":  "Web Enrollment on the root CA answers over plain HTTP and offers Windows sign-in: an NTLM relay target (ESC8).",
+    "expect": { "permissionDenied": [ "NDES" ] },
+    "world":  {
+                  "network":  {
+                                  "http":  {
+                                               "http://root-ca.vault.alcyone-orbital.example/certsrv/":  {
+                                                                                                             "contentType":  "text/html",
+                                                                                                             "status":  401,
+                                                                                                             "server":  "Microsoft-IIS/10.0",
+                                                                                                             "auth":  [
+                                                                                                                          "Negotiate",
+                                                                                                                          "NTLM"
+                                                                                                                      ]
+                                                                                                         }
+                                           }
+                              }
+              }
+}

@@ -682,3 +682,14 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Tests (`tests/DemoGenerator.Tests.ps1`): AST guard (strings and comments ignored), end to end, unknown question throws. NDES static
   test follows the moved request code (`-SystemProxy $sysProxy` only). Hygiene: the world key is `Machine` (".Local" read as a host).
 - Next: DS3 (all scenarios, guards over the output, events for the replay), then DS4.
+
+## DS3 (2026-11-28): every scenario from the real engine - DONE
+- `Invoke-MspkiScenario.ps1 -Scenario all` runs the 10 scenarios of DEMO-WORLD in 33 s (module re-imported per scenario) and writes
+  results, events (simulated offsets; the run's own output folder in log lines becomes "<output folder>") and a manifest under out\.
+- Guards: every question the world cannot answer is recorded and fails the scenario (the engine's HTTP code turns exceptions into
+  ordinary "retrieval failed" results, so throwing alone was not enough); no Error finding; permission refusals only where expected.
+- Scenarios: healthy (no warning), baseline, expired-crl, rpc-denied (refusal kept apart from an outage), esc8, forged-aia, ndes-found
+  (GetCACaps/GetCACert from a certs-only PKCS #7 in the world PKI), renewal-drift, ldap-only (a laptop outside the domain), mixed-sample.
+- Tests: all scenarios, one lesson per scenario, a name/address scan over the output (world names, 192.0.2.x, no build-machine name or
+  path), byte-identical output on a second run, no time-zone-dependent values.
+- Next: DS4 (site shell, tokens from Theme.xaml), DS5 (scenario view), DS6, then DS7 (needs Pages switched to GitHub Actions).

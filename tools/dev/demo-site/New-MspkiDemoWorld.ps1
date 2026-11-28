@@ -206,6 +206,14 @@ $network = [ordered]@{
         'http://root-ca.vault.alcyone-orbital.example/ocsp/' = @{ status = 500; server = 'Microsoft-IIS/10.0'; contentType = 'text/html' }
     }
 }
+# The NDES gateway answers GetCACaps and GetCACert on HTTP and HTTPS.
+foreach ($scheme in 'http', 'https') {
+    $network.http["${scheme}://scep-gateway.vault.alcyone-orbital.example/certsrv/mscep/mscep.dll?operation=GetCACaps"] = @{ status = 200; server = 'Microsoft-IIS/10.0'; contentType = 'text/plain'
+        body = "text:POSTPKIOperation`nGetNextCACert`nRenewal`nSHA-512`nSHA-256`nSHA-1`nDES3`n" }
+    $network.http["${scheme}://scep-gateway.vault.alcyone-orbital.example/certsrv/mscep/mscep.dll?operation=GetCACert"] = @{ status = 200; server = 'Microsoft-IIS/10.0'; contentType = 'application/x-x509-ca-ra-cert'; body = 'pki:ndes-getcacert.p7b' }
+}
+if ($false) {
+}
 
 # --- This computer (ground-web) -----------------------------------------------------------------------------------------------------
 $local = [ordered]@{

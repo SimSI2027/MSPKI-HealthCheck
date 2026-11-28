@@ -162,7 +162,7 @@ function New-WorldCrl {
 
 # --- the world ----------------------------------------------------------------------------------------------------------------------
 if (-not (Test-Path -LiteralPath $Output)) { [void](New-Item -ItemType Directory -Path $Output) }
-Get-ChildItem -LiteralPath $Output -File | Where-Object { $_.Extension -in @('.cer', '.crl') } | Remove-Item
+Get-ChildItem -LiteralPath $Output -File | Where-Object { $_.Extension -in @('.cer', '.crl', '.p7b') } | Remove-Item
 
 $rootSub = 'CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example'
 $merSub = 'CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example'
@@ -209,6 +209,13 @@ New-WorldCert -Name 'root-ca-tls-healthy' -Subject 'CN=root-ca.vault.alcyone-orb
 New-WorldCert -Name 'ndes-ra-signing' -Subject 'CN=scep-gateway-mscep-ra, O=Alcyone Orbital Systems, C=US' -Issuer 'meridian-g1' -IssuerKeyName 'meridian-k1' -NotBefore (& $d '2026-06-01 10:05:00') -NotAfter (& $d '2028-05-18 10:05:00') -TemplateOid (& $tplOid '103') -Eku @('1.3.6.1.4.1.311.20.2.1') -Cdp $leafCdp -AiaIssuers $leafAia -Role 'NDES registration authority signing certificate (Alcyone-NDES-Agent)'
 New-WorldCert -Name 'ndes-ra-encryption' -Subject 'CN=scep-gateway-mscep-ra, O=Alcyone Orbital Systems, C=US' -Issuer 'meridian-g1' -IssuerKeyName 'meridian-k1' -NotBefore (& $d '2026-06-01 10:05:00') -NotAfter (& $d '2028-05-18 10:05:00') -TemplateOid (& $tplOid '104') -Eku @('1.3.6.1.4.1.311.20.2.1') -Cdp $leafCdp -AiaIssuers $leafAia -Role 'NDES registration authority encryption certificate (Alcyone-NDES-Encryption)'
 
+# What an NDES gateway answers to GetCACert: a certificates-only PKCS #7 (SignedData without signers) with the CA certificate and the RA
+# certificates. Public data only.
+$p7certs = Join-Bytes @(foreach ($n in 'meridian-g1', 'ndes-ra-signing', 'ndes-ra-encryption') { , $script:certs[$n].RawData })
+$signedData = New-DerSeq @((New-DerIntValue 1), (New-Der 0x31 ([byte[]]@())), (New-DerSeq @(, (New-DerOid '1.2.840.113549.1.7.1'))), (New-Der 0xA0 $p7certs), (New-Der 0x31 ([byte[]]@())))
+$p7 = New-DerSeq @((New-DerOid '1.2.840.113549.1.7.2'), (New-DerCtx 0 $signedData))
+[System.IO.File]::WriteAllBytes((Join-Path $Output 'ndes-getcacert.p7b'), $p7)
+[void]$script:meta.Add([ordered]@{ File = 'ndes-getcacert.p7b'; Kind = 'Pkcs7'; Role = 'GetCACert answer of the NDES gateway: the issuing CA and the two RA certificates'; Certificates = @('meridian-g1.cer', 'ndes-ra-signing.cer', 'ndes-ra-encryption.cer') })
 # CRLs (CRL numbers in hex as the CA writes them).
 $rootTU = & $d '2026-11-14 09:00:00'
 New-WorldCrl -Name 'lodestar-root' -Issuer 'lodestar-root' -ThisUpdate $rootTU -NextUpdate (& $d '2026-12-14 21:00:00') -NextPublish (& $d '2026-12-13 09:00:00') -Number 0x12 -Role 'Root base CRL'

@@ -1,0 +1,66 @@
+{
+  "id": "healthy",
+  "title": "Healthy PKI",
+  "summary": "The same PKI after the fixes: HTTP publication first and LDAP second, one CA generation in NTAuth and AIA, the responder named in certificates, HTTPS fixed.",
+  "expect": { "permissionDenied": [ "NDES" ] },
+  "world": {
+    "directory": {
+      "objects": {
+        "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example": { "cACertificate": [ "pki:lodestar-root.cer", "pki:meridian-healthy.cer" ] },
+        "CN=Alcyone Meridian Issuing CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example": { "cACertificate": [ "pki:meridian-healthy.cer" ] },
+        "CN=Alcyone Meridian Issuing CA,CN=Enrollment Services,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example": { "cACertificate": [ "pki:meridian-healthy.cer" ] }
+      }
+    },
+    "cas": {
+      "root-ca.vault.alcyone-orbital.example\\Alcyone Lodestar Root CA": {
+        "values": {
+          "CertCdpUrls[0]": "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Lodestar%20Root%20CA.crl\nldap:///CN=Alcyone Lodestar Root CA,CN=root-ca,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example?certificateRevocationList?base?objectClass=cRLDistributionPoint",
+          "CertAiaUrls[0]": "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Lodestar%20Root%20CA.crt\nldap:///CN=Alcyone Lodestar Root CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example?cACertificate?base?objectClass=certificationAuthority"
+        }
+      },
+      "issuing-ca.vault.alcyone-orbital.example\\Alcyone Meridian Issuing CA": {
+        "values": {
+          "CASigCert[0]": "b64pki:meridian-healthy.cer",
+          "CertCdpUrls[0]": "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA.crl\nldap:///CN=Alcyone Meridian Issuing CA,CN=issuing-ca,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example",
+          "CertAiaUrls[0]": "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA.crt\nldap:///CN=Alcyone Meridian Issuing CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example?cACertificate?base?objectClass=certificationAuthority",
+          "CertAiaOcspUrls[0]": "http://ocsp.vault.alcyone-orbital.example/ocsp"
+        }
+      }
+    },
+    "network": {
+      "dns": {
+        "pki.alcyone-orbital.example": { "cname": "root-ca.vault.alcyone-orbital.example" },
+        "ocsp.vault.alcyone-orbital.example": { "a": [ "192.0.2.26" ] }
+      },
+      "ptr": { "192.0.2.26": [ "ocsp.vault.alcyone-orbital.example" ] },
+      "tcp": { "ocsp.vault.alcyone-orbital.example:80": "open" },
+      "tls": {
+        "root-ca.vault.alcyone-orbital.example:443": { "reset": false, "code": "OK", "nameMatch": true, "certificate": "pki:root-ca-tls-healthy.cer", "dnsNames": [ "root-ca.vault.alcyone-orbital.example", "pki.alcyone-orbital.example" ] }
+      },
+      "http": {
+        "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Lodestar%20Root%20CA.crl": { "status": 200, "server": "Microsoft-IIS/10.0", "contentType": "application/pkix-crl", "body": "pki:lodestar-root.crl" },
+        "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Lodestar%20Root%20CA.crt": { "status": 200, "server": "Microsoft-IIS/10.0", "contentType": "application/x-x509-ca-cert", "body": "pki:lodestar-root.cer" },
+        "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA.crl": { "status": 200, "server": "Microsoft-IIS/10.0", "contentType": "application/pkix-crl", "body": "pki:meridian.crl" },
+        "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA+.crl": { "status": 200, "server": "Microsoft-IIS/10.0", "contentType": "application/pkix-crl", "body": "pki:meridian+.crl" },
+        "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA.crt": { "status": 200, "server": "Microsoft-IIS/10.0", "contentType": "application/x-x509-ca-cert", "body": "pki:meridian-healthy.cer" },
+        "http://root-ca.vault.alcyone-orbital.example/ocsp/": { "status": 404, "server": "Microsoft-IIS/10.0", "contentType": "text/html" },
+        "https://root-ca.vault.alcyone-orbital.example/certsrv/": { "status": 403, "server": "Microsoft-IIS/10.0", "contentType": "text/html" },
+        "https://root-ca.vault.alcyone-orbital.example/Alcyone%20Lodestar%20Root%20CA_CES_Kerberos/service.svc": { "status": 404, "server": "Microsoft-IIS/10.0", "contentType": "text/html" },
+        "https://root-ca.vault.alcyone-orbital.example/Alcyone%20Lodestar%20Root%20CA_CES_UsernamePassword/service.svc": { "status": 404, "server": "Microsoft-IIS/10.0", "contentType": "text/html" },
+        "https://root-ca.vault.alcyone-orbital.example/Alcyone%20Lodestar%20Root%20CA_CES_Certificate/service.svc": { "status": 404, "server": "Microsoft-IIS/10.0", "contentType": "text/html" },
+        "https://root-ca.vault.alcyone-orbital.example/ADPolicyProvider_CEP_Kerberos/service.svc": { "status": 404, "server": "Microsoft-IIS/10.0", "contentType": "text/html" },
+        "https://root-ca.vault.alcyone-orbital.example/ADPolicyProvider_CEP_UsernamePassword/service.svc": { "status": 404, "server": "Microsoft-IIS/10.0", "contentType": "text/html" },
+        "https://root-ca.vault.alcyone-orbital.example/ADPolicyProvider_CEP_Certificate/service.svc": { "status": 404, "server": "Microsoft-IIS/10.0", "contentType": "text/html" },
+        "http://ocsp.vault.alcyone-orbital.example/ocsp": { "status": 200, "server": "Microsoft-IIS/10.0", "contentType": "application/ocsp-response" }
+      }
+    },
+    "local": {
+      "stores": {
+        "LocalMachine\\My": [ "pki:ground-web-rdp-healthy.cer" ],
+        "LocalMachine\\CA": [ "pki:meridian-healthy.cer" ],
+        "LocalMachine\\NTAuth": [ "pki:lodestar-root.cer", "pki:meridian-healthy.cer" ]
+      },
+      "enterprise": { "CA": [ "pki:meridian-healthy.cer" ], "NTAuth": [ "pki:lodestar-root.cer", "pki:meridian-healthy.cer" ] }
+    }
+  }
+}

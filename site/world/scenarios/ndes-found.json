@@ -1,0 +1,16 @@
+{
+    "id":  "ndes-found",
+    "title":  "NDES found",
+    "summary":  "No CA database can be read, yet the NDES gateway is found from template permissions and its SPN, then confirmed by GetCACaps and GetCACert.",
+    "expect": { "permissionDenied": [ "NDES" ] },
+    "world":  {
+                  "cas":  {
+                              "root-ca.vault.alcyone-orbital.example\\Alcyone Lodestar Root CA":  {
+                                                                                                      "databaseFatal":  {
+                                                                                                                            "message":  "Access is denied.",
+                                                                                                                            "hresult":  "80070005"
+                                                                                                                        }
+                                                                                                  }
+                          }
+              }
+}

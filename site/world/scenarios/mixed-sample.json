@@ -1,0 +1,194 @@
+{
+    "id":  "mixed-sample",
+    "title":  "Mixed estate",
+    "summary":  "An offline root known only by its certificate, HTTP and LDAP publication on two web hosts, a retired host still named in an AIA URL, CES and OCSP, and a second issuing CA the standard user cannot read.",
+    "expect": { "permissionDenied": [ "CA", "NDES" ] },
+    "world":  {
+                  "directory":  {
+                                    "objects":  {
+                                                    "CN=Alcyone Lodestar Root CA,CN=Enrollment Services,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  null,
+                                                    "CN=Alcyone Zenith Issuing CA,CN=Enrollment Services,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  {
+                                                                                                                                                                                                  "objectClass":  [
+                                                                                                                                                                                                                      "top",
+                                                                                                                                                                                                                      "pKIEnrollmentService"
+                                                                                                                                                                                                                  ],
+                                                                                                                                                                                                  "cn":  "Alcyone Zenith Issuing CA",
+                                                                                                                                                                                                  "displayName":  "Alcyone Zenith Issuing CA",
+                                                                                                                                                                                                  "dNSHostName":  "issuing-ca2.vault.alcyone-orbital.example",
+                                                                                                                                                                                                  "cACertificate":  [
+                                                                                                                                                                                                                        "pki:zenith.cer"
+                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                  "certificateTemplates":  [
+                                                                                                                                                                                                                               "AlcyoneGroundDevice",
+                                                                                                                                                                                                                               "Machine"
+                                                                                                                                                                                                                           ],
+                                                                                                                                                                                                  "flags":  10,
+                                                                                                                                                                                                  "whenCreated":  "time:2025-09-01T07:45:00Z",
+                                                                                                                                                                                                  "whenChanged":  "time:2025-09-01T08:00:00Z"
+                                                                                                                                                                                              },
+                                                    "CN=Alcyone Zenith Issuing CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  {
+                                                                                                                                                                                  "objectClass":  [
+                                                                                                                                                                                                      "top",
+                                                                                                                                                                                                      "certificationAuthority"
+                                                                                                                                                                                                  ],
+                                                                                                                                                                                  "cn":  "Alcyone Zenith Issuing CA",
+                                                                                                                                                                                  "cACertificate":  [
+                                                                                                                                                                                                        "pki:zenith.cer"
+                                                                                                                                                                                                    ]
+                                                                                                                                                                              },
+                                                    "CN=AlcyoneGroundDevice,CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  {
+                                                                                                                                                                                              "objectClass":  [
+                                                                                                                                                                                                                  "top",
+                                                                                                                                                                                                                  "pKICertificateTemplate"
+                                                                                                                                                                                                              ],
+                                                                                                                                                                                              "cn":  "AlcyoneGroundDevice",
+                                                                                                                                                                                              "displayName":  "Alcyone Ground Device",
+                                                                                                                                                                                              "msPKI-Template-Schema-Version":  2,
+                                                                                                                                                                                              "msPKI-Cert-Template-OID":  "1.3.6.1.4.1.311.21.8.4718263.9937315.12810493.16219837.6011209.47.109",
+                                                                                                                                                                                              "msPKI-Certificate-Name-Flag":  402653184,
+                                                                                                                                                                                              "msPKI-Enrollment-Flag":  32,
+                                                                                                                                                                                              "msPKI-RA-Signature":  0,
+                                                                                                                                                                                              "pKIExtendedKeyUsage":  [
+                                                                                                                                                                                                                          "1.3.6.1.5.5.7.3.2"
+                                                                                                                                                                                                                      ],
+                                                                                                                                                                                              "msPKI-Certificate-Application-Policy":  [
+                                                                                                                                                                                                                                           "1.3.6.1.5.5.7.3.2"
+                                                                                                                                                                                                                                       ],
+                                                                                                                                                                                              "whenChanged":  "time:2025-09-02T10:00:00Z",
+                                                                                                                                                                                              "nTSecurityDescriptor":  "sddl:O:S-1-5-21-2718281828-3141592653-1618033988-512G:S-1-5-21-2718281828-3141592653-1618033988-512D:PAI(A;;LCRPLORC;;;AU)(A;;CCDCLCSWRPWPDTLOSDRCWDWO;;;S-1-5-21-2718281828-3141592653-1618033988-512)(A;;CCDCLCSWRPWPDTLOSDRCWDWO;;;S-1-5-21-2718281828-3141592653-1618033988-519)(OA;;CR;0e10c968-78fb-11d2-90d4-00c04f79dc55;;S-1-5-21-2718281828-3141592653-1618033988-515)"
+                                                                                                                                                                                          },
+                                                    "CN=Alcyone Meridian Issuing CA,CN=Enrollment Services,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example":  {
+                                                                                                                                                                                                    "msPKI-Enrollment-Servers":  [
+                                                                                                                                                                                                                                     "1\n2\n0\nhttps://enroll.vault.alcyone-orbital.example/Alcyone%20Meridian%20Issuing%20CA_CES_Kerberos/service.svc/CES"
+                                                                                                                                                                                                                                 ]
+                                                                                                                                                                                                }
+                                                }
+                                },
+                  "cas":  {
+                              "root-ca.vault.alcyone-orbital.example\\Alcyone Lodestar Root CA":  null,
+                              "issuing-ca2.vault.alcyone-orbital.example\\Alcyone Zenith Issuing CA":  {
+                                                                                                           "fatal":  {
+                                                                                                                         "message":  "The RPC server is unavailable.",
+                                                                                                                         "hresult":  "800706BA"
+                                                                                                                     },
+                                                                                                           "fatalMs":  31
+                                                                                                       },
+                              "issuing-ca.vault.alcyone-orbital.example\\Alcyone Meridian Issuing CA":  {
+                                                                                                            "values":  {
+                                                                                                                           "CertAiaOcspUrls[0]":  "http://ocsp.vault.alcyone-orbital.example/ocsp",
+                                                                                                                           "CertAiaUrls[0]":  "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA.crt\nhttp://legacy-pki.alcyone-orbital.example/aia/Alcyone%20Meridian%20Issuing%20CA.crt\nldap:///CN=Alcyone Meridian Issuing CA,CN=AIA,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example?cACertificate?base?objectClass=certificationAuthority",
+                                                                                                                           "CertCdpUrls[0]":  "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA.crl\nhttp://pki-dr.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA.crl\nldap:///CN=Alcyone Meridian Issuing CA,CN=issuing-ca,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example"
+                                                                                                                       }
+                                                                                                        }
+                          },
+                  "network":  {
+                                  "dns":  {
+                                              "pki.alcyone-orbital.example":  {
+                                                                                  "cname":  "root-ca.vault.alcyone-orbital.example"
+                                                                              },
+                                              "pki-dr.alcyone-orbital.example":  {
+                                                                                     "a":  [
+                                                                                               "192.0.2.41"
+                                                                                           ]
+                                                                                 },
+                                              "issuing-ca2.vault.alcyone-orbital.example":  {
+                                                                                                "a":  [
+                                                                                                          "192.0.2.23"
+                                                                                                      ]
+                                                                                            },
+                                              "enroll.vault.alcyone-orbital.example":  {
+                                                                                           "a":  [
+                                                                                                     "192.0.2.25"
+                                                                                                 ]
+                                                                                       },
+                                              "ocsp.vault.alcyone-orbital.example":  {
+                                                                                         "a":  [
+                                                                                                   "192.0.2.26"
+                                                                                               ]
+                                                                                     },
+                                              "legacy-pki.alcyone-orbital.example":  "nxdomain",
+                                              "vault.alcyone-orbital.example":  "nxdomain"
+                                          },
+                                  "ptr":  {
+                                              "192.0.2.41":  [
+
+                                                             ],
+                                              "192.0.2.23":  [
+
+                                                             ],
+                                              "192.0.2.25":  [
+                                                                 "enroll.vault.alcyone-orbital.example"
+                                                             ],
+                                              "192.0.2.26":  [
+                                                                 "ocsp.vault.alcyone-orbital.example"
+                                                             ]
+                                          },
+                                  "tcp":  {
+                                              "pki-dr.alcyone-orbital.example:80":  "open",
+                                              "issuing-ca2.vault.alcyone-orbital.example:135":  "open", "issuing-ca2.vault.alcyone-orbital.example:80":  "filtered", "issuing-ca2.vault.alcyone-orbital.example:443":  "filtered",
+                                              "enroll.vault.alcyone-orbital.example:443":  "open",
+                                              "ocsp.vault.alcyone-orbital.example:80":  "open"
+                                          },
+                                  "tls":  {
+                                              "enroll.vault.alcyone-orbital.example:443":  {
+                                                                                               "code":  "TLS_NAME_MISMATCH",
+                                                                                               "nameMatch":  false,
+                                                                                               "certificate":  "pki:root-ca-tls-healthy.cer",
+                                                                                               "dnsNames":  [
+                                                                                                                "root-ca.vault.alcyone-orbital.example",
+                                                                                                                "pki.alcyone-orbital.example"
+                                                                                                            ]
+                                                                                           }
+                                          },
+                                  "http":  {
+                                               "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Lodestar%20Root%20CA.crl":  {
+                                                                                                                                        "contentType":  "application/pkix-crl",
+                                                                                                                                        "status":  200,
+                                                                                                                                        "server":  "Microsoft-IIS/10.0",
+                                                                                                                                        "body":  "pki:lodestar-root.crl"
+                                                                                                                                    },
+                                               "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Lodestar%20Root%20CA.crt":  {
+                                                                                                                                        "contentType":  "application/x-x509-ca-cert",
+                                                                                                                                        "status":  200,
+                                                                                                                                        "server":  "Microsoft-IIS/10.0",
+                                                                                                                                        "body":  "pki:lodestar-root.cer"
+                                                                                                                                    },
+                                               "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA.crl":  {
+                                                                                                                                           "contentType":  "application/pkix-crl",
+                                                                                                                                           "status":  200,
+                                                                                                                                           "server":  "Microsoft-IIS/10.0",
+                                                                                                                                           "body":  "pki:meridian.crl"
+                                                                                                                                       },
+                                               "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA+.crl":  {
+                                                                                                                                            "contentType":  "application/pkix-crl",
+                                                                                                                                            "status":  200,
+                                                                                                                                            "server":  "Microsoft-IIS/10.0",
+                                                                                                                                            "body":  "pki:meridian+.crl"
+                                                                                                                                        },
+                                               "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA.crt":  {
+                                                                                                                                           "contentType":  "application/x-x509-ca-cert",
+                                                                                                                                           "status":  200,
+                                                                                                                                           "server":  "Microsoft-IIS/10.0",
+                                                                                                                                           "body":  "pki:meridian-g1.cer"
+                                                                                                                                       },
+                                               "http://pki-dr.alcyone-orbital.example/CertEnroll/Alcyone%20Meridian%20Issuing%20CA.crl":  {
+                                                                                                                                              "contentType":  "application/pkix-crl",
+                                                                                                                                              "status":  200,
+                                                                                                                                              "server":  "Microsoft-IIS/10.0",
+                                                                                                                                              "body":  "pki:meridian-expired-crl.crl"
+                                                                                                                                          },
+                                               "http://pki.alcyone-orbital.example/CertEnroll/Alcyone%20Zenith%20Issuing%20CA.crl":  {
+                                                                                                                                         "contentType":  "application/pkix-crl",
+                                                                                                                                         "status":  200,
+                                                                                                                                         "server":  "Microsoft-IIS/10.0",
+                                                                                                                                         "body":  "pki:zenith.crl"
+                                                                                                                                     },
+                                               "http://ocsp.vault.alcyone-orbital.example/ocsp":  {
+                                                                                                      "contentType":  "application/ocsp-response",
+                                                                                                      "status":  200,
+                                                                                                      "server":  "Microsoft-IIS/10.0"
+                                                                                                  }
+                                           }
+                              }
+              }
+}

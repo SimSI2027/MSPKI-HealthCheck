@@ -2,6 +2,6 @@
   "id": "baseline",
   "title": "As found",
   "summary": "Alcyone's PKI as found: two CA generations, LDAP-only publication, an Online Responder nobody points to, and an NDES gateway.",
-  "expect": { "allowedErrors": [] },
+  "expect": { "permissionDenied": [ "NDES" ] },
   "world": {}
 }
