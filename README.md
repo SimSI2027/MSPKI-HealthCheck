@@ -89,6 +89,10 @@ If it says it needs a single-threaded session, start it as `powershell.exe -STA 
   what was found (host, confidence, evidence), the findings about it (for example the NTLM relay warning, ESC8, for Web
   Enrollment on plain HTTP) and what this run can see. "Not found" (looked, nothing there), "cannot be checked from here" (for
   example the Intune connector on another server) and "not checked in this run" are shown apart.
+- **Keyboard**: **Ctrl+K** opens the command palette: type part of a page, a command, an object name or a finding's text and press
+  Enter (Up and Down move, Esc closes and puts you back where you were). F5 runs, Ctrl+1 to Ctrl+6 switch pages, Ctrl+F searches the page,
+  Ctrl+O opens results, F6 and Shift+F6 move between the navigation, the command bar, the page and its details, Alt+Left goes back in the
+  details. Notices ("Export finished", "Run finished") appear briefly at the bottom right of the window and can be dismissed.
 
 The window only shows and filters what the engine found; it checks nothing itself, and it changes nothing on any server.
 

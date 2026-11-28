@@ -453,6 +453,20 @@ function Invoke-MspkiGuiSnapshot {
                 }
             }
             if ($g.Rows.Count -gt 0) { $ui.FindingsGrid.SelectedIndex = 0 }
+            # Command palette (GX4): as it opens (commands and pages), then a search that finds objects and findings; and two toasts.
+            & $page $ui.TabSummary
+            Open-MspkiGuiPalette; Wait-MspkiGuiIdle -Rounds 3
+            & $shot '26-palette'
+            $ui.PaletteText.Text = 'crl'; Update-MspkiGuiPalette; Wait-MspkiGuiIdle -Rounds 3
+            & $shot '27-palette-search'
+            $ui.PaletteText.Text = 'zzzz-no-such-thing'; Update-MspkiGuiPalette; Wait-MspkiGuiIdle -Rounds 3
+            & $shot '28-palette-nomatch'
+            Close-MspkiGuiPalette -NoReturn
+            $toastsShown = (Show-MspkiGuiToast -Title 'Export finished' -Text ('12 findings written to {0}' -f (Join-Path $g.OutputRoot 'findings-filtered.csv')) -Tone Good)
+            [void](Show-MspkiGuiToast -Text 'The clipboard is in use by another program. Try again.' -Tone Warn)
+            Wait-MspkiGuiIdle -Rounds 3
+            foreach ($tc in @($ui.ToastHost.Children)) { $tc.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $null); $tc.Opacity = 1 }
+            if ($toastsShown) { & $shot '29-toasts'; $ui.ToastHost.Children.Clear() }
             # Discovery map: expand everything, select the first CA node, then drill into its first finding.
             & $page $ui.TabMap
             Set-MspkiGuiTreeExpansion -Parent $ui.MapTree -Expand $true

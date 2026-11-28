@@ -293,3 +293,20 @@ round: a tick box sat about 10 px below the first line of its check (now aligned
 click), a check's copy button copies it (2 clicks); the button answers with a green check mark for 1.4 s, with no animation (reduced motion needs nothing).
 Known, accepted: the details pane keeps its width (about 400 px at 1360 x 860), so long checks wrap; the tick boxes are keyboard-reachable but there is no shortcut yet
 (GX4 command palette); generator and discriminator are the same model.
+
+### GX4 round 1 (2026-11-27; command palette and toasts; Alcyone `mixed-sample` results; PNGs at 1080 x 700 (minimum) and 1360 x 860; frames 26 palette opened, 27 a search, 28 no match, 29 two toasts)
+Scores: A1 8, A2 7, A3 7, A4 8, A5 8, A6 7, A7 8, A8 7, A9 8, A10 8; B1 8, B2 7, B3 8, B4 8, B5 8; C1 8, C2 8, C3 7, C4 8. **Not a pass.**
+Defects: (1) an empty grey box stood where a result's status pill should be, and findings showed no pill (the visibility binding sat on the ContentPresenter whose own
+data is the pill: A6); (2) a search for "crl" gave seven results with the same title ("CRL - CN=...": B2), and their detail wrapped to three lines (A3); (3) with
+nothing typed, "How is this scored?" came first and "Run health check" sixth (Sort-Object in Windows PowerShell 5.1 is not stable: A8); (4) the toast frame was caught
+mid-fade (a method defect).
+Generator: the pill sits in a Border that carries the visibility; a finding's title is its message and the detail line is category, target and id, both trimmed to one
+line; every entry has a sequence number, so commands keep the command-bar order and findings the worst first; the snapshot shows toasts at full opacity.
+
+### GX4 round 2 (same frames and sizes)
+Scores: A1 9, A2 8, A3 8, A4 8, A5 8, A6 8, A7 8, A8 8, A9 8, A10 8; B1-B5 8; C1 8, C2 8, C3 8, C4 8. **PASS** (scope: palette, toasts, keyboard paths). The backdrop dims
+the window (measured: 250 -> 169 grey) so the card reads as the one thing in focus; toasts carry a tone strip, an icon and a word, never colour alone.
+Journeys by keyboard only (tests/GuiKeyboard.Tests.ps1): J1 Ctrl+K "run" (or F5); J2 Ctrl+1; J3 Ctrl+K, part of the finding, Enter, then F6 to the walkthrough; J4 Ctrl+O or
+Ctrl+K "open results" until history arrives (GX8); J5 and J6 arrive with GX9 and GX10. Palette opens in under 100 ms (measured in the test, five opens).
+Known, accepted: a Windows message box remains for a failure before the window is on screen; the palette has no fuzzy matching (every typed word must appear);
+generator and discriminator are the same model.

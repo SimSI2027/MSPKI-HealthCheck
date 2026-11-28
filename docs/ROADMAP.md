@@ -71,7 +71,7 @@ Design: `docs/GUI-EXPERIENCE.md`. Judged on the upgraded rubric (`docs/GUI-DESIG
 | GX1 | Engine events for the live map (`Entity`, `Relation`, `Probe` queue items) | DONE (2026-11-23) |
 | GX2 | Mission-control Overview, production quality | DONE (2026-11-23, PASS in round 2) |
 | GX3 | Guided troubleshooting walkthrough, Observed highlighting, copy the checks, mark as checked | DONE (2026-11-27, PASS in round 2) |
-| GX4 | Ctrl+K command palette, keyboard-first paths, in-app toasts | TODO |
+| GX4 | Ctrl+K command palette, keyboard-first paths, in-app toasts | DONE (2026-11-27, PASS in round 2) |
 | GX5 | Themes: dark and light (follow Windows), high contrast, reduced motion | TODO |
 | GX6 | Map page: full-page canvas, zoom and pan, clustering, hover "Where this exists" | TODO |
 | GX7 | Lifecycle timeline (expiry countdowns, CRL heartbeat) and interactive chain view | TODO |

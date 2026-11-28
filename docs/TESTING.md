@@ -163,7 +163,12 @@ things worth trying, and what you should see:
    asks you to change anything. Click the copy button next to one check and paste it into Notepad: it is the text you see, and nothing ran. Tick its box,
    close the window, open the same results again (Open results): the box is still ticked. Open `report.html` and look at the same finding: the section is there, and the source addresses are plain text.
 
-If something looks wrong, tell us which of the nine it was and what you saw, and send `run.log` from that run (see "What to
+10. **Keyboard only.** Without the mouse: press **Ctrl+K**, type part of a finding's text (for example `crl`) and press Enter: the finding
+   opens with its walkthrough. Press F6 a few times: the focus moves between the navigation, the command bar, the list and the details.
+   Press Ctrl+K again, type `services`, Enter: the PKI services page. Press Ctrl+K and Esc: the cursor is back where it was. Export the
+   findings (Ctrl+K, `export`): a notice appears at the bottom right instead of a Windows message box.
+
+If something looks wrong, tell us which of the ten it was and what you saw, and send `run.log` from that run (see "What to
 send back"). Please do not send screenshots or the result files: they contain real names.
 
 ## What the tool does and does not do

@@ -1504,6 +1504,90 @@
           </StackPanel>
         </Grid>
       </Border>
+      <!-- ===== In-app toasts (GX4): replace the Windows message boxes. Newest at the bottom; each closes by itself or with its X. ===== -->
+      <StackPanel x:Name="ToastHost" Grid.Row="1" Grid.ColumnSpan="2" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,24,20" Width="380" Panel.ZIndex="90"
+                  AutomationProperties.Name="Notifications"/>
+
+      <!-- ===== Command palette (Ctrl+K, GX4): pages, commands, objects by name, findings by text. Esc closes and returns focus. ===== -->
+      <Grid x:Name="PaletteLayer" Grid.RowSpan="3" Grid.ColumnSpan="2" Visibility="Collapsed" Panel.ZIndex="100">
+        <Border x:Name="PaletteScrim" Background="#59101828" AutomationProperties.Name="Close the command palette"/>
+        <Border x:Name="PaletteCard" KeyboardNavigation.TabNavigation="Cycle" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,96,0,0" Width="640" MaxHeight="520"
+                Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="1" CornerRadius="10">
+          <Border.Effect><DropShadowEffect BlurRadius="28" ShadowDepth="6" Opacity="0.28" Color="#101828"/></Border.Effect>
+          <DockPanel>
+            <Border DockPanel.Dock="Top" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1" Padding="16,12">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE721;" FontSize="16" Foreground="{StaticResource B.Muted}" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                <Border DockPanel.Dock="Right" Background="{StaticResource B.Hover}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                  <TextBlock Text="Esc" FontSize="11" Foreground="{StaticResource B.Muted}"/>
+                </Border>
+                <Grid>
+                  <TextBox x:Name="PaletteText" BorderThickness="0" Background="Transparent" FontSize="16" Padding="0" VerticalContentAlignment="Center"
+                           AutomationProperties.Name="Search pages, commands, objects and findings"/>
+                  <TextBlock Text="Search pages, commands, objects and findings" FontSize="16" Foreground="{StaticResource B.Muted}" IsHitTestVisible="False" VerticalAlignment="Center">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=PaletteText}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                </Grid>
+              </DockPanel>
+            </Border>
+            <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,1,0,0" Padding="16,8">
+              <DockPanel>
+                <TextBlock x:Name="PaletteCount" DockPanel.Dock="Right" Style="{StaticResource Small}"/>
+                <TextBlock Style="{StaticResource Small}" Text="Up and Down to move · Enter to open · Esc to close"/>
+              </DockPanel>
+            </Border>
+            <Grid>
+              <ListBox x:Name="PaletteList" BorderThickness="0" Background="Transparent" Padding="6" HorizontalContentAlignment="Stretch"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling"
+                       KeyboardNavigation.TabNavigation="Once" AutomationProperties.Name="Results">
+                <ListBox.ItemContainerStyle>
+                  <Style TargetType="ListBoxItem">
+                    <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}"/>
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                          <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="10,7" Margin="0,1">
+                            <ContentPresenter/>
+                          </Border>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Hover}"/></Trigger>
+                            <Trigger Property="IsSelected" Value="True"><Setter TargetName="Bd" Property="Background" Value="{StaticResource B.AccentSoft}"/></Trigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
+                  </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="14" Width="22" Foreground="{StaticResource B.Muted}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                        <Border Visibility="{Binding HasPill, Converter={StaticResource BoolToVis}}" Margin="0,0,8,0" VerticalAlignment="Center"><ContentPresenter Content="{Binding Pill}" ContentTemplate="{StaticResource PillTemplate}"/></Border>
+                        <Border Background="{StaticResource B.Hover}" CornerRadius="4" Padding="6,1" Visibility="{Binding HasShortcut, Converter={StaticResource BoolToVis}}" Margin="0,0,8,0">
+                          <TextBlock Text="{Binding Shortcut}" FontSize="11" Foreground="{StaticResource B.Muted}"/>
+                        </Border>
+                        <TextBlock Text="{Binding KindText}" Style="{StaticResource Small}" Width="62" TextAlignment="Right"/>
+                      </StackPanel>
+                      <StackPanel>
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Small}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                      </StackPanel>
+                    </DockPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock x:Name="PaletteEmpty" Text="Nothing matches. Try fewer words, or part of a name." Style="{StaticResource Muted}" HorizontalAlignment="Center" Margin="0,28" Visibility="Collapsed"/>
+            </Grid>
+          </DockPanel>
+        </Border>
+      </Grid>
+
     </Grid>
   </Border>
 </Window>

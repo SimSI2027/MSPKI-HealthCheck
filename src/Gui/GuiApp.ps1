@@ -9,6 +9,7 @@ $script:MspkiGui = $null
 . (Join-Path $PSScriptRoot 'GuiMission.ps1')
 . (Join-Path $PSScriptRoot 'GuiMapView.ps1')
 . (Join-Path $PSScriptRoot 'GuiState.ps1')
+. (Join-Path $PSScriptRoot 'GuiPalette.ps1')
 
 function Import-MspkiGuiAssembly {
     <#
@@ -60,10 +61,15 @@ function New-MspkiGuiWindow {
 function Show-MspkiGuiMessage {
     [CmdletBinding()]
     param([string]$Text, [string]$Title = 'MSPKI Health Check', [string]$Icon = 'Information')
+    # Once the window is on screen every notice is an in-app toast (GX4); a Windows message box remains only for a failure before that.
     $owner = $null
     if ($null -ne $script:MspkiGui) { $owner = $script:MspkiGui.Window }
-    if ($null -ne $owner -and $owner.IsVisible) { [void][System.Windows.MessageBox]::Show($owner, $Text, $Title, 'OK', $Icon) }
-    else { [void][System.Windows.MessageBox]::Show($Text, $Title, 'OK', $Icon) }
+    if ($null -ne $owner -and $owner.IsVisible) {
+        $tone = 'Info'; if ($Icon -eq 'Warning') { $tone = 'Warn' } elseif ($Icon -eq 'Error') { $tone = 'Bad' }
+        $head = $Title; if ($head -eq 'MSPKI Health Check') { $head = '' }
+        if (Show-MspkiGuiToast -Text $Text -Title $head -Tone $tone) { return }
+    }
+    [void][System.Windows.MessageBox]::Show($Text, $Title, 'OK', $Icon)
 }
 
 function Write-MspkiGuiErrorFile {
@@ -708,7 +714,7 @@ function Clear-MspkiGuiResult {
     foreach ($n in @('KpiList', 'TileList', 'SevTileList', 'CaList', 'CoverageList', 'CoverageOkList', 'ActionList')) { $ui[$n].ItemsSource = $null }
     if ($null -ne $g.Storyboard) { try { $g.Storyboard.Stop($ui.PanelResults); $g.Storyboard.Remove($ui.PanelResults) } catch { $null = $_ } }
     $g.Storyboard = $null; $g.MapModel = $null; $g.MapDrawn = $null; $g.MapDrawnWidth = 0; $g.MapAnimatePending = $false; $g.Score = $null; $g.Actions = $null
-    $g.Live = $null; $g.ActionsExpanded = $false; $g.CheckState = $null
+    $g.Live = $null; $g.ActionsExpanded = $false; $g.CheckState = $null; $g.PaletteItems = @()
     $ui.MapCanvas.Children.Clear()
     $ui.AreaPanel.Children.Clear()
     $ui.TxtNoSeverity.Visibility = 'Collapsed'
@@ -835,6 +841,7 @@ function Show-MspkiGuiResult {
 
     # Objects (the entity graph; results written before format 2 have none)
     $g.ObjRows = @(Get-MspkiGuiObjectList -Index $g.Index -RowById $g.RowById)
+    $g.PaletteItems = Get-MspkiGuiPaletteIndex -Rows ($g.Rows.ToArray()) -ObjRows $g.ObjRows
     $ui.ObjList.ItemsSource = $g.ObjRows
     $g.ObjView = [System.Windows.Data.CollectionViewSource]::GetDefaultView($ui.ObjList.ItemsSource)
     if ($null -ne $g.ObjView) {
@@ -1130,8 +1137,15 @@ function Complete-MspkiGuiRun {
         $g.LastFolder = [string]$result.OutputFolder
         $state = 'Done'
         if ($g.Summary.Health.Level -ne 'Green') { $state = 'Warn' }
-        if ($cancelled) { Set-MspkiGuiState -Text 'Cancelled. Partial results are shown and were saved.' -State Warn }
-        else { $ui.Progress.Value = 100; Set-MspkiGuiState -Text ('Finished: {0}' -f $g.Summary.Health.Title) -State $state }
+        if ($cancelled) {
+            Set-MspkiGuiState -Text 'Cancelled. Partial results are shown and were saved.' -State Warn
+            if (-not $g.CloseRequested) { [void](Show-MspkiGuiToast -Title 'Run cancelled' -Text 'What was found so far is shown and was saved.' -Tone Warn) }
+        }
+        else {
+            $ui.Progress.Value = 100; Set-MspkiGuiState -Text ('Finished: {0}' -f $g.Summary.Health.Title) -State $state
+            $tone = 'Good'; if ($state -ne 'Done') { $tone = 'Info' }
+            if (-not $g.CloseRequested) { [void](Show-MspkiGuiToast -Title 'Run finished' -Text ('{0}. The results are on the Overview.' -f $g.Summary.Health.Title) -Tone $tone) }
+        }
         if (-not $g.CloseRequested) { $ui.Tabs.SelectedItem = $ui.TabSummary }
     }
     else {
@@ -1244,7 +1258,9 @@ function Export-MspkiGuiFilteredView {
         } $path $items
         $g.LastExport = $path
         Set-MspkiGuiState -Text ('Exported {0} to {1}' -f (Format-MspkiGuiCount -Count $items.Count -Singular 'finding'), (Split-Path -Leaf $path)) -State Done
-        Show-MspkiGuiMessage -Text ('Exported {0} to:{1}{2}' -f (Format-MspkiGuiCount -Count $items.Count -Singular 'finding'), [Environment]::NewLine, $path) -Title 'Export finished'
+        if (-not (Show-MspkiGuiToast -Title 'Export finished' -Text ('{0} written to {1}' -f (Format-MspkiGuiCount -Count $items.Count -Singular 'finding'), $path) -Tone Good)) {
+            Show-MspkiGuiMessage -Text ('Exported {0} to:{1}{2}' -f (Format-MspkiGuiCount -Count $items.Count -Singular 'finding'), [Environment]::NewLine, $path) -Title 'Export finished'
+        }
     }
     catch { Show-MspkiGuiMessage -Text ('The export failed: {0}' -f $_.Exception.Message) -Title 'Export' -Icon 'Warning' }
 }
@@ -1288,6 +1304,347 @@ function Select-MspkiGuiTab {
     if ($Index -ge 0 -and $Index -lt $tabs.Count) { $ui.Tabs.SelectedItem = $tabs[$Index] }
 }
 
+# ===== Toasts, command palette and keyboard paths (GX4) =====
+
+function Show-MspkiGuiToast {
+    <#
+    .SYNOPSIS
+    Shows a short in-app notice at the bottom right of the window (in place of a Windows message box). It closes by itself (Info and
+    Good after 5 s, Warn after 8 s, Bad after 12 s; the timer pauses while the mouse is over it) or with its X. At most three are shown.
+    Returns $false when the window is not there yet (the caller then falls back to a message box).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Text, [string]$Title = '', [ValidateSet('Info', 'Good', 'Warn', 'Bad')][string]$Tone = 'Info', [int]$Seconds = 0)
+    $g = $script:MspkiGui
+    if ($null -eq $g -or $null -eq $g.Ui -or -not $g.Ui.ContainsKey('ToastHost') -or -not $g.Window.IsVisible) { return $false }
+    $toastHost = $g.Ui.ToastHost
+    if ($Seconds -le 0) { $Seconds = @{ Info = 5; Good = 5; Warn = 8; Bad = 12 }[$Tone] }
+    $fore = @{ Info = 'B.InfoFore'; Good = 'B.GoodFore'; Warn = 'B.WarnFore'; Bad = 'B.BadFore' }[$Tone]
+    $glyph = @{ Info = 0xE946; Good = 0xE73E; Warn = 0xE7BA; Bad = 0xEA39 }[$Tone]
+    $card = New-Object System.Windows.Controls.Border
+    $card.SetResourceReference([System.Windows.Controls.Border]::BackgroundProperty, 'B.Card')
+    $card.SetResourceReference([System.Windows.Controls.Border]::BorderBrushProperty, 'B.Border')
+    $card.BorderThickness = New-Object System.Windows.Thickness(1)
+    $card.CornerRadius = New-Object System.Windows.CornerRadius(8)
+    $card.Margin = New-Object System.Windows.Thickness(0, 8, 0, 0)
+    $shadow = New-Object System.Windows.Media.Effects.DropShadowEffect
+    $shadow.BlurRadius = 18; $shadow.ShadowDepth = 3; $shadow.Opacity = 0.18
+    $card.Effect = $shadow
+    $dock = New-Object System.Windows.Controls.DockPanel
+    $strip = New-Object System.Windows.Controls.Border
+    $strip.Width = 4; $strip.CornerRadius = New-Object System.Windows.CornerRadius(2); $strip.Margin = New-Object System.Windows.Thickness(6, 8, 0, 8)
+    $strip.SetResourceReference([System.Windows.Controls.Border]::BackgroundProperty, $fore)
+    [System.Windows.Controls.DockPanel]::SetDock($strip, 'Left')
+    [void]$dock.Children.Add($strip)
+    $ic = New-Object System.Windows.Controls.TextBlock
+    $ic.Style = $g.Window.FindResource('Glyph'); $ic.Text = [string][char]$glyph; $ic.FontSize = 16
+    $ic.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, $fore)
+    $ic.Margin = New-Object System.Windows.Thickness(10, 13, 10, 0); $ic.VerticalAlignment = 'Top'
+    [System.Windows.Controls.DockPanel]::SetDock($ic, 'Left')
+    [void]$dock.Children.Add($ic)
+    $close = New-Object System.Windows.Controls.Button
+    $close.Style = $g.Window.FindResource('SubtleButton'); $close.Width = 28; $close.Height = 28; $close.Padding = New-Object System.Windows.Thickness(0)
+    $close.Margin = New-Object System.Windows.Thickness(0, 7, 7, 0); $close.VerticalAlignment = 'Top'; $close.ToolTip = 'Dismiss'
+    [System.Windows.Automation.AutomationProperties]::SetName($close, 'Dismiss this notice')
+    $x = New-Object System.Windows.Controls.TextBlock
+    $x.Style = $g.Window.FindResource('CmdGlyph'); $x.Text = [string][char]0xE711; $x.FontSize = 11; $x.Margin = New-Object System.Windows.Thickness(0); $x.HorizontalAlignment = 'Center'
+    $close.Content = $x
+    [System.Windows.Controls.DockPanel]::SetDock($close, 'Right')
+    [void]$dock.Children.Add($close)
+    $sp = New-Object System.Windows.Controls.StackPanel
+    $sp.Margin = New-Object System.Windows.Thickness(0, 11, 4, 12)
+    if ($Title) {
+        $tt = New-Object System.Windows.Controls.TextBlock
+        $tt.Text = $Title; $tt.FontWeight = 'SemiBold'; $tt.TextWrapping = 'Wrap'
+        [void]$sp.Children.Add($tt)
+    }
+    $tx = New-Object System.Windows.Controls.TextBlock
+    $tx.Text = $Text; $tx.TextWrapping = 'Wrap'
+    $tx.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, 'B.Text')
+    [void]$sp.Children.Add($tx)
+    [void]$dock.Children.Add($sp)
+    $card.Child = $dock
+    $name = $Text; if ($Title) { $name = '{0}: {1}' -f $Title, $Text }
+    [System.Windows.Automation.AutomationProperties]::SetName($card, $name)
+    try { [System.Windows.Automation.AutomationProperties]::SetLiveSetting($card, [System.Windows.Automation.AutomationLiveSetting]::Polite) } catch { $null = $_ }
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromSeconds($Seconds)
+    $state = @{ Card = $card; Host = $toastHost; Timer = $timer }
+    $timer.Tag = $state; $card.Tag = $state; $close.Tag = $state
+    $timer.Add_Tick({ param($s, $e) $st = $s.Tag; $s.Stop(); if ($st.Host.Children.Contains($st.Card)) { $st.Host.Children.Remove($st.Card) } })
+    $close.Add_Click({ param($s, $e) $st = $s.Tag; $st.Timer.Stop(); if ($st.Host.Children.Contains($st.Card)) { $st.Host.Children.Remove($st.Card) }; $e.Handled = $true })
+    $card.Add_MouseEnter({ param($s, $e) $s.Tag.Timer.Stop() })
+    $card.Add_MouseLeave({ param($s, $e) $s.Tag.Timer.Start() })
+    [void]$toastHost.Children.Add($card)
+    while ($toastHost.Children.Count -gt 3) { $old = $toastHost.Children[0]; try { $old.Tag.Timer.Stop() } catch { $null = $_ }; $toastHost.Children.RemoveAt(0) }
+    if (-not (Test-MspkiGuiReducedMotion)) {
+        $card.Opacity = 0
+        $fade = New-Object System.Windows.Media.Animation.DoubleAnimation(0, 1, (New-Object System.Windows.Duration([TimeSpan]::FromMilliseconds(160))))
+        $card.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $fade)
+    }
+    try {
+        $peer = [System.Windows.Automation.Peers.UIElementAutomationPeer]::CreatePeerForElement($card)
+        if ($null -ne $peer) { $peer.RaiseAutomationEvent([System.Windows.Automation.Peers.AutomationEvents]::LiveRegionChanged) }
+    }
+    catch { $null = $_ }
+    $timer.Start()
+    $g.LastToast = $name
+    return $true
+}
+
+function Get-MspkiGuiCommandAvailability {
+    <#
+    .SYNOPSIS
+    Which palette commands can run now, read from the window's own buttons and state.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    return @{
+        run = [bool]$ui.BtnRun.IsEnabled; cancel = [bool]$ui.BtnCancel.IsEnabled; open = [bool]$ui.BtnOpenResults.IsEnabled
+        report = [bool]$ui.BtnOpenReport.IsEnabled; folder = [bool]$ui.BtnOpenFolder.IsEnabled; export = ($g.Rows.Count -gt 0)
+        actions = ($null -ne $g.Actions -and @($g.Actions).Count -gt 0); score = ($null -ne $g.Score -and [bool]$g.Score.HasScore)
+        options = [bool]$ui.ExpOptions.IsEnabled; copylog = (@($ui.LogList.Items).Count -gt 0)
+    }
+}
+
+function Update-MspkiGuiPalette {
+    <#
+    .SYNOPSIS
+    Fills the palette's result list for the text in its search box; the first result is selected.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $max = 200
+    $r = @(Find-MspkiGuiPaletteItem -Query ([string]$ui.PaletteText.Text) -Fixed @($g.PaletteFixed) -Items @($g.PaletteItems) -Max $max)
+    $ui.PaletteList.ItemsSource = $r
+    if ($r.Count -gt 0) { $ui.PaletteList.SelectedIndex = 0; $ui.PaletteList.ScrollIntoView($r[0]) }
+    $ui.PaletteEmpty.Visibility = $(if ($r.Count -eq 0) { 'Visible' } else { 'Collapsed' })
+    $ui.PaletteCount.Text = $(if ($r.Count -ge $max) { 'First {0} results' -f $max } else { Format-MspkiGuiCount -Count $r.Count -Singular 'result' })
+}
+
+function Open-MspkiGuiPalette {
+    <#
+    .SYNOPSIS
+    Opens the command palette over the window and puts the cursor in its search box. Remembers where the focus was, for Esc.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $g.PaletteReturn = [System.Windows.Input.Keyboard]::FocusedElement
+    $g.PaletteFixed = @(Get-MspkiGuiPaletteCommand -Available (Get-MspkiGuiCommandAvailability)) + @(Get-MspkiGuiPalettePage)
+    $g.PaletteSilent = $true
+    $ui.PaletteText.Text = ''
+    $g.PaletteSilent = $false
+    Update-MspkiGuiPalette
+    $ui.PaletteLayer.Visibility = 'Visible'
+    [void]$ui.PaletteText.Focus()
+    [void][System.Windows.Input.Keyboard]::Focus($ui.PaletteText)
+    $sw.Stop()
+    $g.PaletteOpenMs = $sw.Elapsed.TotalMilliseconds
+}
+
+function Close-MspkiGuiPalette {
+    <#
+    .SYNOPSIS
+    Closes the palette. Unless -NoReturn, the focus goes back to where it was before the palette opened.
+    #>
+    [CmdletBinding()]
+    param([switch]$NoReturn)
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    if ($null -ne $g.PaletteTimer) { $g.PaletteTimer.Stop() }
+    $ui.PaletteLayer.Visibility = 'Collapsed'
+    $back = $g.PaletteReturn
+    $g.PaletteReturn = $null
+    if ($NoReturn) { return }
+    if ($null -ne $back -and $back -is [System.Windows.UIElement] -and $back.IsVisible -and $back.Focusable) { [void][System.Windows.Input.Keyboard]::Focus($back) }
+    else { [void]$ui.NavList.Focus() }
+}
+
+function Move-MspkiGuiPaletteSelection {
+    [CmdletBinding()]
+    param([int]$By)
+    $l = $script:MspkiGui.Ui.PaletteList
+    $n = @($l.ItemsSource).Count
+    if ($n -eq 0) { return }
+    $i = [Math]::Max(0, [Math]::Min($n - 1, $l.SelectedIndex + $By))
+    $l.SelectedIndex = $i
+    $l.ScrollIntoView($l.SelectedItem)
+}
+
+function Invoke-MspkiGuiCommand {
+    <#
+    .SYNOPSIS
+    Runs one window command by name (the palette's "cmd:<name>"). A command bar button is clicked as the user would, so the palette and
+    the button always do the same thing.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $click = { param($b) if ($b.IsEnabled) { $b.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }
+    switch ($Name) {
+        'run' { & $click $ui.BtnRun }
+        'cancel' { & $click $ui.BtnCancel }
+        'open' { & $click $ui.BtnOpenResults }
+        'report' { & $click $ui.BtnOpenReport }
+        'folder' { & $click $ui.BtnOpenFolder }
+        'export' { Select-MspkiGuiTab -Index 1; Export-MspkiGuiFilteredView }
+        'actions' { Select-MspkiGuiTab -Index 0; Show-MspkiGuiAllActions }
+        'score' { Select-MspkiGuiTab -Index 0; & $click $ui.BtnScoreHow }
+        'options' { $ui.ExpOptions.IsExpanded = $true; [void]$ui.ExpOptions.Focus() }
+        'copylog' { & $click $ui.BtnCopyLog; if (@($ui.LogList.Items).Count -gt 0) { [void](Show-MspkiGuiToast -Text 'The run log is on the clipboard.' -Tone Good) } }
+    }
+}
+
+function Set-MspkiGuiFocusLater {
+    <#
+    .SYNOPSIS
+    Gives an element the keyboard focus once the page it is on has been laid out (a page that was just selected is not focusable yet).
+    For a list, the selected row gets the focus so that the arrow keys continue from it.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Element)
+    $script:MspkiGuiFocusTarget = $Element
+    $cb = [System.Action]{
+        $el = $script:MspkiGuiFocusTarget
+        if ($null -eq $el) { return }
+        $el.UpdateLayout()
+        $done = $false
+        if ($el -is [System.Windows.Controls.ListBox] -or $el -is [System.Windows.Controls.DataGrid]) {
+            $it = $el.SelectedItem
+            if ($null -ne $it) {
+                $el.ScrollIntoView($it)
+                $el.UpdateLayout()
+                $row = $el.ItemContainerGenerator.ContainerFromItem($it)
+                if ($null -ne $row) { $done = [System.Windows.Input.Keyboard]::Focus($row) -eq $row }
+            }
+        }
+        if (-not $done) { [void][System.Windows.Input.Keyboard]::Focus($el) }
+    }
+    [void]$script:MspkiGui.Window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Loaded, $cb)
+}
+
+function Invoke-MspkiGuiPaletteAction {    <#
+    .SYNOPSIS
+    Opens what a palette item stands for: a page, a command, an object (Objects page) or a finding (Findings page, walkthrough in view).
+    Only these fixed keys are understood: the text typed in the palette is a search, never a command.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Action)
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    if (-not $Action) { return }
+    if ($Action -match '^page:(\d)$') { Close-MspkiGuiPalette -NoReturn; Select-MspkiGuiTab -Index ([int]$Matches[1]); Set-MspkiGuiFocusLater -Element $ui.NavList; return }
+    if ($Action -match '^cmd:([a-z]+)$') { Close-MspkiGuiPalette; Invoke-MspkiGuiCommand -Name $Matches[1]; return }
+    if ($Action -match '^finding:(.+)$') { Close-MspkiGuiPalette -NoReturn; Show-MspkiGuiFinding -Id $Matches[1]; Set-MspkiGuiFocusLater -Element $ui.FindingsGrid; return }
+    if ($Action -match '^ent:(.+)$') { Close-MspkiGuiPalette -NoReturn; Show-MspkiGuiObject -Id $Matches[1]; Set-MspkiGuiFocusLater -Element $ui.ObjList; return }
+}
+
+function Move-MspkiGuiRegionFocus {
+    <#
+    .SYNOPSIS
+    F6 / Shift+F6: moves the keyboard focus between the regions of the window: navigation, command bar, the page, its details pane.
+    #>
+    [CmdletBinding()]
+    param([switch]$Back)
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $sel = $ui.Tabs.SelectedItem
+    $content = $null; $details = $null
+    if ($sel -eq $ui.TabSummary) { $content = $ui.PanelResults; if ($ui.PanelResults.Visibility -ne 'Visible') { $content = $ui.BtnWelcomeRun } }
+    elseif ($sel -eq $ui.TabFindings) { $content = $ui.FindingsGrid; $details = $ui.FindingHost }
+    elseif ($sel -eq $ui.TabMap) { $content = $ui.MapTree; $details = $ui.MapHost }
+    elseif ($sel -eq $ui.TabLog) { $content = $ui.LogList }
+    elseif ($sel -eq $ui.TabObjects) { $content = $ui.ObjList; $details = $ui.ObjHost }
+    elseif ($sel -eq $ui.TabServices) { $content = $ui.SvcList; $details = $ui.SvcHost }
+    $bar = $ui.BtnRun; if (-not $bar.IsEnabled) { $bar = $ui.BtnOpenResults }
+    $regions = @($ui.NavList, $bar, $content, $details) | Where-Object { $null -ne $_ -and $_.IsVisible }
+    if (@($regions).Count -eq 0) { return }
+    $cur = -1
+    for ($i = 0; $i -lt @($regions).Count; $i++) { if ($regions[$i].IsKeyboardFocusWithin) { $cur = $i; break } }
+    if ($regions[0] -eq $ui.NavList -and $cur -lt 0 -and ($ui.BtnRun.IsKeyboardFocusWithin -or $ui.BtnCancel.IsKeyboardFocusWithin -or $ui.BtnOpenResults.IsKeyboardFocusWithin -or $ui.BtnOpenReport.IsKeyboardFocusWithin -or $ui.BtnOpenFolder.IsKeyboardFocusWithin)) { $cur = 1 }
+    $step = 1; if ($Back) { $step = -1 }
+    $n = @($regions).Count
+    $next = $regions[((($cur + $step) % $n) + $n) % $n]
+    if ($next.Focusable -and $next.IsEnabled) { [void][System.Windows.Input.Keyboard]::Focus($next) }
+    if (-not $next.IsKeyboardFocusWithin) { [void]$next.MoveFocus((New-Object System.Windows.Input.TraversalRequest([System.Windows.Input.FocusNavigationDirection]::First))) }
+    if (-not $next.IsKeyboardFocusWithin) {
+        $first = $null
+        $q = New-Object System.Collections.Queue; $q.Enqueue($next)
+        while ($q.Count -gt 0 -and $null -eq $first) {
+            $v = $q.Dequeue()
+            if ($v -ne $next -and $v -is [System.Windows.UIElement] -and $v.Focusable -and $v.IsVisible -and $v.IsEnabled -and ($v -is [System.Windows.Controls.Control])) { $first = $v; break }
+            if ($v -is [System.Windows.Media.Visual]) { for ($k = 0; $k -lt [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($v); $k++) { $q.Enqueue([System.Windows.Media.VisualTreeHelper]::GetChild($v, $k)) } }
+        }
+        if ($null -ne $first) { [void][System.Windows.Input.Keyboard]::Focus($first) }
+    }
+}
+
+function Invoke-MspkiGuiShortcut {
+    <#
+    .SYNOPSIS
+    The window's keyboard shortcuts in one place (the window's PreviewKeyDown calls it; the keyboard replay test calls it directly).
+    Returns $true when the key was used. Ctrl+K palette; while it is open Up/Down/PageUp/PageDown move, Enter opens, Esc closes.
+    F5 run, Esc clear the focused filter or cancel, Ctrl+1..6 pages, Ctrl+F search, Ctrl+O open, F6 / Shift+F6 regions, Alt+Left back.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Key, [bool]$Ctrl = $false, [bool]$Alt = $false, [bool]$Shift = $false)
+    $s = $script:MspkiGui
+    $u = $s.Ui
+    $palette = ($u.PaletteLayer.Visibility -eq 'Visible')
+    if ($Ctrl -and $Key -eq 'K') { if ($palette) { Close-MspkiGuiPalette } else { Open-MspkiGuiPalette }; return $true }
+    if ($palette) {
+        switch ($Key) {
+            'Escape' { Close-MspkiGuiPalette; return $true }
+            'Down' { Move-MspkiGuiPaletteSelection -By 1; return $true }
+            'Up' { Move-MspkiGuiPaletteSelection -By -1; return $true }
+            'PageDown' { Move-MspkiGuiPaletteSelection -By 8; return $true }
+            'PageUp' { Move-MspkiGuiPaletteSelection -By -8; return $true }
+            'Return' { $it = $u.PaletteList.SelectedItem; if ($null -ne $it) { Invoke-MspkiGuiPaletteAction -Action ([string]$it.Action) }; return $true }
+        }
+        return $false
+    }
+    if ($Key -eq 'F5' -and $u.BtnRun.IsEnabled) { Start-MspkiGuiRun; return $true }
+    if ($Key -eq 'F6') { Move-MspkiGuiRegionFocus -Back:$Shift; return $true }
+    if ($Key -eq 'Escape') {
+        $f = [System.Windows.Input.Keyboard]::FocusedElement
+        if (($f -eq $u.FltText -and $u.FltText.Text) -or ($f -eq $u.FltLog -and $u.FltLog.Text) -or ($f -eq $u.FltObj -and $u.FltObj.Text)) { $f.Text = ''; return $true }
+        if ($null -ne $s.Run) { Request-MspkiGuiCancel; return $true }
+        return $false
+    }
+    if ($Alt -and $Key -eq 'Left') {
+        $sel = $u.Tabs.SelectedItem
+        $h = ''
+        if ($sel -eq $u.TabFindings) { $h = 'FindingHost' } elseif ($sel -eq $u.TabMap) { $h = 'MapHost' } elseif ($sel -eq $u.TabObjects) { $h = 'ObjHost' } elseif ($sel -eq $u.TabServices) { $h = 'SvcHost' }
+        if ($h -and $null -ne $u[$h].Content) { Invoke-MspkiGuiPaneCommand -HostName $h -Tag 'Back'; return $true }
+        return $false
+    }
+    if ($Ctrl) {
+        switch ($Key) {
+            'D1' { Select-MspkiGuiTab -Index 0; return $true }
+            'D2' { Select-MspkiGuiTab -Index 1; return $true }
+            'D3' { Select-MspkiGuiTab -Index 2; return $true }
+            'D4' { Select-MspkiGuiTab -Index 3; return $true }
+            'D5' { Select-MspkiGuiTab -Index 4; return $true }
+            'D6' { Select-MspkiGuiTab -Index 5; return $true }
+            'O' { if ($u.BtnOpenResults.IsEnabled) { Invoke-MspkiGuiOpenDialog }; return $true }
+            'F' {
+                if ($u.Tabs.SelectedItem -eq $u.TabFindings) { [void]$u.FltText.Focus(); return $true }
+                elseif ($u.Tabs.SelectedItem -eq $u.TabLog) { [void]$u.FltLog.Focus(); return $true }
+                elseif ($u.Tabs.SelectedItem -eq $u.TabObjects) { [void]$u.FltObj.Focus(); return $true }
+            }
+        }
+    }
+    return $false
+}
+
 function Initialize-MspkiGuiApplication {
     <#
     .SYNOPSIS
@@ -1305,7 +1662,7 @@ function Initialize-MspkiGuiApplication {
         Window = $w.Window; Ui = $w.Ui; ModulePath = $ModulePath; OutputRoot = $OutputPath
         Run = $null; Timer = $null; Data = $null; Summary = $null; Rows = (New-Object 'System.Collections.Generic.List[object]'); View = $null; RowById = @{}
         Chips = @(); MapPane = $null; LastExport = ''
-        Index = $null; ObjRows = @(); ObjView = $null; ObjFilter = @{ Text = ''; Type = ''; Attention = $false }; Nav = @{}
+        Index = $null; PaletteItems = @(); PaletteFixed = @(); PaletteReturn = $null; PaletteTimer = $null; PaletteSilent = $false; PaletteOpenMs = 0; LastToast = ''; ObjRows = @(); ObjView = $null; ObjFilter = @{ Text = ''; Type = ''; Attention = $false }; Nav = @{}
         Filter = @{ Text = ''; Status = @(); Category = ''; Confidence = ''; Severity = ''; Area = $null }
         Score = $null; Actions = $null; MapModel = $null; MapDrawn = $null; MapDrawnWidth = 0; MapAnimatePending = $false; MapTotalMs = 0
         Storyboard = $null; AreaFills = $null; ForceMotion = $false
@@ -1489,35 +1846,33 @@ function Initialize-MspkiGuiApplication {
         if ($lines.Count -gt 0) { [void](Set-MspkiGuiClipboard -Text ($lines -join "`r`n")) }
     })
 
-    # Keyboard: F5 run, Esc clear the focused filter or cancel, Ctrl+1..4 tabs, Ctrl+F search, Ctrl+O open
+    # Keyboard: every shortcut is in Invoke-MspkiGuiShortcut (GX4). Alt+key arrives as Key=System with the real key in SystemKey.
     $g.Window.Add_PreviewKeyDown({
         param($sender, $e)
+        $m = [System.Windows.Input.Keyboard]::Modifiers
+        $k = $e.Key
+        if ($k -eq [System.Windows.Input.Key]::System) { $k = $e.SystemKey }
+        $ctrl = ($m -band [System.Windows.Input.ModifierKeys]::Control) -ne 0
+        $alt = ($m -band [System.Windows.Input.ModifierKeys]::Alt) -ne 0
+        $shift = ($m -band [System.Windows.Input.ModifierKeys]::Shift) -ne 0
+        if (Invoke-MspkiGuiShortcut -Key ([string]$k) -Ctrl $ctrl -Alt $alt -Shift $shift) { $e.Handled = $true }
+    })
+
+    # Command palette: search as the user types (debounced when the run is large), a click on the dimmed window closes it, a click on a result opens it.
+    $g.PaletteTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $g.PaletteTimer.Interval = [TimeSpan]::FromMilliseconds(70)
+    $g.PaletteTimer.Add_Tick({ $script:MspkiGui.PaletteTimer.Stop(); Update-MspkiGuiPalette })
+    $ui.PaletteText.Add_TextChanged({
         $s = $script:MspkiGui
-        $u = $s.Ui
-        $ctrl = ([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control) -ne 0
-        if ($e.Key -eq 'F5' -and $u.BtnRun.IsEnabled) { Start-MspkiGuiRun; $e.Handled = $true; return }
-        if ($e.Key -eq 'Escape') {
-            $f = [System.Windows.Input.Keyboard]::FocusedElement
-            if (($f -eq $u.FltText -and $u.FltText.Text) -or ($f -eq $u.FltLog -and $u.FltLog.Text) -or ($f -eq $u.FltObj -and $u.FltObj.Text)) { $f.Text = ''; $e.Handled = $true; return }
-            if ($null -ne $s.Run) { Request-MspkiGuiCancel; $e.Handled = $true }
-            return
-        }
-        if ($ctrl) {
-            switch ($e.Key) {
-                'D1' { Select-MspkiGuiTab -Index 0; $e.Handled = $true }
-                'D2' { Select-MspkiGuiTab -Index 1; $e.Handled = $true }
-                'D3' { Select-MspkiGuiTab -Index 2; $e.Handled = $true }
-                'D4' { Select-MspkiGuiTab -Index 3; $e.Handled = $true }
-                'D5' { Select-MspkiGuiTab -Index 4; $e.Handled = $true }
-                'D6' { Select-MspkiGuiTab -Index 5; $e.Handled = $true }
-                'O' { if ($u.BtnOpenResults.IsEnabled) { Invoke-MspkiGuiOpenDialog }; $e.Handled = $true }
-                'F' {
-                    if ($u.Tabs.SelectedItem -eq $u.TabFindings) { [void]$u.FltText.Focus(); $e.Handled = $true }
-                    elseif ($u.Tabs.SelectedItem -eq $u.TabLog) { [void]$u.FltLog.Focus(); $e.Handled = $true }
-                    elseif ($u.Tabs.SelectedItem -eq $u.TabObjects) { [void]$u.FltObj.Focus(); $e.Handled = $true }
-                }
-            }
-        }
+        if ($s.PaletteSilent -or $s.Ui.PaletteLayer.Visibility -ne 'Visible') { return }
+        if (@($s.PaletteItems).Count -gt 1500) { $s.PaletteTimer.Stop(); $s.PaletteTimer.Start() } else { Update-MspkiGuiPalette }
+    })
+    $ui.PaletteScrim.Add_MouseLeftButtonDown({ Close-MspkiGuiPalette })
+    $ui.PaletteList.Add_PreviewMouseLeftButtonUp({
+        param($sender, $e)
+        $src = $e.OriginalSource -as [System.Windows.DependencyObject]
+        while ($null -ne $src -and $src -isnot [System.Windows.Controls.ListBoxItem]) { $src = [System.Windows.Media.VisualTreeHelper]::GetParent($src) }
+        if ($null -ne $src) { Invoke-MspkiGuiPaletteAction -Action ([string]$src.DataContext.Action); $e.Handled = $true }
     })
 
     $g.Window.Add_Closing({

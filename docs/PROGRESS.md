@@ -538,3 +538,14 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   pane handler only calls the clipboard and named window helpers. Snapshots `23-walkthrough`, `24-walkthrough-causes`, `25-walkthrough-checked`; lab run (normal user) under out\ only.
 - Fixed in passing: README and TESTING had a carriage return where a backtick-r had been eaten (`results.json`, `report.html`).
 - Next: GX4 (Ctrl+K command palette, keyboard-first paths, in-app toasts replacing the Windows message boxes).
+
+## GX4 (2026-11-27): Ctrl+K command palette, keyboard-first paths, in-app toasts - DONE (PASS in round 2)
+- `src/Gui/GuiPalette.ps1` (pure): pages, the command-bar commands (only those available now), objects by name and findings by text; every word must match; title starts
+  first, then word starts, then anywhere; stable order. Window: an overlay with a dimmed backdrop, a search box and a virtualised list; Enter opens, Esc closes and returns
+  the focus, Tab stays inside. Palette commands click the same buttons the command bar has.
+- All shortcuts in `Invoke-MspkiGuiShortcut` (Ctrl+K, F5, Esc, Ctrl+1..6, Ctrl+F, Ctrl+O, new F6 / Shift+F6 regions, Alt+Left back). Toasts (`Show-MspkiGuiToast`) replace the
+  Windows message boxes once the window is shown (at most 3; 5/8/12 s by tone; pause on hover; X to dismiss; screen-reader live region); "Run finished", "Run cancelled", "Export finished".
+- Found and fixed: Windows PowerShell 5.1 throws "Argument types do not match" for `@($list)` of the window's row list in one binder path; the palette index takes `.ToArray()`.
+  A failure while opening results before the window shows still falls back to a message box (that is how the hang showed up in the first test run).
+- Tests: `tests/GuiPalette.Tests.ps1` (12), `tests/GuiKeyboard.Tests.ps1` (9: real window off-screen, keyboard-only replay, open time under 100 ms, toasts).
+- Next: GX5 (themes: every brush a DynamicResource, dark and light following Windows, high contrast, reduced motion, contrast test).
