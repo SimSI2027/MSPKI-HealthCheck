@@ -76,6 +76,7 @@ Design: `docs/GUI-EXPERIENCE.md`. Judged on the upgraded rubric (`docs/GUI-DESIG
 | GX6 | Map page: full-page canvas, zoom and pan, clustering, hover "Where this exists" | DONE (2026-11-27, PASS in round 2) |
 | GX7 | Lifecycle timeline (expiry countdowns, CRL heartbeat) and interactive chain view | DONE (2026-11-28, PASS in round 2) |
 | GX8 | Run history and compare two runs | DONE (2026-11-28, PASS in round 2) |
+| GX8b | Consistency pass after the independent review (`docs/REVIEW-GX.md`): D-01..D-28, terms check against GUI-DESIGN §9 | DONE (2026-11-28; every Blocker, High and Medium fixed; D-34, D-46, D-47 and part of D-09 open for GX11) |
 | GX9 | "Explain it to me" mode, Learn page, glossary, first-run tour, healthy celebration | TODO |
 | GX10 | Executive summary export (printable HTML) | TODO |
 | GX11 | Adversarial round on the upgraded rubric (max 3 rounds; PASS gate for the program) | TODO |
@@ -104,12 +105,24 @@ Design: `docs/GUI-EXPERIENCE.md`. Judged on the upgraded rubric (`docs/GUI-DESIG
   with each AIA/CDP link's result; both drill into details; snapshots in the demo world's `renewal-drift` and `expired-crl` scenarios.
 - **GX8** Findings carry a deterministic `Key` (category, code, rule, target; engine change with tests); History lists runs under `out\`
   (read-only) with the score sparkline; compare shows new, resolved and changed findings and objects added or gone; J4 in 2 clicks.
+- **GX8b** No Blocker or High open; every Medium fixed or accepted by the owner in writing; the §9 terms are the only status words (test against the icon table).
 - **GX9** Glossary in `src/Knowledge/Glossary.psd1` (data only, tested like the diagnosis files); explain mode underlines terms with hover
   definitions; concept card per object type; a 4-stop tour offered once (`out\gui-settings.json`); the celebration runs once per healthy run.
+  Review changes (REVIEW-GX §7): concept cards reuse the existing "What it is" notes (no second set); glossary keys are the §9 terms; the J5
+  check ("no term on the Overview unexplained") also covers AIA, CDP, LDAP, CES, OCSP and "partial score" (the exit code left the Overview,
+  D-36); tour stops: the score line with "held down by", What to do next, the map, Ctrl+K, each rendered at minimum size, in dark and with
+  reduced motion; the celebration is built last and kept small.
 - **GX10** Executive summary reporter: one printable page (score, trend when history exists, areas, top 3 actions in plain words, what was
-  not checked); written under `out\` only; J6 in 2 clicks; hygiene and report tests.
+  not checked); written under `out\` only; J6 in 2 clicks; hygiene and report tests. Review changes: reuse the Overview helpers after D-21
+  and D-12 (grouped plain actions, readable titles: done in GX8b); print the "as of" date and the earlier-run notice prominently; judge the
+  HTML with print CSS in a browser frame, saved under `out\` only.
 - **GX11** Discriminator on PNGs and journey click paths, all states, three sizes, both themes, reduced motion on and off: every category
-  8+, no Fortune 500 defect. Rounds logged in GUI-DESIGN §7.
+  8+, no Fortune 500 defect. Rounds logged in GUI-DESIGN §7. Review changes: the snapshot method is fixed first (D-07, done: `frames.csv`
+  and its test); add frames for keyboard focus on nav, buttons, chips, pane links and palette rows, the options strip open, the error state
+  with its actions, History with a single run, the LARGE estate on every page, a real high-contrast theme (dev VM user only, never a lab
+  server), maximised on a 1920 x 1080+ screen, 150 % and 200 %; a LARGE fixture whose findings carry real status codes; a discriminator
+  that runs apart from the generator (a fresh session given only the PNGs, the rubric and REVIEW-GX); every REVIEW-GX defect ID closed with
+  a frame that proves it (open: D-09 Overview card centring, D-34, D-46, D-47).
 
 ## Demo site (plan of record from 2026-11-23)
 Plan: `docs/DEMO-SITE.md`. World: `docs/DEMO-WORLD.md`.

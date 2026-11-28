@@ -621,3 +621,14 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Blocker D-01: the walkthrough's "Observed in this run" pill shows for any hint (GuiView `[bool]$bt`), while the engine and the Overview need support >= 10.
 - Snapshot method defects (D-07): partial / no-CA frames are captured before the map worker finishes; frames 31-34 render the History page.
 - Next: GX8b consistency pass (D-01..D-28), then GX9.
+
+## GX8b (2026-11-28): consistency pass after the independent review - DONE
+- Every Blocker, High and Medium of `docs/REVIEW-GX.md` is fixed, most Lows and one Polish item too; §8 of that file lists each defect with
+  its commit. Open for GX11: D-09 (Overview card centring; opening focused on one CA was tried and declined), D-34, D-46, D-47.
+- Honesty (D-01): the diagnosis carries a per-cause `Supported` flag; "Observed in this run" appears only for supported causes, everywhere
+  (pane, copied text, Overview, HTML report). One status vocabulary (D-03/D-14): "Could not check" (lock) for permission and support skips.
+- New pure helpers with tests (`tests/GuiConsistency.Tests.ps1`): status key and words, finding title and qualifier, grid column plan, time
+  formatter, check placeholders, plain grouped actions, run-error view; a guard that no GUI function is defined twice (a History helper had
+  silently replaced a new one).
+- Snapshot method (D-07): settles after the map worker, tree frames on the map page, `frames.csv` checked by the window test.
+- Next: GX9 (Explain, Learn, glossary, tour, celebration) with the review's changes in ROADMAP.
