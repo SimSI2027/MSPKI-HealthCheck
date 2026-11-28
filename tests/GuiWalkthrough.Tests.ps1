@@ -185,8 +185,8 @@ Describe 'The walkthrough never runs a check (static)' {
     }
     It 'GuiState.ps1 writes only through the inside-the-output-folder check' {
         $t = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'src\Gui\GuiState.ps1') -Raw
-        # Two writes (the walkthrough marks and the window settings, GX9), each behind its own inside-the-output-folder check.
-        ([regex]::Matches($t, 'WriteAllText')).Count | Should -Be 2
+        # Three writes (walkthrough marks, window settings GX9, executive summary GX10), each behind its own inside-the-output-folder check.
+        ([regex]::Matches($t, 'WriteAllText')).Count | Should -Be 3
         $t | Should -Match 'Test-MspkiGuiPathInside -Path \$Settings\.Path'
         $t | Should -Match 'Test-MspkiGuiPathInside -Path \$State\.Path'
     }

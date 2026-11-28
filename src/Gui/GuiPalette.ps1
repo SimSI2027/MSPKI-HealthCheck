@@ -76,6 +76,7 @@ function Get-MspkiGuiPaletteCommand {
         @('histprev', 'Compare with the run before', 'The History page: what changed since the run before the one on show', [char]0xE81C, '', 'history compare changed difference previous last time trend'),
         @('histrefresh', 'Read the list of earlier runs again', 'The History page: every run saved in the output folder', [char]0xE72C, '', 'history refresh runs reload'),
         @('copylog', 'Copy the run log', 'Every line of the run log, to the clipboard', [char]0xE8C8, '', 'clipboard'),
+        @('execsummary', 'Executive summary', 'One printable page: score, areas, the first three actions, what was not checked', [char]0xE749, '', 'print report manager audit pdf one page'),
         @('tour', 'Take the tour', 'Four stops on the Overview: the score, what to do next, the map, Ctrl+K', [char]0xE7BE, '', 'help start new introduction guide'),
         @('explain', 'Explain mode on or off', 'Underline the PKI terms and say what each one means when you point at it', [char]0xE736, '', 'glossary help terms meaning define what is'),
         @('themeauto', 'Theme: follow Windows', 'Light or dark as Windows is set; high contrast always wins', [char]0xE7F4, '', 'appearance colour color mode system'),

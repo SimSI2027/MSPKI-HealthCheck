@@ -457,3 +457,12 @@ E71F, fit E9A6.
 - Explain mode marks the terms only (area names, acronyms, "Partial score", "Held down by", "Could not check"); the tour fits at minimum size in
   dark with its card inside the window; Learn reads well in dark. Celebration has no frame (it needs a healthy live run; its rule is unit-tested,
   and with reduced motion only the notice shows). Verdict: PASS (generator and discriminator are the same model; GX11 uses a separate session).
+
+### GX10 round 1 (2026-11-28; executive summary; Alcyone `expired-crl` as an earlier run with a three-run trend; the HTML rendered by headless Edge at 820 x 1180 and printed to PDF, both under out\ only)
+- Defects: "out of 100" wrapped under the score; the not-checked line repeated the method name ("Reading the CA's properties: Reading the
+  CA's properties for ..."); the trend had no numbers (A9, B2). Strong: "As of" and the earlier-run notice before the score, the held-down
+  sentence, plain causes with honest wording, the footer's limits.
+- Fixes: the score block keeps its width; the reason is used alone when it already names the method; a caption under the trend.
+
+### GX10 round 2 (same render)
+- One page, nothing wraps badly, every section reads in under a minute. Verdict: PASS (same-model caveat as before).

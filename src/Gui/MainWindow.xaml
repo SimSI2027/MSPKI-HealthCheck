@@ -1051,6 +1051,8 @@
                           </StackPanel>
                         </Border>
                         <Button x:Name="BtnScoreHow" Style="{StaticResource LinkButton}" Content="How is this scored?" HorizontalAlignment="Center" Margin="0,8,0,0" FontSize="12" ToolTipService.ShowDuration="30000" AutomationProperties.Name="How is this scored?"/>
+                        <!-- GX10 (J6): one printable page for a manager or an auditor. -->
+                        <Button x:Name="BtnExecSummary" Style="{StaticResource LinkButton}" HorizontalAlignment="Center" Margin="0,6,0,0" FontSize="12" ToolTip="Write a one-page executive summary of this run (printable HTML in the output folder) and open it" AutomationProperties.Name="Executive summary"><StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE749;" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="Executive summary"/></StackPanel></Button>
                         <Popup x:Name="PopScore" PlacementTarget="{Binding ElementName=BtnScoreHow}" Placement="Right" HorizontalOffset="12" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
                           <Border Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.BorderStrong}" BorderThickness="1" CornerRadius="8" Padding="18,14" Margin="8" MaxWidth="400">
                             <Border.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.22"/></Border.Effect>

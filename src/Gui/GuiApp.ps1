@@ -18,6 +18,7 @@ $script:MspkiGui = $null
 . (Join-Path $PSScriptRoot 'GuiTheme.ps1')
 . (Join-Path $PSScriptRoot 'GuiLearn.ps1')
 . (Join-Path $PSScriptRoot 'GuiLearnPage.ps1')
+. (Join-Path $PSScriptRoot 'GuiSummary.ps1')
 
 function Import-MspkiGuiAssembly {
     <#
@@ -1563,7 +1564,7 @@ function Get-MspkiGuiCommandAvailability {
         actions = ($null -ne $g.Actions -and @($g.Actions).Count -gt 0); score = ($null -ne $g.Score -and [bool]$g.Score.HasScore)
         options = [bool]$ui.ExpOptions.IsEnabled; copylog = (@($ui.LogList.Items).Count -gt 0)
         tlcerts = ($null -ne $g.TlModel -and [int]$g.TlModel.CertCount -gt 0); tlcrls = ($null -ne $g.TlModel -and [int]$g.TlModel.CrlCount -gt 0); tlchain = (@($g.TlChainIds).Count -gt 0)
-        histprev = (Test-MspkiGuiHistoryCanComparePrevious); histrefresh = $true; tour = ($ui.PanelResults.Visibility -eq 'Visible')
+        histprev = (Test-MspkiGuiHistoryCanComparePrevious); histrefresh = $true; tour = ($ui.PanelResults.Visibility -eq 'Visible'); execsummary = ($null -ne $g.Score)
     }
 }
 
@@ -1668,6 +1669,7 @@ function Invoke-MspkiGuiCommand {
         'histprev' { Select-MspkiGuiTab -Index 6; Invoke-MspkiGuiHistoryComparePrevious; Set-MspkiGuiFocusLater -Element $ui.HistList }
         'histrefresh' { Select-MspkiGuiTab -Index 6; Update-MspkiGuiHistoryPage -Force; Set-MspkiGuiFocusLater -Element $ui.HistList }
         'tour' { Start-MspkiGuiTour }
+        'execsummary' { [void](Invoke-MspkiGuiExecutiveSummary) }
         'explain' { Set-MspkiGuiExplainMode -On (-not [bool]$ui.TglExplain.IsChecked) }
         'mapexport' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; Export-MspkiGuiMapPng }
         'mapproblems' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; $ui.ChkMapProblems.IsChecked = $true; $g.MapExpanded = @{}; Update-MspkiGuiMapPage }
@@ -1914,6 +1916,7 @@ function Initialize-MspkiGuiApplication {
     $ui.BtnErrRun.Add_Click({ Start-MspkiGuiRun })
     $ui.BtnGridClear.Add_Click({ Clear-MspkiGuiFilter })
     $ui.BtnHistRun.Add_Click({ Start-MspkiGuiRun })
+    $ui.BtnExecSummary.Add_Click({ [void](Invoke-MspkiGuiExecutiveSummary) })
     $ui.BtnOptionsRun.Add_Click({ $script:MspkiGui.Ui.ExpOptions.IsExpanded = $false; Start-MspkiGuiRun })
     $ui.BtnOptionsClose.Add_Click({ $script:MspkiGui.Ui.ExpOptions.IsExpanded = $false })
     $ui.BtnLogOpenFolder.Add_Click({ $script:MspkiGui.Ui.BtnOpenFolder.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) })

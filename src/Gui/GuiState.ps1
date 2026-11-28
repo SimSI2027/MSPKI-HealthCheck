@@ -176,3 +176,19 @@ function Save-MspkiGuiSettings {
     }
     catch { $Settings.SaveError = $_.Exception.Message; return $false }
 }
+
+function Save-MspkiGuiExecutiveSummary {
+    <#
+    .SYNOPSIS
+    Writes the executive summary page (GX10). Only an .html file inside -AllowedRoot (the output folder); returns whether it was written.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Html, [Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$AllowedRoot)
+    if ([System.IO.Path]::GetExtension($Path) -ne '.html') { return $false }
+    if (-not (Test-MspkiGuiPathInside -Path $Path -Root $AllowedRoot)) { return $false }
+    try {
+        [System.IO.File]::WriteAllText($Path, $Html, (New-Object System.Text.UTF8Encoding($false)))
+        return $true
+    }
+    catch { return $false }
+}

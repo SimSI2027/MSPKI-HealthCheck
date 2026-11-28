@@ -642,3 +642,12 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Tests: `tests/GuiLearn.Tests.ps1` (13: data-only glossary, §9 keys, J5 term coverage, no match inside words, Learn items, tour targets,
   settings guard, celebration rule, real window: explain budget < 400 ms, Ctrl+9, tour steps, settings file). Palette tests for nine pages.
 - Next: GX10 (executive summary).
+
+## GX10 (2026-11-28): executive summary - DONE (PASS in round 2)
+- `src/Gui/GuiSummary.ps1`: one printable HTML page from the Overview's own helpers (score + band + "held down by" + partial note, areas, the
+  first three actions with their honest cause wording, score over time when History has two scored runs, what was not checked, limits in
+  the footer); "As of" and the earlier-run notice come first. Every value HTML-encoded; no script, no link, no external resource; A4 print CSS.
+- Written by `Save-MspkiGuiExecutiveSummary` (GuiState.ps1): `.html` only, inside the output folder (the run's folder when it is inside).
+  J6: "Executive summary" under the score ring (one click) or Ctrl+K "Executive summary".
+- Tests: `tests/GuiSummary.Tests.ps1` (7, including the real window). Printed-page check: headless Edge render and PDF under out\ only.
+- Next: GX11 (adversarial round, separate discriminator session) - see the open IDs in REVIEW-GX §8.
