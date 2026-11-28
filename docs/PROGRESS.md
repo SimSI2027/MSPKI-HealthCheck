@@ -693,3 +693,16 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Tests: all scenarios, one lesson per scenario, a name/address scan over the output (world names, 192.0.2.x, no build-machine name or
   path), byte-identical output on a second run, no time-zone-dependent values.
 - Next: DS4 (site shell, tokens from Theme.xaml), DS5 (scenario view), DS6, then DS7 (needs Pages switched to GitHub Actions).
+
+## DS4-DS6 (2026-11-28): the demo site and its motion clip
+- `tools/dev/demo-site/Build-MspkiDemoSite.ps1` builds `out\site`: per scenario a view model from the window's own helpers (score, areas,
+  actions, headline, findings, walkthroughs, map layout, replay), `scenarios.json`, and `tokens.css` generated from the palettes and theme.
+- `site/index.html`, `site/assets/app.css`, `site/assets/app.js`: strict CSP, the simulated-environment banner with version and commit,
+  Home with scenario cards, Overview (ring, areas, actions), Findings (chips, search, walkthrough with copy buttons, bottom sheet on a
+  phone), Discovery map with replay (play/pause, speed, scrub), How this demo is made; deep links; light/dark; reduced motion; forced colours.
+- Motion: `-SnapshotReplayFrames` (developer snapshots) + `New-MspkiDemoMotion.ps1` (ffmpeg, dev tool) -> `site/assets/media/discovery.mp4`
+  (132 KB, hero), `discovery.gif` (211 KB, README), `discovery-poster.png`.
+- Tests: `tests/DemoSite.Tests.ps1` (token drift, CSP and no third-party request, banner, node --check, view equals the GUI helpers for
+  two scenarios, walkthrough and map present, first view < 150 KB and scenario data < 60 KB compressed).
+- Open: Lighthouse not run; headless Edge cannot render below a 500 px window (540 px frames checked). Next: DS7 (needs GitHub Pages set to
+  "GitHub Actions"), DS8 launch check.

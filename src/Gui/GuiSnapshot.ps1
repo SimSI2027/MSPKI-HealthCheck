@@ -248,7 +248,10 @@ function Invoke-MspkiGuiSnapshot {
         [int]$Height = 860,
         [double]$Scale = 1.0,
         [switch]$Maximized,
-        [switch]$Minimum
+        [switch]$Minimum,
+        # Developer motion frames (docs/DEMO-SITE.md): the Overview map's discovery build every ReplayStepMs, as 07-replay-NNNN.png. 0 = off.
+        [ValidateRange(0, 2000)][int]$ReplayFrames = 0,
+        [ValidateRange(20, 1000)][int]$ReplayStepMs = 60
     )
     if (-not (Test-MspkiGuiSnapshotFolder -Folder $Folder -AllowedRoot $AllowedRoot)) { throw ('Snapshots can only be written inside {0} (they can contain real names).' -f $AllowedRoot) }
     $g = $script:MspkiGui
@@ -436,6 +439,16 @@ function Invoke-MspkiGuiSnapshot {
                     & $shot ('06-build-map-{0:0000}ms' -f $ms)
                     $osv.ScrollToTop(); Wait-MspkiGuiIdle -Rounds 2
                 }
+            }
+            if ($ReplayFrames -gt 0 -and $null -ne $osv) {
+                # The build seeked frame by frame (the same storyboard as the window's replay), the map card in view.
+                & $scrollTo $osv $ui.MapCanvasHost $ui.PanelResults 120
+                for ($i = 0; $i -lt $ReplayFrames; $i++) {
+                    Set-MspkiGuiMissionFrame -Ms ($i * $ReplayStepMs)
+                    Wait-MspkiGuiIdle -Rounds 1
+                    & $shot ('07-replay-{0:0000}' -f $i)
+                }
+                $osv.ScrollToTop(); Wait-MspkiGuiIdle -Rounds 2
             }
             & $settle
             if ($null -ne $osv) {

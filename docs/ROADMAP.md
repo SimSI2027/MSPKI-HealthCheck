@@ -132,9 +132,9 @@ Plan: `docs/DEMO-SITE.md`. World: `docs/DEMO-WORLD.md`.
 | DS1 | Simulation boundary and world fixture format (baseline scenario) | DONE (2026-11-28; engine seams for clock, run identity, computer name, HTTP request and SID lookup; boundary list with a guard; baseline runs end to end, byte-identical) |
 | DS2 | World PKI material (certificates and CRLs); developer tool in `tools/dev/` (owner approved 2026-11-23, CLAUDE.md rule added) | DONE (2026-11-28; 15 certificates, 7 CRLs, verified with the engine) |
 | DS3 | Generator: real engine per scenario, recorded events, manifest, guards | DONE (2026-11-28; 10 scenarios in 33 s, gaps fatal, expectations, name scan, byte-identical) |
-| DS4 | Site shell, design tokens generated from Theme.xaml | TODO |
-| DS5 | Scenario view: mission control, map replay, findings, details with the walkthrough | TODO |
-| DS6 | Mobile, accessibility, performance budget | TODO |
+| DS4 | Site shell, design tokens generated from Theme.xaml | DONE (2026-11-28; CSP, banner, tokens with a drift test) |
+| DS5 | Scenario view: mission control, map replay, findings, details with the walkthrough | DONE (2026-11-28; view computed by the window's helpers and tested against them; motion clip) |
+| DS6 | Mobile, accessibility, performance budget | PARTLY (one column, bottom sheet, 44 px, reduced motion, colour scheme, forced colours, size budget tested; Lighthouse not run) |
 | DS7 | GitHub Pages workflow (Windows PowerShell 5.1 generate job, deploy job) | TODO |
 | DS8 | Launch check on the upgraded rubric; README link | TODO |
 

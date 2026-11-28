@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; media-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>MSPKI Health Check · interactive demo</title>
+<meta name="description" content="An interactive, simulated demo of MSPKI Health Check: a read-only health check for Microsoft AD CS that discovers everything itself.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/app.css">
+<script type="module" src="assets/app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="titlebar" role="banner">
+  <a class="brand" href="#/" aria-label="MSPKI Health Check demo home">
+    <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z"/><path class="brand-tick" d="m8.5 12.2 2.3 2.3 4.7-4.8"/></svg>
+    <span>MSPKI Health Check</span>
+  </a>
+  <span class="pill pill-header" title="The tool only reads: it never changes Active Directory, a CA, the registry or any remote system.">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 7V5a3 3 0 0 1 6 0v2h1v7H4V7h1Zm1.5 0h3V5a1.5 1.5 0 0 0-3 0v2Z"/></svg>Read-only</span>
+  <span class="pill pill-sim" title="Every result on this site was produced by the real analysers running against a simulated environment.">Simulated</span>
+  <span class="titlebar-space"></span>
+  <button class="icon-btn" id="theme-btn" type="button" aria-label="Switch between light and dark">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm0 1.5v10a5 5 0 0 1 0-10Z"/></svg>
+  </button>
+</header>
+<div class="simbar" id="simbar" role="note">
+  <strong>Simulated environment.</strong> Alcyone Orbital Systems is fictional. These results were produced by MSPKI Health Check
+  <span id="sim-version">…</span> (commit <span id="sim-commit">…</span>) running its real analysers against a simulated directory, CAs and
+  network. Nothing here touched a real network. <a href="#/how">How this demo is made</a>
+</div>
+<main id="main" tabindex="-1">
+  <noscript><p class="noscript">This demo needs JavaScript to load its data. Everything it shows is static and comes from this site; nothing is sent anywhere.</p></noscript>
+</main>
+<div id="live" class="sr-only" aria-live="polite"></div>
+</body>
+</html>

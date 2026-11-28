@@ -95,3 +95,21 @@ touched a real network." The banner links to the scenario's fixture and to this 
 - Every scenario's data comes from the generator in CI on the current commit; the page shows that commit.
 - The site passes the upgraded rubric (`docs/GUI-DESIGN.md` §6) on desktop and phone screenshots, and the hygiene scan finds only world names.
 - No result on the site disagrees with what the real window shows for the same `results.json`.
+
+## 7. As built (DS4-DS6, 2026-11-28)
+- **Build:** `tools/dev/demo-site/Build-MspkiDemoSite.ps1` (writes under `out\site` only) runs every scenario (or reuses `out\site-data` with
+  `-SkipGenerate`), then computes each scenario's `data/<id>/view.json` with the window's own pure helpers (`Get-MspkiGuiHealthScore`,
+  `Get-MspkiGuiNextAction`, `Get-MspkiGuiHeadline`, `ConvertTo-MspkiGuiRowList`, `Get-MspkiGuiFindingDetail`, `Invoke-MspkiGuiMapJob`) and the
+  replay stream (entities, probes, stages with their simulated times). `data/scenarios.json` lists the scenarios with score and band.
+- **Shell:** `site/index.html` (CSP `default-src 'self'`, no inline code, no third-party request, the simulated-environment banner with the
+  version and commit), `site/assets/app.css`, `site/assets/app.js` (an ES module; the DOM is built from text nodes only; nothing stored),
+  `site/assets/tokens.css` generated from `Palette.Light.xaml`, `Palette.Dark.xaml` and `Theme.xaml` (`-TokensOnly`; a test fails on drift).
+- **Pages:** Home (hero clip, the read-only promise, scenario cards with score and band), the scenario view (Overview: headline, score ring
+  and areas, What to do next; Findings: status chips, search, the details pane with the walkthrough and copy buttons for the read-only
+  checks; Discovery map: the window's layout with replay play/pause, 1x/2x/4x and a scrubber), How this demo is made. Deep links:
+  `#/s/<id>`, `#/s/<id>/findings`, `#/s/<id>/finding/<finding id>`, `#/s/<id>/map`.
+- **Motion:** `Start-MspkiHealthCheckGui.ps1 -Snapshot <out folder> -ResultsFile out\site-data\baseline\results.json -SnapshotReplayFrames 60`
+  captures the window's own discovery build; `tools/dev/demo-site/New-MspkiDemoMotion.ps1` stitches the frames with ffmpeg into
+  `site/assets/media/discovery.mp4` (hero, autoplay muted loop; a still with reduced motion) and `discovery.gif` (README).
+- **Not measured yet:** Lighthouse (no Lighthouse run on this machine). Phone frames below 500 px could not be rendered by headless Edge
+  (it keeps a 500 px window); 540 px frames show one column, the scrolling navigation and 44 px targets.

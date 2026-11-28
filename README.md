@@ -15,6 +15,12 @@ certificates, CRLs and local policy, then checks:
 Every result states where it came from and how sure the tool is: **Confirmed**, **Referenced**,
 **Inferred** or **Unknown**. An inferred result is never shown as confirmed.
 
+![The window building its discovery map: the CAs, the addresses they publish and the hosts that serve them appear as the run finds them](site/assets/media/discovery.gif)
+
+*The window replaying discovery of a **simulated** estate (the fictional Alcyone Orbital Systems, `docs/DEMO-WORLD.md`): the results were
+produced by the tool's real analysers against a simulated directory, CAs and network; nothing touched a real network. An MP4 version is
+in `site/assets/media/discovery.mp4`.*
+
 ## Usage
 
 ```powershell

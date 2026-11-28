@@ -38,6 +38,10 @@ With -Snapshot: render at the window's minimum size instead of -SnapshotWidth x 
 .PARAMETER SnapshotMaximized
 With -Snapshot: render the window maximised on the primary screen (it is visible there for a few seconds) instead of off-screen.
 
+.PARAMETER SnapshotReplayFrames
+With -Snapshot: also capture the Overview map's discovery build as that many frames, 60 ms apart (07-replay-NNNN.png), for the demo site's
+motion version. Developer use; the frames stay under out\ like every snapshot.
+
 .PARAMETER SnapshotScale
 With -Snapshot: output scale (default 1; 2 renders at 192 DPI to check how it looks on a high-DPI screen).
 
@@ -55,6 +59,7 @@ param(
     [ValidateRange(1, 4)][double]$SnapshotScale = 1,
     [switch]$SnapshotMaximized,
     [switch]$SnapshotMinimum,
+    [ValidateRange(0, 2000)][int]$SnapshotReplayFrames = 0,
     [ValidateSet('Auto', 'Light', 'Dark')][string]$Theme = 'Auto'
 )
 
@@ -104,7 +109,7 @@ if ($Snapshot) {
     }
     try {
         $window = Initialize-MspkiGuiApplication -ModulePath $modulePath -XamlPath (Join-Path $guiFolder 'MainWindow.xaml') -OutputPath $OutputPath -Theme $Theme
-        $files = Invoke-MspkiGuiSnapshot -Window $window -Folder $Snapshot -AllowedRoot (Join-Path $PSScriptRoot 'out') -ResultsFile $ResultsFile -Width $SnapshotWidth -Height $SnapshotHeight -Scale $SnapshotScale -Maximized:$SnapshotMaximized -Minimum:$SnapshotMinimum
+        $files = Invoke-MspkiGuiSnapshot -Window $window -Folder $Snapshot -AllowedRoot (Join-Path $PSScriptRoot 'out') -ResultsFile $ResultsFile -Width $SnapshotWidth -Height $SnapshotHeight -Scale $SnapshotScale -Maximized:$SnapshotMaximized -Minimum:$SnapshotMinimum -ReplayFrames $SnapshotReplayFrames
         foreach ($f in $files) { Write-Host $f }
     }
     catch {
