@@ -102,7 +102,14 @@ function New-MspkiHtmlDiagnosis {
     foreach ($c in @($d.Causes)) {
         [void]$sb.AppendFormat('<li><div class="dgh"><b>{0}</b> <span class="dgl dgl-{1}">{2}</span></div>', (& $e $c.Cause), ((& $e $c.Likelihood) -replace '\s', ''), (& $e $c.Likelihood))
         $because = @($c.Because | Where-Object { $_ })
-        if ($because.Count -gt 0) {
+        # D-01: one rule with the GUI. "What this run observed" only when the cause is supported (>= 10 points); weaker facts are hints.
+        $sup = $false
+        $sp = $c.PSObject.Properties['Supported']
+        if ($null -ne $sp -and $null -ne $sp.Value) { $sup = ([string]$sp.Value -eq 'True') } else { $sup = (@('Most likely', 'Likely') -contains [string]$c.Likelihood) }
+        if ($because.Count -gt 0 -and -not $sup) {
+            [void]$sb.AppendFormat('<div class="dgb">Hint: {0}</div>', (& $e (($because | ForEach-Object { [string]$_ }) -join '; ')))
+        }
+        elseif ($because.Count -gt 0) {
             [void]$sb.Append('<div class="dgo"><span class="dgk">What this run observed</span><ul>')
             foreach ($x in $because) { [void]$sb.AppendFormat('<li>{0}</li>', (& $e $x)) }
             [void]$sb.Append('</ul></div>')

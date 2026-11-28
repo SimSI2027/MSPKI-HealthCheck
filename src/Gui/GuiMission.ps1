@@ -158,7 +158,7 @@ function Get-MspkiGuiNextAction {
             if ($d.Title) { $title = [string]$d.Title }
             $top = @($d.Causes)[0]
             if ($null -ne $top) { $cause = '{0}: {1}' -f $top.Likelihood, $top.Cause }
-            $observed = ([string]$d.Basis -eq 'Observed')
+            $observed = ($null -ne $top -and (Test-MspkiGuiCauseSupported -Cause $top))
         }
         if ($title.Length -gt 110) { $title = $title.Substring(0, 107) + '...' }
         $area = @($script:MspkiGuiScoreAreas | Where-Object { $_.Categories -contains [string]$worst.Category })[0]

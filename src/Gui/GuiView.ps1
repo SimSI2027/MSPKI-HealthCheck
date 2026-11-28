@@ -140,6 +140,24 @@ function Get-MspkiGuiEmptyPane {
     return [pscustomobject][ordered]@{ Kind = 'None'; Title = ''; Text = $Text }
 }
 
+function Test-MspkiGuiCauseSupported {
+    <#
+    .SYNOPSIS
+    The one rule for "Observed in this run": the engine's per-cause Supported flag (what this run observed adds at least 10 points).
+    Results written before the flag existed fall back to the wording the engine already chose from the same rule ("Most likely" / "Likely").
+    #>
+    [CmdletBinding()]
+    param([AllowNull()]$Cause)
+    if ($null -eq $Cause) { return $false }
+    $p = $Cause.PSObject.Properties['Supported']
+    if ($null -ne $p -and $null -ne $p.Value) {
+        $v = $p.Value
+        if ($v -is [bool]) { return $v }
+        return ([string]$v -eq 'True')
+    }
+    return (@('Most likely', 'Likely') -contains [string]$Cause.Likelihood)
+}
+
 function ConvertTo-MspkiGuiDiagnosisView {
     <#
     .SYNOPSIS
@@ -167,7 +185,8 @@ function ConvertTo-MspkiGuiDiagnosisView {
         $confirm = @($c.Confirm | Where-Object { $_ })
         $fix = @($c.Fix | Where-Object { $_ })
         $bt = (($because | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
-        $ft = (($fix | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
+        $supported = Test-MspkiGuiCauseSupported -Cause $c
+        $ft =(($fix | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
         $i = 0
         $checks = @(foreach ($t in $confirm) {
             $key = '{0}:{1}' -f $rank, $i
@@ -181,7 +200,7 @@ function ConvertTo-MspkiGuiDiagnosisView {
         })
         $ct = (($confirm | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
         $lines.Add(('{0}. {1} [{2}]' -f $c.Rank, $c.Cause, $c.Likelihood))
-        if ($bt) { $lines.Add('   Observed in this run:'); $lines.Add($bt) }
+        if ($bt) { if ($supported) { $lines.Add('   Observed in this run:') } else { $lines.Add('   Hint (not enough to rank it higher):') }; $lines.Add($bt) }
         if ($ct) { $lines.Add('   How to confirm (read-only):'); $lines.Add($ct) }
         if ($ft) { $lines.Add(('   How to fix (action for the {0}):' -f $c.FixOwner)); $lines.Add($ft) }
         [pscustomobject][ordered]@{
@@ -190,9 +209,11 @@ function ConvertTo-MspkiGuiDiagnosisView {
             Cause       = [string]$c.Cause
             Likelihood  = [string]$c.Likelihood
             IsTop       = ($rank -eq 1)
-            Observed    = [bool]$bt
-            HasBecause  = [bool]$bt
+            Observed    = $supported
+            HasBecause  = ($supported -and [bool]$bt)
             BecauseText = $bt
+            HasHint     = ((-not $supported) -and [bool]$bt)
+            HintText    = $(if ($bt) { 'Hint: ' + ((@($because) | ForEach-Object { [string]$_ }) -join '; ') } else { '' })
             Checks      = $checks
             HasChecks   = ($checks.Count -gt 0)
             CopyChecksTag = ('copychecks:{0}' -f $rank)

@@ -41,6 +41,38 @@ Describe 'ConvertTo-MspkiGuiDiagnosisView (walkthrough)' {
         $v.ObservedCount | Should -Be 1
         $v.Causes[0].IsTop | Should -BeTrue
     }
+    It 'D-01: a weak hint is a muted hint, never "Observed in this run" (one rule with the engine)' {
+        $d = [pscustomobject]@{ Topic = 't'; Title = 'T'; Summary = 'S'; Basis = 'Typical'; BasisNote = 'Nothing this run observed separates these causes.'
+            Causes = @([pscustomobject]@{ Rank = 1; Cause = 'C1'; Likelihood = 'Most common'; Because = @('the finding is about a CRL'); Confirm = @(); Fix = @(); FixOwner = 'PKI owner' }
+                       [pscustomobject]@{ Rank = 2; Cause = 'C2'; Likelihood = 'Common'; Supported = $false; Because = @('a hint'); Confirm = @(); Fix = @(); FixOwner = 'PKI owner' })
+            Sources = @() }
+        $v = ConvertTo-MspkiGuiDiagnosisView -Diagnosis $d
+        foreach ($c in $v.Causes) { $c.Observed | Should -BeFalse; $c.HasBecause | Should -BeFalse; $c.HasHint | Should -BeTrue; $c.HintText | Should -Match '^Hint: ' }
+        $v.ObservedCount | Should -Be 0
+        $v.CopyText | Should -Not -Match 'Observed in this run'
+        $v.CopyText | Should -Match 'Hint \(not enough'
+    }
+    It 'D-01: the engine flag wins over the wording, and the pill never goes with "Most common" or "Common"' {
+        Test-MspkiGuiCauseSupported -Cause ([pscustomobject]@{ Likelihood = 'Possible'; Supported = $true }) | Should -BeTrue
+        Test-MspkiGuiCauseSupported -Cause ([pscustomobject]@{ Likelihood = 'Most likely'; Supported = $false }) | Should -BeFalse
+        Test-MspkiGuiCauseSupported -Cause ([pscustomobject]@{ Likelihood = 'Most common' }) | Should -BeFalse
+        $fx = Join-Path $script:RepoRoot 'tests\fixtures\demo-results.json'
+        $doc = Read-MspkiResultsJson -Path $fx
+        $n = 0
+        foreach ($f in @($doc.Findings)) {
+            $dg = Get-MspkiFindingDiagnosis -Finding $f -Recompute
+            if ($null -eq $dg) { continue }
+            foreach ($c in @($dg.Causes)) {
+                $n++
+                $c.PSObject.Properties['Supported'] | Should -Not -BeNullOrEmpty
+                if (@('Most common', 'Common') -contains $c.Likelihood) { $c.Supported | Should -BeFalse }
+                if (@('Most likely', 'Likely') -contains $c.Likelihood) { $c.Supported | Should -BeTrue }
+            }
+            $view = ConvertTo-MspkiGuiDiagnosisView -Diagnosis $dg
+            foreach ($vc in @($view.Causes)) { if (@('Most common', 'Common') -contains $vc.Likelihood) { $vc.Observed | Should -BeFalse } }
+        }
+        $n | Should -BeGreaterThan 0
+    }
     It 'names the owner of the fix and says the tool changes nothing' {
         $v = ConvertTo-MspkiGuiDiagnosisView -Diagnosis $script:Diag
         $v.Causes[0].FixLabel | Should -Match 'PKI owner'

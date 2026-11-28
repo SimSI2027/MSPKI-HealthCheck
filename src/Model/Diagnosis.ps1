@@ -187,6 +187,9 @@ function Get-MspkiFindingDiagnosis {
             Id         = [string]$c.Id
             Cause      = [string]$c.Cause
             Likelihood = $like
+            # One rule for every view (pane pill, accent strip, Overview mark, copied text, HTML report): Supported = what this run observed
+            # adds at least 10 points for this cause. Weaker hints stay in Because but are shown as hints, never as "observed".
+            Supported  = $supported
             Because    = [string[]]@($r.Because)
             Confirm    = [string[]]@($c.Confirm)
             Fix        = [string[]]@($c.Fix)
