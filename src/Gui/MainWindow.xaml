@@ -2230,7 +2230,7 @@
         </Grid>
       </Border>
       <!-- ===== First-run tour (GX9): four stops, offered once; Enter or Right for the next stop, Left for the previous, Esc to close. ===== -->
-      <Canvas x:Name="TourLayer" Grid.RowSpan="3" Grid.ColumnSpan="2" Visibility="Collapsed" Panel.ZIndex="95" Background="#33101828" Focusable="True" KeyboardNavigation.TabNavigation="Cycle" AutomationProperties.Name="Tour">
+      <Canvas x:Name="TourLayer" Grid.RowSpan="3" Grid.ColumnSpan="2" Visibility="Collapsed" Panel.ZIndex="95" Background="#59101828" Focusable="True" KeyboardNavigation.TabNavigation="Cycle" AutomationProperties.Name="Tour">
         <Border x:Name="TourRing" BorderBrush="{DynamicResource B.Accent}" BorderThickness="2" CornerRadius="10" IsHitTestVisible="False"/>
         <Border x:Name="TourCard" Width="360" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="10" Padding="20,16">
           <Border.Effect><DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.25" Color="#101828"/></Border.Effect>
