@@ -11,6 +11,8 @@ $script:MspkiGui = $null
 . (Join-Path $PSScriptRoot 'GuiMapPage.ps1')
 . (Join-Path $PSScriptRoot 'GuiLifecycle.ps1')
 . (Join-Path $PSScriptRoot 'GuiTimelinePage.ps1')
+. (Join-Path $PSScriptRoot 'GuiHistory.ps1')
+. (Join-Path $PSScriptRoot 'GuiHistoryPage.ps1')
 . (Join-Path $PSScriptRoot 'GuiState.ps1')
 . (Join-Path $PSScriptRoot 'GuiPalette.ps1')
 . (Join-Path $PSScriptRoot 'GuiTheme.ps1')
@@ -752,6 +754,7 @@ function Clear-MspkiGuiResult {
     $ui.BtnOpenReport.ToolTip = 'Open the HTML report of the run on show'
     if ($null -ne $g.MapQueue) { Reset-MspkiGuiMapPage }
     Reset-MspkiGuiTimelinePage
+    Reset-MspkiGuiHistoryPage
     $ui.TxtCount.Text = '0 findings'
     $ui.TxtOutputPath.Text = $g.OutputRoot
     $ui.TxtOutputPath.ToolTip = $g.OutputRoot
@@ -911,6 +914,9 @@ function Show-MspkiGuiResult {
 
     # Timeline and chains (GX7): computed by the map worker after the Overview asked for its map (a new results generation starts there).
     Update-MspkiGuiTimelineData -Data $Data
+
+    # History (GX8): the run on show changed; the list and the comparison follow it when the page is shown.
+    Set-MspkiGuiHistoryStale
 }
 
 function Update-MspkiGuiReportButton {
@@ -1344,7 +1350,7 @@ function Select-MspkiGuiTab {
     [CmdletBinding()]
     param([int]$Index)
     $ui = $script:MspkiGui.Ui
-    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabTimeline, $ui.TabObjects, $ui.TabServices, $ui.TabLog)
+    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabTimeline, $ui.TabObjects, $ui.TabServices, $ui.TabHistory, $ui.TabLog)
     if ($Index -ge 0 -and $Index -lt $tabs.Count) { $ui.Tabs.SelectedItem = $tabs[$Index] }
 }
 
@@ -1451,6 +1457,7 @@ function Get-MspkiGuiCommandAvailability {
         actions = ($null -ne $g.Actions -and @($g.Actions).Count -gt 0); score = ($null -ne $g.Score -and [bool]$g.Score.HasScore)
         options = [bool]$ui.ExpOptions.IsEnabled; copylog = (@($ui.LogList.Items).Count -gt 0)
         tlcerts = ($null -ne $g.TlModel -and [int]$g.TlModel.CertCount -gt 0); tlcrls = ($null -ne $g.TlModel -and [int]$g.TlModel.CrlCount -gt 0); tlchain = (@($g.TlChainIds).Count -gt 0)
+        histprev = (Test-MspkiGuiHistoryCanComparePrevious); histrefresh = $true
     }
 }
 
@@ -1552,6 +1559,8 @@ function Invoke-MspkiGuiCommand {
         'tlcerts' { Select-MspkiGuiTab -Index 3; $ui.RbTlCerts.IsChecked = $true; Set-MspkiGuiFocusLater -Element $ui.TlList }
         'tlcrls' { Select-MspkiGuiTab -Index 3; $ui.RbTlCrls.IsChecked = $true; Set-MspkiGuiFocusLater -Element $ui.TlList }
         'tlchain' { Select-MspkiGuiTab -Index 3; $ui.RbTlChain.IsChecked = $true; Set-MspkiGuiFocusLater -Element $ui.FltTlChain }
+        'histprev' { Select-MspkiGuiTab -Index 6; Invoke-MspkiGuiHistoryComparePrevious; Set-MspkiGuiFocusLater -Element $ui.HistList }
+        'histrefresh' { Select-MspkiGuiTab -Index 6; Update-MspkiGuiHistoryPage -Force; Set-MspkiGuiFocusLater -Element $ui.HistList }
         'mapexport' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; Export-MspkiGuiMapPng }
         'mapproblems' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; $ui.ChkMapProblems.IsChecked = $true; $g.MapExpanded = @{}; Update-MspkiGuiMapPage }
         'copylog' { & $click $ui.BtnCopyLog; if (@($ui.LogList.Items).Count -gt 0) { [void](Show-MspkiGuiToast -Text 'The run log is on the clipboard.' -Tone Good) } }
@@ -1618,6 +1627,7 @@ function Move-MspkiGuiRegionFocus {
     elseif ($sel -eq $ui.TabMap) { $content = $(if ($ui.MapTreePanel.IsVisible) { $ui.MapTree } else { $ui.MapViewport }); $details = $ui.MapHost }
     elseif ($sel -eq $ui.TabTimeline) { $content = $(if ($ui.TlChainScroll.IsVisible) { $ui.FltTlChain } else { $ui.TlList }); $details = $ui.TimelineHost }
     elseif ($sel -eq $ui.TabLog) { $content = $ui.LogList }
+    elseif ($sel -eq $ui.TabHistory) { $content = $ui.HistList; $details = $(if ($ui.HistCmpScroll.IsVisible) { $ui.HistCmpScroll } else { $null }) }
     elseif ($sel -eq $ui.TabObjects) { $content = $ui.ObjList; $details = $ui.ObjHost }
     elseif ($sel -eq $ui.TabServices) { $content = $ui.SvcList; $details = $ui.SvcHost }
     $bar = $ui.BtnRun; if (-not $bar.IsEnabled) { $bar = $ui.BtnOpenResults }
@@ -1693,6 +1703,7 @@ function Invoke-MspkiGuiShortcut {
             'D5' { Select-MspkiGuiTab -Index 4; return $true }
             'D6' { Select-MspkiGuiTab -Index 5; return $true }
             'D7' { Select-MspkiGuiTab -Index 6; return $true }
+            'D8' { Select-MspkiGuiTab -Index 7; return $true }
             'O' { if ($u.BtnOpenResults.IsEnabled) { Invoke-MspkiGuiOpenDialog }; return $true }
             { $_ -in @('OemPlus', 'Add', 'OemMinus', 'Subtract', 'D0', 'NumPad0') -and $u.Tabs.SelectedItem -eq $u.TabMap -and $u.MapCanvasPanel.IsVisible } { [void](Invoke-MspkiGuiMapKey -Key ([System.Windows.Input.Key]$Key)); return $true }
             'F' {
@@ -1778,7 +1789,7 @@ function Initialize-MspkiGuiApplication {
     $g.Window.Add_SizeChanged({ Update-MspkiGuiNavMode })
 
     # Running panel on the Overview
-    $ui.BtnRunningLog.Add_Click({ Select-MspkiGuiTab -Index 6 })
+    $ui.BtnRunningLog.Add_Click({ Select-MspkiGuiTab -Index 7 })
     $ui.BtnRunningCancel.Add_Click({ Request-MspkiGuiCancel })
 
     # Toolbar and welcome buttons
@@ -1882,6 +1893,7 @@ function Initialize-MspkiGuiApplication {
     $ui.MapTree.Add_SelectedItemChanged({ Show-MspkiGuiNodePane -Node $script:MspkiGui.Ui.MapTree.SelectedItem })
     Initialize-MspkiGuiMapPage
     Initialize-MspkiGuiTimelinePage
+    Initialize-MspkiGuiHistoryPage
 
     # Objects page: search, type filter, needs-attention switch, selection
     $ui.FltObj.Add_TextChanged({ Update-MspkiGuiObjectFilter })
@@ -1904,6 +1916,7 @@ function Initialize-MspkiGuiApplication {
         param($sender, $e)
         if ($e.OriginalSource -ne $sender) { return }
         $u = $script:MspkiGui.Ui
+        if ($u.Tabs.SelectedItem -eq $u.TabHistory) { Update-MspkiGuiHistoryPage }
         if ($u.Tabs.SelectedItem -eq $u.TabLog) {
             [void]$u.LogList.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [System.Action]{ Update-MspkiGuiLogView -Scroll })
         }

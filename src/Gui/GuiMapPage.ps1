@@ -30,7 +30,7 @@ function Start-MspkiGuiMapWorker {
         $rs.Open()
         $ps = [powershell]::Create()
         $ps.Runspace = $rs
-        [void]$ps.AddScript('param($Folder) foreach ($f in @(''GuiModel.ps1'', ''GuiView.ps1'', ''GuiMap.ps1'', ''GuiLifecycle.ps1'')) { . (Join-Path $Folder $f) }; $global:MspkiMapCache = @{}').AddArgument($script:MspkiGuiFolder)
+        [void]$ps.AddScript('param($Folder, $ModulePath) foreach ($f in @(''GuiModel.ps1'', ''GuiView.ps1'', ''GuiMap.ps1'', ''GuiLifecycle.ps1'', ''GuiMission.ps1'', ''GuiHistory.ps1'')) { . (Join-Path $Folder $f) }; $global:MspkiMapCache = @{}; $global:MspkiModulePath = $ModulePath').AddArgument($script:MspkiGuiFolder).AddArgument([string]$g.ModulePath)
         $g.MapWorker = $rs
         $g.MapJob = @{ PS = $ps; Async = $ps.BeginInvoke(); Request = @{ Kind = 'Init'; Gen = -1 }; Started = [DateTime]::Now }
         $g.MapTimer.Start()
@@ -55,7 +55,7 @@ function Request-MspkiGuiMapJob {
     request of each kind wins; the result is drawn when it arrives (results of an older generation are dropped).
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][ValidateSet('Overview', 'Page', 'Timeline')][string]$Kind, [double]$Width = 0, [hashtable]$Options = @{})
+    param([Parameter(Mandatory = $true)][ValidateSet('Overview', 'Page', 'Timeline', 'History', 'HistoryCompare')][string]$Kind, [double]$Width = 0, [hashtable]$Options = @{})
     $g = $script:MspkiGui
     $req = @{ Kind = $Kind; Gen = [int]$g.MapGen; Width = $Width; Options = $Options; Asked = [DateTime]::Now }
     $g.MapQueue[$Kind] = $req
@@ -76,7 +76,7 @@ function Start-MspkiGuiMapNextJob {
     $g = $script:MspkiGui
     if ($null -ne $g.MapJob) { return }
     $req = $null
-    foreach ($k in @('Overview', 'Page', 'Timeline')) { if ($g.MapQueue.ContainsKey($k)) { $req = $g.MapQueue[$k]; $g.MapQueue.Remove($k); break } }
+    foreach ($k in @('Overview', 'Page', 'Timeline', 'HistoryCompare', 'History')) { if ($g.MapQueue.ContainsKey($k)) { $req = $g.MapQueue[$k]; $g.MapQueue.Remove($k); break } }
     if ($null -eq $req) { return }
     $ps = [powershell]::Create()
     $ps.Runspace = $g.MapWorker
@@ -101,7 +101,12 @@ function Receive-MspkiGuiMapJob {
         try { $out = @($j.PS.EndInvoke($j.Async)); if ($j.PS.Streams.Error.Count -gt 0) { $err = $j.PS.Streams.Error[0] } } catch { $err = $_ }
         try { $j.PS.Dispose() } catch { $null = $_ }
         if ($j.Request.Kind -ne 'Init') {
-            if ($null -ne $err -or $null -eq $out -or $out.Count -eq 0) {
+            if (($null -ne $err -or $null -eq $out -or $out.Count -eq 0) -and $j.Request.Kind -in @('History', 'HistoryCompare')) {
+                # Reading earlier runs is never done on the window's thread: the page says what went wrong instead.
+                $why = $(if ($null -ne $err) { [string]$err } else { 'The background reader returned nothing.' })
+                Complete-MspkiGuiMapJob -Result ([pscustomobject]@{ Kind = $j.Request.Kind; Gen = $j.Request.Gen; Error = $why }) -Request $j.Request
+            }
+            elseif ($null -ne $err -or $null -eq $out -or $out.Count -eq 0) {
                 # The worker failed: compute this one inline, so the user still gets a map.
                 $r = Invoke-MspkiGuiMapJob -Request $j.Request -Index $g.Index -Status $g.MapStatus -Cache $g.MapCache
                 Complete-MspkiGuiMapJob -Result $r -Request $j.Request
@@ -120,6 +125,7 @@ function Complete-MspkiGuiMapJob {
     $g = $script:MspkiGui
     if ([int]$Result.Gen -ne [int]$g.MapGen) { return }
     if ($Request.Kind -eq 'Timeline') { Complete-MspkiGuiTimelineJob -Result $Result; return }
+    if ($Request.Kind -in @('History', 'HistoryCompare')) { Complete-MspkiGuiHistoryJob -Result $Result; return }
     $g.MapPerf.LastLayoutMs = [int]$Result.LayoutMs; $g.MapPerf.LastModelMs = [int]$Result.ModelMs
     if ($Request.Kind -eq 'Overview') {
         $g.MapBase = $Result.Base

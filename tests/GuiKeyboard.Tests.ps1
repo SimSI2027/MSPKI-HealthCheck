@@ -98,7 +98,7 @@ BeforeAll {
             $r.AfterBack = @($g.Nav['ObjHost'].Trail).Count
         }
 
-        # J4 (what changed?): history comes in GX8; today Ctrl+O / the palette's "Open results..." load an earlier run (the dialog is not opened here).
+        # J4 (what changed?) is History (GX8, tests/GuiHistory.Tests.ps1); the palette's "Open results..." still loads an earlier run (the dialog is not opened here).
         [void](& $key 'K' $true); & $type 'open results'
         $r.J4Top = [string]$ui.PaletteList.SelectedItem.Action
         # A page by name.

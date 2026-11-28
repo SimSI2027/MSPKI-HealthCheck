@@ -377,6 +377,26 @@ page in its three views, the details pane's properties and headings everywhere).
 Known, accepted: a long copy title ("Active Directory (LDAP) · ...") and a long chain start are cut with the full text in the tooltip; the root's own CDP (a root that names
 one) is shown as it is; the CRL heartbeat of a CA this run could not read appears only when its CRLs were read elsewhere; generator and discriminator are the same model.
 
+### GX8 round 1 (2026-11-28; History page: runs of a forest, score over time, What changed; three-run demo history (`tools/dev/New-MspkiDemoHistory.ps1`, under out\ only); light at 1360 x 860; frames 36 the run on show against the run before it, 36a against the oldest, 36b the bottom of the comparison)
+Scores: A1 8, A2 8, A3 7, A4 8, A5 8, A6 7, A7 8, A8 6, A9 7, A10 7; B1 8, B2 8, B3 7, B4 8, B5 8; C1 8, C2 8, C3 8, C4 7. **Not a pass.**
+Defects: (1) a resolved finding said "Was pass, now warning": the before and after were swapped (A8, data honesty); (2) status words as codes ("pass", "critical") and
+distinguished names as titles ("CRL · CN=Alcyone Meridian Issuing CA, DC=...", A3, B3); (3) an area scored in neither run showed "— → —" (A3); (4) the run count stood twice,
+in the forest box and beside it (A6); (5) a first render failed: a local variable named like a parameter replaced it (PowerShell names ignore case), and the page's own
+status-rank table replaced the Findings page's sort order (one script scope for all GUI files).
+Generator: every compared finding carries Before and After; "Was failing, now passing", "Not in the older run; now failing"; titles use the common name; "not scored";
+the count beside the forest box only says what the box does not (other forests, runs still being read); renamed the clashing variables and added a test that no two GUI files
+define the same script variable; a results file's yes/no read as true/false or "True"/"False" ([bool]'False' is true in PowerShell).
+
+### GX8 round 2 (same frames, plus dark at minimum size, a single saved run (light), and the real lab history under out\ only: 54 runs read in the background)
+First pass of the round: (1) the "On show" mark took the row's score colour (red on a failing run, A8: a mark is not a status); (2) at minimum size the counts line wrapped (A5);
+(3) with 54 runs the trend's dots crowded and the text said "53 runs" beside "54 runs" (one run had no score, A9); (4) the empty comparison used a library glyph (A7).
+Generator: the marks carry their own (information) tone; counts and folder never wrap (full text in the tooltip); smaller dots above 20 runs, "over 53 scored runs"; the
+History glyph for the empty comparison.
+Scores after the fixes: A1 9, A2 8, A3 8, A4 8, A5 8, A6 8, A7 8, A8 9, A9 8, A10 8; B1 9, B2 8, B3 8, B4 8, B5 9; C1 8, C2 9, C3 8, C4 8. **PASS** (scope: the History page,
+its palette commands and shortcuts; J4 is Ctrl+7 or one click on History, and a second click on Compare for another run).
+Known, accepted: at most 60 runs are listed (the newest); a run without a score is listed but is not a point of the trend; findings of the older run cannot be opened
+(that run is not on show: Open shows it); the demo history's runs are hand-made samples; generator and discriminator are the same model.
+
 ## 8. Icon meanings (one table for the whole window; GX6 audit)
 One glyph means one thing everywhere: status pills, badges on map nodes and links, banners, toasts, the status bar and the palette. Icons
 are Segoe Fluent Icons with Segoe MDL2 Assets as the fallback; colour is never the only signal (the word or the tooltip is always there).
@@ -394,11 +414,12 @@ are Segoe Fluent Icons with Segoe MDL2 Assets as the fallback; colour is never t
 | sync | E895 | Running / updating | Info | status bar, run hero, "Updating the map" |
 | question in a circle | E9CE | Not confirmed / unknown (the "Unknown issuer" node, the "issuer not confirmed" link marker), and "How is this scored?" | Neutral | map, palette |
 | question | E897 | Inferred or unknown confidence | Warn / Neutral | confidence pills |
-| dash | E738 | Not applicable, not tested, not scored | Neutral | pills |
+| dash (minus) | E738 | Not applicable, not tested, not scored; on History, an object only the older run found (paired with plus E710, an object only the newer run found) | Neutral | pills, History |
 | skip | E7E8 | Skipped | Neutral | pills, coverage |
 Object glyphs (no status): CA EB95, address E774, web host E968, directory E8D4, address group E8B7 (the group shows its count instead), map E81E,
-tree E8A4, timeline page E787 (calendar), Certificates view EB95 (the CA glyph), CRLs view E81C (history), Chain view E71B
-(link), certificate on this computer E8D7 (key). Commands: run E768, open E8E5, folder E838, export E896 (CSV) and EB9F (image), copy E8C8, search E721, zoom in E8A3, zoom out
+tree E8A4, timeline page E787 (calendar), Certificates view EB95 (the CA glyph), CRLs view E8C9 (the CRL glyph), History page E81C (history), Chain view E71B
+(link), certificate on this computer E8D7 (key); History: better E70E (chevron up), worse E70D (chevron down), changed E8AB (switch), object added
+E710 (plus), object gone E738 (minus, see the table). Commands: refresh E72C, run E768, open E8E5, folder E838, export E896 (CSV) and EB9F (image), copy E8C8, search E721, zoom in E8A3, zoom out
 E71F, fit E9A6.
 
 ## 9. Terms (use these words, and only these)
@@ -421,3 +442,7 @@ E71F, fit E9A6.
 | chain | path, trust path | from a certificate up to its root, with the result of each AIA and CDP address |
 | as of the run | now, today | every countdown counts from the time the run read the data, not from today |
 | replaced | historical, superseded | an older CA certificate generation that a newer one replaced |
+| run on show | current run, loaded run | the run whose results the window shows now (a live run or an opened results.json) |
+| History / compare | diff, delta | the History page; "What changed" compares an older run with a newer one of the same forest |
+| new problem / resolved / changed / still open | added, fixed, modified | a failure or warning the newer run has and the older did not / the older had and the newer does not / in both with another status, code or severity / in both, the same |
+| objects added / gone | new entities, deleted | objects (by their ids, which are the same in every run) found by only one of the two runs |

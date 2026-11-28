@@ -173,7 +173,11 @@ things worth trying, and what you should see:
    Choose **Chain**: the chain from a certificate on this computer up to its root; every address says what the run got from it. Select a
    row or an address: it opens on the right, and Alt+Left goes back.
 
-If something looks wrong, tell us which of the eleven it was and what you saw, and send `run.log` from that run (see "What to
+12. **History (Ctrl+7).** After two runs, open **History**. Both runs are listed under your forest, newest first, with their scores. On the
+   right, **What changed** compares them: check that a problem you fixed between the runs is under Resolved, and one that appeared is under
+   New problems. Choose **Compare** on an older run to compare with that one instead. Nothing is written; the files are only read.
+
+If something looks wrong, tell us which of the twelve it was and what you saw, and send `run.log` from that run (see "What to
 send back"). Please do not send screenshots or the result files: they contain real names.
 
 ## What the tool does and does not do

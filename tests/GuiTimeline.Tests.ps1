@@ -323,7 +323,7 @@ Describe 'The Timeline page in the real window (scenario expired-crl, keyboard, 
             Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2
             $key = { param([string]$k, [bool]$c = $false, [bool]$a = $false) $h = Invoke-MspkiGuiShortcut -Key $k -Ctrl $c -Alt $a -Shift $false; Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2; $h }
             $r = [ordered]@{}
-            # Pages: Ctrl+4 is the Timeline, Ctrl+7 the run log; the switch time.
+            # Pages: Ctrl+4 is the Timeline, Ctrl+8 the run log (GX8 put History at Ctrl+7); the switch time.
             $sw = [Diagnostics.Stopwatch]::StartNew()
             [void](& $key 'D4' $true)
             $r.SwitchMs = $sw.ElapsedMilliseconds
@@ -373,7 +373,7 @@ Describe 'The Timeline page in the real window (scenario expired-crl, keyboard, 
             # F6 reaches the chain and the pane; the palette offers the page and the commands.
             $r.Palette = (@(Get-MspkiGuiPalettePage | ForEach-Object { $_.Title }) -join ',')
             $r.Commands = (@(Get-MspkiGuiPaletteCommand -Available (Get-MspkiGuiCommandAvailability) | ForEach-Object { $_.Action }) -join ',')
-            [void](& $key 'D7' $true); $r.Ctrl7 = ($ui.Tabs.SelectedItem -eq $ui.TabLog)
+            [void](& $key 'D8' $true); $r.Ctrl7 = ($ui.Tabs.SelectedItem -eq $ui.TabLog)
             # Every interactive element of the page has an accessible name.
             $unnamed = New-Object System.Collections.ArrayList
             foreach ($n in 'RbTlCerts', 'RbTlCrls', 'RbTlChain', 'FltTlSpan', 'FltTlChain', 'ChkTlCopies', 'TlList', 'TlChain') { if (-not [System.Windows.Automation.AutomationProperties]::GetName($ui[$n])) { [void]$unnamed.Add($n) } }
@@ -395,7 +395,7 @@ Describe 'The Timeline page in the real window (scenario expired-crl, keyboard, 
         $script:WinMsg = @($script:Win | Where-Object { $_ -is [string] })
     }
     It 'opened without a Windows message box' { $script:WinMsg.Count | Should -Be 0 }
-    It 'is page 4 (Ctrl+4) and opens within the page-switch budget; the run log moved to Ctrl+7' {
+    It 'is page 4 (Ctrl+4) and opens within the page-switch budget; the run log is Ctrl+8' {
         $script:WinR.OnTimeline | Should -BeTrue
         $script:WinR.SwitchMs | Should -BeLessThan 150
         $script:WinR.Ctrl7 | Should -BeTrue

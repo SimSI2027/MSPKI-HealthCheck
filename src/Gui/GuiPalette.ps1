@@ -26,7 +26,7 @@ function New-MspkiGuiPaletteEntry {
 function Get-MspkiGuiPalettePage {
     <#
     .SYNOPSIS
-    The pages of the window as palette items, in navigation order (Ctrl+1..7).
+    The pages of the window as palette items, in navigation order (Ctrl+1..8).
     #>
     [CmdletBinding()]
     param()
@@ -37,6 +37,7 @@ function Get-MspkiGuiPalettePage {
         @('Timeline', 'When CA certificates and CRLs run out, and the certificate chains', [char]0xE787),
         @('Objects', 'Everything the run found, by type', [char]0xE8A9),
         @('PKI services', 'CAs, web enrollment, OCSP, NDES, CEP/CES', [char]0xE968),
+        @('History', 'Earlier runs, the score over time, and what changed between two runs', [char]0xE81C),
         @('Run log', 'What the run did, step by step', [char]0xE9D5)
     )
     $i = 0
@@ -68,9 +69,11 @@ function Get-MspkiGuiPaletteCommand {
         @('mapproblems', 'Show only problems on the map', 'Failing, warning and could-not-check objects with the path to them', [char]0xE7BA, '', 'discovery map filter failing broken'),
         @('mapreplay', 'Replay discovery', 'Play the discovery of this run again on the map', [char]0xE768, '', 'animation discovery map build'),
         @('tlcerts', 'Show when the CA certificates expire', 'The Timeline page: every CA certificate generation on a time axis', [char]0xEB95, '', 'timeline expiry renew lifetime generation'),
-        @('tlcrls', 'Show the CRL heartbeat', 'The Timeline page: when each CRL was published, is due and runs out, and the copy at every address', [char]0xE81C, '', 'timeline crl next update overlap expired revocation'),
+        @('tlcrls', 'Show the CRL heartbeat', 'The Timeline page: when each CRL was published, is due and runs out, and the copy at every address', [char]0xE8C9, '', 'timeline crl next update overlap expired revocation'),
         @('tlchain', 'Show the certificate chain', 'From a CA certificate up to its root, with the result of every AIA and CDP address', [char]0xE71B, '', 'chain path aia cdp issuer trust'),
         @('mapexport', 'Export the map as an image', 'Save the whole Discovery map as a PNG in the run''s output folder', [char]0xEB9F, '', 'png picture save discovery map'),
+        @('histprev', 'Compare with the run before', 'The History page: what changed since the run before the one on show', [char]0xE81C, '', 'history compare changed difference previous last time trend'),
+        @('histrefresh', 'Read the list of earlier runs again', 'The History page: every run saved in the output folder', [char]0xE72C, '', 'history refresh runs reload'),
         @('copylog', 'Copy the run log', 'Every line of the run log, to the clipboard', [char]0xE8C8, '', 'clipboard'),
         @('themeauto', 'Theme: follow Windows', 'Light or dark as Windows is set; high contrast always wins', [char]0xE7F4, '', 'appearance colour color mode system'),
         @('themelight', 'Theme: light', 'Light background', [char]0xE706, '', 'appearance colour color mode'),

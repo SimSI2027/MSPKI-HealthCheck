@@ -322,6 +322,10 @@ Describe 'Invoke-MspkiDiscovery' {
         $j = Read-MspkiResultsJson -Path $r.ResultsPath
         @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'CDP' }).Count | Should -Be 2
         @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'AIA' }).Count | Should -Be 1
+        # GX8: every finding of a run has a deterministic Key, all different.
+        $keys = @($j.Findings | ForEach-Object { [string]$_.Key })
+        @($keys | Where-Object { $_ -notmatch '^k1-[0-9a-f]{20}$' }).Count | Should -Be 0
+        @($keys | Select-Object -Unique).Count | Should -Be $keys.Count
         @($j.Inventory.Leads | Where-Object { $_.Kind -eq 'CES' -and $_.Confidence -eq 'Referenced' }).Count | Should -Be 2
         # Constructed candidates on the CA host are leads too, but always Inferred.
         @($j.Inventory.Leads | Where-Object { ($_.Kind -eq 'CES' -or $_.Kind -eq 'CEP') -and $_.Confidence -eq 'Inferred' -and @($_.Sources) -contains 'Constructed:CAHost' }).Count | Should -BeGreaterThan 0

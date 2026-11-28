@@ -75,7 +75,7 @@ Design: `docs/GUI-EXPERIENCE.md`. Judged on the upgraded rubric (`docs/GUI-DESIG
 | GX5 | Themes: dark and light (follow Windows), high contrast, reduced motion | DONE (2026-11-27, PASS in round 2) |
 | GX6 | Map page: full-page canvas, zoom and pan, clustering, hover "Where this exists" | DONE (2026-11-27, PASS in round 2) |
 | GX7 | Lifecycle timeline (expiry countdowns, CRL heartbeat) and interactive chain view | DONE (2026-11-28, PASS in round 2) |
-| GX8 | Run history and compare two runs | TODO |
+| GX8 | Run history and compare two runs | DONE (2026-11-28, PASS in round 2) |
 | GX9 | "Explain it to me" mode, Learn page, glossary, first-run tour, healthy celebration | TODO |
 | GX10 | Executive summary export (printable HTML) | TODO |
 | GX11 | Adversarial round on the upgraded rubric (max 3 rounds; PASS gate for the program) | TODO |

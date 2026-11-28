@@ -94,8 +94,12 @@ If it says it needs a single-threaded session, start it as `powershell.exe -STA 
   what was found (host, confidence, evidence), the findings about it (for example the NTLM relay warning, ESC8, for Web
   Enrollment on plain HTTP) and what this run can see. "Not found" (looked, nothing there), "cannot be checked from here" (for
   example the Intune connector on another server) and "not checked in this run" are shown apart.
+- **History** (Ctrl+7): the runs saved in the output folder (only read, never changed), newest first, per forest, with the score over
+  time. **What changed** compares the run on show with the run before it, or with any run you choose (Compare): the score per area, new
+  problems, problems that changed (worse or better), problems resolved, and objects added or gone. It says what it cannot know (a run
+  that did not finish, a run without network checks). Each finding has a stable Key in results.json, so the same check matches across runs.
 - **Keyboard**: **Ctrl+K** opens the command palette: type part of a page, a command, an object name or a finding's text and press
-  Enter (Up and Down move, Esc closes and puts you back where you were). F5 runs, Ctrl+1 to Ctrl+7 switch pages (the Run log is Ctrl+7), Ctrl+F searches the page,
+  Enter (Up and Down move, Esc closes and puts you back where you were). F5 runs, Ctrl+1 to Ctrl+8 switch pages (History is Ctrl+7, the Run log Ctrl+8), Ctrl+F searches the page,
   Ctrl+O opens results, F6 and Shift+F6 move between the navigation, the command bar, the page and its details, Alt+Left goes back in the
   details. Notices ("Export finished", "Run finished") appear briefly at the bottom right of the window and can be dismissed.
 - **Themes**: the window follows Windows (light or dark apps setting) and switches when Windows does. The button left of Minimise (or Ctrl+K

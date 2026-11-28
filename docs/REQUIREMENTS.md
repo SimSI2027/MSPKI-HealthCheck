@@ -24,6 +24,7 @@ Every result is one object created by `New-MspkiFinding`:
 | Field | Meaning |
 |---|---|
 | `Id`, `Timestamp`, `Stage` | unique id, UTC time, discovery/check stage |
+| `Key` | deterministic across runs (GX8): `k1-` and 20 hex characters of the SHA-256 of category, status code, rule (the knowledge topic of a non-passing finding), target and endpoint; the order tells apart two findings with the same identity. The status is not part of it, so a check that got worse keeps its Key |
 | `Category` | CA, Hierarchy, CRL, AIA, CDP, OCSP, ADContainer, Template, CEP, CES, NDES, IntuneConnector, StaleRef, ADDependency, Run, Identity, WebEnrollment, LocalEvidence |
 | `Role` | PKI role of the target (EnterpriseRoot, StandaloneRoot, Intermediate, IssuingCA, CDPEndpoint, …, Unknown) |
 | `Target` / `Endpoint` | object or host / normalised URL |

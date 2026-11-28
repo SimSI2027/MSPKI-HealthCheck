@@ -900,6 +900,11 @@ function Invoke-MspkiGuiMapJob {
     param([Parameter(Mandatory = $true)][hashtable]$Request, [AllowNull()]$Index, [hashtable]$Status = @{}, [Parameter(Mandatory = $true)][hashtable]$Cache)
     # The Timeline page's rows (GX7) are computed by the same worker (GuiLifecycle.ps1).
     if ($Request.Kind -eq 'Timeline') { return (Invoke-MspkiGuiTimelineJob -Request $Request -Index $Index -Status $Status -Cache $Cache) }
+    # The History page (GX8): reading earlier runs needs the module's JSON reader; the worker imports it the first time.
+    if ($Request.Kind -in @('History', 'HistoryCompare')) {
+        if (-not (Get-Command -Name ConvertFrom-MspkiResultsDocument -ErrorAction SilentlyContinue) -and $global:MspkiModulePath) { Import-Module -Name $global:MspkiModulePath -ErrorAction Stop }
+        return (Invoke-MspkiGuiHistoryJob -Request $Request -Cache $Cache)
+    }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     if (-not $Cache.ContainsKey('Gen') -or $Cache.Gen -ne $Request.Gen) {
         $Cache.Base = $null

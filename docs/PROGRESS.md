@@ -597,3 +597,21 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Tests: GuiTimeline 31 (model, countdowns, copies, axis, rows, per-view status, chain, link headings, budget, the real window), GuiEntity +3, GuiPalette for 7 pages.
 - Full suite: 1737 passed, 1 skipped, 206 s (the one failure was a GX8 export added mid-run and removed; GX8 is not in this commit).
 - Next: GX8 (finding Key, History page, compare two runs).
+
+## GX8 (2026-11-28): run history and compare two runs - DONE (PASS in round 2)
+- Engine: every finding gets a deterministic `Key` (`src/Model/FindingKey.ps1`, after the diagnosis is added): k1- + SHA-256 of category, status code, rule (knowledge
+  topic), target and endpoint; the order tells duplicates apart; the status is not in it. Results written before keep working (findings paired by what they are about).
+- `src/Gui/GuiHistory.ps1` (pure, runs in the map worker; the worker imports the module the first time it reads a results file): run files one and two folders down (60
+  newest), run summaries (score, counts, finished, -SkipNetwork), `Compare-MspkiGuiRun` (pairs by Key, then by subject; new problems, changed worse/better, resolved or no
+  longer reported, still open, objects added/gone by id, score per area, notes on what it cannot know), the comparison's view. Reading is stepped (250 ms of work per job,
+  at least one file), so the list fills in while the worker stays free for the map; a worker failure is shown, never redone on the UI thread.
+- `src/Gui/GuiHistoryPage.ps1` + History tab (Ctrl+7; Run log Ctrl+8): forest choice, score over time, runs newest first ("On show", "Did not finish"), Compare / Open per run,
+  What changed opens on the run on show against the run before it (J4: one click, two for another run); a new problem opens its finding. Palette: page, histprev, histrefresh.
+- Found and fixed: PowerShell variable names ignore case (`$root` replaced `[string]$Root`; `$new` would have replaced `$New`); two GUI files defined the same script variable
+  (the Findings sort order changed) - a test now forbids it; `[bool]'False'` is true (yes/no values read as true/false or text). CRLs view glyph is now the CRL glyph (E81C is History).
+- Measured: compare of two 300-object estates (read + compare, worker) 366-386 ms; switch to History 19 ms; a big comparison on screen 19 ms of UI-thread work; the real lab
+  history (54 runs, under out\ only) read in the background while the window stayed usable.
+- Dev: `tools/dev/New-MspkiDemoHistory.ps1` writes a three-run demo history under out\demo-history (snapshot frames 36-36b).
+- Tests: `tests/FindingKey.Tests.ps1` (3) + the e2e Key check in Discovery.Tests; `tests/GuiHistory.Tests.ps1` (17: run files, summaries, stepped reading, comparison,
+  notes, plain words, long sections, rows and trend, performance, the real window: J4, Compare, finding opens, palette, F6, names, UI budget; GUI script-scope guard).
+- Full suite: 1770 passed, 0 failed, 1 skipped, 201 s. Next: the Opus review checkpoint (GX9 is not started).

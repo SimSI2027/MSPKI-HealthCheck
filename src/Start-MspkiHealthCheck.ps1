@@ -286,6 +286,8 @@ function Start-MspkiHealthCheck {
         # "Probable causes and next steps" for every non-passing finding (docs/KNOWLEDGE-SOURCES.md). A failure here never stops the run.
         $nDiag = Add-MspkiFindingDiagnosis -Findings @($findings)
         Write-MspkiLog -Message ('Probable causes and next steps added to {0} finding(s).' -f $nDiag)
+        # A deterministic Key per finding (category, code, rule, target), so the window can compare two runs. Never stops the run.
+        try { [void](Set-MspkiFindingKey -Findings @($findings)) } catch { Write-MspkiLog -Level Warning -Message ('Finding keys not set: {0}' -f $_.Exception.Message) }
         $graph = $null
         try {
             if ($null -ne $inventory) { Add-MspkiInventoryToEntityGraph -Inventory $inventory }
@@ -313,6 +315,7 @@ function Start-MspkiHealthCheck {
             if ($rep.Errors.Count -gt 0) {
                 foreach ($f in $rep.Errors) { [void]$findings.Add($f) }
                 [void](Add-MspkiFindingDiagnosis -Findings @($findings))
+                try { [void](Set-MspkiFindingKey -Findings @($findings)) } catch { Write-MspkiLog -Level Warning -Message ('Finding keys not set: {0}' -f $_.Exception.Message) }
                 $exitCode = Get-MspkiExitCode -Findings @($findings) -Incomplete:(-not $completed)
                 & $writeJson
             }

@@ -551,6 +551,21 @@ function Invoke-MspkiGuiSnapshot {
             if ($null -ne $chainAddr) { Invoke-MspkiGuiTimelineTag -Tag ([string]$chainAddr.Tag); Wait-MspkiGuiIdle -Rounds 3; & $shot '35f-timeline-chain-address' }
             $ui.RbTlCrls.IsChecked = $true
             Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2
+            # History (GX8): the runs of this forest in the output folder (read a few at a time in the background), the run on show
+            # compared with the run before it, then with the oldest run, and the bottom of the comparison (objects added and gone).
+            & $page $ui.TabHistory
+            $histEnd = [DateTime]::Now.AddSeconds(120)
+            do { Wait-MspkiGuiMapIdle -TimeoutMs 20000; Wait-MspkiGuiIdle -Rounds 2 } while (($g.HistPending -gt 0 -or $null -eq $g.HistRuns) -and [DateTime]::Now -lt $histEnd)
+            Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 3
+            & $shot '36-history'
+            $histRows = @($ui.HistList.ItemsSource)
+            if ($histRows.Count -gt 2) {
+                Invoke-MspkiGuiHistoryTag -Tag ([string]$histRows[$histRows.Count - 1].CompareTag)
+                Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 3
+                & $shot '36a-history-oldest'
+            }
+            if ($ui.HistCmpScroll.IsVisible) { $ui.HistCmpScroll.ScrollToEnd(); Wait-MspkiGuiIdle -Rounds 3; & $shot '36b-history-bottom'; $ui.HistCmpScroll.ScrollToTop() }
+            Invoke-MspkiGuiHistoryComparePrevious; Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2
             # The tree (the text alternative): expand everything, select the first CA node, then drill into its first finding.
             $ui.RbMapTree.IsChecked = $true
             Set-MspkiGuiTreeExpansion -Parent $ui.MapTree -Expand $true

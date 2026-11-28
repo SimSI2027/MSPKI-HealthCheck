@@ -48,8 +48,8 @@ Each journey has a target that the usability rubric checks (`docs/GUI-DESIGN.md`
 | 4 | **Timeline** | CA certificate and CRL lifecycle: expiry countdowns, the CRL "heartbeat" (publish, next update, overlap) | new, GX5 |
 | 5 | **Objects** | every object of the graph, searchable | exists |
 | 6 | **PKI services** | Web Enrollment, CES, CEP, NDES, OCSP, Intune connector | exists |
-| 7 | **History** | earlier runs, score trend, compare two runs | new, GX6 |
-| 8 | **Run log** | the live log | exists |
+| 7 | **History** | earlier runs, score trend, compare two runs | done in GX8 (Ctrl+7) |
+| 8 | **Run log** | the live log | exists (Ctrl+8) |
 | 9 | **Learn** | concept cards and the glossary, opened from any "Explain" link | new, GX7 |
 
 ### One drill-down pattern everywhere

@@ -805,7 +805,10 @@
               <ListBoxItem ToolTip="PKI services (Ctrl+6)" AutomationProperties.Name="PKI services">
                 <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE912;" Margin="0,0,12,0"/><TextBlock Text="PKI services" Style="{StaticResource NavLabel}"/></StackPanel>
               </ListBoxItem>
-              <ListBoxItem ToolTip="Run log (Ctrl+7)" AutomationProperties.Name="Run log">
+              <ListBoxItem ToolTip="History (Ctrl+7)" AutomationProperties.Name="History">
+                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE81C;" Margin="0,0,12,0"/><TextBlock Text="History" Style="{StaticResource NavLabel}"/></StackPanel>
+              </ListBoxItem>
+              <ListBoxItem ToolTip="Run log (Ctrl+8)" AutomationProperties.Name="Run log">
                 <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE9D5;" Margin="0,0,12,0"/><TextBlock Text="Run log" Style="{StaticResource NavLabel}"/></StackPanel>
               </ListBoxItem>
             </ListBox>
@@ -1017,7 +1020,7 @@
                           </Grid>
                           <TextBlock x:Name="TxtRunFound" Style="{StaticResource Small}" Margin="0,6,0,0"/>
                           <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                            <Button x:Name="BtnRunningLog" AutomationProperties.Name="View the live log" Padding="16,0" Margin="0,0,8,0" ToolTip="Follow the run step by step (Ctrl+7)">
+                            <Button x:Name="BtnRunningLog" AutomationProperties.Name="View the live log" Padding="16,0" Margin="0,0,8,0" ToolTip="Follow the run step by step (Ctrl+8)">
                               <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE9D5;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="View live log"/></StackPanel>
                             </Button>
                             <Button x:Name="BtnRunningCancel" AutomationProperties.Name="Cancel the run" Padding="16,0" IsEnabled="{Binding IsEnabled, ElementName=BtnCancel}" ToolTip="Stop the run at the next step (Esc). Partial results are still saved.">
@@ -1608,7 +1611,7 @@
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xEB95;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Certificates"/></StackPanel>
                       </RadioButton>
                       <RadioButton x:Name="RbTlCrls" Style="{StaticResource Segment}" GroupName="TlView" AutomationProperties.Name="Show the CRLs" ToolTip="The CRL heartbeat: when each CRL was published, when the next one is due and when it runs out">
-                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE81C;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="CRLs"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8C9;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="CRLs"/></StackPanel>
                       </RadioButton>
                       <RadioButton x:Name="RbTlChain" Style="{StaticResource Segment}" GroupName="TlView" AutomationProperties.Name="Show the certificate chain" ToolTip="From a certificate up to its root, with the result of every AIA and CDP address">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE71B;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Chain"/></StackPanel>
@@ -1853,6 +1856,168 @@
           </TabItem>
 
           <!-- Run log -->
+          <TabItem x:Name="TabHistory" Header="History">
+            <TabItem.Resources>
+              <!-- One earlier run: score, when, counts, marks, and its two actions. -->
+              <DataTemplate x:Key="HistRow">
+                <Grid Margin="0,6" ToolTip="{Binding Tip}">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="56"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                  </Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource PillBorder}" Height="30" MinWidth="44" Margin="0" HorizontalAlignment="Left" ToolTip="{Binding Band}">
+                    <TextBlock Text="{Binding ScoreText}" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="8,0,8,0" VerticalAlignment="Center">
+                    <WrapPanel>
+                      <TextBlock Text="{Binding When}" FontWeight="SemiBold" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                      <Border Style="{StaticResource PillBorder}" Height="20" Margin="0,0,6,0" DataContext="{Binding MarkPill}" Visibility="{Binding Show, Converter={StaticResource BoolToVis}}" ToolTip="The run the window shows now">
+                        <TextBlock Text="On show" FontSize="11" FontWeight="SemiBold"/>
+                      </Border>
+                      <Border Style="{StaticResource PillBorder}" Height="20" Margin="0" DataContext="{Binding PartialPill}" Visibility="{Binding Show, Converter={StaticResource BoolToVis}}" ToolTip="This run was cancelled or stopped: what it did not reach was not checked">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE946;" FontSize="10" Margin="0,0,4,0" VerticalAlignment="Center"/><TextBlock Text="Did not finish" FontSize="11" FontWeight="SemiBold"/></StackPanel>
+                      </Border>
+                    </WrapPanel>
+                    <TextBlock Text="{Binding Counts}" Style="{StaticResource Small}" Margin="0,2,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Counts}"/>
+                    <TextBlock Text="{Binding Folder}" Style="{StaticResource Small}" Foreground="{DynamicResource B.Muted}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource SubtleButton}" Content="Compare" Tag="{Binding CompareTag}" Margin="0,0,4,0" IsEnabled="{Binding CanCompare}" AutomationProperties.Name="{Binding CompareName}" ToolTip="{Binding CompareTip}"/>
+                    <Button Style="{StaticResource SubtleButton}" Content="Open" Tag="{Binding OpenTag}" AutomationProperties.Name="{Binding OpenName}" ToolTip="Show this run in the window (nothing is scanned)"/>
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+              <!-- One finding or object of the comparison. -->
+              <DataTemplate x:Key="HistItem">
+                <Button Style="{StaticResource RowButton}" Tag="{Binding Tag}" IsEnabled="{Binding CanOpen}" ToolTip="{Binding Tip}" AutomationProperties.Name="{Binding AutomationName}" HorizontalContentAlignment="Stretch">
+                  <DockPanel Margin="4,4">
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource ToneGlyph}" Text="{Binding Glyph}" FontSize="13" Margin="0,2,10,0" VerticalAlignment="Top"/>
+                    <StackPanel>
+                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                      <TextBlock Text="{Binding Sub}" Style="{StaticResource Small}" TextWrapping="Wrap" MaxHeight="36" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                  </DockPanel>
+                </Button>
+              </DataTemplate>
+            </TabItem.Resources>
+            <DockPanel Margin="24,20,24,24">
+              <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+                <Button x:Name="BtnHistRefresh" DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" VerticalAlignment="Top" Margin="16,2,0,0" AutomationProperties.Name="Read the list of runs again" ToolTip="Read the list of earlier runs again (a new run appears by itself)">
+                  <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE72C;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Refresh"/></StackPanel>
+                </Button>
+                <StackPanel>
+                  <TextBlock Text="History" Style="{StaticResource PageTitle}"/>
+                  <TextBlock x:Name="TxtHistSub" Text="Earlier runs saved in the output folder, and what changed between two of them. The files are only read." Style="{StaticResource PageSub}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+              </DockPanel>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="4*" MinWidth="380"/>
+                  <ColumnDefinition Width="16"/>
+                  <ColumnDefinition Width="5*" MinWidth="300"/>
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource Panel}" ClipToBounds="True">
+                  <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="16,12,16,4" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
+                      <WrapPanel>
+                        <ComboBox x:Name="FltHistForest" Style="{StaticResource FilterCombo}" Tag="Forest" Width="300" Margin="0,0,12,8" AutomationProperties.Name="Forest" ToolTip="The forest whose runs are listed: runs of different forests are not compared"/>
+                        <TextBlock x:Name="TxtHistCount" Style="{StaticResource Small}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                      </WrapPanel>
+                    </Border>
+                    <!-- The score over time (oldest left), with the band lines at 60 and 90. -->
+                    <Border x:Name="HistTrendBar" DockPanel.Dock="Top" Padding="16,10,24,10" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
+                      <DockPanel>
+                        <StackPanel DockPanel.Dock="Left" Width="120" Margin="0,0,16,0">
+                          <TextBlock Text="Score over time" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource B.Muted}"/>
+                          <TextBlock x:Name="TxtHistTrend" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <Canvas x:Name="HistTrend" Height="64" Background="Transparent" AutomationProperties.Name="Score over time" ToolTip="Each point is a run, oldest on the left. The lines mark 60 and 90, where the score changes band."/>
+                      </DockPanel>
+                    </Border>
+                    <Grid>
+                      <ListBox x:Name="HistList" ItemTemplate="{StaticResource HistRow}" BorderThickness="0" Background="Transparent" Padding="8,4" HorizontalContentAlignment="Stretch"
+                               ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                               AutomationProperties.Name="Earlier runs" AutomationProperties.HelpText="Enter compares the selected run with the run on show">
+                        <ListBox.ItemContainerStyle>
+                          <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}"/>
+                          </Style>
+                        </ListBox.ItemContainerStyle>
+                      </ListBox>
+                      <StackPanel x:Name="HistEmptyPanel" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380" Margin="16" Visibility="Collapsed">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE81C;" FontSize="28" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="TxtHistEmpty" TextWrapping="Wrap" TextAlignment="Center" Margin="0,10,0,0" Foreground="{DynamicResource B.Muted}"/>
+                      </StackPanel>
+                    </Grid>
+                  </DockPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource Panel}" ClipToBounds="True">
+                  <Grid>
+                    <ScrollViewer x:Name="HistCmpScroll" VerticalScrollBarVisibility="Auto" Focusable="False" Padding="20,16,20,16">
+                      <StackPanel x:Name="HistCmpPanel">
+                        <TextBlock x:Name="TxtHistCmpTitle" Text="What changed" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="TxtHistCmpSub" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,4,0,12"/>
+                        <Border x:Name="HistScoreCard" Style="{StaticResource PillBorder}" Height="Auto" Padding="14,10" Margin="0,0,0,12" HorizontalAlignment="Stretch">
+                          <DockPanel>
+                            <TextBlock x:Name="TxtHistDelta" DockPanel.Dock="Right" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <StackPanel>
+                              <TextBlock Text="Health score" FontSize="12" FontWeight="SemiBold"/>
+                              <TextBlock x:Name="TxtHistScores" FontSize="16" Margin="0,2,0,0"/>
+                            </StackPanel>
+                          </DockPanel>
+                        </Border>
+                        <ItemsControl x:Name="HistAreas" Focusable="False" Margin="0,0,0,8">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <DockPanel Margin="0,2" ToolTip="{Binding Tip}">
+                                <Border DockPanel.Dock="Right" Width="72">
+                                  <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock Style="{StaticResource ToneGlyph}" Text="{Binding Glyph}" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding DeltaText}" FontWeight="SemiBold"/>
+                                  </StackPanel>
+                                </Border>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding ScoresText}" Width="96" TextAlignment="Right" Style="{StaticResource Small}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                              </DockPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl x:Name="HistNotes" Focusable="False" Margin="0,4,0,8">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Style="{StaticResource PillBorder}" Height="Auto" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch">
+                                <DockPanel><TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" FontSize="13" Margin="0,2,8,0" VerticalAlignment="Top"/><TextBlock Text="{Binding Text}" TextWrapping="Wrap"/></DockPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl x:Name="HistSections" Focusable="False">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <StackPanel Margin="0,8,0,4">
+                                <DockPanel Margin="0,0,0,4" ToolTip="{Binding HeadTip}">
+                                  <TextBlock DockPanel.Dock="Left" Style="{StaticResource ToneGlyph}" Text="{Binding Glyph}" FontSize="14" Margin="0,1,8,0"/>
+                                  <TextBlock Text="{Binding Heading}" FontSize="14" FontWeight="SemiBold"/>
+                                </DockPanel>
+                                <TextBlock Text="{Binding Empty}" Style="{StaticResource Small}" Margin="22,0,0,0" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}"/>
+                                <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource HistItem}" Focusable="False" Margin="12,0,0,0"/>
+                                <TextBlock Text="{Binding More}" Style="{StaticResource Small}" Margin="22,2,0,0" Visibility="{Binding HasMore, Converter={StaticResource BoolToVis}}"/>
+                              </StackPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </ScrollViewer>
+                    <StackPanel x:Name="HistCmpEmpty" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380" Margin="16" Visibility="Collapsed">
+                      <TextBlock Style="{StaticResource Glyph}" Text="&#xE81C;" FontSize="28" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center"/>
+                      <TextBlock x:Name="TxtHistCmpEmpty" TextWrapping="Wrap" TextAlignment="Center" Margin="0,10,0,0" Foreground="{DynamicResource B.Muted}"/>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </Grid>
+            </DockPanel>
+          </TabItem>
           <TabItem x:Name="TabLog" Header="Run log">
             <DockPanel Margin="24,20,24,24">
               <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
