@@ -1891,6 +1891,8 @@ function Initialize-MspkiGuiApplication {
     $ui.BtnErrRun.Add_Click({ Start-MspkiGuiRun })
     $ui.BtnGridClear.Add_Click({ Clear-MspkiGuiFilter })
     $ui.BtnHistRun.Add_Click({ Start-MspkiGuiRun })
+    $ui.BtnOptionsRun.Add_Click({ $script:MspkiGui.Ui.ExpOptions.IsExpanded = $false; Start-MspkiGuiRun })
+    $ui.BtnOptionsClose.Add_Click({ $script:MspkiGui.Ui.ExpOptions.IsExpanded = $false })
     $ui.BtnLogOpenFolder.Add_Click({ $script:MspkiGui.Ui.BtnOpenFolder.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) })
     $ui.BtnErrLog.Add_Click({ Select-MspkiGuiTab -Index 7 })
     $ui.BtnErrOptions.Add_Click({ $u = $script:MspkiGui.Ui; $u.ExpOptions.IsExpanded = $true; [void]$u.TxtTimeout.Focus(); $u.TxtTimeout.SelectAll() })

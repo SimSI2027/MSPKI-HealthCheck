@@ -124,6 +124,10 @@ function Add-MspkiInventoryToEntityGraph {
         if ($ca.DistinguishedName) {
             Add-MspkiObservation -EntityId $id -Kind 'Seen' -Source 'AD' -Location $ca.DistinguishedName -Confidence 'Confirmed' -Detail 'Enrollment Services object (Enterprise CA)'
         }
+        else {
+            # D-10: every Enterprise CA of the inventory was read from the Enrollment Services container, even when its DN was not kept.
+            Add-MspkiObservation -EntityId $id -Kind 'Seen' -Source 'AD' -Location 'CN=Enrollment Services,CN=Public Key Services,CN=Services (Configuration partition)' -Confidence 'Confirmed' -Detail 'Enrollment Services object (Enterprise CA); its distinguished name was not recorded'
+        }
         if ($null -ne $ca.Properties) { Add-MspkiObservation -EntityId $id -Kind 'Seen' -Source 'CA' -Location ([string]$ca.Config) -Confidence 'Confirmed' -Detail 'Answered GetCAProperty' }
         if ($ca.DnsHostName) { Add-MspkiRelation -From $id -Type 'hostedOn' -To (Add-MspkiHostEntity -HostName $ca.DnsHostName -Role 'CA') -Source 'AD:EnrollmentServices:dNSHostName' }
         if ($forestId) { Add-MspkiRelation -From $id -Type 'partOf' -To $forestId -Source 'AD:EnrollmentServices' }

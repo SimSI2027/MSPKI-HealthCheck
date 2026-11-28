@@ -873,7 +873,7 @@
             <Grid Margin="28,8,0,12" MaxWidth="900" HorizontalAlignment="Left">
               <Grid.ColumnDefinitions><ColumnDefinition Width="200"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
               <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
               </Grid.RowDefinitions>
               <TextBlock Grid.Row="0" Text="Timeout per probe" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,7,0,12"/>
               <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,12">
@@ -897,6 +897,11 @@
               </StackPanel>
               <TextBlock Grid.Row="4" Text="Output folder" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,7,0,0"/>
               <TextBox x:Name="TxtOutput" Grid.Row="4" Grid.Column="1" IsReadOnly="True" AutomationProperties.Name="Output folder"/>
+              <!-- D-22: the options never push the only Run button out of view: run from here with these options. -->
+              <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,16,0,0">
+                <Button x:Name="BtnOptionsRun" Style="{StaticResource PrimaryButton}" Padding="16,0" IsEnabled="{Binding IsEnabled, ElementName=BtnRun}" AutomationProperties.Name="Run health check with these options"><StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Run with these options"/></StackPanel></Button>
+                <Button x:Name="BtnOptionsClose" Margin="8,0,0,0" Padding="12,0" AutomationProperties.Name="Close the run options"><TextBlock Text="Close"/></Button>
+              </StackPanel>
             </Grid>
           </Expander>
         </Border>

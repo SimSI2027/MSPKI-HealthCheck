@@ -212,6 +212,10 @@ function Get-MspkiGuiEntityPane {
         }
     }
     $seen = @($obs | Where-Object { $_.Kind -ne 'ExpectedMissing' } | Sort-Object @{ Expression = { if ($_.Kind -eq 'Seen') { 0 } else { 1 } } }, Source, Location | ForEach-Object { & $toRow $_ })
+    # D-10: results written before the engine recorded it: an Enterprise CA is always read from Active Directory (Enrollment Services).
+    if ($seen.Count -eq 0 -and [string]$e.Type -eq 'CA' -and $null -ne $e.Properties -and $null -ne $e.Properties.PSObject.Properties['Kind'] -and [string]$e.Properties.Kind -eq 'Enterprise') {
+        $seen = @(& $toRow ([pscustomobject]@{ Kind = 'Referenced'; Source = 'AD'; Location = 'Enrollment Services container (Configuration partition)'; Detail = 'Listed as an Enterprise CA; this results file did not record the exact object.'; Timestamp = ''; Confidence = 'Referenced' }))
+    }
     $miss = @($obs | Where-Object { $_.Kind -eq 'ExpectedMissing' } | Sort-Object Source, Location | ForEach-Object { & $toRow $_ })
     $rel = New-Object System.Collections.ArrayList
     foreach ($dir in @('Out', 'In')) {
@@ -227,6 +231,15 @@ function Get-MspkiGuiEntityPane {
     }
     $related = @($rel | Sort-Object Label, Name)
     $fids = @(); if ($Index.Findings.ContainsKey($Id)) { $fids = @($Index.Findings[$Id] | Select-Object -Unique) }
+    # D-10: a service's pane counts the findings of the addresses it serves too (the PKI services card counts them the same way), and a
+    # finding about the service's own address.
+    if ([string]$e.Type -eq 'Service') {
+        $more = New-Object System.Collections.ArrayList
+        if ($Index.In.ContainsKey($Id)) { foreach ($r in @($Index.In[$Id])) { if ([string]$r.Type -eq 'servedBy' -and $Index.Findings.ContainsKey([string]$r.From)) { foreach ($x in @($Index.Findings[[string]$r.From])) { [void]$more.Add($x) } } } }
+        $url = ''; if ($null -ne $e.Properties -and $null -ne $e.Properties.PSObject.Properties['Url']) { $url = [string]$e.Properties.Url }
+        if ($url) { foreach ($k in @($RowById.Keys)) { if ([string]$RowById[$k].Endpoint -eq $url) { [void]$more.Add($k) } } }
+        $fids = @(@($fids) + @($more) | Where-Object { $_ } | Select-Object -Unique)
+    }
     $rows = @($fids | Where-Object { $RowById.ContainsKey($_) } | ForEach-Object { $RowById[$_] } | Sort-Object @{ Expression = { -1 * $_.StatusRank } }, Id)
     $hostFacts = @()
     if ([string]$e.Type -eq 'Host') { $hostFacts = @(Get-MspkiGuiHostFact -Entity $e) }

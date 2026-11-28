@@ -187,3 +187,21 @@ Describe 'D-21: findings without a knowledge topic become one plain action per c
         Get-MspkiGuiPlainActionTitle -Category CDP -Status Warning -Count 1 | Should -Be '1 CRL address with a warning'
     }
 }
+
+Describe 'D-10: places and counts agree' {
+    It 'says where an Enterprise CA was read even when the results file did not record it' {
+        $graph = ConvertFrom-MspkiJson -Text '{ "Entities": [ { "Id": "ca:example-ca", "Type": "CA", "Name": "Example CA", "Properties": { "Kind": "Enterprise" } } ], "Relations": [], "Observations": [] }'
+        $idx = New-MspkiGuiGraphIndex -Graph $graph -Findings @()
+        $p = Get-MspkiGuiEntityPane -Index $idx -Id 'ca:example-ca'
+        $p.SeenCount | Should -Be 1
+        $p.Seen[0].Source | Should -Be 'AD'
+    }
+    It 'counts a service''s findings from the addresses it serves, as the PKI services card does' {
+        $graph = ConvertFrom-MspkiJson -Text '{ "Entities": [ { "Id": "service:ces:x", "Type": "Service", "Name": "CES https://enroll.example.test/CES", "Properties": { "Kind": "CES", "Url": "https://enroll.example.test/CES" } }, { "Id": "endpoint:x", "Type": "Endpoint", "Name": "https://enroll.example.test/CES", "Properties": {} } ], "Relations": [ { "From": "endpoint:x", "Type": "servedBy", "To": "service:ces:x" } ], "Observations": [] }'
+        $f = [pscustomobject]@{ Id = 'F9'; Status = 'Warning'; StatusCode = 'TLS'; Category = 'CES'; Target = 'enroll.example.test'; Endpoint = 'https://enroll.example.test/CES'; Message = 'm'; Severity = 'None'; Confidence = 'Confirmed'; Sources = @(); EntityIds = @('endpoint:x') }
+        $rows = ConvertTo-MspkiGuiRowList -Findings @($f)
+        $byId = @{}; foreach ($r in $rows) { $byId[$r.Id] = $r }
+        $idx = New-MspkiGuiGraphIndex -Graph $graph -Findings @($f)
+        (Get-MspkiGuiEntityPane -Index $idx -Id 'service:ces:x' -RowById $byId).FindingCount | Should -Be 1
+    }
+}
