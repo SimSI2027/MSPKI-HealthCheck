@@ -786,7 +786,7 @@
       <Border Grid.Row="1" Grid.Column="0" Background="{DynamicResource B.Nav}" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,0,1,0">
         <DockPanel>
           <!-- Compact navigation (narrow window): the environment collapses to one icon with the facts in its tooltip. -->
-          <Border x:Name="NavEnvCompact" DockPanel.Dock="Bottom" Visibility="Collapsed" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,1,0,0" Height="48" Background="Transparent">
+          <Border x:Name="NavEnvCompact" DockPanel.Dock="Bottom" Visibility="Collapsed" ToolTip="Environment: widen the window to see the forest, domain, domain controller and account" AutomationProperties.Name="Environment" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,1,0,0" Height="48" Background="Transparent">
             <TextBlock Style="{StaticResource Glyph}" Text="&#xE774;" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center"/>
           </Border>
           <Border x:Name="NavEnv" DockPanel.Dock="Bottom" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,1,0,0" Padding="20,14,16,6">
@@ -810,7 +810,11 @@
                     </Border.Style>
                     <TextBlock x:Name="TxtTabFindings" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
                   </Border>
-                  <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8FD;" Margin="0,0,12,0"/><TextBlock Text="Findings" Style="{StaticResource NavLabel}"/></StackPanel>
+                  <StackPanel Orientation="Horizontal"><Grid Margin="0,0,12,0"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8FD;" HorizontalAlignment="Left"/>
+                    <!-- D-43: compact navigation keeps a dot on the icon when there are findings (the count is in the tooltip and on the page). -->
+                    <Ellipse Width="6" Height="6" Fill="{DynamicResource B.Accent}" Stroke="{DynamicResource B.Nav}" StrokeThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0">
+                      <Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Tag, ElementName=NavList}" Value="Compact"><Setter Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding Text, ElementName=TxtTabFindings}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Ellipse.Style>
+                    </Ellipse></Grid><TextBlock Text="Findings" Style="{StaticResource NavLabel}"/></StackPanel>
                 </DockPanel>
               </ListBoxItem>
               <ListBoxItem ToolTip="Discovery map (Ctrl+3)" AutomationProperties.Name="Discovery map">

@@ -396,10 +396,14 @@ function Complete-MspkiGuiMapPageDraw {
     $ui.MapEmptyPanel.Visibility = 'Collapsed'
     $ui.MapZoomBar.Visibility = 'Visible'
     $m = $Draw.Model
-    $ring = New-Object System.Windows.Shapes.Ellipse
-    $ring.Width = 36; $ring.Height = 36; $ring.StrokeThickness = 2; $ring.IsHitTestVisible = $false; $ring.Visibility = 'Collapsed'
-    $ring.SetResourceReference([System.Windows.Shapes.Shape]::StrokeProperty, 'B.FocusRing')
-    $ring.StrokeDashArray = [System.Windows.Media.DoubleCollection]::Parse('2.0 1.5')
+    # D-38: the keyboard focus is a solid 2 px accent ring with a 2 px surface halo around it (3:1 on both themes), never a thin dash.
+    $ring = New-Object System.Windows.Controls.Grid
+    $ring.Width = 44; $ring.Height = 44; $ring.IsHitTestVisible = $false; $ring.Visibility = 'Collapsed'
+    $halo = New-Object System.Windows.Shapes.Ellipse
+    $halo.StrokeThickness = 6; $halo.SetResourceReference([System.Windows.Shapes.Shape]::StrokeProperty, 'B.Card')
+    $acc = New-Object System.Windows.Shapes.Ellipse
+    $acc.Margin = New-Object System.Windows.Thickness(2); $acc.StrokeThickness = 2; $acc.SetResourceReference([System.Windows.Shapes.Shape]::StrokeProperty, 'B.FocusRing')
+    [void]$ring.Children.Add($halo); [void]$ring.Children.Add($acc)
     [System.Windows.Controls.Panel]::SetZIndex($ring, 5)
     [void]$Draw.Canvas.Children.Add($ring)
     $g.MapFocusRing = $ring
@@ -562,7 +566,7 @@ function Update-MspkiGuiMapSelectionLook {
     if ($null -eq $ring) { return }
     if ($g.MapFocusId -and $dr.ById.ContainsKey($g.MapFocusId) -and $ui.MapViewport.IsKeyboardFocusWithin) {
         $d = $dr.ById[$g.MapFocusId]
-        [System.Windows.Controls.Canvas]::SetLeft($ring, [double]$d.Node.X - 5); [System.Windows.Controls.Canvas]::SetTop($ring, [double]$d.Node.Y + $dr.Top - 18)
+        [System.Windows.Controls.Canvas]::SetLeft($ring, [double]$d.Node.X - 9); [System.Windows.Controls.Canvas]::SetTop($ring, [double]$d.Node.Y + $dr.Top - 22)
         $ring.Visibility = 'Visible'
         [System.Windows.Automation.AutomationProperties]::SetName($ui.MapViewport, ('Discovery map. {0}. Arrow keys move between objects, Enter opens one.' -f [System.Windows.Automation.AutomationProperties]::GetName($d.Label)))
     }

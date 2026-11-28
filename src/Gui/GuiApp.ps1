@@ -318,6 +318,8 @@ function Update-MspkiGuiHeader {
     $ui = $script:MspkiGui.Ui
     $c = Get-MspkiGuiContext -Summary $Summary
     $ui.HdrContext.ItemsSource = @($c.Items)
+    # D-43: in compact navigation the globe's tooltip carries the same facts.
+    $ui.NavEnvCompact.ToolTip = 'Environment' + [Environment]::NewLine + ((@($c.Items) | ForEach-Object { '{0}: {1}' -f $_.Label, $_.Value }) -join [Environment]::NewLine)
     $ui.HdrBadge.Content = $c.Badge
     $ui.NavEnvCompact.ToolTip = (@('Environment') + @($c.Items | ForEach-Object { '{0}: {1}' -f $_.Label, $_.Value })) -join [Environment]::NewLine
     return $c
