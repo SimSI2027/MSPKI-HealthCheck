@@ -414,8 +414,8 @@
                 <ItemsControl ItemsSource="{Binding Objects}" ItemTemplate="{StaticResource ObjectLink}" Focusable="False"/>
               </StackPanel>
 
-              <TextBlock Text="Checked layers" Style="{StaticResource Label}" Margin="0,20,0,6"/>
-              <ItemsControl ItemsSource="{Binding Layers}" Focusable="False">
+              <TextBlock Text="Checked layers" Style="{StaticResource Label}" Margin="0,20,0,6" Visibility="{Binding HasLayers, Converter={StaticResource BoolToVis}}"/>
+              <ItemsControl ItemsSource="{Binding Layers}" Focusable="False" Visibility="{Binding HasLayers, Converter={StaticResource BoolToVis}}">
                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate><ContentPresenter Content="{Binding Pill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>

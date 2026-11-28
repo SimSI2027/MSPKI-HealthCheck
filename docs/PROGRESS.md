@@ -651,3 +651,9 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   J6: "Executive summary" under the score ring (one click) or Ctrl+K "Executive summary".
 - Tests: `tests/GuiSummary.Tests.ps1` (7, including the real window). Printed-page check: headless Edge render and PDF under out\ only.
 - Next: GX11 (adversarial round, separate discriminator session) - see the open IDs in REVIEW-GX §8.
+
+## GX11 (2026-11-28): adversarial round, builder's own - PASS in round 2; independent session pending
+- Round 1 on the LARGE estate (dark, minimum) and 150 %: address targets now "host · file (HTTP)" in the grid and titles; layer chips hide when
+  nothing was tested; the Error status is "check failed" everywhere (headline counts, grouped actions). Tests in GuiConsistency.
+- Not done (needs the owner or a physical setup): an independent discriminator session (single-agent rule), real high-contrast and maximised
+  frames, keyboard-focus frames (WPF draws focus visuals only after real key input). Open IDs: D-09 centring, D-34, D-46, D-47.

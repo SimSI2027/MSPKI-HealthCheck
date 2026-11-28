@@ -353,7 +353,7 @@ function Get-MspkiGuiFindingDetail {
     $layers = @(foreach ($l in $layerMap) {
         $v = [string]$f.($l[1])
         if (-not $v) { $v = 'NotTested' }
-        $pill = Get-MspkiGuiStatusPill -Value $v -Text ('{0}: {1}' -f $l[0], ($v -creplace '([a-z])([A-Z])', '$1 $2'))
+        $pill = Get-MspkiGuiStatusPill -Value $v -Text ('{0}: {1}' -f $l[0], (Get-MspkiGuiStatusLabel -Value $v))
         [pscustomobject][ordered]@{ Name = $l[0]; Status = $v; Pill = $pill }
     })
     $sources = [string[]]@($f.Sources | Where-Object { $_ })
@@ -394,6 +394,7 @@ function Get-MspkiGuiFindingDetail {
         Fields         = $fields
         Sources        = $sources
         Layers         = $layers
+        HasLayers      = (@($layers | Where-Object { $_.Status -ne 'NotTested' }).Count -gt 0)
         Evidence       = $evidence
         HasEvidence    = [bool]$evidence
         Remediation    = [string]$f.Remediation
@@ -676,7 +677,7 @@ function Get-MspkiGuiHealth {
     $bits = New-Object 'System.Collections.Generic.List[string]'
     if ($crit -gt 0) { $bits.Add(('{0} critical' -f $crit)) }
     if ($fail -gt 0) { $bits.Add(('{0} failed' -f $fail)) }
-    if ($err -gt 0) { $bits.Add(('{0} could not be checked (error)' -f $err)) }
+    if ($err -gt 0) { $bits.Add($(if ($err -eq 1) { '1 check failed' } else { '{0} checks failed' -f $err })) }
     if ($warn -gt 0) { $bits.Add((Format-MspkiGuiCount -Count $warn -Singular 'warning')) }
     $extra = ''
     if ($CoverageProblems -gt 0) {

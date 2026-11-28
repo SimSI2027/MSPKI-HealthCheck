@@ -147,7 +147,7 @@ function Get-MspkiGuiPlainActionTitle {
         $noun = @(('{0} finding' -f $Category), ('{0} findings' -f $Category))
     }
     $what = $(if ($Count -eq 1) { $noun[0] } else { $noun[1] })
-    $state = switch ($Status) { 'Critical' { 'critical' } 'Fail' { 'failing' } 'Error' { 'could not be checked' } default { 'with a warning' } }
+    $state = switch ($Status) { 'Critical' { 'critical' } 'Fail' { 'failing' } 'Error' { 'where the check failed' } default { 'with a warning' } }
     if ($Status -eq 'Warning') { return ('{0} {1} {2}' -f $Count, $what, $state) }
     return ('{0} {1} {2}' -f $Count, $what, $state)
 }

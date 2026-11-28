@@ -219,3 +219,15 @@ Describe 'Low items: tree words, service titles, permission titles, old engine w
         Format-MspkiGuiTextTimes -Text 'x (not probed in this phase)' | Should -Be 'x (not contacted in this run)'
     }
 }
+
+Describe 'GX11 round 1: targets that are addresses, check-failed words, layers' {
+    It 'shows an address target as host and file, with the protocol once' {
+        Get-MspkiGuiShortTarget -Target 'http://pki28.corp.example.test/aia/Example%20CA%204.crt' | Should -Be ('pki28 {0} Example CA 4.crt' -f [char]0x00B7)
+        $f = [pscustomobject]@{ Id = 'F1'; Status = 'Fail'; StatusCode = 'HTTP'; Category = 'AIA'; Target = 'http://pki28.corp.example.test/aia/x.crt'; Endpoint = 'http://pki28.corp.example.test/aia/x.crt'; Message = 'm'; Severity = 'None'; Confidence = 'Confirmed'; Sources = @() }
+        Get-MspkiGuiFindingTitle -Finding $f | Should -Be ('AIA {0} pki28 {0} x.crt (HTTP)' -f [char]0x00B7)
+        (ConvertTo-MspkiGuiRow -Finding $f).TargetText | Should -Be ('pki28 {0} x.crt (HTTP)' -f [char]0x00B7)
+    }
+    It 'calls the Error status "check failed" in grouped actions' {
+        Get-MspkiGuiPlainActionTitle -Category CA -Status Error -Count 1 | Should -Be '1 CA where the check failed'
+    }
+}

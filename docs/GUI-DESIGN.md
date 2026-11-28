@@ -466,3 +466,17 @@ E71F, fit E9A6.
 
 ### GX10 round 2 (same render)
 - One page, nothing wraps badly, every section reads in under a minute. Verdict: PASS (same-model caveat as before).
+
+### GX11 round 1 (2026-11-28; adversarial round on the upgraded rubric; generated LARGE estate in dark at minimum size, Alcyone `expired-crl` at 150 %, GX9/GX10 frames; frames.csv checked by the window test)
+- Defects: grid targets of the LARGE estate showed cut-off raw URLs ("http://pki28.corp.exa...") and finding titles carried the whole URL (A3,
+  B2); eight "Not Tested" layer chips (Title Case) on findings where nothing was tested (A5); the Error status read "could not be checked"
+  in the headline counts and in grouped actions, which §9 reserves for permission/support skips (C1 honesty of words).
+- Fixes: an address target reads "host · file" with the protocol once ("pki28 · x.crt (HTTP)"); the layers section hides when nothing was
+  tested, and layer words are sentence case; the Error status says "check failed" everywhere.
+
+### GX11 round 2 (same sets)
+- Targets and titles are readable at minimum size in dark; no Title Case or raw status word left on the pages checked; 150 % renders crisp.
+  Verdict: PASS on the builder's own round. Not met from the review's GX11 plan: an independent discriminator (a fresh session given only the
+  PNGs, the rubric and REVIEW-GX); this project runs single-agent, so the owner has to start that session. Also open: D-09 (Overview card
+  centring), D-34, D-46, D-47; frames for keyboard focus on nav, buttons, chips and pane links (WPF shows focus visuals only after real
+  keyboard input, which the off-window snapshot cannot send); a real high-contrast theme and maximised on a physical 1920 x 1080 screen.

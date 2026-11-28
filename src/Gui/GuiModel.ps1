@@ -100,6 +100,26 @@ function Get-MspkiGuiReadableName {
 
 $script:MspkiGuiCategoryWord = @{ ADContainer = 'AD container'; ADContainerObjects = 'AD objects'; EnrollmentServices = 'Enrollment services'; LocalEvidence = 'This computer'; StaleReference = 'Stale reference' }
 
+function Get-MspkiGuiShortTarget {
+    <#
+    .SYNOPSIS
+    A finding's target for people: a URL becomes "host · file" ("pki28 · Example CA.crt", the first label of the host and the decoded file
+    name); anything else is its readable name (Get-MspkiGuiReadableName). The full target stays in the tooltip and the properties.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][AllowNull()][string]$Target)
+    if (-not $Target) { return '' }
+    $m = [regex]::Match($Target, '^(?i)(?:https?|ldaps?|file)://([^/?#:]*)(?::\d+)?(/[^?#]*)?')
+    if ($m.Success) {
+        $h = ($m.Groups[1].Value -split '\.')[0]
+        $file = ''
+        try { $file = [System.Uri]::UnescapeDataString(($m.Groups[2].Value -replace '^.*/', '')) } catch { $file = '' }
+        $parts = @($h, $file) | Where-Object { $_ }
+        if (@($parts).Count -gt 0) { return (@($parts) -join (' ' + [string][char]0x00B7 + ' ')) }
+    }
+    return (Get-MspkiGuiReadableName -Name $Target)
+}
+
 function Get-MspkiGuiFindingQualifier {
     <#
     .SYNOPSIS
@@ -114,6 +134,8 @@ function Get-MspkiGuiFindingQualifier {
     $m = [regex]::Match($ep, '^(?i)CA property (Base|Delta)CRL')
     if ($m.Success) { return ('at the CA ({0} CRL)' -f $m.Groups[1].Value.ToLowerInvariant()) }
     $m = [regex]::Match($ep, '^(?i)(https?|ldaps?|file)://([^/?#]*)(/[^?#]*)?')
+    # The target is this very address ("host · file" already says where): only the protocol is added.
+    if ($ep -and [string]$Finding.Target -eq $ep -and $m.Success) { return ('({0})' -f $m.Groups[1].Value.ToUpperInvariant()) }
     if (-not $m.Success) { return '' }
     $scheme = $m.Groups[1].Value.ToUpperInvariant()
     $h = $m.Groups[2].Value
@@ -142,9 +164,11 @@ function Get-MspkiGuiFindingTitle {
     $dot = ' ' + [string][char]0x00B7 + ' '
     $cat = [string]$Finding.Category
     if ($script:MspkiGuiCategoryWord.ContainsKey($cat)) { $cat = $script:MspkiGuiCategoryWord[$cat] }
-    $subject = Get-MspkiGuiReadableName -Name ([string]$Finding.Target)
-    $parts = @($cat, $subject, (Get-MspkiGuiFindingQualifier -Finding $Finding)) | Where-Object { $_ }
+    $subject = Get-MspkiGuiShortTarget -Target ([string]$Finding.Target)
+    $q = Get-MspkiGuiFindingQualifier -Finding $Finding
+    $parts = @($cat, $subject, $(if ($q -notlike '(*') { $q } else { '' })) | Where-Object { $_ }
     $t = (@($parts) -join $dot)
+    if ($q -like '(*' -and $t) { $t += ' ' + $q }
     if (-not $t) { $t = [string]$Finding.Id }
     return $t
 }
@@ -368,7 +392,7 @@ function ConvertTo-MspkiGuiRow {
     $key = Get-MspkiGuiFindingStatusKey -Finding $f
     $sevText = Get-MspkiGuiStatusLabel -Value ([string]$f.Severity)
     if ([string]$f.Severity -eq 'None') { $sevText = '' }
-    $readable = Get-MspkiGuiReadableName -Name ([string]$f.Target)
+    $readable = Get-MspkiGuiShortTarget -Target ([string]$f.Target)
     $qual = Get-MspkiGuiFindingQualifier -Finding $f
     return [pscustomobject][ordered]@{
         Id             = [string]$f.Id
@@ -381,7 +405,7 @@ function ConvertTo-MspkiGuiRow {
         SeverityRank   = (Get-MspkiGuiRank -Kind Severity -Value ([string]$f.Severity))
         Category       = [string]$f.Category
         Target         = [string]$f.Target
-        TargetText     = $(if ($qual) { '{0} {1} {2}' -f $readable, [char]0x00B7, $qual } else { $readable })
+        TargetText     = $(if ($qual -like '(*') { '{0} {1}' -f $readable, $qual } elseif ($qual) { '{0} {1} {2}' -f $readable, [char]0x00B7, $qual } else { $readable })
         TargetTip      = $(if ($f.Endpoint) { '{0}{1}{2}' -f [string]$f.Target, "`r`n", [string]$f.Endpoint } else { [string]$f.Target })
         Title          = (Get-MspkiGuiFindingTitle -Finding $f)
         Endpoint       = [string]$f.Endpoint
