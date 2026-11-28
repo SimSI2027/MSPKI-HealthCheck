@@ -30,6 +30,7 @@ function Test-MspkiGuiReducedMotion {
     #>
     [CmdletBinding()]
     param()
+    if ($null -ne $script:MspkiGui -and $script:MspkiGui.ContainsKey('ForceReducedMotion') -and $script:MspkiGui.ForceReducedMotion) { return $true }
     if ($null -ne $script:MspkiGui -and $script:MspkiGui.ContainsKey('ForceMotion') -and $script:MspkiGui.ForceMotion) { return $false }
     if (-not [System.Windows.SystemParameters]::ClientAreaAnimation) { return $true }
     if ([System.Windows.SystemParameters]::HighContrast) { return $true }
@@ -126,7 +127,7 @@ function Update-MspkiGuiScoreView {
         $gl = New-Object System.Windows.Controls.TextBlock
         $gl.Style = $g.Window.FindResource('Glyph'); $gl.Text = [string]$a.Glyph; $gl.FontSize = 12; $gl.Foreground = $g.Window.FindResource($k[2]); $gl.VerticalAlignment = 'Center'
         $nm = New-Object System.Windows.Controls.TextBlock
-        $nm.Text = [string]$a.Name; $nm.TextTrimming = 'CharacterEllipsis'; $nm.VerticalAlignment = 'Center'
+        $nm.Text = [string]$a.Name; $nm.TextTrimming = 'CharacterEllipsis'; $nm.VerticalAlignment = 'Center'; $nm.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, 'B.Text')
         [System.Windows.Controls.Grid]::SetColumn($nm, 1)
         $track = New-Object System.Windows.Controls.Grid
         $track.Height = 6; $track.VerticalAlignment = 'Center'; $track.Margin = New-Object System.Windows.Thickness(4, 0, 12, 0)
@@ -235,7 +236,7 @@ function Show-MspkiGuiMap {
         $sp = New-Object System.Windows.Controls.StackPanel
         $sp.Width = [math]::Max(40.0, [double]$n.LabelWidth)
         $t1 = New-Object System.Windows.Controls.TextBlock
-        $t1.Text = [string]$n.Label; $t1.FontWeight = 'SemiBold'; $t1.FontSize = 12; $t1.TextTrimming = 'CharacterEllipsis'
+        $t1.Text = [string]$n.Label; $t1.FontWeight = 'SemiBold'; $t1.FontSize = 12; $t1.TextTrimming = 'CharacterEllipsis'; $t1.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, 'B.Text')
         $t2 = New-Object System.Windows.Controls.TextBlock
         $t2.Text = [string]$n.Sub; $t2.Style = $w.FindResource('Small'); $t2.TextTrimming = 'CharacterEllipsis'
         [void]$sp.Children.Add($t1); [void]$sp.Children.Add($t2)
@@ -322,7 +323,7 @@ function Show-MspkiGuiMap {
             $mark.Background = $w.FindResource($keys[2]); $mark.BorderBrush = $w.FindResource('B.Card'); $mark.BorderThickness = New-Object System.Windows.Thickness(1.5)
             $mark.IsHitTestVisible = $false
             $mg = New-Object System.Windows.Controls.TextBlock
-            $mg.Style = $w.FindResource('Glyph'); $mg.Text = [string][char]$badge[[string]$n.Tone]; $mg.FontSize = 9; $mg.FontWeight = 'Bold'; $mg.Foreground = $w.FindResource('B.White')
+            $mg.Style = $w.FindResource('Glyph'); $mg.Text = [string][char]$badge[[string]$n.Tone]; $mg.FontSize = 9; $mg.FontWeight = 'Bold'; $mg.Foreground = $w.FindResource('B.OnData')
             $mg.HorizontalAlignment = 'Center'; $mg.VerticalAlignment = 'Center'
             $mark.Child = $mg
             [System.Windows.Controls.Canvas]::SetLeft($mark, $x + 15); [System.Windows.Controls.Canvas]::SetTop($mark, $y - 19)

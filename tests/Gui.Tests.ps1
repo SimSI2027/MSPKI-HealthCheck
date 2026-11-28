@@ -447,6 +447,8 @@ Describe 'GUI window (single-threaded runspace)' {
             Add-Type -AssemblyName WindowsBase
             $xaml = [System.IO.File]::ReadAllText((Join-Path $folder 'Theme.xaml'), [System.Text.Encoding]::UTF8)
             $d = [System.Windows.Markup.XamlReader]::Parse($xaml)
+            # The colours live in the palette files (GX5); the window merges one of them next to the theme.
+            $d.MergedDictionaries.Add([System.Windows.Markup.XamlReader]::Parse([System.IO.File]::ReadAllText((Join-Path $folder 'Palette.Light.xaml'), [System.Text.Encoding]::UTF8)))
             $keys = @('B.Accent', 'B.Header', 'PrimaryButton', 'PillTemplate', 'ChipToggle', 'Card', 'AppWindow', 'RowButton', 'TileButton', 'ReadBox', 'F.Icons',
                 'SubtleButton', 'CaptionButton', 'CloseButton', 'SearchBox', 'FilterCombo', 'Switch', 'NavItem', 'NavList', 'ToneGlyph', 'ToneStripe', 'FocusRing')
             [pscustomobject]@{ Type = $d.GetType().Name; Missing = (@($keys | Where-Object { -not $d.Contains($_) }) -join ','); Count = $d.Count }

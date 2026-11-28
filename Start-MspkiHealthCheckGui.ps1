@@ -54,7 +54,8 @@ param(
     [ValidateRange(560, 3000)][int]$SnapshotHeight = 860,
     [ValidateRange(1, 4)][double]$SnapshotScale = 1,
     [switch]$SnapshotMaximized,
-    [switch]$SnapshotMinimum
+    [switch]$SnapshotMinimum,
+    [ValidateSet('Auto', 'Light', 'Dark')][string]$Theme = 'Auto'
 )
 
 # Constrained Language Mode (AppLocker or WDAC) blocks COM objects, System.DirectoryServices, sockets and WPF. Say so now and stop,
@@ -102,7 +103,7 @@ if ($Snapshot) {
         exit 5
     }
     try {
-        $window = Initialize-MspkiGuiApplication -ModulePath $modulePath -XamlPath (Join-Path $guiFolder 'MainWindow.xaml') -OutputPath $OutputPath
+        $window = Initialize-MspkiGuiApplication -ModulePath $modulePath -XamlPath (Join-Path $guiFolder 'MainWindow.xaml') -OutputPath $OutputPath -Theme $Theme
         $files = Invoke-MspkiGuiSnapshot -Window $window -Folder $Snapshot -AllowedRoot (Join-Path $PSScriptRoot 'out') -ResultsFile $ResultsFile -Width $SnapshotWidth -Height $SnapshotHeight -Scale $SnapshotScale -Maximized:$SnapshotMaximized -Minimum:$SnapshotMinimum
         foreach ($f in $files) { Write-Host $f }
     }
@@ -116,7 +117,7 @@ if ($Snapshot) {
 
 try {
     $window = Initialize-MspkiGuiApplication -ModulePath $modulePath -XamlPath (Join-Path $guiFolder 'MainWindow.xaml') `
-        -OutputPath $OutputPath -OpenResults $OpenResults
+        -OutputPath $OutputPath -OpenResults $OpenResults -Theme $Theme
     [void]$window.ShowDialog()
 }
 catch {

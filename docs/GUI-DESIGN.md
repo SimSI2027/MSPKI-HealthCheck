@@ -310,3 +310,19 @@ Journeys by keyboard only (tests/GuiKeyboard.Tests.ps1): J1 Ctrl+K "run" (or F5)
 Ctrl+K "open results" until history arrives (GX8); J5 and J6 arrive with GX9 and GX10. Palette opens in under 100 ms (measured in the test, five opens).
 Known, accepted: a Windows message box remains for a failure before the window is on screen; the palette has no fuzzy matching (every typed word must appear);
 generator and discriminator are the same model.
+
+### GX5 round 1 (2026-11-27; themes; Alcyone `mixed-sample` results and a real lab run kept under out\ only; dark at 1080 x 700, 1360 x 860 and 1920 x 1080; light at 1360 x 860; a high-contrast mapping frame)
+Scores (dark): A1 6, A2 8, A3 8, A4 6, A5 8, A6 5, A7 8, A8 7, A9 8, A10 7; B1-B5 7; C1 7, C2 7, C3 8, C4 7. **Not a pass.**
+Defects: (1) black text on the dark surface in the details pane, the walkthrough, the welcome steps and the map labels (WPF's own styles for TabControl, TabItem,
+ListBox, DataGrid and others set the system text colour, which overrides the inherited one; the light theme hid it because #000 and #242424 look alike: A4, A6);
+(2) the caption buttons and the selected navigation item were invisible (white "on accent" text on the dark header; a fixed #EBEBEB selection: A6); (3) about twenty
+fixed colours in the templates (focus ring, scroll bars, check boxes, badges, hover lines) stayed light (A1).
+Generator: every control style that WPF gives a system colour now sets the theme text colour, and the root sets it too; two new keys (B.OnHeader for text on the dark
+header, B.OnData for glyphs on data colours) and twelve more for the fixed colours, in both palettes; map and area labels take the theme colour by reference.
+
+### GX5 round 2 (same frames)
+Scores (dark): A1 8, A2 8, A3 8, A4 8, A5 8, A6 8, A7 8, A8 8, A9 8, A10 8; B1-B5 8; C1 8, C2 8, C3 8, C4 8. Light unchanged (0.5 to 1 % of sampled pixels differ: the new
+theme button and #242424 text where WPF drew #000). **PASS** (scope: theming). Contrast is measured, not judged: tests/GuiTheme.Tests.ps1 checks 43 pairs in each palette
+(text 4.5:1, data colours, control borders and badge glyphs 3:1).
+Known, accepted: the high-contrast frame shows this computer's normal SystemColors (a real high-contrast theme changes them; the mapping is tested key by key); the role
+badge in the header keeps its fixed colours (the header is dark in every theme); the palette backdrop and shadows are fixed; generator and discriminator are the same model.

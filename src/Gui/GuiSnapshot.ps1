@@ -525,6 +525,12 @@ function Invoke-MspkiGuiSnapshot {
             $ui.SvcScroll.ScrollToTop()
             & $page $ui.TabLog
             & $shot '40-log'
+            # High contrast (GX5): the window with the SystemColors palette as this computer has it now (a real high-contrast theme
+            # changes those colours); the findings page shows the most kinds of element.
+            $Window.Resources.MergedDictionaries[0] = (Import-MspkiGuiPalette -Theme HighContrast)
+            & $page $ui.TabFindings
+            & $shot '90-high-contrast-mapping'
+            Set-MspkiGuiTheme -Mode ([string]$g.ThemeMode) -Force
 
             # Partial: the same run marked as not finished (cancelled).
             $ri = $data.RunInfo | Select-Object -Property *

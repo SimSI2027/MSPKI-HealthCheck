@@ -549,3 +549,13 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   A failure while opening results before the window shows still falls back to a message box (that is how the hang showed up in the first test run).
 - Tests: `tests/GuiPalette.Tests.ps1` (12), `tests/GuiKeyboard.Tests.ps1` (9: real window off-screen, keyboard-only replay, open time under 100 ms, toasts).
 - Next: GX5 (themes: every brush a DynamicResource, dark and light following Windows, high contrast, reduced motion, contrast test).
+
+## GX5 (2026-11-27): themes (dark and light following Windows, high contrast, reduced motion) - DONE (PASS in round 2)
+- Colours moved to data files `src/Gui/Palette.Light.xaml` and `Palette.Dark.xaml` (66 keys each, same keys); Theme.xaml and MainWindow.xaml refer to them only as
+  DynamicResource (no StaticResource B.*, no fixed colour except the header role badge, the palette backdrop and shadows). High contrast: the same keys mapped to SystemColors.
+- `src/Gui/GuiTheme.ps1`: choice Auto (follow Windows: one read of AppsUseLightTheme, plus SystemParameters.HighContrast, every 2 s), Light, Dark; high contrast always wins;
+  live switch from the title-bar button or Ctrl+K "theme"; `-Theme` on Start-MspkiHealthCheckGui.ps1 (also for snapshots). Reduced motion: no Storyboard, no animation, no popup fade.
+- Found: WPF's own control styles (TabControl, TabItem, ListBox, DataGrid, ...) set the system text colour, which the light theme hid. Each now sets the theme colour.
+- Tests: `tests/GuiTheme.Tests.ps1` (12: same keys, every key used exists, no static or fixed colours, WCAG pairs in both palettes, theme choice, high-contrast mapping,
+  live switch in the window, reduced motion). Gui.Tests merges the light palette when it loads Theme.xaml alone.
+- Next: GX6 (map page: full-page canvas, zoom and pan, clustering, hover "Where this exists").

@@ -63,7 +63,10 @@ function Get-MspkiGuiPaletteCommand {
         @('actions', 'Show all actions', 'Every "What to do next" action, most urgent first', [char]0xE762, '', 'what to do next todo'),
         @('score', 'How is this scored?', 'The health score in plain words', [char]0xE9CE, '', 'score explain help'),
         @('options', 'Show the run options', 'Timeout, network checks, proxy, NDES admin probe', [char]0xE713, '', 'settings timeout proxy'),
-        @('copylog', 'Copy the run log', 'Every line of the run log, to the clipboard', [char]0xE8C8, '', 'clipboard')
+        @('copylog', 'Copy the run log', 'Every line of the run log, to the clipboard', [char]0xE8C8, '', 'clipboard'),
+        @('themeauto', 'Theme: follow Windows', 'Light or dark as Windows is set; high contrast always wins', [char]0xE7F4, '', 'appearance colour color mode system'),
+        @('themelight', 'Theme: light', 'Light background', [char]0xE706, '', 'appearance colour color mode'),
+        @('themedark', 'Theme: dark', 'Dark background', [char]0xE708, '', 'appearance colour color mode night')
     )
     $i = 0
     return @(foreach ($c in $all) {

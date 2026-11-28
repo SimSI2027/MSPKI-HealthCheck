@@ -93,6 +93,9 @@ If it says it needs a single-threaded session, start it as `powershell.exe -STA 
   Enter (Up and Down move, Esc closes and puts you back where you were). F5 runs, Ctrl+1 to Ctrl+6 switch pages, Ctrl+F searches the page,
   Ctrl+O opens results, F6 and Shift+F6 move between the navigation, the command bar, the page and its details, Alt+Left goes back in the
   details. Notices ("Export finished", "Run finished") appear briefly at the bottom right of the window and can be dismissed.
+- **Themes**: the window follows Windows (light or dark apps setting) and switches when Windows does. The button left of Minimise (or Ctrl+K
+  "theme") cycles follow Windows, light and dark. With Windows high contrast on, the window uses the high-contrast colours, whatever the
+  choice; with Windows animations off, nothing in the window moves.
 
 The window only shows and filters what the engine found; it checks nothing itself, and it changes nothing on any server.
 

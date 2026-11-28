@@ -9,6 +9,7 @@
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Palette.Light.xaml"/>
         <ResourceDictionary Source="Theme.xaml"/>
       </ResourceDictionary.MergedDictionaries>
 
@@ -18,9 +19,9 @@
       <DataTemplate x:Key="ObjectLink">
         <Button Style="{StaticResource RowButton}" Tag="{Binding Tag}" Padding="4,8" ToolTip="Open this object" AutomationProperties.Name="{Binding Name}">
           <DockPanel>
-            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="8,0,0,0" VerticalAlignment="Center"/>
-            <Border DockPanel.Dock="Left" Width="24" Height="24" CornerRadius="4" Background="{StaticResource B.AccentSoft}" Margin="0,0,10,0" VerticalAlignment="Center">
-              <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="12" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            <Border DockPanel.Dock="Left" Width="24" Height="24" CornerRadius="4" Background="{DynamicResource B.AccentSoft}" Margin="0,0,10,0" VerticalAlignment="Center">
+              <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="12" Foreground="{DynamicResource B.Accent}" HorizontalAlignment="Center"/>
             </Border>
             <StackPanel VerticalAlignment="Center">
               <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
@@ -32,10 +33,10 @@
       <DataTemplate x:Key="RelatedLink">
         <Button Style="{StaticResource RowButton}" Tag="{Binding Tag}" Padding="4,8" ToolTip="Open this object" AutomationProperties.Name="{Binding Name}">
           <DockPanel>
-            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="8,0,0,0" VerticalAlignment="Center"/>
             <ContentPresenter DockPanel.Dock="Right" Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Center" Margin="8,0,0,0"/>
-            <Border DockPanel.Dock="Left" Width="24" Height="24" CornerRadius="4" Background="{StaticResource B.AccentSoft}" Margin="0,0,10,0" VerticalAlignment="Center">
-              <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="12" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+            <Border DockPanel.Dock="Left" Width="24" Height="24" CornerRadius="4" Background="{DynamicResource B.AccentSoft}" Margin="0,0,10,0" VerticalAlignment="Center">
+              <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="12" Foreground="{DynamicResource B.Accent}" HorizontalAlignment="Center"/>
             </Border>
             <StackPanel VerticalAlignment="Center">
               <TextBlock Style="{StaticResource Small}" TextTrimming="CharacterEllipsis"><Run Text="{Binding Label, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding TypeText, Mode=OneWay}"/></TextBlock>
@@ -46,19 +47,19 @@
       </DataTemplate>
       <!-- One place where an object was seen, named, or expected and missing. -->
       <DataTemplate x:Key="ObservationRow">
-        <Border BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1" Padding="0,8">
+        <Border BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1" Padding="0,8">
           <DockPanel>
             <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="14" Margin="2,2,12,0" VerticalAlignment="Top">
               <TextBlock.Style>
                 <Style TargetType="TextBlock" BasedOn="{StaticResource Glyph}">
-                  <Setter Property="Foreground" Value="{StaticResource B.GoodFore}"/>
-                  <Style.Triggers><DataTrigger Binding="{Binding IsMissing}" Value="True"><Setter Property="Foreground" Value="{StaticResource B.WarnFore}"/></DataTrigger></Style.Triggers>
+                  <Setter Property="Foreground" Value="{DynamicResource B.GoodFore}"/>
+                  <Style.Triggers><DataTrigger Binding="{Binding IsMissing}" Value="True"><Setter Property="Foreground" Value="{DynamicResource B.WarnFore}"/></DataTrigger></Style.Triggers>
                 </Style>
               </TextBlock.Style>
             </TextBlock>
             <ContentPresenter DockPanel.Dock="Right" Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top" Margin="8,0,-6,0"/>
             <StackPanel>
-              <TextBlock FontWeight="SemiBold" TextWrapping="Wrap"><Run Text="{Binding KindText, Mode=OneWay}"/><Run Text=" · " Foreground="{StaticResource B.Muted}"/><Run Text="{Binding Source, Mode=OneWay}" Foreground="{StaticResource B.Muted}"/></TextBlock>
+              <TextBlock FontWeight="SemiBold" TextWrapping="Wrap"><Run Text="{Binding KindText, Mode=OneWay}"/><Run Text=" · " Foreground="{DynamicResource B.Muted}"/><Run Text="{Binding Source, Mode=OneWay}" Foreground="{DynamicResource B.Muted}"/></TextBlock>
               <TextBox Text="{Binding Location, Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="{StaticResource F.Mono}" FontSize="12" Margin="0,2,0,0"/>
               <TextBox Text="{Binding Detail, Mode=OneWay}" Style="{StaticResource ValueText}" Margin="0,2,0,0" Visibility="{Binding HasDetail, Converter={StaticResource BoolToVis}}"/>
               <TextBlock Text="{Binding TimeText}" Style="{StaticResource Small}" Margin="0,2,0,0"/>
@@ -69,7 +70,7 @@
       <DataTemplate x:Key="FindingLink">
         <Button Style="{StaticResource RowButton}" Tag="{Binding Id}" ToolTip="Show the full finding" Padding="4,10" AutomationProperties.Name="{Binding Message}">
           <DockPanel>
-            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="8,0,0,0"/>
+            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="8,0,0,0"/>
             <StackPanel>
               <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/>
               <TextBlock Text="{Binding Message}" TextWrapping="Wrap" MaxHeight="54" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" MaxWidth="880" HorizontalAlignment="Left"/>
@@ -91,8 +92,8 @@
           <StackPanel>
             <DockPanel>
               <ContentPresenter DockPanel.Dock="Right" Content="{Binding StatePill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top" Margin="12,2,-6,0"/>
-              <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="6" Background="{StaticResource B.AccentSoft}" Margin="0,0,12,0" VerticalAlignment="Top">
-                <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="18" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+              <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="6" Background="{DynamicResource B.AccentSoft}" Margin="0,0,12,0" VerticalAlignment="Top">
+                <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="18" Foreground="{DynamicResource B.Accent}" HorizontalAlignment="Center"/>
               </Border>
               <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding Label}" Style="{StaticResource H2}" TextWrapping="Wrap"/>
@@ -107,7 +108,7 @@
                   <DataTemplate>
                     <Button Style="{StaticResource RowButton}" Tag="{Binding Tag}" Padding="4,8" ToolTip="Open this service: where it exists, its host and certificates" AutomationProperties.Name="{Binding Name}">
                       <DockPanel>
-                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                         <StackPanel>
                           <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
                           <TextBlock Style="{StaticResource Small}" Visibility="{Binding HasHost, Converter={StaticResource BoolToVis}}" TextTrimming="CharacterEllipsis"><Run Text="Host: "/><Run Text="{Binding HostName, Mode=OneWay}" FontFamily="{StaticResource F.Mono}"/></TextBlock>
@@ -129,9 +130,9 @@
               <ItemsControl ItemsSource="{Binding Findings}" ItemTemplate="{StaticResource FindingLink}" Focusable="False"/>
               <TextBlock Text="{Binding MoreText}" Style="{StaticResource Small}" Margin="4,6,0,0"/>
             </StackPanel>
-            <Border Background="{StaticResource B.Hover}" CornerRadius="4" Padding="10,8" Margin="0,12,0,0">
+            <Border Background="{DynamicResource B.Hover}" CornerRadius="4" Padding="10,8" Margin="0,12,0,0">
               <DockPanel>
-                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" FontSize="12" Foreground="{StaticResource B.Muted}" VerticalAlignment="Top" Margin="0,2,8,0"/>
+                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" FontSize="12" Foreground="{DynamicResource B.Muted}" VerticalAlignment="Top" Margin="0,2,8,0"/>
                 <TextBlock Style="{StaticResource Small}" TextWrapping="Wrap" MaxWidth="880" HorizontalAlignment="Left"><Run Text="What this run can see: " FontWeight="SemiBold"/><Run Text="{Binding Scope, Mode=OneWay}"/></TextBlock>
               </DockPanel>
             </Border>
@@ -142,7 +143,7 @@
       <!-- ===== Details pane: one object of the graph (G1 drill-down, G2 where it exists, G4 host identity, G5 note) ===== -->
       <DataTemplate x:Key="EntityPane">
         <DockPanel>
-          <Border DockPanel.Dock="Top" Padding="20,16,16,14" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
+          <Border DockPanel.Dock="Top" Padding="20,16,16,14" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
             <StackPanel>
               <Button Tag="Back" Style="{StaticResource LinkButton}" Margin="0,0,0,8" HorizontalAlignment="Left" Visibility="{Binding CanGoBack, Converter={StaticResource BoolToVis}}" ToolTip="{Binding BackText}" AutomationProperties.Name="{Binding BackText}">
                 <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE72B;" FontSize="12" Margin="0,0,6,0"/><TextBlock Text="{Binding BackText}" MaxWidth="420" TextTrimming="CharacterEllipsis"/></StackPanel>
@@ -155,7 +156,7 @@
                       <Button Tag="{Binding Tag}" Style="{StaticResource LinkButton}" ToolTip="{Binding Name}" AutomationProperties.Name="{Binding Name}">
                         <TextBlock Text="{Binding Name}" MaxWidth="180" TextTrimming="CharacterEllipsis" FontSize="12"/>
                       </Button>
-                      <TextBlock Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="10" Foreground="{StaticResource B.Muted}" Margin="6,0,6,0"/>
+                      <TextBlock Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="10" Foreground="{DynamicResource B.Muted}" Margin="6,0,6,0"/>
                     </StackPanel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -163,16 +164,16 @@
               <DockPanel>
                 <Button DockPanel.Dock="Right" Tag="Copy" Style="{StaticResource SubtleButton}" ToolTip="Copy this object, where it exists and its related objects to the clipboard" AutomationProperties.Name="Copy" VerticalAlignment="Top" Margin="8,-4,-4,0" Width="32" Padding="0"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8C8;" Margin="0" HorizontalAlignment="Center"/></Button>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                  <Border Width="28" Height="28" CornerRadius="4" Background="{StaticResource B.AccentSoft}" Margin="0,0,10,0">
-                    <TextBlock Style="{StaticResource Glyph}" Text="{Binding TypeGlyph}" FontSize="14" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+                  <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource B.AccentSoft}" Margin="0,0,10,0">
+                    <TextBlock Style="{StaticResource Glyph}" Text="{Binding TypeGlyph}" FontSize="14" Foreground="{DynamicResource B.Accent}" HorizontalAlignment="Center"/>
                   </Border>
                   <TextBlock Text="{Binding TypeText}" Style="{StaticResource Label}" VerticalAlignment="Center"/>
                 </StackPanel>
               </DockPanel>
               <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,10,0,0"/>
-              <TextBox Text="{Binding Id, Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="{StaticResource F.Mono}" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="0,2,0,0"/>
+              <TextBox Text="{Binding Id, Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="{StaticResource F.Mono}" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="0,2,0,0"/>
               <WrapPanel Margin="0,8,0,0">
-                <Border Style="{StaticResource PillBorder}" Visibility="{Binding HasMissing, Converter={StaticResource BoolToVis}}" Background="{StaticResource B.WarnBack}" BorderBrush="{StaticResource B.WarnLine}" TextElement.Foreground="{StaticResource B.WarnFore}">
+                <Border Style="{StaticResource PillBorder}" Visibility="{Binding HasMissing, Converter={StaticResource BoolToVis}}" Background="{DynamicResource B.WarnBack}" BorderBrush="{DynamicResource B.WarnLine}" TextElement.Foreground="{DynamicResource B.WarnFore}">
                   <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE7BA;" FontSize="12" Margin="0,0,5,0"/><TextBlock Text="{Binding MissingBadge}" FontWeight="SemiBold" FontSize="12"/></StackPanel>
                 </Border>
                 <Border Style="{StaticResource PillBorder}">
@@ -186,20 +187,20 @@
           </Border>
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <StackPanel Margin="20,16,20,20">
-              <Border Visibility="{Binding HasAbout, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16" Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,8">
+              <Border Visibility="{Binding HasAbout, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16" Background="{DynamicResource B.InfoBack}" BorderBrush="{DynamicResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,8">
                 <DockPanel>
-                  <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{StaticResource B.InfoFore}" VerticalAlignment="Top" Margin="0,2,10,0"/>
-                  <TextBlock TextWrapping="Wrap" ToolTip="What this is and why it matters"><Run Text="What it is: " FontWeight="SemiBold" Foreground="{StaticResource B.InfoFore}"/><Run Text="{Binding About, Mode=OneWay}"/></TextBlock>
+                  <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{DynamicResource B.InfoFore}" VerticalAlignment="Top" Margin="0,2,10,0"/>
+                  <TextBlock TextWrapping="Wrap" ToolTip="What this is and why it matters"><Run Text="What it is: " FontWeight="SemiBold" Foreground="{DynamicResource B.InfoFore}"/><Run Text="{Binding About, Mode=OneWay}"/></TextBlock>
                 </DockPanel>
               </Border>
 
               <StackPanel Visibility="{Binding HasMissing, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">
-                <Border Background="{StaticResource B.WarnBack}" BorderBrush="{StaticResource B.WarnLine}" BorderThickness="1" CornerRadius="6" Padding="12,10,12,4">
+                <Border Background="{DynamicResource B.WarnBack}" BorderBrush="{DynamicResource B.WarnLine}" BorderThickness="1" CornerRadius="6" Padding="12,10,12,4">
                   <StackPanel>
                     <DockPanel Margin="0,0,0,4">
-                      <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE7BA;" Foreground="{StaticResource B.WarnFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
+                      <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE7BA;" Foreground="{DynamicResource B.WarnFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
                       <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Foreground="{StaticResource B.WarnFore}"><Run Text="Expected here, but missing ("/><Run Text="{Binding MissingCount, Mode=OneWay}"/><Run Text=")"/></TextBlock>
+                        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource B.WarnFore}"><Run Text="Expected here, but missing ("/><Run Text="{Binding MissingCount, Mode=OneWay}"/><Run Text=")"/></TextBlock>
                         <TextBlock Text="These places were checked in this run and the object was not there." Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                       </StackPanel>
                     </DockPanel>
@@ -248,7 +249,7 @@
       <!-- ===== Details pane: one finding ===== -->
       <DataTemplate x:Key="FindingPane">
         <DockPanel>
-          <Border DockPanel.Dock="Top" Padding="20,16,16,14" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
+          <Border DockPanel.Dock="Top" Padding="20,16,16,14" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
             <StackPanel>
               <Button Tag="Back" Style="{StaticResource LinkButton}" Margin="0,0,0,10" HorizontalAlignment="Left" Visibility="{Binding CanGoBack, Converter={StaticResource BoolToVis}}" ToolTip="{Binding BackText}" AutomationProperties.Name="{Binding BackText}">
                 <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE72B;" FontSize="12" Margin="0,0,6,0"/><TextBlock Text="{Binding BackText}" MaxWidth="420" TextTrimming="CharacterEllipsis"/></StackPanel>
@@ -285,13 +286,13 @@
                       <ItemsControl.ItemTemplate>
                         <DataTemplate>
                           <!-- A cause this run observed evidence for carries a quiet accent bar and the word "Observed". -->
-                          <Border BorderBrush="{StaticResource B.Divider}" BorderThickness="1" CornerRadius="6" Background="{StaticResource B.Card}" Margin="0,8,0,0">
+                          <Border BorderBrush="{DynamicResource B.Divider}" BorderThickness="1" CornerRadius="6" Background="{DynamicResource B.Card}" Margin="0,8,0,0">
                             <DockPanel>
                               <Border DockPanel.Dock="Left" Width="3" CornerRadius="2" Margin="-1,8,0,8">
                                 <Border.Style>
                                   <Style TargetType="Border">
                                     <Setter Property="Background" Value="Transparent"/>
-                                    <Style.Triggers><DataTrigger Binding="{Binding Observed}" Value="True"><Setter Property="Background" Value="{StaticResource B.Accent}"/></DataTrigger></Style.Triggers>
+                                    <Style.Triggers><DataTrigger Binding="{Binding Observed}" Value="True"><Setter Property="Background" Value="{DynamicResource B.Accent}"/></DataTrigger></Style.Triggers>
                                   </Style>
                                 </Border.Style>
                               </Border>
@@ -301,21 +302,21 @@
                                     <Border CornerRadius="10" Padding="8,1" BorderThickness="1" Margin="0,0,6,0">
                                       <Border.Style>
                                         <Style TargetType="Border">
-                                          <Setter Property="Background" Value="{StaticResource B.NeutralBack}"/>
-                                          <Setter Property="BorderBrush" Value="{StaticResource B.NeutralLine}"/>
-                                          <Style.Triggers><DataTrigger Binding="{Binding IsTop}" Value="True"><Setter Property="Background" Value="{StaticResource B.GoodBack}"/><Setter Property="BorderBrush" Value="{StaticResource B.GoodLine}"/></DataTrigger></Style.Triggers>
+                                          <Setter Property="Background" Value="{DynamicResource B.NeutralBack}"/>
+                                          <Setter Property="BorderBrush" Value="{DynamicResource B.NeutralLine}"/>
+                                          <Style.Triggers><DataTrigger Binding="{Binding IsTop}" Value="True"><Setter Property="Background" Value="{DynamicResource B.GoodBack}"/><Setter Property="BorderBrush" Value="{DynamicResource B.GoodLine}"/></DataTrigger></Style.Triggers>
                                         </Style>
                                       </Border.Style>
-                                      <TextBlock Text="{Binding Likelihood}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource B.Text}"/>
+                                      <TextBlock Text="{Binding Likelihood}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource B.Text}"/>
                                     </Border>
-                                    <Border Background="{StaticResource B.AccentSoft}" BorderBrush="{StaticResource B.AccentStroke}" BorderThickness="1" CornerRadius="10" Padding="8,1" Visibility="{Binding Observed, Converter={StaticResource BoolToVis}}" ToolTip="Something this run observed backs this cause">
-                                      <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE7B3;" FontSize="11" Margin="0,0,5,0" Foreground="{StaticResource B.AccentDark}"/><TextBlock Text="Observed in this run" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource B.AccentDark}"/></StackPanel>
+                                    <Border Background="{DynamicResource B.AccentSoft}" BorderBrush="{DynamicResource B.AccentStroke}" BorderThickness="1" CornerRadius="10" Padding="8,1" Visibility="{Binding Observed, Converter={StaticResource BoolToVis}}" ToolTip="Something this run observed backs this cause">
+                                      <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE7B3;" FontSize="11" Margin="0,0,5,0" Foreground="{DynamicResource B.AccentDark}"/><TextBlock Text="Observed in this run" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource B.AccentDark}"/></StackPanel>
                                     </Border>
                                   </WrapPanel>
                                   <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 </StackPanel>
                                 <StackPanel Visibility="{Binding HasBecause, Converter={StaticResource BoolToVis}}" Margin="0,8,0,0">
-                                  <TextBlock Text="Why this run points to it" Style="{StaticResource Small}" FontWeight="SemiBold" Foreground="{StaticResource B.AccentDark}"/>
+                                  <TextBlock Text="Why this run points to it" Style="{StaticResource Small}" FontWeight="SemiBold" Foreground="{DynamicResource B.AccentDark}"/>
                                   <TextBox Text="{Binding BecauseText, Mode=OneWay}" Style="{StaticResource ValueText}"/>
                                 </StackPanel>
                                 <StackPanel Visibility="{Binding HasChecks, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0">
@@ -334,7 +335,7 @@
                                           <TextBox Grid.Column="1" Text="{Binding Text, Mode=OneWay}" FontFamily="{StaticResource F.Mono}" FontSize="12" VerticalAlignment="Top" Margin="0,3,0,0">
                                             <TextBox.Style>
                                               <Style TargetType="TextBox" BasedOn="{StaticResource ValueText}">
-                                                <Style.Triggers><DataTrigger Binding="{Binding IsChecked, ElementName=ChkDone}" Value="True"><Setter Property="Foreground" Value="{StaticResource B.Muted}"/></DataTrigger></Style.Triggers>
+                                                <Style.Triggers><DataTrigger Binding="{Binding IsChecked, ElementName=ChkDone}" Value="True"><Setter Property="Foreground" Value="{DynamicResource B.Muted}"/></DataTrigger></Style.Triggers>
                                               </Style>
                                             </TextBox.Style>
                                           </TextBox>
@@ -371,7 +372,7 @@
                               <TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8C8;" Margin="0" HorizontalAlignment="Center"/>
                             </Button>
                             <StackPanel>
-                              <TextBlock TextWrapping="Wrap"><Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=" "/><Run Text="{Binding Publisher, Mode=OneWay}" Foreground="{StaticResource B.Muted}"/></TextBlock>
+                              <TextBlock TextWrapping="Wrap"><Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=" "/><Run Text="{Binding Publisher, Mode=OneWay}" Foreground="{DynamicResource B.Muted}"/></TextBlock>
                               <TextBox Text="{Binding Url, Mode=OneWay}" Style="{StaticResource ValueText}" FontSize="12" FontFamily="{StaticResource F.Mono}"/>
                             </StackPanel>
                           </DockPanel>
@@ -381,11 +382,11 @@
                   </StackPanel>
               </StackPanel>
 
-              <Border Visibility="{Binding HasRemediation, Converter={StaticResource BoolToVis}}" Margin="0,16,0,0" Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+              <Border Visibility="{Binding HasRemediation, Converter={StaticResource BoolToVis}}" Margin="0,16,0,0" Background="{DynamicResource B.InfoBack}" BorderBrush="{DynamicResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,10">
                 <DockPanel>
-                  <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE82F;" Foreground="{StaticResource B.InfoFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
+                  <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE82F;" Foreground="{DynamicResource B.InfoFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
                   <StackPanel>
-                    <TextBlock Text="Suggested action" FontWeight="SemiBold" Foreground="{StaticResource B.InfoFore}" Margin="0,0,0,2"/>
+                    <TextBlock Text="Suggested action" FontWeight="SemiBold" Foreground="{DynamicResource B.InfoFore}" Margin="0,0,0,2"/>
                     <TextBox Text="{Binding Remediation, Mode=OneWay}" Style="{StaticResource ValueText}"/>
                   </StackPanel>
                 </DockPanel>
@@ -418,7 +419,7 @@
               </ItemsControl>
 
               <TextBlock Text="Sources" Style="{StaticResource Label}" Margin="0,14,0,6"/>
-              <Border Background="{StaticResource B.Hover}" CornerRadius="4" Padding="10,8">
+              <Border Background="{DynamicResource B.Hover}" CornerRadius="4" Padding="10,8">
                 <ItemsControl ItemsSource="{Binding Sources}" Focusable="False">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate><TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="{StaticResource F.Mono}" FontSize="12" Margin="0,1"/></DataTemplate>
@@ -443,13 +444,13 @@
       <!-- ===== Details pane: one Discovery map item ===== -->
       <DataTemplate x:Key="NodePane">
         <DockPanel>
-          <Border DockPanel.Dock="Top" Padding="20,16,16,14" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
+          <Border DockPanel.Dock="Top" Padding="20,16,16,14" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
             <StackPanel>
               <DockPanel>
                 <Button DockPanel.Dock="Right" Tag="Copy" Style="{StaticResource SubtleButton}" ToolTip="Copy this item to the clipboard" AutomationProperties.Name="Copy" VerticalAlignment="Top" Margin="8,-4,-4,0" Width="32" Padding="0"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8C8;" Margin="0" HorizontalAlignment="Center"/></Button>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                  <Border Width="28" Height="28" CornerRadius="4" Background="{StaticResource B.AccentSoft}" Margin="0,0,10,0">
-                    <TextBlock Style="{StaticResource Glyph}" Text="{Binding TypeGlyph}" FontSize="14" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+                  <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource B.AccentSoft}" Margin="0,0,10,0">
+                    <TextBlock Style="{StaticResource Glyph}" Text="{Binding TypeGlyph}" FontSize="14" Foreground="{DynamicResource B.Accent}" HorizontalAlignment="Center"/>
                   </Border>
                   <TextBlock Text="{Binding TypeText}" Style="{StaticResource Label}" VerticalAlignment="Center"/>
                 </StackPanel>
@@ -459,7 +460,7 @@
                 <ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/>
                 <ContentPresenter Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}"/>
               </WrapPanel>
-              <TextBlock Text="{Binding BelowText}" Visibility="{Binding HasBelow, Converter={StaticResource BoolToVis}}" Foreground="{StaticResource B.BadFore}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+              <TextBlock Text="{Binding BelowText}" Visibility="{Binding HasBelow, Converter={StaticResource BoolToVis}}" Foreground="{DynamicResource B.BadFore}" Margin="0,4,0,0" TextWrapping="Wrap"/>
             </StackPanel>
           </Border>
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
@@ -473,7 +474,7 @@
               <TextBlock Text="{Binding NoDetailText}" Style="{StaticResource Muted}"/>
 
               <TextBlock Text="Sources" Style="{StaticResource Label}" Margin="0,14,0,6"/>
-              <Border Background="{StaticResource B.Hover}" CornerRadius="4" Padding="10,8">
+              <Border Background="{DynamicResource B.Hover}" CornerRadius="4" Padding="10,8">
                 <ItemsControl ItemsSource="{Binding Sources}" Focusable="False">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate><TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="{StaticResource F.Mono}" FontSize="12" Margin="0,1"/></DataTemplate>
@@ -496,8 +497,8 @@
 
       <DataTemplate x:Key="EmptyPane">
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="32" MaxWidth="300">
-          <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
-            <TextBlock Style="{StaticResource Glyph}" Text="&#xE8A5;" FontSize="24" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+          <Border Width="56" Height="56" CornerRadius="28" Background="{DynamicResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
+            <TextBlock Style="{StaticResource Glyph}" Text="&#xE8A5;" FontSize="24" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center"/>
           </Border>
           <TextBlock Text="Nothing selected" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,4"/>
           <TextBlock Text="{Binding Text}" Style="{StaticResource Muted}" TextAlignment="Center"/>
@@ -506,6 +507,7 @@
 
       <!-- The pane host switches its template on the Kind of what it shows. -->
       <Style x:Key="PaneHost" TargetType="ContentControl">
+        <Setter Property="Foreground" Value="{DynamicResource B.Text}"/>
         <Setter Property="IsTabStop" Value="False"/>
         <Setter Property="ContentTemplate" Value="{StaticResource EmptyPane}"/>
         <Style.Triggers>
@@ -521,8 +523,8 @@
           <Grid Margin="20,16">
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
             <DockPanel>
-              <Border DockPanel.Dock="Right" Width="32" Height="32" CornerRadius="6" Background="{StaticResource B.AccentSoft}" VerticalAlignment="Center">
-                <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="16" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+              <Border DockPanel.Dock="Right" Width="32" Height="32" CornerRadius="6" Background="{DynamicResource B.AccentSoft}" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="16" Foreground="{DynamicResource B.Accent}" HorizontalAlignment="Center"/>
               </Border>
               <TextBlock Text="{Binding Value}" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center"/>
             </DockPanel>
@@ -541,7 +543,7 @@
             <StackPanel Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center">
               <StackPanel Orientation="Horizontal">
                 <TextBlock Style="{StaticResource ToneGlyph}" Text="{Binding Glyph}" FontSize="12" Margin="0,0,6,0"/>
-                <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource B.Muted}" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource B.Muted}" TextTrimming="CharacterEllipsis"/>
               </StackPanel>
               <TextBlock Text="{Binding Count}" FontSize="20" FontWeight="SemiBold"/>
             </StackPanel>
@@ -554,8 +556,8 @@
           <StackPanel Margin="20,16">
             <DockPanel>
               <ContentPresenter DockPanel.Dock="Right" Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Top" Margin="12,0,-6,0"/>
-              <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="6" Background="{StaticResource B.AccentSoft}" Margin="0,0,12,0" VerticalAlignment="Top">
-                <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="18" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+              <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="6" Background="{DynamicResource B.AccentSoft}" Margin="0,0,12,0" VerticalAlignment="Top">
+                <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="18" Foreground="{DynamicResource B.Accent}" HorizontalAlignment="Center"/>
               </Border>
               <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding Name}" Style="{StaticResource H2}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
@@ -587,12 +589,12 @@
               <TextBlock Text="{Binding Cause}" Style="{StaticResource Small}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" ToolTip="{Binding Cause}" Visibility="{Binding HasCause, Converter={StaticResource BoolToVis}}"/>
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-              <Border Background="{StaticResource B.AccentSoft}" BorderBrush="{StaticResource B.AccentStroke}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="0,0,8,0" VerticalAlignment="Center"
+              <Border Background="{DynamicResource B.AccentSoft}" BorderBrush="{DynamicResource B.AccentStroke}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="0,0,8,0" VerticalAlignment="Center"
                       Visibility="{Binding Observed, Converter={StaticResource BoolToVis}}" ToolTip="Something this run observed backs the most probable cause">
-                <TextBlock Text="Observed" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource B.AccentDark}"/>
+                <TextBlock Text="Observed" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource B.AccentDark}"/>
               </Border>
               <TextBlock Text="{Binding CountText}" Style="{StaticResource Small}" VerticalAlignment="Center"/>
-              <TextBlock Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="10,0,0,0"/>
+              <TextBlock Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="10,0,0,0"/>
             </StackPanel>
           </Grid>
         </Button>
@@ -610,7 +612,7 @@
               <TextBlock Text="{Binding Message}" TextWrapping="Wrap" MaxHeight="36" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
               <TextBlock Text="{Binding Meta}" Style="{StaticResource Small}" Margin="0,4,0,0"/>
             </StackPanel>
-            <TextBlock Grid.Column="1" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="12,0,0,0" VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="1" Style="{StaticResource Glyph}" Text="&#xE76C;" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="12,0,0,0" VerticalAlignment="Center"/>
           </Grid>
         </Button>
       </DataTemplate>
@@ -628,17 +630,17 @@
       <!-- Environment facts in the navigation pane. -->
       <DataTemplate x:Key="HeaderFact">
         <StackPanel Margin="0,0,0,10">
-          <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{StaticResource B.Muted}"/>
+          <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{DynamicResource B.Muted}"/>
           <TextBlock Text="{Binding Value}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Value}"/>
         </StackPanel>
       </DataTemplate>
 
       <!-- The user badge in the title bar (icon + word; purple tint for Administrator). -->
       <DataTemplate x:Key="HeaderBadge">
-        <Border x:Name="Bd" CornerRadius="4" BorderThickness="1" BorderBrush="#4A5160" Padding="8,0" Height="24" ToolTip="Rights of the account this window runs as">
+        <Border x:Name="Bd" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource B.HeaderLine}" Padding="8,0" Height="24" ToolTip="Rights of the account this window runs as">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock x:Name="G" Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="12" Foreground="{StaticResource B.HeaderSub}" Margin="0,0,6,0"/>
-            <TextBlock x:Name="T" Text="{Binding Text}" FontSize="12" Foreground="#E6E9EE" VerticalAlignment="Center"/>
+            <TextBlock x:Name="G" Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="12" Foreground="{DynamicResource B.HeaderSub}" Margin="0,0,6,0"/>
+            <TextBlock x:Name="T" Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource B.OnHeader}" VerticalAlignment="Center"/>
           </StackPanel>
         </Border>
         <DataTemplate.Triggers>
@@ -653,11 +655,11 @@
         <TextBlock FontFamily="{StaticResource F.Mono}" FontSize="12" TextWrapping="NoWrap" Margin="0,1">
           <TextBlock.Style>
             <Style TargetType="TextBlock">
-              <Setter Property="Foreground" Value="{StaticResource B.Text}"/>
+              <Setter Property="Foreground" Value="{DynamicResource B.Text}"/>
               <Style.Triggers>
-                <DataTrigger Binding="{Binding Level}" Value="Error"><Setter Property="Foreground" Value="{StaticResource B.BadFore}"/><Setter Property="FontWeight" Value="Bold"/></DataTrigger>
-                <DataTrigger Binding="{Binding Level}" Value="Warning"><Setter Property="Foreground" Value="{StaticResource B.WarnFore}"/></DataTrigger>
-                <DataTrigger Binding="{Binding Level}" Value="Debug"><Setter Property="Foreground" Value="{StaticResource B.Muted}"/></DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="Error"><Setter Property="Foreground" Value="{DynamicResource B.BadFore}"/><Setter Property="FontWeight" Value="Bold"/></DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="Warning"><Setter Property="Foreground" Value="{DynamicResource B.WarnFore}"/></DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="Debug"><Setter Property="Foreground" Value="{DynamicResource B.Muted}"/></DataTrigger>
               </Style.Triggers>
             </Style>
           </TextBlock.Style>
@@ -668,12 +670,12 @@
       <HierarchicalDataTemplate x:Key="MapNode" ItemsSource="{Binding Children}">
         <!-- Status as its own icon (each status has a different shape, the word is in the tooltip and the details pane). -->
         <StackPanel Orientation="Horizontal" MinHeight="28">
-          <TextBlock Style="{StaticResource Glyph}" Text="{Binding TypeGlyph}" FontSize="14" Foreground="{StaticResource B.Accent}" Margin="0,0,10,0" ToolTip="{Binding TypeText}"/>
+          <TextBlock Style="{StaticResource Glyph}" Text="{Binding TypeGlyph}" FontSize="14" Foreground="{DynamicResource B.Accent}" Margin="0,0,10,0" ToolTip="{Binding TypeText}"/>
           <TextBlock DataContext="{Binding StatusPill}" Style="{StaticResource ToneGlyph}" Text="{Binding Glyph}" FontSize="13" Margin="0,0,8,0" ToolTip="{Binding Text}"/>
           <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="600" ToolTip="{Binding Label}" Margin="0,0,10,0"/>
           <TextBlock Text="{Binding ConfidencePill.Text}" Style="{StaticResource Small}" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="Confidence"/>
-          <Border CornerRadius="4" Background="{StaticResource B.BadBack}" BorderBrush="{StaticResource B.BadLine}" BorderThickness="1" Padding="6,0" Height="20" VerticalAlignment="Center" Visibility="{Binding HasBelow, Converter={StaticResource BoolToVis}}">
-            <TextBlock Text="{Binding BelowText}" Foreground="{StaticResource B.BadFore}" FontSize="12" VerticalAlignment="Center"/>
+          <Border CornerRadius="4" Background="{DynamicResource B.BadBack}" BorderBrush="{DynamicResource B.BadLine}" BorderThickness="1" Padding="6,0" Height="20" VerticalAlignment="Center" Visibility="{Binding HasBelow, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="{Binding BelowText}" Foreground="{DynamicResource B.BadFore}" FontSize="12" VerticalAlignment="Center"/>
           </Border>
         </StackPanel>
       </HierarchicalDataTemplate>
@@ -695,7 +697,7 @@
 
       <!-- Maximised: WindowChrome lets the window overhang the screen by its frame, so pad the content back in. -->
       <Style x:Key="RootFrame" TargetType="Border">
-        <Setter Property="BorderBrush" Value="#C7C7C7"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource B.HoverLine}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Style.Triggers>
           <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
@@ -716,7 +718,7 @@
     </ResourceDictionary>
   </Window.Resources>
 
-  <Border x:Name="RootBorder" Style="{StaticResource RootFrame}" Background="{StaticResource B.Window}">
+  <Border x:Name="RootBorder" Style="{StaticResource RootFrame}" Background="{DynamicResource B.Window}" TextElement.Foreground="{DynamicResource B.Text}">
     <Grid>
       <Grid.RowDefinitions>
         <RowDefinition Height="40"/>
@@ -729,7 +731,7 @@
       </Grid.ColumnDefinitions>
 
       <!-- ===== Title bar ===== -->
-      <Border Grid.Row="0" Grid.ColumnSpan="2" Background="{StaticResource B.Header}">
+      <Border Grid.Row="0" Grid.ColumnSpan="2" Background="{DynamicResource B.Header}">
         <Grid>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
@@ -738,20 +740,21 @@
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
-            <Border Width="24" Height="24" CornerRadius="4" Background="{StaticResource B.Accent}" Margin="0,0,12,0">
-              <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="14" Foreground="{StaticResource B.White}" HorizontalAlignment="Center"/>
+            <Border Width="24" Height="24" CornerRadius="4" Background="{DynamicResource B.Accent}" Margin="0,0,12,0">
+              <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="14" Foreground="{DynamicResource B.OnAccent}" HorizontalAlignment="Center"/>
             </Border>
-            <TextBlock Text="MSPKI Health Check" FontWeight="SemiBold" Foreground="{StaticResource B.White}" VerticalAlignment="Center"/>
-            <TextBlock x:Name="HdrVersion" FontSize="12" Foreground="{StaticResource B.HeaderSub}" VerticalAlignment="Center" Margin="8,1,0,0"/>
-            <Border CornerRadius="4" BorderThickness="1" BorderBrush="#4A5160" Padding="6,0,8,0" Height="22" Margin="16,0,0,0" ToolTip="This tool only reads. It never changes Active Directory, a CA or any server.">
+            <TextBlock Text="MSPKI Health Check" FontWeight="SemiBold" Foreground="{DynamicResource B.OnHeader}" VerticalAlignment="Center"/>
+            <TextBlock x:Name="HdrVersion" FontSize="12" Foreground="{DynamicResource B.HeaderSub}" VerticalAlignment="Center" Margin="8,1,0,0"/>
+            <Border CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource B.HeaderLine}" Padding="6,0,8,0" Height="22" Margin="16,0,0,0" ToolTip="This tool only reads. It never changes Active Directory, a CA or any server.">
               <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Style="{StaticResource Glyph}" Text="&#xE72E;" FontSize="11" Foreground="{StaticResource B.HeaderSub}" Margin="0,0,6,0"/>
-                <TextBlock Text="Read-only" FontSize="12" Foreground="#E6E9EE" VerticalAlignment="Center"/>
+                <TextBlock Style="{StaticResource Glyph}" Text="&#xE72E;" FontSize="11" Foreground="{DynamicResource B.HeaderSub}" Margin="0,0,6,0"/>
+                <TextBlock Text="Read-only" FontSize="12" Foreground="{DynamicResource B.OnHeader}" VerticalAlignment="Center"/>
               </StackPanel>
             </Border>
           </StackPanel>
           <ContentPresenter x:Name="HdrBadge" Grid.Column="2" ContentTemplate="{StaticResource HeaderBadge}" VerticalAlignment="Center" Margin="0,0,12,0"/>
           <StackPanel Grid.Column="3" Orientation="Horizontal">
+            <Button x:Name="BtnTheme" Style="{StaticResource CaptionButton}" Content="&#xE7F4;" ToolTip="Theme: follow Windows. Click for light, then dark." WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Theme: follow Windows (click to change)"/>
             <Button x:Name="BtnMin" Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="Minimise" WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Minimise"/>
             <Button x:Name="BtnMax" Style="{StaticResource MaxButton}" WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Maximise or restore"/>
             <Button x:Name="BtnClose" Style="{StaticResource CloseButton}" Content="&#xE8BB;" ToolTip="Close" WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Close"/>
@@ -760,13 +763,13 @@
       </Border>
 
       <!-- ===== Navigation pane ===== -->
-      <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource B.Nav}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,1,0">
+      <Border Grid.Row="1" Grid.Column="0" Background="{DynamicResource B.Nav}" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,0,1,0">
         <DockPanel>
           <!-- Compact navigation (narrow window): the environment collapses to one icon with the facts in its tooltip. -->
-          <Border x:Name="NavEnvCompact" DockPanel.Dock="Bottom" Visibility="Collapsed" BorderBrush="{StaticResource B.Border}" BorderThickness="0,1,0,0" Height="48" Background="Transparent">
-            <TextBlock Style="{StaticResource Glyph}" Text="&#xE774;" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+          <Border x:Name="NavEnvCompact" DockPanel.Dock="Bottom" Visibility="Collapsed" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,1,0,0" Height="48" Background="Transparent">
+            <TextBlock Style="{StaticResource Glyph}" Text="&#xE774;" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center"/>
           </Border>
-          <Border x:Name="NavEnv" DockPanel.Dock="Bottom" BorderBrush="{StaticResource B.Border}" BorderThickness="0,1,0,0" Padding="20,14,16,6">
+          <Border x:Name="NavEnv" DockPanel.Dock="Bottom" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,1,0,0" Padding="20,14,16,6">
             <StackPanel>
               <TextBlock Text="Environment" Style="{StaticResource Label}" Margin="0,0,0,8"/>
               <ItemsControl x:Name="HdrContext" ItemTemplate="{StaticResource HeaderFact}" IsTabStop="False" Focusable="False"/>
@@ -779,7 +782,7 @@
               </ListBoxItem>
               <ListBoxItem ToolTip="Findings (Ctrl+2)" AutomationProperties.Name="Findings">
                 <DockPanel>
-                  <Border DockPanel.Dock="Right" CornerRadius="9" Background="#E0E0E0" Padding="7,0" Height="18" VerticalAlignment="Center">
+                  <Border DockPanel.Dock="Right" CornerRadius="9" Background="{DynamicResource B.Badge}" Padding="7,0" Height="18" VerticalAlignment="Center">
                     <Border.Style>
                       <Style TargetType="Border">
                         <Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=TxtTabFindings}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger><DataTrigger Binding="{Binding Tag, ElementName=NavList}" Value="Compact"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers>
@@ -810,7 +813,7 @@
       <!-- ===== Content column ===== -->
       <DockPanel Grid.Row="1" Grid.Column="1">
         <!-- Command bar -->
-        <Border DockPanel.Dock="Top" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1" Height="48" Padding="16,0">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,0,0,1" Height="48" Padding="16,0">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <Button x:Name="BtnRun" AutomationProperties.Name="Run health check" Style="{StaticResource SubtleButton}" ToolTip="Start a new health check (F5). It only reads; nothing is changed.">
               <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE768;"/><TextBlock Text="Run health check"/></StackPanel>
@@ -832,13 +835,13 @@
         </Border>
 
         <!-- Run options -->
-        <Border DockPanel.Dock="Top" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1" Padding="16,4">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,0,0,1" Padding="16,4">
           <Expander x:Name="ExpOptions" IsExpanded="False">
             <Expander.Header>
               <StackPanel Orientation="Horizontal">
-                <TextBlock Style="{StaticResource Glyph}" Text="&#xE713;" FontSize="14" Foreground="{StaticResource B.Muted}" Margin="0,0,8,0"/>
+                <TextBlock Style="{StaticResource Glyph}" Text="&#xE713;" FontSize="14" Foreground="{DynamicResource B.Muted}" Margin="0,0,8,0"/>
                 <TextBlock Text="Run options" FontWeight="SemiBold"/>
-                <TextBlock x:Name="TxtOptionsSummary" FontWeight="Normal" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="16,1,0,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtOptionsSummary" FontWeight="Normal" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="16,1,0,0" VerticalAlignment="Center"/>
               </StackPanel>
             </Expander.Header>
             <Grid Margin="28,8,0,12" MaxWidth="900" HorizontalAlignment="Left">
@@ -884,46 +887,46 @@
                 <StackPanel x:Name="PanelWelcome" Margin="24,32,24,24" MaxWidth="880" HorizontalAlignment="Center">
                   <Border Style="{StaticResource Card}" Padding="32,28">
                     <StackPanel>
-                      <Border Width="48" Height="48" CornerRadius="8" Background="{StaticResource B.AccentSoft}" HorizontalAlignment="Left" Margin="0,0,0,16">
-                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="24" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+                      <Border Width="48" Height="48" CornerRadius="8" Background="{DynamicResource B.AccentSoft}" HorizontalAlignment="Left" Margin="0,0,0,16">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="24" Foreground="{DynamicResource B.Accent}" HorizontalAlignment="Center"/>
                       </Border>
                       <TextBlock Text="Check the health of your certificate services" FontSize="24" FontWeight="SemiBold"/>
                       <TextBlock Style="{StaticResource Muted}" FontSize="14" Margin="0,6,0,24" Text="A read-only check of Microsoft Active Directory Certificate Services. It finds your CAs, templates and endpoints by itself: there is nothing to configure."/>
                       <UniformGrid Columns="3" Margin="0,0,-16,0">
-                        <Border Background="{StaticResource B.Hover}" CornerRadius="6" Padding="16,14" Margin="0,0,16,0">
+                        <Border Background="{DynamicResource B.Hover}" CornerRadius="6" Padding="16,14" Margin="0,0,16,0">
                           <StackPanel>
-                            <Border Width="24" Height="24" CornerRadius="12" Background="{StaticResource B.Accent}" HorizontalAlignment="Left" Margin="0,0,0,10"><TextBlock Text="1" Foreground="{StaticResource B.White}" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Width="24" Height="24" CornerRadius="12" Background="{DynamicResource B.Accent}" HorizontalAlignment="Left" Margin="0,0,0,10"><TextBlock Text="1" Foreground="{DynamicResource B.OnAccent}" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
                             <TextBlock Text="Discover" FontWeight="SemiBold"/>
                             <TextBlock Style="{StaticResource Small}" Margin="0,2,0,0" Text="Reads the Public Key Services in Active Directory, then asks each CA about itself."/>
                           </StackPanel>
                         </Border>
-                        <Border Background="{StaticResource B.Hover}" CornerRadius="6" Padding="16,14" Margin="0,0,16,0">
+                        <Border Background="{DynamicResource B.Hover}" CornerRadius="6" Padding="16,14" Margin="0,0,16,0">
                           <StackPanel>
-                            <Border Width="24" Height="24" CornerRadius="12" Background="{StaticResource B.Accent}" HorizontalAlignment="Left" Margin="0,0,0,10"><TextBlock Text="2" Foreground="{StaticResource B.White}" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Width="24" Height="24" CornerRadius="12" Background="{DynamicResource B.Accent}" HorizontalAlignment="Left" Margin="0,0,0,10"><TextBlock Text="2" Foreground="{DynamicResource B.OnAccent}" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
                             <TextBlock Text="Check" FontWeight="SemiBold"/>
                             <TextBlock Style="{StaticResource Small}" Margin="0,2,0,0" Text="Tests only the CRL, AIA, OCSP and enrollment addresses the CAs and certificates name. Anonymous requests, no scanning."/>
                           </StackPanel>
                         </Border>
-                        <Border Background="{StaticResource B.Hover}" CornerRadius="6" Padding="16,14" Margin="0,0,16,0">
+                        <Border Background="{DynamicResource B.Hover}" CornerRadius="6" Padding="16,14" Margin="0,0,16,0">
                           <StackPanel>
-                            <Border Width="24" Height="24" CornerRadius="12" Background="{StaticResource B.Accent}" HorizontalAlignment="Left" Margin="0,0,0,10"><TextBlock Text="3" Foreground="{StaticResource B.White}" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Width="24" Height="24" CornerRadius="12" Background="{DynamicResource B.Accent}" HorizontalAlignment="Left" Margin="0,0,0,10"><TextBlock Text="3" Foreground="{DynamicResource B.OnAccent}" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
                             <TextBlock Text="Report" FontWeight="SemiBold"/>
                             <TextBlock Style="{StaticResource Small}" Margin="0,2,0,0" Text="Every finding shows its sources, its evidence and how sure the tool is. Files go to the output folder only."/>
                           </StackPanel>
                         </Border>
                       </UniformGrid>
-                      <Border x:Name="WelcomeError" Visibility="Collapsed" Background="{StaticResource B.BadBack}" BorderBrush="{StaticResource B.BadLine}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,20,0,0">
+                      <Border x:Name="WelcomeError" Visibility="Collapsed" Background="{DynamicResource B.BadBack}" BorderBrush="{DynamicResource B.BadLine}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,20,0,0">
                         <DockPanel>
-                          <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xEA39;" Foreground="{StaticResource B.BadFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
+                          <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xEA39;" Foreground="{DynamicResource B.BadFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
                           <StackPanel>
-                            <TextBlock Text="The last run ended without results" FontWeight="SemiBold" Foreground="{StaticResource B.BadFore}"/>
+                            <TextBlock Text="The last run ended without results" FontWeight="SemiBold" Foreground="{DynamicResource B.BadFore}"/>
                             <TextBlock x:Name="TxtWelcomeError" TextWrapping="Wrap" Margin="0,2,0,0"/>
                           </StackPanel>
                         </DockPanel>
                       </Border>
-                      <Border Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,20,0,0">
+                      <Border Background="{DynamicResource B.InfoBack}" BorderBrush="{DynamicResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,20,0,0">
                         <DockPanel>
-                          <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{StaticResource B.InfoFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
+                          <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{DynamicResource B.InfoFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
                           <TextBlock x:Name="TxtWelcomeContext" TextWrapping="Wrap"/>
                         </DockPanel>
                       </Border>
@@ -955,7 +958,7 @@
                       <StackPanel Width="148" VerticalAlignment="Top">
                         <Button x:Name="BtnScoreRing" Style="{StaticResource RowButton}" Padding="4" HorizontalAlignment="Center" Tag="area:All" ToolTip="Show the findings that lower the score" AutomationProperties.Name="Health score. Select to see the findings that lower it.">
                         <Grid x:Name="ScoreRing" Width="136" Height="136" HorizontalAlignment="Center" Background="Transparent" ToolTipService.ShowDuration="30000" AutomationProperties.Name="Health score">
-                          <Ellipse StrokeThickness="10" Stroke="{StaticResource B.Divider}"/>
+                          <Ellipse StrokeThickness="10" Stroke="{DynamicResource B.Divider}"/>
                           <Ellipse x:Name="ScoreArc" StrokeThickness="10" StrokeDashCap="Flat" RenderTransformOrigin="0.5,0.5">
                             <Ellipse.RenderTransform><RotateTransform Angle="-90"/></Ellipse.RenderTransform>
                           </Ellipse>
@@ -967,15 +970,15 @@
                         </Button>
                         <ContentPresenter x:Name="ScoreBand" ContentTemplate="{StaticResource PillTemplate}" HorizontalAlignment="Center" Margin="0,12,0,0"/>
                         <TextBlock x:Name="TxtScoreReason" Visibility="Collapsed" Style="{StaticResource Small}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,6,0,0"/>
-                        <Border x:Name="ScorePartial" Visibility="Collapsed" Background="{StaticResource B.AdminBack}" BorderBrush="{StaticResource B.AdminLine}" BorderThickness="1" CornerRadius="4" Padding="8,2" Margin="0,6,0,0" HorizontalAlignment="Center" ToolTipService.ShowDuration="30000">
+                        <Border x:Name="ScorePartial" Visibility="Collapsed" Background="{DynamicResource B.AdminBack}" BorderBrush="{DynamicResource B.AdminLine}" BorderThickness="1" CornerRadius="4" Padding="8,2" Margin="0,6,0,0" HorizontalAlignment="Center" ToolTipService.ShowDuration="30000">
                           <StackPanel Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource Glyph}" Text="&#xE9CE;" FontSize="12" Foreground="{StaticResource B.AdminFore}" Margin="0,0,6,0"/>
-                            <TextBlock Text="Partial score" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource B.AdminFore}"/>
+                            <TextBlock Style="{StaticResource Glyph}" Text="&#xE9CE;" FontSize="12" Foreground="{DynamicResource B.AdminFore}" Margin="0,0,6,0"/>
+                            <TextBlock Text="Partial score" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource B.AdminFore}"/>
                           </StackPanel>
                         </Border>
                         <Button x:Name="BtnScoreHow" Style="{StaticResource LinkButton}" Content="How is this scored?" HorizontalAlignment="Center" Margin="0,8,0,0" FontSize="12" ToolTipService.ShowDuration="30000" AutomationProperties.Name="How is this scored?"/>
                         <Popup x:Name="PopScore" PlacementTarget="{Binding ElementName=BtnScoreHow}" Placement="Right" HorizontalOffset="12" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
-                          <Border Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.BorderStrong}" BorderThickness="1" CornerRadius="8" Padding="18,14" Margin="8" MaxWidth="400">
+                          <Border Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.BorderStrong}" BorderThickness="1" CornerRadius="8" Padding="18,14" Margin="8" MaxWidth="400">
                             <Border.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.22"/></Border.Effect>
                             <StackPanel>
                               <TextBlock Text="How the score works" Style="{StaticResource H2}"/>
@@ -990,7 +993,7 @@
                           <TextBlock x:Name="BannerGlyph" Style="{StaticResource ToneGlyph}" FontSize="16" Margin="0,3,8,0" VerticalAlignment="Top" DockPanel.Dock="Left" Visibility="Collapsed"/>
                           <TextBlock x:Name="BannerTitle" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
                         </DockPanel>
-                        <TextBlock x:Name="BannerText" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{StaticResource B.Muted}"/>
+                        <TextBlock x:Name="BannerText" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource B.Muted}"/>
                         <TextBlock x:Name="BannerMetaLine" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,6,0,0">
                           <Run x:Name="BannerMeta1"/><Run Text=" &#x00B7; "/><Run x:Name="BannerMeta2"/><Run Text=" &#x00B7; "/><Run x:Name="BannerMeta3"/>
                         </TextBlock>
@@ -1027,7 +1030,7 @@
                           <Border Style="{StaticResource Divider}"/>
                           <ItemsControl x:Name="ActionList" ItemTemplate="{StaticResource NextAction}" Margin="-8,0" IsTabStop="False" Focusable="False"/>
                           <StackPanel x:Name="PanelNoAction" Orientation="Horizontal" Margin="0,12,0,4" Visibility="Collapsed">
-                            <TextBlock Style="{StaticResource Glyph}" Text="&#xE73E;" FontSize="14" Foreground="{StaticResource B.GoodFore}" Margin="0,0,8,0"/>
+                            <TextBlock Style="{StaticResource Glyph}" Text="&#xE73E;" FontSize="14" Foreground="{DynamicResource B.GoodFore}" Margin="0,0,8,0"/>
                             <TextBlock Text="Nothing needs action: every finding is passing or informational."/>
                           </StackPanel>
                         </StackPanel>
@@ -1059,21 +1062,21 @@
                       <Border Style="{StaticResource Divider}" Margin="0,8,0,8"/>
                       <DockPanel>
                         <WrapPanel x:Name="MapLegend" DockPanel.Dock="Right" Orientation="Horizontal">
-                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Ellipse Width="10" Height="10" Fill="{StaticResource B.GoodBack}" Stroke="{StaticResource B.GoodLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Healthy" Style="{StaticResource Small}"/></StackPanel>
-                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Ellipse Width="10" Height="10" Fill="{StaticResource B.WarnBack}" Stroke="{StaticResource B.WarnLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Warning" Style="{StaticResource Small}"/></StackPanel>
-                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Ellipse Width="10" Height="10" Fill="{StaticResource B.BadBack}" Stroke="{StaticResource B.BadLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Failing" Style="{StaticResource Small}"/></StackPanel>
-                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Ellipse Width="10" Height="10" Fill="{StaticResource B.AdminBack}" Stroke="{StaticResource B.AdminLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Could not check" Style="{StaticResource Small}"/></StackPanel>
-                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Ellipse Width="10" Height="10" Fill="{StaticResource B.NeutralBack}" Stroke="{StaticResource B.NeutralLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="No finding" Style="{StaticResource Small}"/></StackPanel>
-                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Rectangle Width="16" Height="2" Fill="{StaticResource B.Accent}" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="Issued by" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Ellipse Width="10" Height="10" Fill="{DynamicResource B.GoodBack}" Stroke="{DynamicResource B.GoodLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Healthy" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Ellipse Width="10" Height="10" Fill="{DynamicResource B.WarnBack}" Stroke="{DynamicResource B.WarnLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Warning" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Ellipse Width="10" Height="10" Fill="{DynamicResource B.BadBack}" Stroke="{DynamicResource B.BadLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Failing" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Ellipse Width="10" Height="10" Fill="{DynamicResource B.AdminBack}" Stroke="{DynamicResource B.AdminLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Could not check" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Ellipse Width="10" Height="10" Fill="{DynamicResource B.NeutralBack}" Stroke="{DynamicResource B.NeutralLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="No finding" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="16,0,0,0"><Rectangle Width="16" Height="2" Fill="{DynamicResource B.Accent}" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="Issued by" Style="{StaticResource Small}"/></StackPanel>
                         </WrapPanel>
                         <TextBlock x:Name="TxtMapStats" Style="{StaticResource Small}" VerticalAlignment="Center"/>
                       </DockPanel>
                     </StackPanel>
                   </Border>
 
-                  <Border Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,16" Visibility="{Binding Visibility, ElementName=TxtNote}">
+                  <Border Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,16" Visibility="{Binding Visibility, ElementName=TxtNote}">
                     <DockPanel>
-                      <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{StaticResource B.InfoFore}" VerticalAlignment="Top" Margin="4,1,10,0"/>
+                      <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{DynamicResource B.InfoFore}" VerticalAlignment="Top" Margin="4,1,10,0"/>
                       <TextBlock x:Name="TxtNote" Visibility="Collapsed" TextWrapping="Wrap"/>
                     </DockPanel>
                   </Border>
@@ -1107,8 +1110,8 @@
                   </ItemsControl>
                   <Border Style="{StaticResource Card}" Margin="0,0,0,16" Visibility="{Binding Visibility, ElementName=TxtNoCa}">
                     <DockPanel>
-                      <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="18" Background="{StaticResource B.Hover}" Margin="0,0,14,0" VerticalAlignment="Top">
-                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="16" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+                      <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="18" Background="{DynamicResource B.Hover}" Margin="0,0,14,0" VerticalAlignment="Top">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE83D;" FontSize="16" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center"/>
                       </Border>
                       <StackPanel VerticalAlignment="Center">
                         <TextBlock x:Name="TxtNoCa" Visibility="Collapsed" FontWeight="SemiBold" Text="No Enterprise CA was found in this run."/>
@@ -1154,7 +1157,7 @@
                 </Grid.ColumnDefinitions>
                 <Border Style="{StaticResource Panel}" ClipToBounds="True">
                   <DockPanel>
-                    <Border DockPanel.Dock="Top" Padding="16,14,16,10" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
+                    <Border DockPanel.Dock="Top" Padding="16,14,16,10" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
                       <StackPanel>
                         <DockPanel Margin="0,0,0,10">
                           <Button x:Name="BtnClearFilters" AutomationProperties.Name="Clear the filters" DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" ToolTip="Remove every filter">
@@ -1176,7 +1179,7 @@
                         </WrapPanel>
                       </StackPanel>
                     </Border>
-                    <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,1,0,0" Padding="16,0,8,0" Height="44">
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,1,0,0" Padding="16,0,8,0" Height="44">
                       <DockPanel>
                         <Button x:Name="BtnExport" AutomationProperties.Name="Export the filtered view" DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" VerticalAlignment="Center" ToolTip="Write the findings that match the filters to a CSV file in this run's output folder.">
                           <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE896;" FontSize="14"/><TextBlock Text="Export filtered view"/></StackPanel>
@@ -1205,7 +1208,7 @@
                                         <Expander.Header>
                                           <StackPanel Orientation="Horizontal" Margin="0,2">
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                            <Border CornerRadius="9" Background="#E0E0E0" Padding="7,0" Height="18" Margin="8,0,0,0" VerticalAlignment="Center">
+                                            <Border CornerRadius="9" Background="{DynamicResource B.Badge}" Padding="7,0" Height="18" Margin="8,0,0,0" VerticalAlignment="Center">
                                               <TextBlock Text="{Binding ItemCount}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                             </Border>
                                           </StackPanel>
@@ -1244,8 +1247,8 @@
                         </DataGrid.Columns>
                       </DataGrid>
                       <StackPanel Visibility="{Binding Visibility, ElementName=TxtGridEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380" Margin="24">
-                        <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
-                          <TextBlock Style="{StaticResource Glyph}" Text="&#xE721;" FontSize="24" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+                        <Border Width="56" Height="56" CornerRadius="28" Background="{DynamicResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
+                          <TextBlock Style="{StaticResource Glyph}" Text="&#xE721;" FontSize="24" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center"/>
                         </Border>
                         <TextBlock x:Name="TxtGridEmpty" Visibility="Collapsed" Style="{StaticResource Muted}" TextAlignment="Center"/>
                       </StackPanel>
@@ -1275,7 +1278,7 @@
                 </Grid.ColumnDefinitions>
                 <Border Style="{StaticResource Panel}" ClipToBounds="True">
                   <DockPanel>
-                    <Border DockPanel.Dock="Top" Padding="12,0,16,0" Height="48" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
+                    <Border DockPanel.Dock="Top" Padding="12,0,16,0" Height="48" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
                       <DockPanel>
                         <TextBlock x:Name="TxtMapCount" DockPanel.Dock="Right" Style="{StaticResource Small}" VerticalAlignment="Center"/>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -1314,7 +1317,7 @@
               </StackPanel>
               <Border Style="{StaticResource Panel}" ClipToBounds="True">
                 <DockPanel>
-                  <Border DockPanel.Dock="Top" Padding="16,8" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
+                  <Border DockPanel.Dock="Top" Padding="16,8" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
                     <DockPanel>
                       <TextBlock x:Name="TxtLogCount" DockPanel.Dock="Right" Style="{StaticResource Small}" VerticalAlignment="Center" Margin="16,0,0,0"/>
                       <WrapPanel>
@@ -1333,8 +1336,8 @@
                   <Grid>
                     <ListBox x:Name="LogList" ItemTemplate="{StaticResource LogRow}" ScrollViewer.HorizontalScrollBarVisibility="Auto" VirtualizingStackPanel.IsVirtualizing="True" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Run log"/>
                     <StackPanel Visibility="{Binding Visibility, ElementName=TxtLogEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380" Margin="24">
-                      <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
-                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE9D5;" FontSize="24" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+                      <Border Width="56" Height="56" CornerRadius="28" Background="{DynamicResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE9D5;" FontSize="24" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center"/>
                       </Border>
                       <TextBlock x:Name="TxtLogEmpty" Style="{StaticResource Muted}" TextAlignment="Center" Text="The log fills in while a run is in progress."/>
                     </StackPanel>
@@ -1359,7 +1362,7 @@
                 </Grid.ColumnDefinitions>
                 <Border Style="{StaticResource Panel}" ClipToBounds="True">
                   <DockPanel>
-                    <Border DockPanel.Dock="Top" Padding="16,14,16,6" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1">
+                    <Border DockPanel.Dock="Top" Padding="16,14,16,6" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
                       <StackPanel>
                         <Grid Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="640"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                           <TextBox x:Name="FltObj" Style="{StaticResource SearchBox}" Tag="Search name, URL or id (Ctrl+F)" ToolTip="Type words; an object must contain every word in its name, id or type." AutomationProperties.Name="Search objects"/>
@@ -1370,7 +1373,7 @@
                         </WrapPanel>
                       </StackPanel>
                     </Border>
-                    <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,1,0,0" Padding="16,0,8,0" Height="44">
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,1,0,0" Padding="16,0,8,0" Height="44">
                       <DockPanel>
                         <Button x:Name="BtnObjClear" AutomationProperties.Name="Clear the object search and filters" DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" VerticalAlignment="Center" ToolTip="Remove the search and the filters">
                           <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE894;" FontSize="14"/><TextBlock Text="Clear filters"/></StackPanel>
@@ -1387,7 +1390,7 @@
                                 <Border Padding="16,12,16,4">
                                   <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{Binding Name}" Style="{StaticResource Label}" VerticalAlignment="Center"/>
-                                    <Border CornerRadius="9" Background="#E0E0E0" Padding="7,0" Height="18" Margin="8,0,0,0" VerticalAlignment="Center">
+                                    <Border CornerRadius="9" Background="{DynamicResource B.Badge}" Padding="7,0" Height="18" Margin="8,0,0,0" VerticalAlignment="Center">
                                       <TextBlock Text="{Binding ItemCount}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                     </Border>
                                   </StackPanel>
@@ -1403,8 +1406,8 @@
                                 <ContentPresenter Content="{Binding MissingPill}" ContentTemplate="{StaticResource PillTemplate}"/>
                                 <ContentPresenter Content="{Binding FindingPill}" ContentTemplate="{StaticResource PillTemplate}"/>
                               </StackPanel>
-                              <Border DockPanel.Dock="Left" Width="28" Height="28" CornerRadius="4" Background="{StaticResource B.AccentSoft}" Margin="0,0,12,0" VerticalAlignment="Center">
-                                <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="14" Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center"/>
+                              <Border DockPanel.Dock="Left" Width="28" Height="28" CornerRadius="4" Background="{DynamicResource B.AccentSoft}" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="14" Foreground="{DynamicResource B.Accent}" HorizontalAlignment="Center"/>
                               </Border>
                               <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
@@ -1415,8 +1418,8 @@
                         </ListBox.ItemTemplate>
                       </ListBox>
                       <StackPanel Visibility="{Binding Visibility, ElementName=TxtObjEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380" Margin="24">
-                        <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
-                          <TextBlock Style="{StaticResource Glyph}" Text="&#xE71D;" FontSize="24" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+                        <Border Width="56" Height="56" CornerRadius="28" Background="{DynamicResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
+                          <TextBlock Style="{StaticResource Glyph}" Text="&#xE71D;" FontSize="24" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center"/>
                         </Border>
                         <TextBlock x:Name="TxtObjEmpty" Visibility="Collapsed" Style="{StaticResource Muted}" TextAlignment="Center"/>
                       </StackPanel>
@@ -1453,8 +1456,8 @@
                   </ScrollViewer>
                   <Border Style="{StaticResource Panel}" Visibility="{Binding Visibility, ElementName=TxtSvcEmpty}">
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380" Margin="24">
-                      <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
-                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE912;" FontSize="24" Foreground="{StaticResource B.Muted}" HorizontalAlignment="Center"/>
+                      <Border Width="56" Height="56" CornerRadius="28" Background="{DynamicResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,14">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE912;" FontSize="24" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center"/>
                       </Border>
                       <TextBlock x:Name="TxtSvcEmpty" Style="{StaticResource Muted}" TextAlignment="Center" Text="There are no results yet. Run a health check, or open an earlier results.json."/>
                     </StackPanel>
@@ -1471,7 +1474,7 @@
       </DockPanel>
 
       <!-- ===== Status bar ===== -->
-      <Border Grid.Row="2" Grid.ColumnSpan="2" Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="0,1,0,0" Height="30" Padding="16,0">
+      <Border Grid.Row="2" Grid.ColumnSpan="2" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,1,0,0" Height="30" Padding="16,0">
         <Grid VerticalAlignment="Center">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
@@ -1491,15 +1494,15 @@
                 <Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=TxtElapsed}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers>
               </Style>
             </StackPanel.Style>
-            <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="0,0,6,0"/>
+            <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="0,0,6,0"/>
             <TextBlock x:Name="TxtElapsed" Style="{StaticResource Small}" VerticalAlignment="Center" Text="Elapsed 0:00"/>
           </StackPanel>
           <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,20,0">
-            <TextBlock Style="{StaticResource Glyph}" Text="&#xE8FD;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="0,0,6,0"/>
+            <TextBlock Style="{StaticResource Glyph}" Text="&#xE8FD;" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="0,0,6,0"/>
             <TextBlock x:Name="TxtCount" Style="{StaticResource Small}" VerticalAlignment="Center" Text="0 findings"/>
           </StackPanel>
           <StackPanel Grid.Column="4" Orientation="Horizontal">
-            <TextBlock Style="{StaticResource Glyph}" Text="&#xE838;" FontSize="12" Foreground="{StaticResource B.Muted}" Margin="0,0,6,0"/>
+            <TextBlock Style="{StaticResource Glyph}" Text="&#xE838;" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="0,0,6,0"/>
             <TextBlock x:Name="TxtOutputPath" Style="{StaticResource Small}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxWidth="420" VerticalAlignment="Center"/>
           </StackPanel>
         </Grid>
@@ -1512,19 +1515,19 @@
       <Grid x:Name="PaletteLayer" Grid.RowSpan="3" Grid.ColumnSpan="2" Visibility="Collapsed" Panel.ZIndex="100">
         <Border x:Name="PaletteScrim" Background="#59101828" AutomationProperties.Name="Close the command palette"/>
         <Border x:Name="PaletteCard" KeyboardNavigation.TabNavigation="Cycle" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,96,0,0" Width="640" MaxHeight="520"
-                Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Border}" BorderThickness="1" CornerRadius="10">
+                Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="10">
           <Border.Effect><DropShadowEffect BlurRadius="28" ShadowDepth="6" Opacity="0.28" Color="#101828"/></Border.Effect>
           <DockPanel>
-            <Border DockPanel.Dock="Top" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,0,0,1" Padding="16,12">
+            <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1" Padding="16,12">
               <DockPanel>
-                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE721;" FontSize="16" Foreground="{StaticResource B.Muted}" Margin="0,0,12,0" VerticalAlignment="Center"/>
-                <Border DockPanel.Dock="Right" Background="{StaticResource B.Hover}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
-                  <TextBlock Text="Esc" FontSize="11" Foreground="{StaticResource B.Muted}"/>
+                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE721;" FontSize="16" Foreground="{DynamicResource B.Muted}" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                <Border DockPanel.Dock="Right" Background="{DynamicResource B.Hover}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                  <TextBlock Text="Esc" FontSize="11" Foreground="{DynamicResource B.Muted}"/>
                 </Border>
                 <Grid>
                   <TextBox x:Name="PaletteText" BorderThickness="0" Background="Transparent" FontSize="16" Padding="0" VerticalContentAlignment="Center"
                            AutomationProperties.Name="Search pages, commands, objects and findings"/>
-                  <TextBlock Text="Search pages, commands, objects and findings" FontSize="16" Foreground="{StaticResource B.Muted}" IsHitTestVisible="False" VerticalAlignment="Center">
+                  <TextBlock Text="Search pages, commands, objects and findings" FontSize="16" Foreground="{DynamicResource B.Muted}" IsHitTestVisible="False" VerticalAlignment="Center">
                     <TextBlock.Style>
                       <Style TargetType="TextBlock">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -1535,7 +1538,7 @@
                 </Grid>
               </DockPanel>
             </Border>
-            <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource B.Divider}" BorderThickness="0,1,0,0" Padding="16,8">
+            <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,1,0,0" Padding="16,8">
               <DockPanel>
                 <TextBlock x:Name="PaletteCount" DockPanel.Dock="Right" Style="{StaticResource Small}"/>
                 <TextBlock Style="{StaticResource Small}" Text="Up and Down to move · Enter to open · Esc to close"/>
@@ -1547,6 +1550,7 @@
                        KeyboardNavigation.TabNavigation="Once" AutomationProperties.Name="Results">
                 <ListBox.ItemContainerStyle>
                   <Style TargetType="ListBoxItem">
+                    <Setter Property="Foreground" Value="{DynamicResource B.Text}"/>
                     <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}"/>
                     <Setter Property="Template">
                       <Setter.Value>
@@ -1555,8 +1559,8 @@
                             <ContentPresenter/>
                           </Border>
                           <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Hover}"/></Trigger>
-                            <Trigger Property="IsSelected" Value="True"><Setter TargetName="Bd" Property="Background" Value="{StaticResource B.AccentSoft}"/></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource B.Hover}"/></Trigger>
+                            <Trigger Property="IsSelected" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource B.AccentSoft}"/></Trigger>
                           </ControlTemplate.Triggers>
                         </ControlTemplate>
                       </Setter.Value>
@@ -1566,11 +1570,11 @@
                 <ListBox.ItemTemplate>
                   <DataTemplate>
                     <DockPanel>
-                      <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="14" Width="22" Foreground="{StaticResource B.Muted}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                      <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="14" Width="22" Foreground="{DynamicResource B.Muted}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
                         <Border Visibility="{Binding HasPill, Converter={StaticResource BoolToVis}}" Margin="0,0,8,0" VerticalAlignment="Center"><ContentPresenter Content="{Binding Pill}" ContentTemplate="{StaticResource PillTemplate}"/></Border>
-                        <Border Background="{StaticResource B.Hover}" CornerRadius="4" Padding="6,1" Visibility="{Binding HasShortcut, Converter={StaticResource BoolToVis}}" Margin="0,0,8,0">
-                          <TextBlock Text="{Binding Shortcut}" FontSize="11" Foreground="{StaticResource B.Muted}"/>
+                        <Border Background="{DynamicResource B.Hover}" CornerRadius="4" Padding="6,1" Visibility="{Binding HasShortcut, Converter={StaticResource BoolToVis}}" Margin="0,0,8,0">
+                          <TextBlock Text="{Binding Shortcut}" FontSize="11" Foreground="{DynamicResource B.Muted}"/>
                         </Border>
                         <TextBlock Text="{Binding KindText}" Style="{StaticResource Small}" Width="62" TextAlignment="Right"/>
                       </StackPanel>

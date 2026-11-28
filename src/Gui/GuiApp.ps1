@@ -10,6 +10,7 @@ $script:MspkiGui = $null
 . (Join-Path $PSScriptRoot 'GuiMapView.ps1')
 . (Join-Path $PSScriptRoot 'GuiState.ps1')
 . (Join-Path $PSScriptRoot 'GuiPalette.ps1')
+. (Join-Path $PSScriptRoot 'GuiTheme.ps1')
 
 function Import-MspkiGuiAssembly {
     <#
@@ -190,9 +191,19 @@ function Get-MspkiGuiBrush {
 function Get-MspkiGuiToneBrush {
     [CmdletBinding()]
     param([string]$Tone)
+    return (Get-MspkiGuiBrush -Key (Get-MspkiGuiToneKey -Tone $Tone))
+}
+
+function Get-MspkiGuiToneKey {
+    <#
+    .SYNOPSIS
+    The theme key of a tone's text colour; with SetResourceReference the element then follows a theme change.
+    #>
+    [CmdletBinding()]
+    param([string]$Tone)
     $k = @{ Good = 'B.GoodFore'; Warn = 'B.WarnFore'; Bad = 'B.BadFore'; Info = 'B.InfoFore'; Admin = 'B.AdminFore'; Neutral = 'B.NeutralFore' }[$Tone]
     if (-not $k) { $k = 'B.NeutralFore' }
-    return (Get-MspkiGuiBrush -Key $k)
+    return $k
 }
 
 function Set-MspkiGuiState {
@@ -210,7 +221,7 @@ function Set-MspkiGuiState {
         Ready = @(0xE946, 'Info'); Running = @(0xE895, 'Info'); Done = @(0xE73E, 'Good'); Warn = @(0xE7BA, 'Warn'); Bad = @(0xE711, 'Bad')
     }[$State]
     $ui.StatusIcon.Text = [string][char]$spec[0]
-    $ui.StatusIcon.Foreground = Get-MspkiGuiToneBrush -Tone $spec[1]
+    $ui.StatusIcon.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, (Get-MspkiGuiToneKey -Tone $spec[1]))
     $ui.TxtStage.Text = $Text
 }
 
@@ -429,7 +440,7 @@ function New-MspkiGuiChip {
     $ic = New-Object System.Windows.Controls.TextBlock
     $ic.FontFamily = $w.FindResource('F.Icons'); $ic.Text = $pill.Glyph; $ic.FontSize = 12
     $ic.Margin = New-Object System.Windows.Thickness(0, 0, 6, 0); $ic.VerticalAlignment = 'Center'
-    $ic.Foreground = Get-MspkiGuiToneBrush -Tone $pill.Tone
+    $ic.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, (Get-MspkiGuiToneKey -Tone $pill.Tone))
     $tx = New-Object System.Windows.Controls.TextBlock
     $tx.Text = '{0}  {1}' -f $pill.Text, $Count
     $tx.VerticalAlignment = 'Center'
@@ -517,7 +528,7 @@ function Show-MspkiGuiCopiedMark {
     $mark = New-Object System.Windows.Controls.StackPanel
     $mark.Orientation = 'Horizontal'; $mark.HorizontalAlignment = 'Center'
     $gl = New-Object System.Windows.Controls.TextBlock
-    $gl.Style = $g.Window.FindResource('CmdGlyph'); $gl.Text = [string][char]0xE73E; $gl.Foreground = $g.Window.FindResource('B.GoodFore'); $gl.Margin = New-Object System.Windows.Thickness(0)
+    $gl.Style = $g.Window.FindResource('CmdGlyph'); $gl.Text = [string][char]0xE73E; $gl.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, 'B.GoodFore'); $gl.Margin = New-Object System.Windows.Thickness(0)
     [void]$mark.Children.Add($gl)
     $b.Content = $mark
     $b.ToolTip = 'Copied to the clipboard'
@@ -1499,6 +1510,9 @@ function Invoke-MspkiGuiCommand {
         'actions' { Select-MspkiGuiTab -Index 0; Show-MspkiGuiAllActions }
         'score' { Select-MspkiGuiTab -Index 0; & $click $ui.BtnScoreHow }
         'options' { $ui.ExpOptions.IsExpanded = $true; [void]$ui.ExpOptions.Focus() }
+        'themeauto' { Set-MspkiGuiTheme -Mode Auto }
+        'themelight' { Set-MspkiGuiTheme -Mode Light }
+        'themedark' { Set-MspkiGuiTheme -Mode Dark }
         'copylog' { & $click $ui.BtnCopyLog; if (@($ui.LogList.Items).Count -gt 0) { [void](Show-MspkiGuiToast -Text 'The run log is on the clipboard.' -Tone Good) } }
     }
 }
@@ -1655,14 +1669,15 @@ function Initialize-MspkiGuiApplication {
         [Parameter(Mandatory = $true)][string]$ModulePath,
         [Parameter(Mandatory = $true)][string]$XamlPath,
         [Parameter(Mandatory = $true)][string]$OutputPath,
-        [string]$OpenResults = ''
+        [string]$OpenResults = '',
+        [ValidateSet('Auto', 'Light', 'Dark')][string]$Theme = 'Auto'
     )
     $w = New-MspkiGuiWindow -XamlPath $XamlPath
     $script:MspkiGui = @{
         Window = $w.Window; Ui = $w.Ui; ModulePath = $ModulePath; OutputRoot = $OutputPath
         Run = $null; Timer = $null; Data = $null; Summary = $null; Rows = (New-Object 'System.Collections.Generic.List[object]'); View = $null; RowById = @{}
         Chips = @(); MapPane = $null; LastExport = ''
-        Index = $null; PaletteItems = @(); PaletteFixed = @(); PaletteReturn = $null; PaletteTimer = $null; PaletteSilent = $false; PaletteOpenMs = 0; LastToast = ''; ObjRows = @(); ObjView = $null; ObjFilter = @{ Text = ''; Type = ''; Attention = $false }; Nav = @{}
+        Index = $null; PaletteItems = @(); PaletteFixed = @(); PaletteReturn = $null; PaletteTimer = $null; PaletteSilent = $false; PaletteOpenMs = 0; LastToast = ''; ThemeMode = $Theme; ThemeEffective = ''; ThemeTimer = $null; ForceReducedMotion = $false; ObjRows = @(); ObjView = $null; ObjFilter = @{ Text = ''; Type = ''; Attention = $false }; Nav = @{}
         Filter = @{ Text = ''; Status = @(); Category = ''; Confidence = ''; Severity = ''; Area = $null }
         Score = $null; Actions = $null; MapModel = $null; MapDrawn = $null; MapDrawnWidth = 0; MapAnimatePending = $false; MapTotalMs = 0
         Storyboard = $null; AreaFills = $null; ForceMotion = $false
@@ -1704,6 +1719,9 @@ function Initialize-MspkiGuiApplication {
     $g.Timer.Add_Tick({ try { Receive-MspkiGuiProgress } catch { [void](Invoke-MspkiGuiUnhandledError -Exception $_.Exception -Source 'timer') } })
 
     # Title bar caption buttons (in-box SystemCommands; the title bar itself is the WindowChrome caption area)
+    Set-MspkiGuiTheme -Mode $Theme -Force
+    Start-MspkiGuiThemeWatch
+    $ui.BtnTheme.Add_Click({ Switch-MspkiGuiTheme })
     $ui.BtnMin.Add_Click({ [System.Windows.SystemCommands]::MinimizeWindow($script:MspkiGui.Window) })
     $ui.BtnMax.Add_Click({
         $w = $script:MspkiGui.Window
@@ -1893,6 +1911,7 @@ function Initialize-MspkiGuiApplication {
     })
     $g.Window.Add_Closed({
         $s = $script:MspkiGui
+        if ($null -ne $s.ThemeTimer) { $s.ThemeTimer.Stop() }
         if ($null -ne $s.Timer) { $s.Timer.Stop() }
     })
 
