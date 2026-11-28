@@ -267,7 +267,23 @@
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <StackPanel Margin="20,16,20,20">
               <TextBlock Text="What was found" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-              <TextBox Text="{Binding Message, Mode=OneWay}" Style="{StaticResource ValueText}" FontSize="14"/>
+              <!-- D-18: the finding text folds to three lines; "Show more" opens it. -->
+              <TextBox Text="{Binding Message, Mode=OneWay}" FontSize="14">
+                <TextBox.Style>
+                  <Style TargetType="TextBox" BasedOn="{StaticResource ValueText}">
+                    <Setter Property="MaxHeight" Value="58"/>
+                    <Style.Triggers><DataTrigger Binding="{Binding IsChecked, ElementName=ChkMoreMsg}" Value="True"><Setter Property="MaxHeight" Value="100000"/></DataTrigger></Style.Triggers>
+                  </Style>
+                </TextBox.Style>
+              </TextBox>
+              <CheckBox x:Name="ChkMoreMsg" FocusVisualStyle="{StaticResource FocusRing}" Visibility="{Binding MessageIsLong, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0" AutomationProperties.Name="Show the whole finding text">
+                <CheckBox.Template>
+                  <ControlTemplate TargetType="CheckBox">
+                    <TextBlock x:Name="T" Text="Show more" Foreground="{DynamicResource B.Accent}" Cursor="Hand" FontSize="12"/>
+                    <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="T" Property="Text" Value="Show less"/></Trigger></ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </CheckBox.Template>
+              </CheckBox>
 
 
 
@@ -278,9 +294,8 @@
                   <StackPanel>
                     <TextBlock Text="{Binding DiagTitle}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap"/>
                     <TextBox Text="{Binding DiagSummary, Mode=OneWay}" Style="{StaticResource ValueText}" Margin="0,4,0,0"/>
-                    <TextBlock Text="{Binding DiagBasis}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                     <TextBlock Text="Probable causes, most likely first" Style="{StaticResource Label}" Margin="0,18,0,0"/>
-                    <ItemsControl ItemsSource="{Binding DiagCauses}" Focusable="False" Margin="0,2,0,0">
+                    <ItemsControl ItemsSource="{Binding DiagCauses}" Tag="CausesList" Focusable="False" Margin="0,2,0,0">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate>
                           <!-- A cause this run observed evidence for carries a quiet accent bar and the word "Observed". -->
@@ -332,10 +347,10 @@
                                         <Grid Margin="0,2,0,2">
                                           <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                           <CheckBox x:Name="ChkDone" IsChecked="{Binding Checked, Mode=OneWay}" Tag="{Binding ToggleTag}" VerticalAlignment="Top" Margin="0,0,10,0" ToolTip="Mark as checked (kept with this run)" AutomationProperties.Name="{Binding ToggleName}"/>
-                                          <TextBox Grid.Column="1" Text="{Binding Text, Mode=OneWay}" FontFamily="{StaticResource F.Mono}" FontSize="12" VerticalAlignment="Top" Margin="0,3,0,0">
+                                          <TextBox Grid.Column="1" Text="{Binding Text, Mode=OneWay}" FontSize="12" VerticalAlignment="Top" Margin="0,3,0,0">
                                             <TextBox.Style>
                                               <Style TargetType="TextBox" BasedOn="{StaticResource ValueText}">
-                                                <Style.Triggers><DataTrigger Binding="{Binding IsChecked, ElementName=ChkDone}" Value="True"><Setter Property="Foreground" Value="{DynamicResource B.Muted}"/></DataTrigger></Style.Triggers>
+                                                <Style.Triggers><DataTrigger Binding="{Binding IsCommand}" Value="True"><Setter Property="FontFamily" Value="{StaticResource F.Mono}"/></DataTrigger><DataTrigger Binding="{Binding IsChecked, ElementName=ChkDone}" Value="True"><Setter Property="Foreground" Value="{DynamicResource B.Muted}"/></DataTrigger></Style.Triggers>
                                               </Style>
                                             </TextBox.Style>
                                           </TextBox>
@@ -362,6 +377,8 @@
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <!-- D-18: the basis note under the causes, so the first cause is higher. -->
+                    <TextBlock Text="{Binding DiagBasis}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                     <TextBlock Text="{Binding CheckNote}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                     <TextBlock Text="Sources" Style="{StaticResource Label}" Margin="0,18,0,4"/>
                     <ItemsControl ItemsSource="{Binding DiagSourceItems}" Focusable="False">
@@ -884,7 +901,7 @@
           </Expander>
         </Border>
 
-        <ProgressBar x:Name="Progress" DockPanel.Dock="Top" Minimum="0" Maximum="100" Value="0" Visibility="Hidden" AutomationProperties.Name="Run progress"/>
+        <ProgressBar x:Name="Progress" Opacity="0" DockPanel.Dock="Top" Minimum="0" Maximum="100" Value="0" Visibility="Hidden" AutomationProperties.Name="Run progress"/>
 
         <!-- ===== Pages ===== -->
         <TabControl x:Name="Tabs">
@@ -930,6 +947,24 @@
                           <StackPanel>
                             <TextBlock Text="The last run ended without results" FontWeight="SemiBold" Foreground="{DynamicResource B.BadFore}"/>
                             <TextBlock x:Name="TxtWelcomeError" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            <!-- D-08: what it means, the likely causes with a read-only check each, and the next step as buttons. -->
+                            <TextBlock x:Name="TxtWelcomeErrorMeaning" TextWrapping="Wrap" Margin="0,8,0,0" Style="{StaticResource Small}"/>
+                            <TextBlock x:Name="TxtWelcomeErrorCausesLabel" Text="Likely causes, most common first" FontWeight="SemiBold" Margin="0,10,0,2"/>
+                            <ItemsControl x:Name="WelcomeErrorCauses" Focusable="False">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                  <StackPanel Margin="0,4,0,0">
+                                    <TextBlock TextWrapping="Wrap"><Run Text="&#x2022; "/><Run Text="{Binding Text, Mode=OneWay}"/></TextBlock>
+                                    <TextBlock Text="{Binding Check}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="10,1,0,0"/>
+                                  </StackPanel>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <WrapPanel Margin="0,12,0,0">
+                              <Button x:Name="BtnErrLog" Margin="0,0,8,0" Padding="12,0" AutomationProperties.Name="Open the run log"><StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8A5;"/><TextBlock Text="Open run log"/></StackPanel></Button>
+                              <Button x:Name="BtnErrRun" Margin="0,0,8,0" Padding="12,0" IsEnabled="{Binding IsEnabled, ElementName=BtnRun}" AutomationProperties.Name="Run again"><StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE768;"/><TextBlock Text="Run again"/></StackPanel></Button>
+                              <Button x:Name="BtnErrOptions" Padding="12,0" AutomationProperties.Name="Change the run options"><StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE713;"/><TextBlock Text="Change options"/></StackPanel></Button>
+                            </WrapPanel>
                           </StackPanel>
                         </DockPanel>
                       </Border>
@@ -958,6 +993,14 @@
                     <TextBlock Text="Overview" Style="{StaticResource PageTitle}" DockPanel.Dock="Top"/>
                     <TextBlock Text="Health of Active Directory Certificate Services as seen by this run." Style="{StaticResource PageSub}" Margin="0,2,0,0"/>
                   </DockPanel>
+                  <!-- D-02: which run is on show, above the score (an earlier run is never mistaken for today). -->
+                  <Border x:Name="NoteBar" Background="{DynamicResource B.InfoBack}" BorderBrush="{DynamicResource B.InfoLine}" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,16" Visibility="{Binding Visibility, ElementName=TxtNote}">
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{DynamicResource B.InfoFore}" VerticalAlignment="Top" Margin="4,1,10,0"/>
+                      <Button x:Name="BtnNoteRun" DockPanel.Dock="Right" Padding="14,0" Margin="16,-4,0,-4" VerticalAlignment="Center" Visibility="Collapsed" IsEnabled="{Binding IsEnabled, ElementName=BtnRun}" AutomationProperties.Name="Run the health check now" ToolTip="Start a new read-only run (F5)"><StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE768;"/><TextBlock Text="Run now"/></StackPanel></Button>
+                      <TextBlock x:Name="TxtNote" Visibility="Collapsed" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                    </DockPanel>
+                  </Border>
                   <!-- Mission control: the score, what the run says, what to do next, and the score of each area. -->
                   <Border x:Name="Banner" Style="{StaticResource Card}" Padding="24,20,20,16" Margin="0,0,0,16">
                     <Grid>
@@ -1014,7 +1057,7 @@
                             </TextBlock>
                             <TextBlock x:Name="TxtRunStage" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                           </DockPanel>
-                          <ProgressBar Height="4" Minimum="0" Maximum="100" Value="{Binding Value, ElementName=Progress, Mode=OneWay}" IsTabStop="False" AutomationProperties.Name="Run progress"/>
+                          <ProgressBar Visibility="Collapsed" Height="4" Minimum="0" Maximum="100" Value="{Binding Value, ElementName=Progress, Mode=OneWay}" IsTabStop="False" AutomationProperties.Name="Run progress"/>
                           <Grid Margin="0,12,0,0">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <TextBlock Text="Now checking" Style="{StaticResource Small}" Margin="0,0,8,0"/>
@@ -1093,13 +1136,6 @@
                     </StackPanel>
                   </Border>
 
-                  <Border Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,16" Visibility="{Binding Visibility, ElementName=TxtNote}">
-                    <DockPanel>
-                      <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{DynamicResource B.InfoFore}" VerticalAlignment="Top" Margin="4,1,10,0"/>
-                      <Button x:Name="BtnNoteRun" DockPanel.Dock="Right" Padding="14,0" Margin="16,-4,0,-4" VerticalAlignment="Center" Visibility="Collapsed" IsEnabled="{Binding IsEnabled, ElementName=BtnRun}" AutomationProperties.Name="Run the health check now" ToolTip="Start a new read-only run (F5)"><StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE768;"/><TextBlock Text="Run now"/></StackPanel></Button>
-                      <TextBlock x:Name="TxtNote" Visibility="Collapsed" TextWrapping="Wrap" VerticalAlignment="Center"/>
-                    </DockPanel>
-                  </Border>
 
                   <StackPanel x:Name="PanelSummaryRest">
                   <ItemsControl x:Name="KpiList" ItemTemplate="{StaticResource KpiTile}" Margin="0,0,-16,16" IsTabStop="False" Focusable="False">

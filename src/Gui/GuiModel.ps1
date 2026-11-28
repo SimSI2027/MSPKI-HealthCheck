@@ -93,7 +93,9 @@ function Get-MspkiGuiReadableName {
     # "Base CRL of Example CA"; "CN=web01.example.test" -> "web01.example.test"). The full name stays in the properties and in the copy text.
     param([AllowEmptyString()][AllowNull()][string]$Name)
     if (-not $Name) { return '' }
-    return [regex]::Replace($Name, '(?i)\bCN=((?:[^,\\]|\\.)+)(?:\s*,\s*(?:CN|OU|O|DC|L|S|ST|C)=(?:[^,\\]|\\.)+)*', '$1')
+    # The parts after the common name end at the next comma (CN, OU, O, L, S, ST, C) or at the first space (DC, never spaced), so a DN
+    # inside a sentence ("... DC=example at http://...") keeps the rest of the sentence.
+    return [regex]::Replace($Name, '(?i)\bCN=((?:[^,\\]|\\.)+?)(?=\s*,|\s*$|\s+(?:at|in|on|from|has|is|was|for|and|with)\b)(?:\s*,\s*(?:(?:CN|OU|O|L|ST|S|C)=(?:[^,=\\]|\\.)+?(?=\s*,|\s*$)|DC=[^,\s]+))*', '$1')
 }
 
 $script:MspkiGuiCategoryWord = @{ ADContainer = 'AD container'; ADContainerObjects = 'AD objects'; EnrollmentServices = 'Enrollment services'; LocalEvidence = 'This computer'; StaleReference = 'Stale reference' }

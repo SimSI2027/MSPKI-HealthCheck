@@ -140,6 +140,74 @@ function Get-MspkiGuiEmptyPane {
     return [pscustomobject][ordered]@{ Kind = 'None'; Title = ''; Text = $Text }
 }
 
+function Get-MspkiGuiRunErrorView {
+    <#
+    .SYNOPSIS
+    The error state of a run that ended without results (D-08): what it means and the likely causes with a read-only check each, ranked by
+    the knowledge base (the same topics as the findings), plus a timeout hint when the text says something timed out.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Problem = '', [int]$TimeoutSeconds = 0)
+    $code = 'INTERNAL_ERROR'
+    if ($Problem -match '(?i)access is denied|permission|0x80070005|unauthori[sz]ed') { $code = 'PERMISSION_DENIED' }
+    elseif ($Problem -match '(?i)domain controller|ldap|directory|rootdse|bind|not joined|forest') { $code = 'DIRECTORY_UNAVAILABLE' }
+    elseif ($Problem -match '(?i)timed? ?out') { $code = 'TIMEOUT' }
+    $f = [pscustomobject]@{ Id = 'run'; Status = 'Error'; StatusCode = $code; Category = 'Run'; Target = 'Run'; Message = $Problem; Evidence = @(); Sources = @(); Severity = 'None'; Confidence = 'Inferred' }
+    $d = $null
+    try { $d = Get-MspkiFindingDiagnosis -Finding $f -Recompute } catch { $d = $null }
+    $causes = New-Object System.Collections.ArrayList
+    $meaning = 'The run could not read what it needs to start, so there are no findings to show. Nothing was changed anywhere.'
+    if ($null -ne $d) {
+        $meaning = '{0}. {1}' -f ([string]$d.Title).TrimEnd('.'), [string]$d.Summary
+        foreach ($c in @($d.Causes | Select-Object -First 3)) {
+            [void]$causes.Add([pscustomobject]@{ Text = [string]$c.Cause; Check = ('Check (read-only): {0}' -f (@($c.Confirm) | Select-Object -First 1)) })
+        }
+    }
+    if ($Problem -match '(?i)timed? ?out') {
+        $t = $(if ($TimeoutSeconds -gt 0) { '{0} s' -f $TimeoutSeconds } else { 'set in Run options' })
+        [void]$causes.Add([pscustomobject]@{ Text = ('The timeout ({0}) is too short for this network (a slow VPN or a distant domain controller).' -f $t); Check = 'Change options: raise the timeout, then run again.' })
+    }
+    return [pscustomobject][ordered]@{ Meaning = $meaning; Causes = @($causes); HasCauses = ($causes.Count -gt 0) }
+}
+
+function Expand-MspkiGuiCheckText {
+    <#
+    .SYNOPSIS
+    A read-only check with its placeholders filled from what the finding itself says (D-17): <Url>, <Address>, <Host>, <Port>, <CAName>,
+    <CAHost>, <DomainDnsName>, <DomainController>, <TemplateName>, <ForestDN>. A placeholder the finding does not answer stays as it is.
+    The text is only shown and copied, never run.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Text, [AllowNull()]$Finding = $null, [string]$DomainController = '')
+    if (-not $Text -or $null -eq $Finding -or $Text -notmatch '<[A-Za-z]+>') { return $Text }
+    $v = @{}
+    $ep = [string]$Finding.Endpoint
+    $m = [regex]::Match($ep, '^(?i)(https?|ldaps?)://([^/:?#]*)(?::(\d+))?')
+    if ($m.Success) {
+        if ($ep -match '^(?i)https?://') { $v['Url'] = $ep; $v['Address'] = $ep }
+        if ($m.Groups[2].Value) { $v['Host'] = $m.Groups[2].Value }
+        $v['Port'] = $(if ($m.Groups[3].Value) { $m.Groups[3].Value } else { switch ($m.Groups[1].Value.ToLowerInvariant()) { 'https' { '443' } 'http' { '80' } 'ldaps' { '636' } default { '389' } } })
+    }
+    $cm = [regex]::Match($ep, '^(?:CA property \S+ of )?([A-Za-z0-9.-]+\.[A-Za-z0-9.-]+)\\(.+)$')
+    if ($cm.Success) { $v['CAHost'] = $cm.Groups[1].Value; $v['CAName'] = $cm.Groups[2].Value }
+    if (-not $v.ContainsKey('CAName') -and $Finding.RelatedCA) { $v['CAName'] = (Get-MspkiGuiReadableName -Name ([string]$Finding.RelatedCA)) -replace '^.*\\', '' }
+    if (-not $v.ContainsKey('CAName') -and [string]$Finding.Category -eq 'CA' -and $Finding.Target) { $v['CAName'] = Get-MspkiGuiReadableName -Name ([string]$Finding.Target) }
+    if (-not $v.ContainsKey('Host') -and [string]$Finding.Target -match '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$') { $v['Host'] = [string]$Finding.Target }
+    if ([string]$Finding.Category -eq 'Template' -and $Finding.Target) { $v['TemplateName'] = [string]$Finding.Target }
+    if ($Finding.Domain) { $v['DomainDnsName'] = [string]$Finding.Domain }
+    if ($Finding.Forest) { $v['ForestDN'] = ((([string]$Finding.Forest) -split '\.') | ForEach-Object { 'DC=' + $_ }) -join ',' }
+    if ($DomainController -and $DomainController -ne [string][char]0x2014) { $v['DomainController'] = $DomainController }
+    # A value with a space is quoted, so the line pastes as one argument.
+    return [regex]::Replace($Text, '"?<([A-Za-z]+)>"?', { param($x) $k = $x.Groups[1].Value; if ($v.ContainsKey($k) -and $v[$k]) { $s = [string]$v[$k]; if ($s -match '\s' -or $x.Value.StartsWith('"')) { '"' + $s + '"' } else { $s } } else { $x.Value } })
+}
+
+function Test-MspkiGuiCheckIsCommand {
+    # A check that is a command (Consolas) rather than a sentence (the body font): a lower-case tool name followed by a switch ("tool -x",
+    # "tool /x"), or a Verb-Noun cmdlet.
+    param([AllowEmptyString()][string]$Text)
+    return [bool]($Text -cmatch '^(?:[a-z][a-z0-9]+(?:\.exe)?\s+[-/][A-Za-z]|[A-Z][a-z]+-[A-Z][A-Za-z]+\b)')
+}
+
 function Test-MspkiGuiCauseSupported {
     <#
     .SYNOPSIS
@@ -167,7 +235,7 @@ function ConvertTo-MspkiGuiDiagnosisView {
     A $null diagnosis (a passing finding) gives HasDiagnosis = $false.
     #>
     [CmdletBinding()]
-    param([AllowNull()]$Diagnosis, [string[]]$CheckedKeys = @())
+    param([AllowNull()]$Diagnosis, [string[]]$CheckedKeys = @(), [AllowNull()]$Finding = $null, [string]$DomainController = '')
     $d = $Diagnosis
     if ($null -eq $d) {
         return [pscustomobject][ordered]@{ HasDiagnosis = $false; Title = ''; Summary = ''; BasisNote = ''; Causes = @(); SourceItems = @(); SourcesText = ''; CopyText = ''; ObservedCount = 0 }
@@ -182,7 +250,7 @@ function ConvertTo-MspkiGuiDiagnosisView {
     $causes = @(foreach ($c in @($d.Causes)) {
         $rank = [int]$c.Rank
         $because = @($c.Because | Where-Object { $_ })
-        $confirm = @($c.Confirm | Where-Object { $_ })
+        $confirm = @($c.Confirm | Where-Object { $_ } | ForEach-Object { Expand-MspkiGuiCheckText -Text ([string]$_) -Finding $Finding -DomainController $DomainController })
         $fix = @($c.Fix | Where-Object { $_ })
         $bt = (($because | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
         $supported = Test-MspkiGuiCauseSupported -Cause $c
@@ -192,7 +260,7 @@ function ConvertTo-MspkiGuiDiagnosisView {
             $key = '{0}:{1}' -f $rank, $i
             $short = [string]$t; if ($short.Length -gt 60) { $short = $short.Substring(0, 57) + '...' }
             [pscustomobject][ordered]@{
-                Key = $key; Text = [string]$t; Checked = $checked.ContainsKey($key)
+                Key = $key; Text = [string]$t; Checked = $checked.ContainsKey($key); IsCommand = (Test-MspkiGuiCheckIsCommand -Text ([string]$t))
                 CopyTag = ('copycheck:{0}:{1}' -f $rank, $i); ToggleTag = ('toggle:{0}:{1}' -f $rank, $i)
                 ToggleName = ('Mark as checked: {0}' -f $short); CopyName = ('Copy this check: {0}' -f $short)
             }
@@ -290,7 +358,8 @@ function Get-MspkiGuiFindingDetail {
     $title = Get-MspkiGuiFindingTitle -Finding $f
     $dg = $null
     try { $dg = Get-MspkiFindingDiagnosis -Finding $f } catch { $dg = $null }
-    $diag = ConvertTo-MspkiGuiDiagnosisView -Diagnosis $dg -CheckedKeys $CheckedKeys
+    $dcName = ''; if ($null -ne $script:MspkiGui -and $script:MspkiGui.ContainsKey('Summary') -and $null -ne $script:MspkiGui.Summary -and $null -ne $script:MspkiGui.Summary.PSObject.Properties['DomainController']) { $dcName = [string]$script:MspkiGui.Summary.DomainController }
+    $diag = ConvertTo-MspkiGuiDiagnosisView -Diagnosis $dg -CheckedKeys $CheckedKeys -Finding $f -DomainController $dcName
     $copy = New-Object 'System.Collections.Generic.List[string]'
     $copy.Add(('{0} [{1}] {2}' -f $f.Id, $f.Status, $title))
     $copy.Add([string]$f.Message)
@@ -318,6 +387,7 @@ function Get-MspkiGuiFindingDetail {
         ConfidencePill = (Get-MspkiGuiStatusPill -Value ([string]$f.Confidence) -Kind Confidence)
         Title          = $title
         Message        = (Get-MspkiGuiReadableName -Name (Format-MspkiGuiTextTimes -Text ([string]$f.Message)))
+        MessageIsLong  = (([string]$f.Message).Length -gt 170)
         Fields         = $fields
         Sources        = $sources
         Layers         = $layers

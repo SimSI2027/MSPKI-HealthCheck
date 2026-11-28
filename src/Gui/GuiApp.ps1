@@ -932,6 +932,9 @@ function Show-MspkiGuiResult {
     # A partial run is already called out in the health banner (text and state), so it gets no second note here.
     if ($notes.Count -gt 0) { $ui.TxtNote.Text = ($notes -join ' '); $ui.TxtNote.Visibility = 'Visible' }
     $ui.BtnNoteRun.Visibility = $(if ($notes.Count -gt 0 -and [bool]$g.NoteIsLoaded) { 'Visible' } else { 'Collapsed' })
+    # D-02: an earlier run says so in the headline too ("As of <when>").
+    $g.ShownAsOf = ''
+    if ([bool]$g.NoteIsLoaded -and $null -ne $Data.RunInfo) { $asOf = ConvertTo-MspkiGuiDateTime -Value $Data.RunInfo.StartedUtc; if ($null -ne $asOf) { $g.ShownAsOf = Format-MspkiGuiTime -Value $asOf } }
     $g.NoteIsLoaded = $false
     if ($s.Duration) { $ui.TxtElapsed.Text = 'Took {0}' -f $s.Duration } else { $ui.TxtElapsed.Text = '' }
 
@@ -992,7 +995,7 @@ function Open-MspkiGuiResultsFile {
     try {
         $data = Read-MspkiGuiResults -Path $Path
         $when = ConvertTo-MspkiGuiDateTime -Value $(if ($null -ne $data.RunInfo) { $data.RunInfo.StartedUtc } else { $null })
-        $banner = 'Showing an earlier run{0}, loaded from {1}. Nothing was scanned.' -f $(if ($null -ne $when) { ' from ' + $when.ToString('yyyy-MM-dd HH:mm') + ' UTC' } else { '' }), $data.ResultsPath
+        $banner = 'Earlier run{0}. Nothing was scanned: this is what that run saw ({1}).' -f $(if ($null -ne $when) { ' from ' + (Format-MspkiGuiTime -Value $when) } else { '' }), $data.ResultsPath
         $g.NoteIsLoaded = $true
         if ($data.Notice) { $banner = '{0} {1}' -f $banner, $data.Notice }
         Show-MspkiGuiResult -Data $data -Banner $banner
@@ -1227,14 +1230,33 @@ function Complete-MspkiGuiRun {
     else {
         Clear-MspkiGuiResult
         Set-MspkiGuiState -Text 'The run ended without results. See the Run log page.' -State Bad
-        $why = 'See the Run log page for the reason, then try again.'
-        if ($problem) { $why = '{0} See the Run log page for details, then try again.' -f $problem }
-        if ($cancelled) { $why = 'The run was cancelled before it produced results. Start it again when you are ready.' }
-        $ui.TxtWelcomeError.Text = $why
-        $ui.WelcomeError.Visibility = 'Visible'
-        if ($problem -and -not $g.CloseRequested) { Show-MspkiGuiMessage -Text ('The run stopped with an error: {0}' -f $problem) -Icon 'Error' }
+        Show-MspkiGuiRunError -Problem ([string]$problem) -Cancelled ([bool]$cancelled)
+        if ($problem -and -not $g.CloseRequested) { [void](Show-MspkiGuiToast -Title 'The run stopped with an error' -Text 'The Overview says what it means and what to try.' -Tone Bad) }
     }
     if ($g.CloseRequested) { $g.Window.Close() }
+}
+
+function Show-MspkiGuiRunError {
+    <#
+    .SYNOPSIS
+    The welcome card's error state after a run that ended without results (D-08): what happened, what it means, the likely causes
+    with a read-only check each, and buttons (Open run log, Run again, Change options).
+    #>
+    [CmdletBinding()]
+    param([string]$Problem = '', [bool]$Cancelled = $false)
+    $ui = $script:MspkiGui.Ui
+    $problem = $Problem; $cancelled = $Cancelled
+    $why = 'See the Run log page for the reason, then try again.'
+    if ($problem) { $why = '{0} See the Run log page for details, then try again.' -f $problem }
+    if ($cancelled) { $why = 'The run was cancelled before it produced results. Start it again when you are ready.' }
+    $ui.TxtWelcomeError.Text = $why
+    $tsec = 0; [void][int]::TryParse([string]$ui.TxtTimeout.Text, [ref]$tsec)
+    $ev = Get-MspkiGuiRunErrorView -Problem $(if ($cancelled) { '' } else { [string]$problem }) -TimeoutSeconds $tsec
+    $ui.TxtWelcomeErrorMeaning.Text = $(if ($cancelled) { '' } else { $ev.Meaning })
+    $ui.TxtWelcomeErrorMeaning.Visibility = $(if ($cancelled) { 'Collapsed' } else { 'Visible' })
+    $ui.WelcomeErrorCauses.ItemsSource = $(if ($cancelled) { @() } else { @($ev.Causes) })
+    $ui.TxtWelcomeErrorCausesLabel.Visibility = $(if (-not $cancelled -and $ev.HasCauses) { 'Visible' } else { 'Collapsed' })
+    $ui.WelcomeError.Visibility = 'Visible'
 }
 
 function Open-MspkiGuiPath {
@@ -1252,13 +1274,41 @@ function Open-MspkiGuiPath {
     catch { Show-MspkiGuiMessage -Text ('Could not open the {0}: {1}' -f $What, $_.Exception.Message) -Icon 'Warning' }
 }
 
+function Move-MspkiGuiPaneToCauses {
+    <#
+    .SYNOPSIS
+    Scrolls a details pane so that its first probable cause is at the top (D-18). Finds the causes list by its Tag in the pane's visual tree.
+    #>
+    [CmdletBinding()]
+    param([string]$HostName = 'FindingHost')
+    $hostCtl = $script:MspkiGui.Ui[$HostName]
+    if ($null -eq $hostCtl) { return }
+    $hostCtl.UpdateLayout()
+    $stack = New-Object System.Collections.Stack
+    $stack.Push($hostCtl)
+    $target = $null
+    while ($stack.Count -gt 0 -and $null -eq $target) {
+        $n = $stack.Pop()
+        if ($n -is [System.Windows.FrameworkElement] -and [string]$n.Tag -eq 'CausesList') { $target = $n; break }
+        $count = 0
+        try { $count = [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($n) } catch { $count = 0 }
+        for ($i = 0; $i -lt $count; $i++) { $stack.Push([System.Windows.Media.VisualTreeHelper]::GetChild($n, $i)) }
+    }
+    if ($null -eq $target) { return }
+    $sv = [System.Windows.Media.VisualTreeHelper]::GetParent($target)
+    while ($null -ne $sv -and $sv -isnot [System.Windows.Controls.ScrollViewer]) { $sv = [System.Windows.Media.VisualTreeHelper]::GetParent($sv) }
+    if ($null -eq $sv) { return }
+    $top = $target.TransformToAncestor($sv).Transform((New-Object System.Windows.Point(0, 0))).Y
+    $sv.ScrollToVerticalOffset([math]::Max(0, $sv.VerticalOffset + $top - 36))
+}
+
 function Show-MspkiGuiFinding {
     <#
     .SYNOPSIS
     Opens one finding in the Findings tab (clears the filters first so that the row is visible) and selects it.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string]$Id)
+    param([Parameter(Mandatory = $true)][string]$Id, [switch]$ToCauses)
     $g = $script:MspkiGui
     $ui = $g.Ui
     if (-not $g.RowById.ContainsKey($Id)) { return }
@@ -1269,6 +1319,8 @@ function Show-MspkiGuiFinding {
     $ui.FindingsGrid.SelectedItem = $row
     $ui.FindingsGrid.ScrollIntoView($row)
     $ui.FindingsGrid.Focus() | Out-Null
+    # D-18: opened from "What to do next", the pane starts at the first cause (its first check is a click away, no scroll).
+    if ($ToCauses) { [void]$ui.FindingHost.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Loaded, [System.Action]{ Move-MspkiGuiPaneToCauses -HostName 'FindingHost' }) }
 }
 
 function Show-MspkiGuiFilteredStatus {
@@ -1826,6 +1878,9 @@ function Initialize-MspkiGuiApplication {
     $ui.BtnOpenResults.Add_Click({ Invoke-MspkiGuiOpenDialog })
     $ui.BtnWelcomeOpen.Add_Click({ Invoke-MspkiGuiOpenDialog })
     $ui.BtnNoteRun.Add_Click({ Start-MspkiGuiRun })
+    $ui.BtnErrRun.Add_Click({ Start-MspkiGuiRun })
+    $ui.BtnErrLog.Add_Click({ Select-MspkiGuiTab -Index 7 })
+    $ui.BtnErrOptions.Add_Click({ $u = $script:MspkiGui.Ui; $u.ExpOptions.IsExpanded = $true; [void]$u.TxtTimeout.Focus(); $u.TxtTimeout.SelectAll() })
     $g.Window.Add_Activated({ try { Update-MspkiGuiReportButton } catch { $null = $_ } })
     $ui.BtnOpenReport.Add_Click({
         $d = $script:MspkiGui.Data
@@ -1898,7 +1953,7 @@ function Initialize-MspkiGuiApplication {
     $ui.KpiList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t -and $t.StartsWith('type:')) { Show-MspkiGuiObjectsOfType -Type $t.Substring(5) } })
     $ui.CaList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t -and $t.StartsWith('ent:')) { Show-MspkiGuiObject -Id $t.Substring(4) } })
     # Mission control: actions open their finding (causes and checks), area bars filter the Findings page, the map redraws on resize.
-    $ui.ActionList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFinding -Id $t } })
+    $ui.ActionList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFinding -Id $t -ToCauses } })
     $ui.CoverageList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFinding -Id $t } })
     $ui.AreaPanel.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Show-MspkiGuiArea -Tag (& $script:MspkiGuiTagOf $e) })
     $ui.BtnAllActions.Add_Click({ Switch-MspkiGuiActionList })
@@ -1944,6 +1999,8 @@ function Initialize-MspkiGuiApplication {
         param($sender, $e)
         if ($e.OriginalSource -ne $sender) { return }
         $u = $script:MspkiGui.Ui
+        # D-28: on the Overview the live ring and stage line show the progress; the thin top bar is for the other pages.
+        $u.Progress.Opacity = $(if ($u.Tabs.SelectedItem -eq $u.TabSummary) { 0.0 } else { 1.0 })
         if ($u.Tabs.SelectedItem -eq $u.TabHistory) { Update-MspkiGuiHistoryPage }
         if ($u.Tabs.SelectedItem -eq $u.TabLog) {
             [void]$u.LogList.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [System.Action]{ Update-MspkiGuiLogView -Scroll })

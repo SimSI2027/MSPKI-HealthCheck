@@ -5,7 +5,7 @@ BeforeAll {
     . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
     Import-Module $script:ModulePath -Force
     $gui = Join-Path $script:RepoRoot 'src\Gui'
-    foreach ($n in 'GuiModel.ps1', 'GuiView.ps1', 'GuiEntity.ps1') { . (Join-Path $gui $n) }
+    foreach ($n in 'GuiModel.ps1', 'GuiView.ps1', 'GuiEntity.ps1', 'GuiMission.ps1') { . (Join-Path $gui $n) }
     $script:Design = Get-Content -Raw -LiteralPath (Join-Path $script:RepoRoot 'docs\GUI-DESIGN.md')
     function New-TestFinding { param([string]$Status, [string]$Code = 'OK', [string]$Category = 'CRL', [string]$Target = 'CN=Example Issuing CA, DC=corp, DC=example, DC=test', [string]$Endpoint = '', [string]$Message = 'm')
         [pscustomobject]@{ Id = 'F1'; Status = $Status; StatusCode = $Code; Category = $Category; Target = $Target; Endpoint = $Endpoint; Message = $Message; Severity = 'None'; Confidence = 'Confirmed'; Sources = @('AD:CDP') }
@@ -126,5 +126,51 @@ Describe 'GUI files never define the same function twice' {
                 $seen[$n] = $f.Name
             }
         }
+    }
+}
+
+Describe 'D-02 / D-24 / D-25 / D-08: the Overview says which run, why the score, and what to do after an error' {
+    It 'starts the headline of an earlier run with its date' {
+        $a = [pscustomobject]@{ Total = 2; Items = @([pscustomobject]@{ Title = 'A CRL has expired' }) }
+        Get-MspkiGuiHeadline -Actions $a -AsOf '20 Nov 2026, 09:29 UTC' | Should -Be 'As of 20 Nov 2026, 09:29 UTC: 2 actions need attention. Most urgent: A CRL has expired.'
+        Get-MspkiGuiHeadline -Actions $a | Should -Not -Match '^As of'
+    }
+    It 'names the area that holds the overall score down, and says "not scored" for an empty area' {
+        $f = @(
+            [pscustomobject]@{ Id = 'F1'; Status = 'Critical'; Severity = 'High'; Category = 'CRL'; StatusCode = 'EXPIRED' }
+            [pscustomobject]@{ Id = 'F2'; Status = 'Critical'; Severity = 'High'; Category = 'CRL'; StatusCode = 'EXPIRED' }
+            [pscustomobject]@{ Id = 'F3'; Status = 'Pass'; Severity = 'None'; Category = 'CA'; StatusCode = 'OK' }
+            [pscustomobject]@{ Id = 'F4'; Status = 'Pass'; Severity = 'None'; Category = 'ADContainer'; StatusCode = 'OK' }
+            [pscustomobject]@{ Id = 'F5'; Status = 'Pass'; Severity = 'None'; Category = 'CES'; StatusCode = 'OK' }
+        )
+        $s = Get-MspkiGuiHealthScore -Findings $f
+        $s.HasScore | Should -BeTrue
+        $s.HeldText | Should -Match '^Held down by .+ \(\d+\)$'
+        $s.HeldTip | Should -Match 'weakest area \+ 30'
+    }
+    It 'explains a run that ended without results with ranked causes and read-only checks' {
+        $v = Get-MspkiGuiRunErrorView -Problem 'The domain controller could not be reached (LDAP bind timed out after 5 s).' -TimeoutSeconds 5
+        $v.Meaning | Should -Not -BeNullOrEmpty
+        @($v.Causes).Count | Should -BeGreaterOrEqual 3
+        @($v.Causes | Where-Object { $_.Text -match 'timeout \(5 s\)' }).Count | Should -Be 1
+        foreach ($c in @($v.Causes)) { $c.Check | Should -Match '^(Check \(read-only\)|Change options)' }
+    }
+}
+
+Describe 'D-17 / readable text: checks ready to paste, names without DNs, the rest of the sentence kept' {
+    It 'shortens a DN inside a sentence without eating the rest of it' {
+        Get-MspkiGuiReadableName -Name 'Base CRL of CN=Example Issuing CA, DC=corp, DC=example, DC=test at http://pki.example.test/x.crl has expired (17 Nov 2026).' |
+            Should -Be 'Base CRL of Example Issuing CA at http://pki.example.test/x.crl has expired (17 Nov 2026).'
+        Get-MspkiGuiReadableName -Name 'CN=Example CA, OU=PKI, O=Example Org, C=US' | Should -Be 'Example CA'
+        Get-MspkiGuiReadableName -Name 'CN=Enrollment Services,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=example,DC=test' | Should -Be 'Enrollment Services'
+    }
+    It 'fills the placeholders a finding answers and leaves the others' {
+        $f = [pscustomobject]@{ Endpoint = 'http://pki.example.test/cdp/Example%20CA.crl'; Target = 'CN=Example CA'; Category = 'CRL'; RelatedCA = ''; Domain = 'corp.example.test'; Forest = 'example.test' }
+        Expand-MspkiGuiCheckText -Text 'certutil -URL <Url>' -Finding $f | Should -Be 'certutil -URL http://pki.example.test/cdp/Example%20CA.crl'
+        Expand-MspkiGuiCheckText -Text 'Test-NetConnection <Host> -Port <Port>' -Finding $f | Should -Be 'Test-NetConnection pki.example.test -Port 80'
+        Expand-MspkiGuiCheckText -Text 'nltest /dsgetdc:<DomainDnsName>' -Finding $f | Should -Be 'nltest /dsgetdc:corp.example.test'
+        Expand-MspkiGuiCheckText -Text 'look at <TemplateName>' -Finding $f | Should -Be 'look at <TemplateName>'
+        Test-MspkiGuiCheckIsCommand -Text 'certutil -URL x' | Should -BeTrue
+        Test-MspkiGuiCheckIsCommand -Text 'On the CA (owner): Application log' | Should -BeFalse
     }
 }

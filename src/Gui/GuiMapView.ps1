@@ -104,8 +104,10 @@ function Update-MspkiGuiScoreView {
     $ui.ScorePartial.Visibility = $(if ($Score.Partial -and $Score.HasScore) { 'Visible' } else { 'Collapsed' })
     [System.Windows.Automation.AutomationProperties]::SetName($ui.ScorePartial, [string]$Score.PartialText)
     $ui.ScoreBand.ToolTip = $(if ($Score.HasScore) { $Score.HowText } else { $Score.Reason })
-    $ui.TxtScoreReason.Text = $(if ($Score.HasScore) { '' } else { [string]$Score.Reason })
-    $ui.TxtScoreReason.Visibility = $(if ($Score.HasScore) { 'Collapsed' } else { 'Visible' })
+    # D-24: when the cap holds the overall down, say which area does it, in the first screen.
+    $ui.TxtScoreReason.Text = $(if ($Score.HasScore) { [string]$Score.HeldText } else { [string]$Score.Reason })
+    $ui.TxtScoreReason.Visibility = $(if (-not $Score.HasScore -or $Score.HeldText) { 'Visible' } else { 'Collapsed' })
+    $ui.TxtScoreReason.ToolTip = $(if ($Score.HasScore -and $Score.HeldTip) { [string]$Score.HeldTip } else { $null })
 
     $ui.AreaPanel.Children.Clear()
     $g.AreaFills = New-Object System.Collections.ArrayList
@@ -118,7 +120,7 @@ function Update-MspkiGuiScoreView {
         $b.ToolTip = $(if ($a.Count -gt 0) { '{0}: {1}. Select to see these findings.' -f $a.Name, $a.Detail } else { '{0}: no finding in this run belongs to this area.' -f $a.Name })
         [System.Windows.Automation.AutomationProperties]::SetName($b, [string]$a.AccessibleName)
         $grid = New-Object System.Windows.Controls.Grid
-        foreach ($w in @(20, 128, -1, 36)) {
+        foreach ($w in @(20, 128, -1, 68)) {
             $cd = New-Object System.Windows.Controls.ColumnDefinition
             $cd.Width = $(if ($w -lt 0) { New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star) } else { New-Object System.Windows.GridLength($w) })
             $grid.ColumnDefinitions.Add($cd)
@@ -149,6 +151,8 @@ function Update-MspkiGuiScoreView {
         }
         $sc = New-Object System.Windows.Controls.TextBlock
         $sc.Text = [string]$a.ScoreText; $sc.FontWeight = 'SemiBold'; $sc.HorizontalAlignment = 'Right'; $sc.VerticalAlignment = 'Center'
+        # D-25: an area without findings says "not scored" in words, quietly, with the reason in the row tooltip.
+        if ($null -eq $a.Score) { $sc.Text = 'not scored'; $sc.FontWeight = 'Normal'; $sc.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, 'B.Muted') }
         # The bar and its number appear together in the build animation.
         [void]$g.AreaFills.Add([pscustomobject]@{ Fill = $(if ($null -ne $a.Score) { $fill } else { $null }); Text = $sc })
         [System.Windows.Controls.Grid]::SetColumn($sc, 3)
@@ -592,7 +596,7 @@ function Update-MspkiGuiMission {
     Update-MspkiGuiScoreView -Score $g.Score
     Update-MspkiGuiActionView -Actions $g.Actions
     # The headline: one sentence that answers "is my PKI healthy?" (journey J2).
-    $ui.BannerTitle.Text = Get-MspkiGuiHeadline -Health $(if ($null -ne $g.Summary) { $g.Summary.Health } else { $null }) -Actions $g.Actions -Score $g.Score -Completed $completed -HasCa $hasCa
+    $ui.BannerTitle.Text = Get-MspkiGuiHeadline -Health $(if ($null -ne $g.Summary) { $g.Summary.Health } else { $null }) -Actions $g.Actions -Score $g.Score -Completed $completed -HasCa $hasCa -AsOf ([string]$g.ShownAsOf)
     $status = @{}
     foreach ($f in $findings) { $status[[string]$f.Id] = [string]$f.Status }
     # The map is computed by the background map worker (GuiMapPage.ps1); a new generation drops anything still pending for the last results.

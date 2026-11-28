@@ -101,7 +101,7 @@ function Get-MspkiGuiHealthScore {
     $how = 'How it is scored: each area starts at 100. A failure costs 20 points, a critical finding 35 and a warning 6 (high severity x1.4, low x0.6); every 40 points halve the area''s score. The overall score is the average of the areas, at most 30 above the weakest one. Checks that could not run cost nothing but make the score partial. It summarises the findings; it is not a certification.'
     $result = [ordered]@{
         HasScore = $false; Overall = $null; OverallText = [string][char]0x2014; Band = ''; Tone = 'Neutral'; Glyph = ''
-        Partial = $partial; PartialText = ''; Reason = ''; Areas = @($areas); HowText = $how
+        Partial = $partial; PartialText = ''; Reason = ''; Areas = @($areas); HowText = $how; HeldText = ''; HeldTip = ''
     }
     if (-not $HasCa) { $result.Reason = 'No Enterprise CA was found, so there is nothing to score.' }
     elseif ($scored.Count -eq 0) { $result.Reason = 'No finding in this run can be scored.' }
@@ -112,6 +112,12 @@ function Get-MspkiGuiHealthScore {
         $b = Get-MspkiGuiScoreBand -Score $overall
         $result.HasScore = $true; $result.Overall = $overall; $result.OverallText = [string]$overall
         $result.Band = $b.Band; $result.Tone = $b.Tone; $result.Glyph = $b.Glyph
+        # D-24: the cap is the most confusing part of the number; name the area that holds the overall down.
+        if ([math]::Round($mean) -gt $overall) {
+            $weak = @($scored | Sort-Object -Property @{ Expression = { [double]$_.Score } }, Name)[0]
+            $result.HeldText = ('Held down by {0} ({1})' -f $weak.Name, $weak.Score)
+            $result.HeldTip = ('The overall score is at most the weakest area + 30, so {0} at {1} holds it at {2} (the average of the areas is {3}).' -f $weak.Name, $weak.Score, $overall, [int][math]::Round($mean))
+        }
     }
     if ($partial) {
         $nc = (@($areas | ForEach-Object { $_.NotChecked }) | Measure-Object -Sum).Sum
@@ -188,7 +194,9 @@ function Get-MspkiGuiHeadline {
     Get-MspkiGuiNextAction; -Score from Get-MspkiGuiHealthScore.
     #>
     [CmdletBinding()]
-    param($Health = $null, $Actions = $null, $Score = $null, [bool]$Completed = $true, [bool]$HasCa = $true)
+    param($Health = $null, $Actions = $null, $Score = $null, [bool]$Completed = $true, [bool]$HasCa = $true, [string]$AsOf = '')
+    # D-02: an earlier run on show says when it is from, first.
+    if ($AsOf) { $h = Get-MspkiGuiHeadline -Health $Health -Actions $Actions -Score $Score -Completed $Completed -HasCa $HasCa; return ('As of {0}: {1}' -f $AsOf, ($h.Substring(0, 1).ToLowerInvariant() + $h.Substring(1))) }
     $fallback = $(if ($null -ne $Health -and $Health.Title) { [string]$Health.Title } else { 'Overview' })
     if (-not $HasCa) { return 'No Enterprise CA was found' }
     $total = $(if ($null -ne $Actions) { [int]$Actions.Total } else { 0 })

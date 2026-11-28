@@ -396,7 +396,7 @@ function Invoke-MspkiGuiSnapshot {
 
         # A run that ended without results.
         Clear-MspkiGuiResult
-        $ui.TxtWelcomeError.Text = 'The domain controller could not be reached (LDAP bind timed out after 5 s). See the Run log page for details, then try again.'
+        Show-MspkiGuiRunError -Problem 'The domain controller could not be reached (LDAP bind timed out after 5 s).'
         $ui.WelcomeError.Visibility = 'Visible'
         Set-MspkiGuiState -Text 'The run ended without results. See the Run log page.' -State Bad
         & $shot '04-error'
@@ -462,7 +462,7 @@ function Invoke-MspkiGuiSnapshot {
             # marked as checked and a copy button answering "Copied". The copy frame shows the mark only: the snapshot never touches the clipboard.
             $act = @(@($ui.ActionList.ItemsSource) | Where-Object { $_ -and $_.Tag }) | Select-Object -First 1
             if ($null -ne $act -and $g.RowById.ContainsKey([string]$act.Tag)) {
-                Show-MspkiGuiFinding -Id ([string]$act.Tag)
+                Show-MspkiGuiFinding -Id ([string]$act.Tag) -ToCauses
                 Wait-MspkiGuiIdle -Rounds 3
                 & $shot '23-walkthrough'
                 $walk = {
