@@ -98,6 +98,26 @@ analysers. The generator in `docs/DEMO-SITE.md` (DS3) replaces it with results t
 samples too, derived from the mixed sample by the developer-only `tools/dev/New-MspkiDemoLifecycleSample.ps1` (idempotent; it also adds the CRL
 objects the mixed sample's findings already describe). They feed the Timeline and Chain snapshots (GX7). The DS3 generator replaces all three.
 
+## Demo clock and PKI material (DS2)
+The world runs at a fixed **demo clock: 20 Nov 2026, 09:00 UTC** (`site/world/pki/pki.json`, `DemoClock`), so nothing looks expired unless a
+scenario wants it to. `tools/dev/demo-site/New-MspkiWorldPki.ps1` (developer-only, Windows PowerShell 5.1) creates the public material once with
+throw-away keys that exist only in memory; the DER files and `pki.json` (subject, issuer, thumbprint, dates and role of each file) are committed.
+`tests/DemoGenerator.Tests.ps1` verifies every certificate and CRL with the engine's own signature code and checks that the forged root
+verifies nothing.
+
+| Files | What they are |
+|---|---|
+| `lodestar-root.cer`, `lodestar-root.crl` | the root (5 years, no CDP or AIA) and its base CRL (0x12) |
+| `meridian-g0.cer`, `meridian-g1.cer` | the issuing CA's older (V0.0) and current (V1.1) generations, 11 days apart, LDAP-only URLs |
+| `meridian.crl`, `meridian+.crl` | the issuing CA's base (0x2B) and delta (0x2C) CRLs |
+| `meridian-healthy.cer`, `ground-web-rdp-healthy.cer`, `root-ca-tls-healthy.cer` | `healthy`: HTTP first, LDAP second; the PKI web host's HTTPS certificate |
+| `meridian-expired-crl.crl`, `meridian-expired-delta.crl` | `expired-crl`: base 0x29 three days past Next Update, its delta |
+| `meridian-g2.cer`, `meridian-g2.crl`, `meridian-expired.cer` | `renewal-drift`: a third generation (V2.2) and an expired one still published |
+| `zenith.cer`, `zenith.crl` | `mixed-sample`: the flight-operations issuing CA |
+| `lodestar-forged.cer` | `forged-aia`: the root's name with another key |
+| `ground-web-rdp.cer`, `ground-web-tls.cer` | this computer's RDP certificate and web certificate (SAN with the dead `telemetry` alias) |
+| `scep-gateway-tls.cer`, `ndes-ra-signing.cer`, `ndes-ra-encryption.cer` | the NDES gateway's HTTPS certificate and its registration authority certificates |
+
 ## Rules for this world
 1. Use it in documentation examples, screenshots, the demo site and `demo/`. Tests and `tests/fixtures/` keep `example.test`.
 2. A new role is added to the tables above first, in the same style, then used.

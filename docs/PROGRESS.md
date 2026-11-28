@@ -657,3 +657,13 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   nothing was tested; the Error status is "check failed" everywhere (headline counts, grouped actions). Tests in GuiConsistency.
 - Not done (needs the owner or a physical setup): an independent discriminator session (single-agent rule), real high-contrast and maximised
   frames, keyboard-focus frames (WPF draws focus visuals only after real key input). Open IDs: D-09 centring, D-34, D-46, D-47.
+
+## GX11 open items and DS2 (2026-11-28)
+- D-34 (map tree follows the pane's trail) and the rest of D-09 (Overview card opens on the CA columns, captions pinned) fixed and
+  tested (b3ba5f1); REVIEW-GX §8 updated. D-46 and D-47 stay open (not cheap). Hygiene: a host match that continues into ".exa" is a
+  cut-off reserved name in prose (the GX11 notes quoted "pki28.corp.exa..."), not a host.
+- Full suite before that commit: 1831 passed; three timing budgets failed only while the runner held 10 GB (the suite took 672 s) and
+  pass alone. Watch the runner's memory (see the Pester memory note).
+- DS2: `tools/dev/demo-site/New-MspkiWorldPki.ps1` writes `site/world/pki` (15 certificates, 7 CRLs, `pki.json`; demo clock 20 Nov 2026
+  09:00 UTC; keys in memory only). `tests/DemoGenerator.Tests.ps1` verifies each object with the engine's signature code by key id.
+- Next: DS1 (clock and run-identity seams in the engine, the boundary list, the simulated boundary, the baseline world) and DS3.

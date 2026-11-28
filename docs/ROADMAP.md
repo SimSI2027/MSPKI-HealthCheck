@@ -130,7 +130,7 @@ Plan: `docs/DEMO-SITE.md`. World: `docs/DEMO-WORLD.md`.
 | WP | Scope (build order) | Status |
 |---|---|---|
 | DS1 | Simulation boundary and world fixture format (baseline scenario) | TODO |
-| DS2 | World PKI material (certificates and CRLs); developer tool in `tools/dev/` (owner approved 2026-11-23, CLAUDE.md rule added) | TODO |
+| DS2 | World PKI material (certificates and CRLs); developer tool in `tools/dev/` (owner approved 2026-11-23, CLAUDE.md rule added) | DONE (2026-11-28; 15 certificates, 7 CRLs, verified with the engine) |
 | DS3 | Generator: real engine per scenario, recorded events, manifest, guards | TODO |
 | DS4 | Site shell, design tokens generated from Theme.xaml | TODO |
 | DS5 | Scenario view: mission control, map replay, findings, details with the walkthrough | TODO |
