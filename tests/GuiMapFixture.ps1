@@ -1,9 +1,10 @@
 # Test helper: a generated LARGE environment (results.json format 2) for the discovery map, the Map page and the performance guards.
 # Only reserved example.test names. Deterministic: the same parameters always give the same document.
 # Dot-source it, then: $doc = New-MspkiTestLargeResults -CaCount 8 -EndpointCount 60 -ObjectCount 300
+# -WithLifecycle (GX7) adds an older generation per issuing CA and a base and delta CRL per current key, each with copies at the CA and at its CDP addresses.
 
 function New-MspkiTestLargeResults {
-    param([int]$CaCount = 8, [int]$EndpointCount = 60, [int]$ObjectCount = 300, [int]$HostCount = 0, [switch]$WithUnreadCa)
+    param([int]$CaCount = 8, [int]$EndpointCount = 60, [int]$ObjectCount = 300, [int]$HostCount = 0, [switch]$WithUnreadCa, [switch]$WithLifecycle)
     $dom = 'corp.example.test'
     $dc = 'DC=corp,DC=example,DC=test'
     $ents = New-Object System.Collections.ArrayList
@@ -72,6 +73,45 @@ function New-MspkiTestLargeResults {
         $st = $(if ($e % 9 -eq 4) { 'Fail' } elseif ($e % 5 -eq 2) { 'Warning' } else { 'Pass' })
         & $addF $kind $st @($eid) ('{0} address {1} checked.' -f $kind, $e) $url
     }
+    $obs = New-Object System.Collections.ArrayList
+    if ($WithLifecycle) {
+        # Times around the run (2026-11-20T09:00Z); some CRLs expired, some copies older, so every tone appears.
+        $k = 0
+        foreach ($ca in $readCas) {
+            $cur = $caCert[$ca]
+            $old = $cur + '-old'
+            $nm = ($ca -split '\\')[1]
+            & $addE $old 'CACertificate' ('CN={0}, {1}' -f $nm, $dc) @{ Subject = ('CN={0}, {1}' -f $nm, $dc); Issuer = 'root'; Role = 'EnterpriseSubordinate'; CAName = $nm; Lifecycle = 'Historical'; Generation = 'V0.0'; NotBefore = '2019-01-01T00:00:00Z'; NotAfter = '2024-01-01T00:00:00Z' }
+            & $addR $old 'certificateOf' $ca
+            & $addR $cur 'supersedes' $old
+            $cdps = @($rels | Where-Object { $_.From -eq $cur -and $_.Type -eq 'references' } | ForEach-Object { $_.To } | Where-Object { $_ -like '*crl*' -or $_ -like 'endpoint:ldap*' })
+            foreach ($delta in $false, $true) {
+                $cid = 'crl:issuing{0:00}:{1}' -f $k, $(if ($delta) { 'delta' } else { 'base' })
+                $tu = [datetime]'2026-11-14T08:00:00Z'; $nu = $tu.AddDays(7); if ($delta) { $tu = [datetime]'2026-11-19T20:00:00Z'; $nu = $tu.AddHours(26) }
+                if (-not $delta -and $k % 5 -eq 3) { $tu = $tu.AddDays(-5); $nu = $nu.AddDays(-5) }
+                $num = '{0:X2}' -f (40 + $k)
+                $f = 'yyyy-MM-ddTHH:mm:ssZ'
+                & $addE $cid 'CRL' ('{0} CRL of {1}' -f $(if ($delta) { 'Delta' } else { 'Base' }), $nm) @{ Issuer = ('CN={0}, {1}' -f $nm, $dc); IsDelta = $delta; CrlNumber = $num; ThisUpdate = $tu.ToString($f); NextUpdate = $nu.ToString($f); NextPublish = $nu.AddHours(-12).ToString($f) }
+                & $addR $cid 'signedBy' $cur
+                [void]$obs.Add([pscustomobject]@{ EntityId = $cid; Kind = 'Seen'; Source = 'CA'; Location = ('ca{0:00}\{1}' -f $k, $nm); Confidence = 'Confirmed'; Detail = ('The CA''s own current CRL: number {0}, this update {1}, next update {2}' -f $num, $tu.ToString($f), $nu.ToString($f)); Timestamp = '' })
+                $j = 0
+                foreach ($ep in $cdps) {
+                    $url = @($ents | Where-Object { $_.Id -eq $ep })[0].Properties.Url
+                    $cn = $num; $ct = $tu; $cx = $nu
+                    if ($j % 3 -eq 2) { $cn = '{0:X2}' -f (39 + $k); $ct = $tu.AddDays(-7); $cx = $nu.AddDays(-7) }
+                    if ($j % 4 -eq 3) { [void]$obs.Add([pscustomobject]@{ EntityId = $cid; Kind = 'ExpectedMissing'; Source = 'HTTP'; Location = $url; Confidence = 'Confirmed'; Detail = 'Named in CDP of a certificate; not retrieved from this location.'; Timestamp = '' }) }
+                    else { [void]$obs.Add([pscustomobject]@{ EntityId = $cid; Kind = 'Seen'; Source = 'HTTP'; Location = $url; Confidence = 'Confirmed'; Detail = ('CRL number {0}, this update {1}, next update {2}' -f $cn, $ct.ToString($f), $cx.ToString($f)); Timestamp = '' }); & $addR $cid 'publishedAt' $ep }
+                    $j++
+                }
+            }
+            $k++
+        }
+        foreach ($r in $rootCert) {
+            $cid = 'crl:' + ($r -replace '^cacert:', '') + ':base'
+            & $addE $cid 'CRL' ('Base CRL of {0}' -f $r) @{ IsDelta = $false; CrlNumber = '0A'; ThisUpdate = '2026-06-01T00:00:00Z'; NextUpdate = '2027-06-01T00:00:00Z' }
+            & $addR $cid 'signedBy' $r
+        }
+    }
     $n = 0
     while ($ents.Count -lt $ObjectCount) {
         if ($n % 3 -eq 0) { & $addE ('template:t{0:000}' -f $n) 'Template' ('Template{0:000}' -f $n) @{ SchemaVersion = 2 }; & $addR ('template:t{0:000}' -f $n) 'enrollsVia' $readCas[$n % $readCas.Count] }
@@ -82,7 +122,7 @@ function New-MspkiTestLargeResults {
     $run = [pscustomobject]@{ RunId = '00000000-0000-4000-8000-000000000500'; Tool = 'MSPKI Health Check'; ToolVersion = '0.1.0'; StartedUtc = '2026-11-20T09:00:00Z'; FinishedUtc = '2026-11-20T09:02:00Z'; Completed = $true; ComputerName = 'CLIENT01'; UserContext = 'CORP\tester'; IsAdmin = $false; Forest = $dom; Domain = $dom; DomainController = ('dc01.' + $dom); Parameters = [pscustomobject]@{ TimeoutSeconds = '5'; SkipNetwork = 'False' }; StageTimings = @(); Methods = @(); Limits = @() }
     return [pscustomobject]@{
         Schema = 'mspki-healthcheck/2'; SchemaVersion = 2; RunInfo = $run; ExitCode = 2; Summary = $null; Inventory = $inv
-        Graph = [pscustomobject]@{ SchemaVersion = 2; Counts = $null; Entities = @($ents); Observations = @(); Relations = @($rels) }
+        Graph = [pscustomobject]@{ SchemaVersion = 2; Counts = $null; Entities = @($ents); Observations = @($obs); Relations = @($rels) }
         Findings = @($finds)
     }
 }

@@ -167,8 +167,13 @@ things worth trying, and what you should see:
    opens with its walkthrough. Press F6 a few times: the focus moves between the navigation, the command bar, the list and the details.
    Press Ctrl+K again, type `services`, Enter: the PKI services page. Press Ctrl+K and Esc: the cursor is back where it was. Export the
    findings (Ctrl+K, `export`): a notice appears at the bottom right instead of a Windows message box.
+11. **Timeline (Ctrl+4).** Open **Timeline**. It opens on what runs out first, selected and open on the right. Check against what you know:
+   each CA certificate's end date (Certificates), each CRL's next update (CRLs, with "Copies at each address" on: one row per address
+   that served it; an older copy at one address is the thing to look for), and that the "As of the run" date is the time of the run, not today.
+   Choose **Chain**: the chain from a certificate on this computer up to its root; every address says what the run got from it. Select a
+   row or an address: it opens on the right, and Alt+Left goes back.
 
-If something looks wrong, tell us which of the ten it was and what you saw, and send `run.log` from that run (see "What to
+If something looks wrong, tell us which of the eleven it was and what you saw, and send `run.log` from that run (see "What to
 send back"). Please do not send screenshots or the result files: they contain real names.
 
 ## What the tool does and does not do

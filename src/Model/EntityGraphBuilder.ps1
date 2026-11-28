@@ -519,7 +519,9 @@ function Add-MspkiFindingEntityLink {
 }
 
 function Set-MspkiCrlEntityDate {
-    # Keeps the newest CRL seen (highest CRL number) on the CRL entity: number, this update and next update (UTC, ISO 8601).
+    # Keeps the newest CRL seen (highest CRL number) on the CRL entity: number, this update, next update and, when the CRL carries the
+    # Microsoft "Next CRL Publish" extension, when the CA plans to publish the next one (UTC, ISO 8601). The window's timeline draws the
+    # overlap from Next CRL Publish to Next Update.
     param([string]$Id, $Crl)
     $e = Get-MspkiEntity -Id $Id
     if ($null -eq $e -or $null -eq $Crl) { return }
@@ -528,4 +530,6 @@ function Set-MspkiCrlEntityDate {
     $e.Properties['CrlNumber'] = [string]$Crl.CrlNumber
     $e.Properties['ThisUpdate'] = Format-MspkiGraphDate $Crl.ThisUpdate
     $e.Properties['NextUpdate'] = Format-MspkiGraphDate $Crl.NextUpdate
+    if ($null -ne $Crl.PSObject.Properties['NextPublish'] -and $null -ne $Crl.NextPublish) { $e.Properties['NextPublish'] = Format-MspkiGraphDate $Crl.NextPublish }
+    elseif ($e.Properties.Contains('NextPublish')) { $e.Properties.Remove('NextPublish') }
 }

@@ -17,7 +17,8 @@ $script:MspkiGuiMapTypeChoices = @(
 function Start-MspkiGuiMapWorker {
     <#
     .SYNOPSIS
-    Opens the background runspace that computes map models and layouts (GuiModel.ps1 and GuiMap.ps1 only: pure functions, no I/O).
+    Opens the background runspace that computes map models and layouts, and the timeline's rows (GuiModel, GuiView, GuiMap and GuiLifecycle:
+    pure functions, no I/O).
     Returns $false when it cannot be started; the window then computes the map inline.
     #>
     [CmdletBinding()]
@@ -29,7 +30,7 @@ function Start-MspkiGuiMapWorker {
         $rs.Open()
         $ps = [powershell]::Create()
         $ps.Runspace = $rs
-        [void]$ps.AddScript('param($Folder) foreach ($f in @(''GuiModel.ps1'', ''GuiMap.ps1'')) { . (Join-Path $Folder $f) }; $global:MspkiMapCache = @{}').AddArgument($script:MspkiGuiFolder)
+        [void]$ps.AddScript('param($Folder) foreach ($f in @(''GuiModel.ps1'', ''GuiView.ps1'', ''GuiMap.ps1'', ''GuiLifecycle.ps1'')) { . (Join-Path $Folder $f) }; $global:MspkiMapCache = @{}').AddArgument($script:MspkiGuiFolder)
         $g.MapWorker = $rs
         $g.MapJob = @{ PS = $ps; Async = $ps.BeginInvoke(); Request = @{ Kind = 'Init'; Gen = -1 }; Started = [DateTime]::Now }
         $g.MapTimer.Start()
@@ -54,7 +55,7 @@ function Request-MspkiGuiMapJob {
     request of each kind wins; the result is drawn when it arrives (results of an older generation are dropped).
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][ValidateSet('Overview', 'Page')][string]$Kind, [double]$Width = 0, [hashtable]$Options = @{})
+    param([Parameter(Mandatory = $true)][ValidateSet('Overview', 'Page', 'Timeline')][string]$Kind, [double]$Width = 0, [hashtable]$Options = @{})
     $g = $script:MspkiGui
     $req = @{ Kind = $Kind; Gen = [int]$g.MapGen; Width = $Width; Options = $Options; Asked = [DateTime]::Now }
     $g.MapQueue[$Kind] = $req
@@ -75,7 +76,7 @@ function Start-MspkiGuiMapNextJob {
     $g = $script:MspkiGui
     if ($null -ne $g.MapJob) { return }
     $req = $null
-    foreach ($k in @('Overview', 'Page')) { if ($g.MapQueue.ContainsKey($k)) { $req = $g.MapQueue[$k]; $g.MapQueue.Remove($k); break } }
+    foreach ($k in @('Overview', 'Page', 'Timeline')) { if ($g.MapQueue.ContainsKey($k)) { $req = $g.MapQueue[$k]; $g.MapQueue.Remove($k); break } }
     if ($null -eq $req) { return }
     $ps = [powershell]::Create()
     $ps.Runspace = $g.MapWorker
@@ -118,6 +119,7 @@ function Complete-MspkiGuiMapJob {
     param([Parameter(Mandatory = $true)]$Result, [Parameter(Mandatory = $true)][hashtable]$Request)
     $g = $script:MspkiGui
     if ([int]$Result.Gen -ne [int]$g.MapGen) { return }
+    if ($Request.Kind -eq 'Timeline') { Complete-MspkiGuiTimelineJob -Result $Result; return }
     $g.MapPerf.LastLayoutMs = [int]$Result.LayoutMs; $g.MapPerf.LastModelMs = [int]$Result.ModelMs
     if ($Request.Kind -eq 'Overview') {
         $g.MapBase = $Result.Base

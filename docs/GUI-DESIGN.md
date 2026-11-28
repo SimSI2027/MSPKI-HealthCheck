@@ -352,6 +352,31 @@ Known, accepted: link hover text and node hover cards are tooltips (popups are n
 the issuing column, and such long links can pass behind a label box (the box hides them, by design); the generated estate's random host assignment keeps many crossings
 (the count still goes down: 6694 to 6028); generator and discriminator are the same model.
 
+### GX7 round 1 (2026-11-28; Timeline page: Certificates, CRLs and Chain views; Alcyone `expired-crl` and `renewal-drift` samples; light at 1360 x 860; frames 35 CRLs, 35a certificates, 35b range 3 months, 35c a row opened, 35d Back, 35e chain, 35f an address of the chain opened)
+Scores: A1 8, A2 8, A3 7, A4 8, A5 7, A6 7, A7 8, A8 7, A9 7, A10 7; B1 8, B2 8, B3 7, B4 8, B5 8; C1 8, C2 8, C3 8, C4 7. **Not a pass.**
+Defects: (1) CA names cut in the group rows ("Alcyone Meridian Issuin...", A10); (2) in Certificates the CA pill said Failing because of its CRL (A8, honesty of
+the view); (3) "Runs out first" listed CRLs in the Certificates view (A8); (4) "Replaced · expired 2 years 6 months ag" cut (A10); (5) the leaf card of the chain was
+green while every CDP address failed (A8); (6) the chain's start was cut in its box (A10); (7) the details pane showed raw property names ("CAVersion", "Crl Number")
+and ISO times ("2026-11-17T08:00:00Z") and a distinguished name as the heading (A3, B3); (8) a month axis said "2027" between "Dec 2026" and "Feb 2027" (A3); (9) the page
+subtitle left "it." alone on a line (A2).
+Generator: group titles wrap (two lines at most); each view has its own CA status and its own "runs out first"; a replaced generation's countdown uses the largest unit;
+a card whose CDP addresses all fail is failing, some failing or warning is a warning; the chain's start fills the toolbar, name first, full text in its tooltip; pane
+property names in sentence case with the usual acronyms (one helper), UTC times as "17 Nov 2026, 08:00 UTC", headings use the common name (the DN stays in the properties);
+months always carry their year; subtitle shortened.
+
+### GX7 round 2 (same frames, plus dark at minimum size (renewal-drift), light at 150 % (expired-crl), and a real lab run kept under out\ only)
+First pass of the round: (1) at minimum size "Copies at each address" was cut (the toolbar no longer wrapped, A5); (2) the last date of the axis was cut at the right edge
+(A10); (3) on the lab run, a root that could not be read showed "Could not check" in the CRLs view although its CRLs were read from AD (A8); (4) "Issued by · 0 of 1 AIA
+addresses served it" above an address that served it with a warning (A8, B3); (5) the run's line crossed a date label (A10); (6) a CA card whose only CDP answered with a
+warning was shown failing (A8).
+Generator: the range and copies wrap again and the chain's start overlays them in the Chain view; date labels that would be cut, crowd the one before, or sit under the
+run's line are left out (the tick stays) and the axis is redrawn when the lane's width changes; "could not check" per view only when that view has nothing read (the CA row's
+tooltip says the CA itself was not read); an address with a warning served the issuer ("its AIA address served it, with a warning"); only all-failing CDPs fail a card.
+Scores after the fixes: A1 9, A2 8, A3 8, A4 8, A5 8, A6 8, A7 8, A8 9, A9 8, A10 8; B1 8, B2 8, B3 8, B4 8, B5 9; C1 8, C2 9, C3 8, C4 8. **PASS** (scope: the Timeline
+page in its three views, the details pane's properties and headings everywhere).
+Known, accepted: a long copy title ("Active Directory (LDAP) · ...") and a long chain start are cut with the full text in the tooltip; the root's own CDP (a root that names
+one) is shown as it is; the CRL heartbeat of a CA this run could not read appears only when its CRLs were read elsewhere; generator and discriminator are the same model.
+
 ## 8. Icon meanings (one table for the whole window; GX6 audit)
 One glyph means one thing everywhere: status pills, badges on map nodes and links, banners, toasts, the status bar and the palette. Icons
 are Segoe Fluent Icons with Segoe MDL2 Assets as the fallback; colour is never the only signal (the word or the tooltip is always there).
@@ -363,7 +388,7 @@ are Segoe Fluent Icons with Segoe MDL2 Assets as the fallback; colour is never t
 | lock | E72E | Could not check: permission denied, or a CA whose properties could not be read | Admin | pills, map badges |
 | error badge | E783 | The check itself failed (Error status) | Admin | pills |
 | stopwatch | E916 | Timed out | Warn / Bad | pills, coverage rows |
-| clock | E823 | Days left before an expiry | Warn / Bad | CA card pills |
+| clock | E823 | Days left before an expiry; a countdown ("Expires in", "Next update in", "As of the run") | Warn / Bad (Neutral on the as-of pill) | CA card pills, timeline countdowns, validity pills |
 | check mark | E73E | Pass, done, confirmed, copied | Good | pills, status bar, copy buttons |
 | info | E946 | Information: a note, an earlier run loaded, a hint; never a problem | Info | banners, status bar, toasts, pills |
 | sync | E895 | Running / updating | Info | status bar, run hero, "Updating the map" |
@@ -372,7 +397,9 @@ are Segoe Fluent Icons with Segoe MDL2 Assets as the fallback; colour is never t
 | dash | E738 | Not applicable, not tested, not scored | Neutral | pills |
 | skip | E7E8 | Skipped | Neutral | pills, coverage |
 Object glyphs (no status): CA EB95, address E774, web host E968, directory E8D4, address group E8B7 (the group shows its count instead), map E81E,
-tree E8A4. Commands: run E768, open E8E5, folder E838, export E896 (CSV) and EB9F (image), copy E8C8, search E721, zoom in E8A3, zoom out E71F, fit E9A6.
+tree E8A4, timeline page E787 (calendar), Certificates view EB95 (the CA glyph), CRLs view E81C (history), Chain view E71B
+(link), certificate on this computer E8D7 (key). Commands: run E768, open E8E5, folder E838, export E896 (CSV) and EB9F (image), copy E8C8, search E721, zoom in E8A3, zoom out
+E71F, fit E9A6.
 
 ## 9. Terms (use these words, and only these)
 | Say | Not | Meaning |
@@ -388,3 +415,9 @@ tree E8A4. Commands: run E768, open E8E5, folder E838, export E896 (CSV) and EB9
 | run | scan | one health check |
 | Discovery map | graph, topology | the page and the Overview card |
 | Explain cards | tooltips | the "What it is" notes (GX9 adds the glossary) |
+| runs out / expires | lapses, EOL | the end of a certificate's validity (Not After) or a CRL's Next Update, counted from the run |
+| next update | NextUpdate | when a CRL stops being valid; "next publish" is when the CA writes the next one (the overlap between them is drawn) |
+| copy (of a CRL) | replica, instance | the CRL as one address (or the CA itself) served it; copies can differ |
+| chain | path, trust path | from a certificate up to its root, with the result of each AIA and CDP address |
+| as of the run | now, today | every countdown counts from the time the run read the data, not from today |
+| replaced | historical, superseded | an older CA certificate generation that a newer one replaced |

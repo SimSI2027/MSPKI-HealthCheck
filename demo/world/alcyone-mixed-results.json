@@ -621,21 +621,21 @@
     "Graph":  {
                   "SchemaVersion":  2,
                   "Counts":  {
-                                 "Entities":  43,
-                                 "Observations":  58,
-                                 "Relations":  47,
+                                 "Entities":  47,
+                                 "Observations":  66,
+                                 "Relations":  56,
                                  "ExpectedMissing":  14,
                                  "ByType":  {
                                                 "Forest":  1,
                                                 "Domain":  3,
                                                 "CA":  2,
                                                 "CACertificate":  3,
-                                                "CRL":  0,
+                                                "CRL":  3,
                                                 "Endpoint":  10,
                                                 "Host":  9,
                                                 "Service":  2,
                                                 "Template":  5,
-                                                "LocalCertificate":  0,
+                                                "LocalCertificate":  1,
                                                 "ADObject":  8,
                                                 "Account":  0,
                                                 "RACertificate":  0
@@ -756,7 +756,8 @@
                                                           "NotAfter":  "2036-09-12T08:00:00Z",
                                                           "NotBefore":  "2016-09-12T08:00:00Z",
                                                           "Role":  "StandaloneRoot",
-                                                          "Subject":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example"
+                                                          "Subject":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
+                                                          "SubjectKeyId":  "6F708192A3B4C5D6E7F809101112131415161718"
                                                       }
                                    },
                                    {
@@ -772,7 +773,9 @@
                                                           "NotAfter":  "2024-05-02T10:00:00Z",
                                                           "NotBefore":  "2019-05-02T10:00:00Z",
                                                           "Role":  "EnterpriseSubordinate",
-                                                          "Subject":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example"
+                                                          "Subject":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
+                                                          "SubjectKeyId":  "5E6F708192A3B4C5D6E7F8091011121314151617",
+                                                          "AuthorityKeyId":  "6F708192A3B4C5D6E7F809101112131415161718"
                                                       }
                                    },
                                    {
@@ -788,7 +791,9 @@
                                                           "NotAfter":  "2029-05-02T10:00:00Z",
                                                           "NotBefore":  "2024-05-02T10:00:00Z",
                                                           "Role":  "EnterpriseSubordinate",
-                                                          "Subject":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example"
+                                                          "Subject":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
+                                                          "SubjectKeyId":  "4D5E6F708192A3B4C5D6E7F80910111213141516",
+                                                          "AuthorityKeyId":  "6F708192A3B4C5D6E7F809101112131415161718"
                                                       }
                                    },
                                    {
@@ -1253,6 +1258,70 @@
                                        "Name":  "WorkstationAuthentication",
                                        "Properties":  {
                                                           "CommonName":  "WorkstationAuthentication"
+                                                      }
+                                   },
+                                   {
+                                       "Id":  "localcert:9a8b7c6d5e4f30211203f4e5d6c7b8a99a8b7c6d",
+                                       "Type":  "LocalCertificate",
+                                       "Name":  "CN=ground-web.alcyone-orbital.example",
+                                       "Properties":  {
+                                                          "DnsNames":  [
+                                                                           "ground-web.alcyone-orbital.example"
+                                                                       ],
+                                                          "Issuer":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
+                                                          "NotAfter":  "2027-03-14T09:12:00Z",
+                                                          "NotBefore":  "2026-03-14T09:12:00Z",
+                                                          "Origin":  "Group Policy (Remote Desktop certificate template)",
+                                                          "Stores":  [
+                                                                         "Cert:\\LocalMachine\\My"
+                                                                     ],
+                                                          "Subject":  "CN=ground-web.alcyone-orbital.example",
+                                                          "Template":  "Alcyone-RDPServerAuth"
+                                                      }
+                                   },
+                                   {
+                                       "Id":  "crl:6f708192a3b4c5d6e7f809101112131415161718:base",
+                                       "Type":  "CRL",
+                                       "Name":  "Base CRL of CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
+                                       "Properties":  {
+                                                          "AuthorityKeyId":  "6F708192A3B4C5D6E7F809101112131415161718",
+                                                          "CAVersion":  "V0.0",
+                                                          "CrlNumber":  "0C",
+                                                          "IsDelta":  false,
+                                                          "Issuer":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
+                                                          "NextUpdate":  "2027-06-01T08:00:00Z",
+                                                          "ThisUpdate":  "2026-06-01T08:00:00Z",
+                                                          "NextPublish":  "2027-05-01T08:00:00Z"
+                                                      }
+                                   },
+                                   {
+                                       "Id":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base",
+                                       "Type":  "CRL",
+                                       "Name":  "Base CRL of CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
+                                       "Properties":  {
+                                                          "AuthorityKeyId":  "4D5E6F708192A3B4C5D6E7F80910111213141516",
+                                                          "CAVersion":  "V0.0",
+                                                          "CrlNumber":  "42",
+                                                          "IsDelta":  false,
+                                                          "Issuer":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
+                                                          "NextUpdate":  "2026-11-25T10:00:00Z",
+                                                          "ThisUpdate":  "2026-11-18T22:00:00Z",
+                                                          "NextPublish":  "2026-11-24T22:00:00Z"
+                                                      }
+                                   },
+                                   {
+                                       "Id":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:delta",
+                                       "Type":  "CRL",
+                                       "Name":  "Delta CRL of CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
+                                       "Properties":  {
+                                                          "AuthorityKeyId":  "4D5E6F708192A3B4C5D6E7F80910111213141516",
+                                                          "CAVersion":  "V0.0",
+                                                          "CrlNumber":  "44",
+                                                          "IsDelta":  true,
+                                                          "Issuer":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
+                                                          "NextUpdate":  "2026-11-20T13:53:00Z",
+                                                          "ThisUpdate":  "2026-11-19T12:53:00Z",
+                                                          "NextPublish":  "2026-11-20T12:53:00Z"
                                                       }
                                    }
                                ],
@@ -1778,6 +1847,78 @@
                                            "Confidence":  "Referenced",
                                            "Detail":  "certificateTemplates of Alcyone Meridian Issuing CA",
                                            "Timestamp":  "2026-11-22T05:40:43Z"
+                                       },
+                                       {
+                                           "EntityId":  "localcert:9a8b7c6d5e4f30211203f4e5d6c7b8a99a8b7c6d",
+                                           "Kind":  "Seen",
+                                           "Source":  "LocalStore",
+                                           "Location":  "Cert:\\LocalMachine\\My",
+                                           "Confidence":  "Confirmed",
+                                           "Detail":  "valid until 2027-03-14T09:12:00Z",
+                                           "Timestamp":  "2026-11-20T09:31:00Z"
+                                       },
+                                       {
+                                           "EntityId":  "crl:6f708192a3b4c5d6e7f809101112131415161718:base",
+                                           "Kind":  "Seen",
+                                           "Source":  "HTTP",
+                                           "Location":  "https://pki.alcyone-orbital.example/cdp/Alcyone%20Lodestar%20Root%20CA.crl",
+                                           "Confidence":  "Confirmed",
+                                           "Detail":  "CRL number 0C, this update 2026-06-01T08:00:00Z, next update 2027-06-01T08:00:00Z",
+                                           "Timestamp":  "2026-11-20T09:31:00Z"
+                                       },
+                                       {
+                                           "EntityId":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base",
+                                           "Kind":  "Seen",
+                                           "Source":  "CA",
+                                           "Location":  "issuing-ca.vault.alcyone-orbital.example\\Alcyone Meridian Issuing CA",
+                                           "Confidence":  "Confirmed",
+                                           "Detail":  "The CA\u0027s own current CRL: number 42, this update 2026-11-18T22:00:00Z, next update 2026-11-25T10:00:00Z",
+                                           "Timestamp":  "2026-11-20T09:31:00Z"
+                                       },
+                                       {
+                                           "EntityId":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base",
+                                           "Kind":  "Seen",
+                                           "Source":  "LDAP",
+                                           "Location":  "ldap:///CN=Alcyone%20Meridian%20Issuing%20CA,CN=issuing-ca,CN=CDP,CN=Public%20Key%20Services,CN=Services,CN=Configuration,DC=alcyone-orbital,DC=example?certificateRevocationList?base?objectClass=cRLDistributionPoint",
+                                           "Confidence":  "Confirmed",
+                                           "Detail":  "CRL number 42, this update 2026-11-18T22:00:00Z, next update 2026-11-25T10:00:00Z",
+                                           "Timestamp":  "2026-11-20T09:31:00Z"
+                                       },
+                                       {
+                                           "EntityId":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base",
+                                           "Kind":  "Seen",
+                                           "Source":  "HTTP",
+                                           "Location":  "http://pki.alcyone-orbital.example/cdp/Alcyone%20Meridian%20Issuing%20CA.crl",
+                                           "Confidence":  "Confirmed",
+                                           "Detail":  "CRL number 42, this update 2026-11-18T22:00:00Z, next update 2026-11-25T10:00:00Z",
+                                           "Timestamp":  "2026-11-20T09:31:00Z"
+                                       },
+                                       {
+                                           "EntityId":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base",
+                                           "Kind":  "Seen",
+                                           "Source":  "HTTP",
+                                           "Location":  "http://pki-dr.alcyone-orbital.example/cdp/Alcyone%20Meridian%20Issuing%20CA.crl",
+                                           "Confidence":  "Confirmed",
+                                           "Detail":  "CRL number 41, this update 2026-11-11T22:00:00Z, next update 2026-11-25T10:00:00Z",
+                                           "Timestamp":  "2026-11-20T09:31:00Z"
+                                       },
+                                       {
+                                           "EntityId":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:delta",
+                                           "Kind":  "Seen",
+                                           "Source":  "CA",
+                                           "Location":  "issuing-ca.vault.alcyone-orbital.example\\Alcyone Meridian Issuing CA",
+                                           "Confidence":  "Confirmed",
+                                           "Detail":  "The CA\u0027s own current CRL: number 44, this update 2026-11-19T12:53:00Z, next update 2026-11-20T13:53:00Z",
+                                           "Timestamp":  "2026-11-20T09:31:00Z"
+                                       },
+                                       {
+                                           "EntityId":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:delta",
+                                           "Kind":  "Seen",
+                                           "Source":  "HTTP",
+                                           "Location":  "http://pki.alcyone-orbital.example/cdp/Alcyone%20Meridian%20Issuing%20CA+.crl",
+                                           "Confidence":  "Confirmed",
+                                           "Detail":  "CRL number 43, this update 2026-11-19T08:53:00Z, next update 2026-11-20T09:53:00Z",
+                                           "Timestamp":  "2026-11-20T09:31:00Z"
                                        }
                                    ],
                   "Relations":  [
@@ -1964,15 +2105,6 @@
                                     {
                                         "From":  "cacert:3c4d5e6f708192a3b4c5d6e7f809101112131415",
                                         "Type":  "references",
-                                        "To":  "endpoint:ldap:///cn=alcyone meridian issuing ca,cn=issuing-ca,cn=cdp,cn=public key services,cn=services,cn=configuration,dc=alcyone-orbital,dc=example?certificaterevocationlist?base?objectclass=crldistributionpoint",
-                                        "Sources":  [
-                                                        "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:CDP"
-                                                    ],
-                                        "Confidence":  "Confirmed"
-                                    },
-                                    {
-                                        "From":  "cacert:3c4d5e6f708192a3b4c5d6e7f809101112131415",
-                                        "Type":  "references",
                                         "To":  "endpoint:ldap:///cn=alcyone lodestar root ca,cn=aia,cn=public key services,cn=services,cn=configuration,dc=alcyone-orbital,dc=example?cacertificate?base?objectclass=certificationauthority",
                                         "Sources":  [
                                                         "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:AIA"
@@ -1994,24 +2126,6 @@
                                         "To":  "endpoint:web://pki.alcyone-orbital.example/aia/alcyone lodestar root ca.crt",
                                         "Sources":  [
                                                         "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:AIA"
-                                                    ],
-                                        "Confidence":  "Confirmed"
-                                    },
-                                    {
-                                        "From":  "cacert:3c4d5e6f708192a3b4c5d6e7f809101112131415",
-                                        "Type":  "references",
-                                        "To":  "endpoint:web://pki.alcyone-orbital.example/cdp/alcyone meridian issuing ca.crl",
-                                        "Sources":  [
-                                                        "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:CDP"
-                                                    ],
-                                        "Confidence":  "Confirmed"
-                                    },
-                                    {
-                                        "From":  "cacert:3c4d5e6f708192a3b4c5d6e7f809101112131415",
-                                        "Type":  "references",
-                                        "To":  "endpoint:web://pki-dr.alcyone-orbital.example/cdp/alcyone meridian issuing ca.crl",
-                                        "Sources":  [
-                                                        "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:CDP"
                                                     ],
                                         "Confidence":  "Confirmed"
                                     },
@@ -2201,6 +2315,114 @@
                                         "To":  "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca",
                                         "Sources":  [
                                                         "AD:EnrollmentServices:certificateTemplates"
+                                                    ],
+                                        "Confidence":  "Confirmed"
+                                    },
+                                    {
+                                        "From":  "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca",
+                                        "Type":  "references",
+                                        "To":  "endpoint:ldap:///cn=alcyone meridian issuing ca,cn=issuing-ca,cn=cdp,cn=public key services,cn=services,cn=configuration,dc=alcyone-orbital,dc=example?certificaterevocationlist?base?objectclass=crldistributionpoint",
+                                        "Sources":  [
+                                                        "CA:Alcyone Meridian Issuing CA:CertCdpUrls"
+                                                    ],
+                                        "Confidence":  "Referenced"
+                                    },
+                                    {
+                                        "From":  "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca",
+                                        "Type":  "references",
+                                        "To":  "endpoint:web://pki-dr.alcyone-orbital.example/cdp/alcyone meridian issuing ca.crl",
+                                        "Sources":  [
+                                                        "CA:Alcyone Meridian Issuing CA:CertCdpUrls"
+                                                    ],
+                                        "Confidence":  "Referenced"
+                                    },
+                                    {
+                                        "From":  "cacert:3c4d5e6f708192a3b4c5d6e7f809101112131415",
+                                        "Type":  "references",
+                                        "To":  "endpoint:web://pki.alcyone-orbital.example/cdp/alcyone lodestar root ca.crl",
+                                        "Sources":  [
+                                                        "Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:CDP"
+                                                    ],
+                                        "Confidence":  "Confirmed"
+                                    },
+                                    {
+                                        "From":  "localcert:9a8b7c6d5e4f30211203f4e5d6c7b8a99a8b7c6d",
+                                        "Type":  "issuedBy",
+                                        "To":  "cacert:3c4d5e6f708192a3b4c5d6e7f809101112131415",
+                                        "Sources":  [
+                                                        "Certificate:AuthorityKeyIdentifier"
+                                                    ],
+                                        "Confidence":  "Confirmed"
+                                    },
+                                    {
+                                        "From":  "crl:6f708192a3b4c5d6e7f809101112131415161718:base",
+                                        "Type":  "signedBy",
+                                        "To":  "cacert:1a2b3c4d5e6f708192a3b4c5d6e7f80910111213",
+                                        "Sources":  [
+                                                        "CRL:AuthorityKeyIdentifier"
+                                                    ],
+                                        "Confidence":  "Confirmed"
+                                    },
+                                    {
+                                        "From":  "crl:6f708192a3b4c5d6e7f809101112131415161718:base",
+                                        "Type":  "publishedAt",
+                                        "To":  "endpoint:web://pki.alcyone-orbital.example/cdp/alcyone lodestar root ca.crl",
+                                        "Sources":  [
+                                                        "HTTP"
+                                                    ],
+                                        "Confidence":  "Confirmed"
+                                    },
+                                    {
+                                        "From":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base",
+                                        "Type":  "signedBy",
+                                        "To":  "cacert:3c4d5e6f708192a3b4c5d6e7f809101112131415",
+                                        "Sources":  [
+                                                        "CRL:AuthorityKeyIdentifier"
+                                                    ],
+                                        "Confidence":  "Confirmed"
+                                    },
+                                    {
+                                        "From":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base",
+                                        "Type":  "publishedAt",
+                                        "To":  "endpoint:ldap:///cn=alcyone meridian issuing ca,cn=issuing-ca,cn=cdp,cn=public key services,cn=services,cn=configuration,dc=alcyone-orbital,dc=example?certificaterevocationlist?base?objectclass=crldistributionpoint",
+                                        "Sources":  [
+                                                        "LDAP"
+                                                    ],
+                                        "Confidence":  "Confirmed"
+                                    },
+                                    {
+                                        "From":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base",
+                                        "Type":  "publishedAt",
+                                        "To":  "endpoint:web://pki.alcyone-orbital.example/cdp/alcyone meridian issuing ca.crl",
+                                        "Sources":  [
+                                                        "HTTP"
+                                                    ],
+                                        "Confidence":  "Confirmed"
+                                    },
+                                    {
+                                        "From":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base",
+                                        "Type":  "publishedAt",
+                                        "To":  "endpoint:web://pki-dr.alcyone-orbital.example/cdp/alcyone meridian issuing ca.crl",
+                                        "Sources":  [
+                                                        "HTTP"
+                                                    ],
+                                        "Confidence":  "Confirmed"
+                                    },
+                                    {
+                                        "From":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:delta",
+                                        "Type":  "signedBy",
+                                        "To":  "cacert:3c4d5e6f708192a3b4c5d6e7f809101112131415",
+                                        "Sources":  [
+                                                        "CRL:AuthorityKeyIdentifier"
+                                                    ],
+                                        "Confidence":  "Confirmed"
+                                    },
+                                    {
+                                        "From":  "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:delta",
+                                        "Type":  "publishedAt",
+                                        "To":  "endpoint:web://pki.alcyone-orbital.example/cdp/alcyone meridian issuing ca+.crl",
+                                        "Sources":  [
+                                                        "HTTP"
                                                     ],
                                         "Confidence":  "Confirmed"
                                     }
@@ -3023,7 +3245,8 @@
                          "EntityIds":  [
                                            "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca",
                                            "endpoint:web://pki.alcyone-orbital.example/cdp/alcyone meridian issuing ca.crl",
-                                           "host:pki.alcyone-orbital.example"
+                                           "host:pki.alcyone-orbital.example",
+                                           "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base"
                                        ]
                      },
                      {
@@ -3066,7 +3289,8 @@
                          "EntityIds":  [
                                            "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca",
                                            "endpoint:web://pki-dr.alcyone-orbital.example/cdp/alcyone meridian issuing ca.crl",
-                                           "host:pki-dr.alcyone-orbital.example"
+                                           "host:pki-dr.alcyone-orbital.example",
+                                           "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base"
                                        ]
                      },
                      {
@@ -3105,7 +3329,8 @@
                          "Notes":  "",
                          "EntityIds":  [
                                            "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca",
-                                           "endpoint:ldap:///cn=alcyone meridian issuing ca,cn=issuing-ca,cn=cdp,cn=public key services,cn=services,cn=configuration,dc=alcyone-orbital,dc=example?certificaterevocationlist?base?objectclass=crldistributionpoint"
+                                           "endpoint:ldap:///cn=alcyone meridian issuing ca,cn=issuing-ca,cn=cdp,cn=public key services,cn=services,cn=configuration,dc=alcyone-orbital,dc=example?certificaterevocationlist?base?objectclass=crldistributionpoint",
+                                           "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base"
                                        ]
                      },
                      {
@@ -3145,7 +3370,8 @@
                          "EntityIds":  [
                                            "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca",
                                            "endpoint:web://pki.alcyone-orbital.example/cdp/alcyone meridian issuing ca+.crl",
-                                           "host:pki.alcyone-orbital.example"
+                                           "host:pki.alcyone-orbital.example",
+                                           "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:delta"
                                        ]
                      },
                      {
@@ -3186,7 +3412,8 @@
                          "Remediation":  "",
                          "Notes":  "",
                          "EntityIds":  [
-                                           "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca"
+                                           "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca",
+                                           "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:delta"
                                        ]
                      },
                      {
@@ -3223,7 +3450,8 @@
                          "Remediation":  "",
                          "Notes":  "",
                          "EntityIds":  [
-                                           "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca"
+                                           "ca:issuing-ca.vault.alcyone-orbital.example\\alcyone meridian issuing ca",
+                                           "crl:4d5e6f708192a3b4c5d6e7f80910111213141516:base"
                                        ]
                      },
                      {

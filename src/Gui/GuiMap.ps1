@@ -898,6 +898,8 @@ function Invoke-MspkiGuiMapJob {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][hashtable]$Request, [AllowNull()]$Index, [hashtable]$Status = @{}, [Parameter(Mandatory = $true)][hashtable]$Cache)
+    # The Timeline page's rows (GX7) are computed by the same worker (GuiLifecycle.ps1).
+    if ($Request.Kind -eq 'Timeline') { return (Invoke-MspkiGuiTimelineJob -Request $Request -Index $Index -Status $Status -Cache $Cache) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     if (-not $Cache.ContainsKey('Gen') -or $Cache.Gen -ne $Request.Gen) {
         $Cache.Base = $null

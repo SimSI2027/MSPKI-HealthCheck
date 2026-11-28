@@ -250,3 +250,38 @@ Describe 'Audit 2 M7: the PKI services page never shows an Inferred service as f
         $inf.StatePill.Tone | Should -Not -Be 'Good'
     }
 }
+
+Describe 'Property names and times in the details pane (GX7 round 1: no raw names or ISO times)' {
+    It 'writes property names in sentence case with the usual acronyms' {
+        Get-MspkiGuiPropertyLabel -Name 'CAVersion' | Should -BeExactly 'CA version'
+        Get-MspkiGuiPropertyLabel -Name 'AuthorityKeyId' | Should -BeExactly 'Authority key ID'
+        Get-MspkiGuiPropertyLabel -Name 'CrlNumber' | Should -BeExactly 'CRL number'
+        Get-MspkiGuiPropertyLabel -Name 'DnsNames' | Should -BeExactly 'DNS names'
+        Get-MspkiGuiPropertyLabel -Name 'CAName' | Should -BeExactly 'CA name'
+        Get-MspkiGuiPropertyLabel -Name 'IsDelta' | Should -BeExactly 'Delta'
+        Get-MspkiGuiPropertyLabel -Name 'UrlType' | Should -BeExactly 'URL type'
+        Get-MspkiGuiPropertyLabel -Name 'NextCRLPublish' | Should -BeExactly 'Next CRL publish'
+        Get-MspkiGuiPropertyLabel -Name 'Sha1' | Should -BeExactly 'SHA-1'
+    }
+    It 'shows a UTC time as people read it, in any culture, and leaves other text alone' {
+        $old = [System.Threading.Thread]::CurrentThread.CurrentCulture
+        try {
+            [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('de-DE')
+            ConvertTo-MspkiGuiValueText '2026-11-17T08:00:00Z' | Should -BeExactly '17 Nov 2026, 08:00 UTC'
+            ConvertTo-MspkiGuiValueText ([datetime]::new(2027, 3, 14, 9, 12, 0, [DateTimeKind]::Utc)) | Should -BeExactly '14 Mar 2027, 09:12 UTC'
+        }
+        finally { [System.Threading.Thread]::CurrentThread.CurrentCulture = $old }
+        ConvertTo-MspkiGuiValueText '2026-11-17' | Should -BeExactly '2026-11-17'
+        ConvertTo-MspkiGuiValueText 'V1.0' | Should -BeExactly 'V1.0'
+    }
+}
+
+Describe 'Readable headings (GX7 round 2)' {
+    It 'turns a distinguished name inside a name into its common name, and leaves other names alone' {
+        Get-MspkiGuiReadableName -Name 'Base CRL of CN=Example Issuing CA, DC=corp, DC=example, DC=test' | Should -BeExactly 'Base CRL of Example Issuing CA'
+        Get-MspkiGuiReadableName -Name 'CN=web01.corp.example.test' | Should -BeExactly 'web01.corp.example.test'
+        Get-MspkiGuiReadableName -Name 'CN=Example\, Issuing CA,OU=PKI,O=Example' | Should -BeExactly 'Example\, Issuing CA'
+        Get-MspkiGuiReadableName -Name 'http://pki.example.test/cdp/Example CA.crl' | Should -BeExactly 'http://pki.example.test/cdp/Example CA.crl'
+        Get-MspkiGuiReadableName -Name 'ca01.corp.example.test\Example Issuing CA' | Should -BeExactly 'ca01.corp.example.test\Example Issuing CA'
+    }
+}

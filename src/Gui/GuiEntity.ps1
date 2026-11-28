@@ -73,16 +73,53 @@ function New-MspkiGuiGraphIndex {
     return $ix
 }
 
+$script:MspkiGuiAcronym = @{ ca = 'CA'; cas = 'CAs'; crl = 'CRL'; crls = 'CRLs'; dns = 'DNS'; url = 'URL'; urls = 'URLs'; id = 'ID'; ids = 'IDs'; aia = 'AIA'; cdp = 'CDP'; ocsp = 'OCSP'
+    http = 'HTTP'; https = 'HTTPS'; tls = 'TLS'; ldap = 'LDAP'; ndes = 'NDES'; ces = 'CES'; cep = 'CEP'; ad = 'AD'; ip = 'IP'; dn = 'DN'; fqdn = 'FQDN'; spn = 'SPN'; sha1 = 'SHA-1'
+    sha256 = 'SHA-256'; ntauth = 'NTAuth'; eku = 'EKU'; ekus = 'EKUs'; oid = 'OID'; ptr = 'PTR'; scep = 'SCEP'; rpc = 'RPC'; dcom = 'DCOM'; iis = 'IIS'; ttl = 'TTL'; utc = 'UTC' }
+
+function Get-MspkiGuiPropertyLabel {
+    # A property name from the results in sentence case with the usual acronyms: "CAVersion" -> "CA version", "AuthorityKeyId" -> "Authority key ID",
+    # "DnsNames" -> "DNS names", "IsDelta" -> "Delta".
+    param([AllowEmptyString()][string]$Name)
+    if (-not $Name) { return '' }
+    $words = @($Name -csplit '(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])' | Where-Object { $_ })
+    if ($words.Count -gt 1 -and $words[0] -ceq 'Is') { $words = @($words[1..($words.Count - 1)]) }
+    $out = New-Object System.Collections.Generic.List[string]
+    for ($i = 0; $i -lt $words.Count; $i++) {
+        $w = [string]$words[$i]
+        $k = $w.ToLowerInvariant()
+        if ($script:MspkiGuiAcronym.ContainsKey($k)) { $out.Add($script:MspkiGuiAcronym[$k]); continue }
+        if ($w.Length -gt 1 -and $w -cmatch '^[A-Z0-9]+$') { $out.Add($w); continue }
+        if ($i -eq 0) { $out.Add($w.Substring(0, 1).ToUpperInvariant() + $w.Substring(1).ToLowerInvariant()) } else { $out.Add($k) }
+    }
+    return ($out -join ' ')
+}
+
 function ConvertTo-MspkiGuiValueText {
-    # A property value as one readable line: arrays joined, nested objects as "Name: value" pairs, booleans as Yes/No.
+    # A property value as one readable line: arrays joined, nested objects as "Name: value" pairs, booleans as Yes/No, UTC times as "17 Nov 2026, 08:00 UTC".
     param($Value)
     if ($null -eq $Value) { return '' }
     if ($Value -is [bool]) { return $(if ($Value) { 'Yes' } else { 'No' }) }
-    if ($Value -is [string]) { return $Value }
+    if ($Value -is [datetime]) { return $Value.ToUniversalTime().ToString('d MMM yyyy, HH:mm', [System.Globalization.CultureInfo]::InvariantCulture) + ' UTC' }
+    if ($Value -is [string]) {
+        if ($Value -match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$') {
+            $d = [datetime]::MinValue
+            if ([datetime]::TryParse($Value, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]'AdjustToUniversal, AssumeUniversal', [ref]$d)) { return $d.ToString('d MMM yyyy, HH:mm', [System.Globalization.CultureInfo]::InvariantCulture) + ' UTC' }
+        }
+        return $Value
+    }
     if ($Value -is [System.Collections.IDictionary]) { return ((@($Value.Keys) | ForEach-Object { '{0}: {1}' -f $_, (ConvertTo-MspkiGuiValueText $Value[$_]) }) -join '; ') }
     if ($Value -is [System.Management.Automation.PSCustomObject]) { return ((@($Value.PSObject.Properties) | ForEach-Object { '{0}: {1}' -f $_.Name, (ConvertTo-MspkiGuiValueText $_.Value) }) -join '; ') }
     if ($Value -is [System.Collections.IEnumerable]) { return ((@($Value) | ForEach-Object { ConvertTo-MspkiGuiValueText $_ }) -join "`r`n") }
     return [string]$Value
+}
+
+function Get-MspkiGuiReadableName {
+    # A heading for people: a distinguished name inside an object's name becomes its common name ("Base CRL of CN=Example CA, DC=corp" ->
+    # "Base CRL of Example CA"; "CN=web01.example.test" -> "web01.example.test"). The full name stays in the properties and in the copy text.
+    param([AllowEmptyString()][string]$Name)
+    if (-not $Name) { return '' }
+    return [regex]::Replace($Name, '(?i)\bCN=((?:[^,\\]|\\.)+)(?:\s*,\s*(?:CN|OU|O|DC|L|S|ST|C)=(?:[^,\\]|\\.)+)*', '$1')
 }
 
 function Get-MspkiGuiEntityName {
@@ -164,7 +201,7 @@ function Get-MspkiGuiEntityPane {
     if ($null -ne $e.Properties) {
         # A host's DNS / TLS / HTTP facts are shown once, under Host identity.
         $skip = @(); if ([string]$e.Type -eq 'Host') { $skip = @('A', 'AAAA', 'Ptr', 'AliasChain', 'CanonicalName', 'QueryName', 'DnsMethod', 'DnsLookup', 'TlsCertificates', 'HttpServer', 'Addresses') }
-        $props = @($e.Properties.PSObject.Properties | Where-Object { $null -ne $_.Value -and [string]$_.Value -ne '' -and $skip -notcontains $_.Name } | Sort-Object Name | ForEach-Object { [pscustomobject]@{ Name = ($_.Name -creplace '([a-z])([A-Z])', '$1 $2'); Value = (ConvertTo-MspkiGuiValueText $_.Value) } } | Where-Object { $_.Value })
+        $props = @($e.Properties.PSObject.Properties | Where-Object { $null -ne $_.Value -and [string]$_.Value -ne '' -and $skip -notcontains $_.Name } | Sort-Object Name | ForEach-Object { [pscustomobject]@{ Name = (Get-MspkiGuiPropertyLabel -Name $_.Name); Value = (ConvertTo-MspkiGuiValueText $_.Value) } } | Where-Object { $_.Value })
     }
     $obs = @(); if ($Index.Obs.ContainsKey($Id)) { $obs = @($Index.Obs[$Id]) }
     $toRow = {
@@ -204,7 +241,7 @@ function Get-MspkiGuiEntityPane {
     foreach ($s in $miss) { $copy.Add(('MISSING: {0} {1} {2}' -f $s.Source, $s.Location, $s.Detail).Trim()) }
     foreach ($r in $related) { $copy.Add(('{0}: {1}' -f $r.Label, $r.Name)) }
     return [pscustomobject][ordered]@{
-        Kind = 'Entity'; Known = $true; Id = $Id; Title = (Get-MspkiGuiEntityName -Index $Index -Id $Id); TypeText = $ti.Label; TypeGlyph = $ti.Glyph; About = $ti.About; HasAbout = [bool]$ti.About
+        Kind = 'Entity'; Known = $true; Id = $Id; Title = (Get-MspkiGuiReadableName -Name (Get-MspkiGuiEntityName -Index $Index -Id $Id)); TypeText = $ti.Label; TypeGlyph = $ti.Glyph; About = $ti.About; HasAbout = [bool]$ti.About
         Facts = $props; HasProperties = ($props.Count -gt 0); HostFacts = $hostFacts; HasHostFacts = ($hostFacts.Count -gt 0)
         Seen = $seen; SeenCount = $seen.Count; NoSeen = ($seen.Count -eq 0); Missing = $miss; HasMissing = ($miss.Count -gt 0); MissingCount = $miss.Count
         Related = $related; RelatedCount = $related.Count; NoRelated = ($related.Count -eq 0); Findings = [object[]]$rows; FindingCount = $rows.Count; NoFindings = ($rows.Count -eq 0)

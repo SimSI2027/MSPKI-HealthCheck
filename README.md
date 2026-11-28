@@ -76,6 +76,11 @@ If it says it needs a single-threaded session, start it as `powershell.exe -STA 
   with the run in `gui-state.json` when the run is under the output folder), how to fix it (an action for the PKI owner: this tool changes
   nothing) and the sources. Every button there only copies text: the window never runs a check. The same advice is in `results.json` and in `report.html`. The advice comes from src/Knowledge and is listed with its dates in
   docs/KNOWLEDGE-SOURCES.md; a cause is probable, never proven.
+- **Timeline** (Ctrl+4): when each CA certificate and CRL runs out, counted from the time of the run (not from today). **Certificates**:
+  one row per CA certificate generation on a time axis with the run marked, replaced generations in grey. **CRLs**: each base and delta CRL
+  with its next update, the overlap from Next CRL Publish to Next Update, and the copy served at every address and at the CA, so an older
+  or expired copy stands out. **Chain**: from a certificate on this computer (or a CA certificate) up to its root, with the result of each
+  AIA and CDP address and where the chain breaks. "Runs out first" lists the nearest ends; every row and address opens in the details.
 - **Objects** (Ctrl+5): everything the run found (forest, domains, CAs, CA certificates, CRLs, URLs, hosts, PKI services,
   templates, certificates on this computer, AD objects, accounts), grouped by type, with a search box, a type filter and
   "Only objects that need attention". Select one to see what it is and why it matters, its properties, **where it exists** (every
@@ -90,7 +95,7 @@ If it says it needs a single-threaded session, start it as `powershell.exe -STA 
   Enrollment on plain HTTP) and what this run can see. "Not found" (looked, nothing there), "cannot be checked from here" (for
   example the Intune connector on another server) and "not checked in this run" are shown apart.
 - **Keyboard**: **Ctrl+K** opens the command palette: type part of a page, a command, an object name or a finding's text and press
-  Enter (Up and Down move, Esc closes and puts you back where you were). F5 runs, Ctrl+1 to Ctrl+6 switch pages, Ctrl+F searches the page,
+  Enter (Up and Down move, Esc closes and puts you back where you were). F5 runs, Ctrl+1 to Ctrl+7 switch pages (the Run log is Ctrl+7), Ctrl+F searches the page,
   Ctrl+O opens results, F6 and Shift+F6 move between the navigation, the command bar, the page and its details, Alt+Left goes back in the
   details. Notices ("Export finished", "Run finished") appear briefly at the bottom right of the window and can be dismissed.
 - **Themes**: the window follows Windows (light or dark apps setting) and switches when Windows does. The button left of Minimise (or Ctrl+K

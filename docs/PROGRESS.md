@@ -582,3 +582,18 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Tests: `tests/GuiMap.Tests.ps1` (33: orphan CA, crossings, path health, link words, views, groups, keyboard, zoom, performance, export path, report path, and the real window
   on a generated 500-object estate: worker, slices, keyboard, Back, Enter on a group, Esc, palette, PNG export, tree); `tests/GuiMapFixture.ps1` generates LARGE estates (example.test).
 - Next: GX7 (lifecycle timeline and interactive chain view).
+
+## GX7 (2026-11-27/28): lifecycle timeline and chain view - DONE (PASS in round 2)
+- Engine: Next CRL Publish is kept on the CRL entity (`NextPublish`; EntityGraph test). Lab run (non-elevated, under out\ only): both CRLs carry it.
+- `src/Gui/GuiLifecycle.ps1` (pure, runs in the map worker): lifecycle model (countdowns from the run's time, never from today), the copy of each CRL at every address
+  and at the CA, axis range, ticks and bars as star widths, each view's own CA status and "runs out first", the chain leaf -> root with each AIA/CDP/OCSP result and the
+  link headings. `src/Gui/GuiTimelinePage.ps1`: Certificates / CRLs / Chain on one page (Ctrl+4; Run log moved to Ctrl+7), rows open in the details pane, Back syncs the
+  selection, the axis leaves out labels that would be cut or crossed by the run's line and redraws on resize. Palette: page and tlcerts / tlcrls / tlchain.
+- Details pane everywhere: property names in sentence case with acronyms (`Get-MspkiGuiPropertyLabel`), UTC times as "17 Nov 2026, 08:00 UTC", headings use the common
+  name (`Get-MspkiGuiReadableName`; the DN stays in the properties).
+- Demo: `tools/dev/New-MspkiDemoLifecycleSample.ps1` (developer-only, idempotent) adds CRLs to the hand-made mixed sample and writes the `expired-crl` and `renewal-drift`
+  samples; snapshot frames 35-35f. Fixed: `@()` around a generic List property throws "Argument types do not match" in PS 5.1 (the job returns a plain array now).
+- Measured: timeline job (model + 99 CRL rows, 300-object estate) 147-157 ms in the worker; rows on screen 9-10 ms of UI-thread work; switch to the Timeline 92-118 ms (budget 150).
+- Tests: GuiTimeline 31 (model, countdowns, copies, axis, rows, per-view status, chain, link headings, budget, the real window), GuiEntity +3, GuiPalette for 7 pages.
+- Full suite: 1737 passed, 1 skipped, 206 s (the one failure was a GX8 export added mid-run and removed; GX8 is not in this commit).
+- Next: GX8 (finding Key, History page, compare two runs).

@@ -57,11 +57,25 @@ Describe 'Owner review: fewer crossings (item 2)' {
         Get-MspkiGuiMapCrossing -Model $m -By Order | Should -Be 0
     }
     It 'brings the crossings on the demo world down from the plain order to none, and the laid-out map keeps that' {
-        $m = & $script:NewWorldModel
+        # The GX6 shape of the world (the issuing CA's own certificate named its CRL addresses; GX7 corrected the sample, whose plain order
+        # has no crossing left): rebuilt in memory, so the owner's "12 -> 0" stays asserted on the Alcyone world.
+        $cert = 'cacert:3c4d5e6f708192a3b4c5d6e7f809101112131415'
+        $caM = @($script:World.Graph.Entities | Where-Object { $_.Type -eq 'CA' -and $_.Name -like '*Meridian*' })[0].Id
+        $cdp = @($script:World.Graph.Relations | Where-Object { $_.From -eq $caM -and $_.Type -eq 'references' -and (@($_.Sources) -join ',') -like '*CertCdpUrls' })
+        $cdp.Count | Should -Be 3
+        $old = @($script:World.Graph.Relations | Where-Object { -not ($_.From -eq $caM -and $_.Type -eq 'references' -and (@($_.Sources) -join ',') -like '*CertCdpUrls' -and $_.To -notlike '*//pki.*') -and -not ($_.From -eq $cert -and $_.Type -eq 'references' -and (@($_.Sources) -join ',') -like '*:CDP') })
+        $old += @($cdp | ForEach-Object { [pscustomobject]@{ From = $cert; Type = 'references'; To = $_.To; Sources = @('Cert:3C4D5E6F708192A3B4C5D6E7F809101112131415:CDP'); Confidence = 'Confirmed' } })
+        $ix = New-MspkiGuiGraphIndex -Graph ([pscustomobject]@{ Entities = $script:World.Graph.Entities; Observations = $script:World.Graph.Observations; Relations = $old }) -Findings $script:World.Findings
+        $m = Get-MspkiGuiMapModel -Index $ix -FindingStatus $script:WorldSt
         $o = Set-MspkiGuiMapOrder -Model $m
-        $o.Before | Should -BeGreaterThan 0
-        $o.After | Should -BeLessThan $o.Before
+        $o.Before | Should -Be 12
         $o.After | Should -Be 0
+        $m = Get-MspkiGuiMapModel -Index $ix -FindingStatus $script:WorldSt
+        [void](Set-MspkiGuiMapLayout -Model $m -Width 1040 -LabelWidth 190)
+        Get-MspkiGuiMapCrossing -Model $m -By Y | Should -Be 0
+        # The world as it is now: no crossing, before or after the layout.
+        $m = & $script:NewWorldModel
+        (Set-MspkiGuiMapOrder -Model $m).After | Should -Be 0
         $m = & $script:NewWorldModel
         [void](Set-MspkiGuiMapLayout -Model $m -Width 1040 -LabelWidth 190)
         Get-MspkiGuiMapCrossing -Model $m -By Y | Should -Be 0

@@ -132,7 +132,7 @@ Describe 'The walkthrough never runs a check (static)' {
         $allowed = @('Add-MspkiGuiPaneObject', 'Get-MspkiGuiFindingDetail', 'Reset-MspkiGuiPaneNav', 'Set-MspkiGuiClipboard', 'Show-MspkiGuiCopiedMark',
             'Show-MspkiGuiEntityPane', 'Step-MspkiGuiTrail', 'Switch-MspkiGuiCheckedKey', 'Where-Object',
             # GX6: after Back or a breadcrumb in the map's pane, the map selects the object shown (selection only).
-            'Sync-MspkiGuiMapSelection')
+            'Sync-MspkiGuiMapSelection', 'Sync-MspkiGuiTimelineSelection')
         foreach ($n in 'Invoke-MspkiGuiPaneCommand', 'Show-MspkiGuiCopiedMark') {
             $fn = & $script:FnAst $n
             $fn | Should -Not -BeNullOrEmpty

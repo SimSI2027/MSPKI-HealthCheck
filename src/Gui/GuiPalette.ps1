@@ -26,17 +26,18 @@ function New-MspkiGuiPaletteEntry {
 function Get-MspkiGuiPalettePage {
     <#
     .SYNOPSIS
-    The pages of the window as palette items, in navigation order (Ctrl+1..6).
+    The pages of the window as palette items, in navigation order (Ctrl+1..7).
     #>
     [CmdletBinding()]
     param()
     $pages = @(
         @('Overview', 'Score, what to do next and the discovery map', [char]0xE80F),
         @('Findings', 'Every check result with its sources and evidence', [char]0xE8FD),
-        @('Discovery map', 'What the run found, as a tree', [char]0xE81E),
-        @('Run log', 'What the run did, step by step', [char]0xE9D5),
+        @('Discovery map', 'What the run found, as a map or a tree', [char]0xE81E),
+        @('Timeline', 'When CA certificates and CRLs run out, and the certificate chains', [char]0xE787),
         @('Objects', 'Everything the run found, by type', [char]0xE8A9),
-        @('PKI services', 'CAs, web enrollment, OCSP, NDES, CEP/CES', [char]0xE968)
+        @('PKI services', 'CAs, web enrollment, OCSP, NDES, CEP/CES', [char]0xE968),
+        @('Run log', 'What the run did, step by step', [char]0xE9D5)
     )
     $i = 0
     return @(foreach ($p in $pages) {
@@ -66,6 +67,9 @@ function Get-MspkiGuiPaletteCommand {
         @('mapfit', 'Fit the map to the window', 'Show the whole Discovery map', [char]0xE9A6, 'Ctrl+0', 'zoom discovery map whole'),
         @('mapproblems', 'Show only problems on the map', 'Failing, warning and could-not-check objects with the path to them', [char]0xE7BA, '', 'discovery map filter failing broken'),
         @('mapreplay', 'Replay discovery', 'Play the discovery of this run again on the map', [char]0xE768, '', 'animation discovery map build'),
+        @('tlcerts', 'Show when the CA certificates expire', 'The Timeline page: every CA certificate generation on a time axis', [char]0xEB95, '', 'timeline expiry renew lifetime generation'),
+        @('tlcrls', 'Show the CRL heartbeat', 'The Timeline page: when each CRL was published, is due and runs out, and the copy at every address', [char]0xE81C, '', 'timeline crl next update overlap expired revocation'),
+        @('tlchain', 'Show the certificate chain', 'From a CA certificate up to its root, with the result of every AIA and CDP address', [char]0xE71B, '', 'chain path aia cdp issuer trust'),
         @('mapexport', 'Export the map as an image', 'Save the whole Discovery map as a PNG in the run''s output folder', [char]0xEB9F, '', 'png picture save discovery map'),
         @('copylog', 'Copy the run log', 'Every line of the run log, to the clipboard', [char]0xE8C8, '', 'clipboard'),
         @('themeauto', 'Theme: follow Windows', 'Light or dark as Windows is set; high contrast always wins', [char]0xE7F4, '', 'appearance colour color mode system'),

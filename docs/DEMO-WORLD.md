@@ -94,6 +94,9 @@ Each scenario changes one thing in the simulated environment and lets the real a
 **Sample files.** `demo/world/alcyone-mixed-results.json` is the `mixed-sample` scenario. It is a **hand-made sample**: the `example.test`
 demo results (`tests/fixtures/demo-results-v2.json`) with every name replaced by this world's names. It was **not** produced by the
 analysers. The generator in `docs/DEMO-SITE.md` (DS3) replaces it with results the real analysers produce from simulated fixtures.
+`demo/world/alcyone-expired-crl-results.json` (`expired-crl`) and `demo/world/alcyone-renewal-drift-results.json` (`renewal-drift`) are hand-made
+samples too, derived from the mixed sample by the developer-only `tools/dev/New-MspkiDemoLifecycleSample.ps1` (idempotent; it also adds the CRL
+objects the mixed sample's findings already describe). They feed the Timeline and Chain snapshots (GX7). The DS3 generator replaces all three.
 
 ## Rules for this world
 1. Use it in documentation examples, screenshots, the demo site and `demo/`. Tests and `tests/fixtures/` keep `example.test`.

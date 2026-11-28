@@ -155,6 +155,22 @@ Describe 'Probe observations' {
         }
     }
 
+    It 'keeps the newest CRL''s Next CRL Publish time on the CRL entity, and drops it when a newer CRL has none (GX7 timeline overlap)' {
+        InModuleScope MspkiHealthCheck {
+            $mk = { param($n, $pub) [pscustomobject]@{ Issuer = 'CN=Example Issuing CA, DC=corp, DC=example, DC=test'; IsDelta = $false; AuthorityKeyId = 'AABB'; CAVersion = 'V0.0'; CrlNumber = $n
+                    ThisUpdate = [datetime]'2026-11-20T08:00:00Z'; NextUpdate = [datetime]'2026-11-27T20:00:00Z'; NextPublish = $pub; Sha1 = '' } }
+            Register-MspkiCaOwnCrl -OwnCrls @([pscustomobject]@{ Config = 'ca02.corp.example.test\Example Issuing CA'; Crl = (& $mk '05' ([datetime]'2026-11-26T08:00:00Z')) })
+            $cid = Get-MspkiCrlEntityId -AuthorityKeyId 'AABB' -IsDelta $false
+            (Get-MspkiEntity -Id $cid).Properties['NextPublish'] | Should -Be '2026-11-26T08:00:00Z'
+            # An older CRL (lower number) changes nothing; a newer one without the extension removes the stale value.
+            Register-MspkiCaOwnCrl -OwnCrls @([pscustomobject]@{ Config = 'x'; Crl = (& $mk '04' $null) })
+            (Get-MspkiEntity -Id $cid).Properties['NextPublish'] | Should -Be '2026-11-26T08:00:00Z'
+            Register-MspkiCaOwnCrl -OwnCrls @([pscustomobject]@{ Config = 'x'; Crl = (& $mk '06' $null) })
+            (Get-MspkiEntity -Id $cid).Properties.Contains('NextPublish') | Should -BeFalse
+            (Get-MspkiEntity -Id $cid).Properties['CrlNumber'] | Should -Be '06'
+        }
+    }
+
     It 'records the CA''s own CRL expected but missing at a CDP location from the CA''s CertCdpUrls that returned nothing' {
         InModuleScope MspkiHealthCheck -Parameters @{ L = $script:inv.Leads[0]; C = $script:subNew.Public } {
             param($L, $C)

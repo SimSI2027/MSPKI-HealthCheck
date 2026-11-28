@@ -515,6 +515,42 @@ function Invoke-MspkiGuiSnapshot {
                     Wait-MspkiGuiIdle -Rounds 2
                 }
             }
+            # Timeline (GX7): CRLs (opens on what runs out first), the certificates, a range, a row opened and Back, the chain, and the
+            # chain with one address opened in the pane.
+            & $page $ui.TabTimeline
+            $ui.RbTlCrls.IsChecked = $true
+            Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 3
+            & $shot '35-timeline-crls'
+            $ui.RbTlCerts.IsChecked = $true
+            Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 3
+            & $shot '35a-timeline-certificates'
+            if ($ui.FltTlSpan.Items.Count -gt 2) {
+                $ui.FltTlSpan.SelectedIndex = 2
+                Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 3
+                & $shot '35b-timeline-range'
+                $ui.FltTlSpan.SelectedIndex = 0
+                Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 3
+            }
+            $tlRow = @(@($g.TlItems) | Where-Object { $_ -and $_.Kind -eq 'Row' -and $_.Tone -in @('Bad', 'Warn', 'Admin') }) + @(@($g.TlItems) | Where-Object { $_ -and $_.Kind -eq 'Row' }) | Select-Object -First 1
+            if ($null -ne $tlRow) {
+                Select-MspkiGuiTimelineRow -Id ([string]$tlRow.Id); Wait-MspkiGuiIdle -Rounds 3
+                & $shot '35c-timeline-row-open'
+                $paneObj = $null
+                if ($null -ne $ui.TimelineHost.Content -and $ui.TimelineHost.Content.PSObject.Properties['Related']) { $paneObj = @($ui.TimelineHost.Content.Related | Where-Object { $_.Known }) | Select-Object -First 1 }
+                if ($null -ne $paneObj) {
+                    Invoke-MspkiGuiPaneCommand -HostName 'TimelineHost' -Tag ([string]$paneObj.Tag); Wait-MspkiGuiIdle -Rounds 3
+                    Invoke-MspkiGuiPaneCommand -HostName 'TimelineHost' -Tag 'Back'; Wait-MspkiGuiIdle -Rounds 3
+                    & $shot '35d-timeline-back'
+                }
+            }
+            $ui.RbTlChain.IsChecked = $true
+            Wait-MspkiGuiIdle -Rounds 4
+            & $shot '35e-timeline-chain'
+            $chainAddr = $null
+            foreach ($ci in @($ui.TlChain.ItemsSource)) { if ($null -eq $chainAddr -and $ci.Kind -eq 'Card') { foreach ($sx in @($ci.Sections)) { if ($null -eq $chainAddr) { $chainAddr = @($sx.Items | Where-Object { $_.Tone -in @('Bad', 'Warn') }) + @($sx.Items) | Select-Object -First 1 } } } }
+            if ($null -ne $chainAddr) { Invoke-MspkiGuiTimelineTag -Tag ([string]$chainAddr.Tag); Wait-MspkiGuiIdle -Rounds 3; & $shot '35f-timeline-chain-address' }
+            $ui.RbTlCrls.IsChecked = $true
+            Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2
             # The tree (the text alternative): expand everything, select the first CA node, then drill into its first finding.
             $ui.RbMapTree.IsChecked = $true
             Set-MspkiGuiTreeExpansion -Parent $ui.MapTree -Expand $true

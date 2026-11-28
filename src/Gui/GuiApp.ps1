@@ -9,6 +9,8 @@ $script:MspkiGui = $null
 . (Join-Path $PSScriptRoot 'GuiMission.ps1')
 . (Join-Path $PSScriptRoot 'GuiMapView.ps1')
 . (Join-Path $PSScriptRoot 'GuiMapPage.ps1')
+. (Join-Path $PSScriptRoot 'GuiLifecycle.ps1')
+. (Join-Path $PSScriptRoot 'GuiTimelinePage.ps1')
 . (Join-Path $PSScriptRoot 'GuiState.ps1')
 . (Join-Path $PSScriptRoot 'GuiPalette.ps1')
 . (Join-Path $PSScriptRoot 'GuiTheme.ps1')
@@ -578,7 +580,7 @@ function Invoke-MspkiGuiPaneCommand {
     }
     if ($Tag -eq 'Back') {
         if ($null -ne $nav.Return) { $ui[$HostName].Content = $nav.Return; $nav.Return = $null; return }
-        if (@($nav.Trail).Count -gt 1) { $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Back; Show-MspkiGuiEntityPane -HostName $HostName; if ($HostName -eq 'MapHost') { Sync-MspkiGuiMapSelection }; return }
+        if (@($nav.Trail).Count -gt 1) { $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Back; Show-MspkiGuiEntityPane -HostName $HostName; if ($HostName -eq 'MapHost') { Sync-MspkiGuiMapSelection } elseif ($HostName -eq 'TimelineHost') { Sync-MspkiGuiTimelineSelection }; return }
         if ($null -ne $nav.Origin) { $ui[$HostName].Content = $nav.Origin; $nav.Origin = $null; $nav.Trail = [string[]]@() }
         return
     }
@@ -593,7 +595,7 @@ function Invoke-MspkiGuiPaneCommand {
         $nav.Return = $null
         $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Crumb -Index ([int]$Tag.Substring(6))
         Show-MspkiGuiEntityPane -HostName $HostName
-        if ($HostName -eq 'MapHost') { Sync-MspkiGuiMapSelection }
+        if ($HostName -eq 'MapHost') { Sync-MspkiGuiMapSelection } elseif ($HostName -eq 'TimelineHost') { Sync-MspkiGuiTimelineSelection }
         return
     }
     if ($g.RowById.ContainsKey($Tag)) {
@@ -749,6 +751,7 @@ function Clear-MspkiGuiResult {
     $ui.BtnOpenReport.IsEnabled = $false
     $ui.BtnOpenReport.ToolTip = 'Open the HTML report of the run on show'
     if ($null -ne $g.MapQueue) { Reset-MspkiGuiMapPage }
+    Reset-MspkiGuiTimelinePage
     $ui.TxtCount.Text = '0 findings'
     $ui.TxtOutputPath.Text = $g.OutputRoot
     $ui.TxtOutputPath.ToolTip = $g.OutputRoot
@@ -905,6 +908,9 @@ function Show-MspkiGuiResult {
 
     # Mission control: score, areas, what to do next, and the discovery map (built on screen once the Overview has a size).
     Update-MspkiGuiMission -Data $Data -Animate
+
+    # Timeline and chains (GX7): computed by the map worker after the Overview asked for its map (a new results generation starts there).
+    Update-MspkiGuiTimelineData -Data $Data
 }
 
 function Update-MspkiGuiReportButton {
@@ -1338,7 +1344,7 @@ function Select-MspkiGuiTab {
     [CmdletBinding()]
     param([int]$Index)
     $ui = $script:MspkiGui.Ui
-    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabLog, $ui.TabObjects, $ui.TabServices)
+    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabTimeline, $ui.TabObjects, $ui.TabServices, $ui.TabLog)
     if ($Index -ge 0 -and $Index -lt $tabs.Count) { $ui.Tabs.SelectedItem = $tabs[$Index] }
 }
 
@@ -1444,6 +1450,7 @@ function Get-MspkiGuiCommandAvailability {
         report = [bool]$ui.BtnOpenReport.IsEnabled; folder = [bool]$ui.BtnOpenFolder.IsEnabled; export = ($g.Rows.Count -gt 0); mapfit = ($null -ne $g.MapPageDrawn); mapreplay = ($null -ne $g.MapPageDrawn); mapexport = ($null -ne $g.MapPageDrawn); mapproblems = ($null -ne $g.MapPageDrawn)
         actions = ($null -ne $g.Actions -and @($g.Actions).Count -gt 0); score = ($null -ne $g.Score -and [bool]$g.Score.HasScore)
         options = [bool]$ui.ExpOptions.IsEnabled; copylog = (@($ui.LogList.Items).Count -gt 0)
+        tlcerts = ($null -ne $g.TlModel -and [int]$g.TlModel.CertCount -gt 0); tlcrls = ($null -ne $g.TlModel -and [int]$g.TlModel.CrlCount -gt 0); tlchain = (@($g.TlChainIds).Count -gt 0)
     }
 }
 
@@ -1542,6 +1549,9 @@ function Invoke-MspkiGuiCommand {
         'themedark' { Set-MspkiGuiTheme -Mode Dark }
         'mapfit' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; Set-MspkiGuiMapFit }
         'mapreplay' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; Start-MspkiGuiMapReplay }
+        'tlcerts' { Select-MspkiGuiTab -Index 3; $ui.RbTlCerts.IsChecked = $true; Set-MspkiGuiFocusLater -Element $ui.TlList }
+        'tlcrls' { Select-MspkiGuiTab -Index 3; $ui.RbTlCrls.IsChecked = $true; Set-MspkiGuiFocusLater -Element $ui.TlList }
+        'tlchain' { Select-MspkiGuiTab -Index 3; $ui.RbTlChain.IsChecked = $true; Set-MspkiGuiFocusLater -Element $ui.FltTlChain }
         'mapexport' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; Export-MspkiGuiMapPng }
         'mapproblems' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; $ui.ChkMapProblems.IsChecked = $true; $g.MapExpanded = @{}; Update-MspkiGuiMapPage }
         'copylog' { & $click $ui.BtnCopyLog; if (@($ui.LogList.Items).Count -gt 0) { [void](Show-MspkiGuiToast -Text 'The run log is on the clipboard.' -Tone Good) } }
@@ -1606,6 +1616,7 @@ function Move-MspkiGuiRegionFocus {
     if ($sel -eq $ui.TabSummary) { $content = $ui.PanelResults; if ($ui.PanelResults.Visibility -ne 'Visible') { $content = $ui.BtnWelcomeRun } }
     elseif ($sel -eq $ui.TabFindings) { $content = $ui.FindingsGrid; $details = $ui.FindingHost }
     elseif ($sel -eq $ui.TabMap) { $content = $(if ($ui.MapTreePanel.IsVisible) { $ui.MapTree } else { $ui.MapViewport }); $details = $ui.MapHost }
+    elseif ($sel -eq $ui.TabTimeline) { $content = $(if ($ui.TlChainScroll.IsVisible) { $ui.FltTlChain } else { $ui.TlList }); $details = $ui.TimelineHost }
     elseif ($sel -eq $ui.TabLog) { $content = $ui.LogList }
     elseif ($sel -eq $ui.TabObjects) { $content = $ui.ObjList; $details = $ui.ObjHost }
     elseif ($sel -eq $ui.TabServices) { $content = $ui.SvcList; $details = $ui.SvcHost }
@@ -1637,7 +1648,7 @@ function Invoke-MspkiGuiShortcut {
     .SYNOPSIS
     The window's keyboard shortcuts in one place (the window's PreviewKeyDown calls it; the keyboard replay test calls it directly).
     Returns $true when the key was used. Ctrl+K palette; while it is open Up/Down/PageUp/PageDown move, Enter opens, Esc closes.
-    F5 run, Esc clear the focused filter or cancel, Ctrl+1..6 pages, Ctrl+F search, Ctrl+O open, F6 / Shift+F6 regions, Alt+Left back.
+    F5 run, Esc clear the focused filter or cancel, Ctrl+1..7 pages, Ctrl+F search, Ctrl+O open, F6 / Shift+F6 regions, Alt+Left back.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Key, [bool]$Ctrl = $false, [bool]$Alt = $false, [bool]$Shift = $false)
@@ -1669,7 +1680,7 @@ function Invoke-MspkiGuiShortcut {
     if ($Alt -and $Key -eq 'Left') {
         $sel = $u.Tabs.SelectedItem
         $h = ''
-        if ($sel -eq $u.TabFindings) { $h = 'FindingHost' } elseif ($sel -eq $u.TabMap) { $h = 'MapHost' } elseif ($sel -eq $u.TabObjects) { $h = 'ObjHost' } elseif ($sel -eq $u.TabServices) { $h = 'SvcHost' }
+        if ($sel -eq $u.TabFindings) { $h = 'FindingHost' } elseif ($sel -eq $u.TabMap) { $h = 'MapHost' } elseif ($sel -eq $u.TabObjects) { $h = 'ObjHost' } elseif ($sel -eq $u.TabServices) { $h = 'SvcHost' } elseif ($sel -eq $u.TabTimeline) { $h = 'TimelineHost' }
         if ($h -and $null -ne $u[$h].Content) { Invoke-MspkiGuiPaneCommand -HostName $h -Tag 'Back'; return $true }
         return $false
     }
@@ -1681,6 +1692,7 @@ function Invoke-MspkiGuiShortcut {
             'D4' { Select-MspkiGuiTab -Index 3; return $true }
             'D5' { Select-MspkiGuiTab -Index 4; return $true }
             'D6' { Select-MspkiGuiTab -Index 5; return $true }
+            'D7' { Select-MspkiGuiTab -Index 6; return $true }
             'O' { if ($u.BtnOpenResults.IsEnabled) { Invoke-MspkiGuiOpenDialog }; return $true }
             { $_ -in @('OemPlus', 'Add', 'OemMinus', 'Subtract', 'D0', 'NumPad0') -and $u.Tabs.SelectedItem -eq $u.TabMap -and $u.MapCanvasPanel.IsVisible } { [void](Invoke-MspkiGuiMapKey -Key ([System.Windows.Input.Key]$Key)); return $true }
             'F' {
@@ -1766,7 +1778,7 @@ function Initialize-MspkiGuiApplication {
     $g.Window.Add_SizeChanged({ Update-MspkiGuiNavMode })
 
     # Running panel on the Overview
-    $ui.BtnRunningLog.Add_Click({ Select-MspkiGuiTab -Index 3 })
+    $ui.BtnRunningLog.Add_Click({ Select-MspkiGuiTab -Index 6 })
     $ui.BtnRunningCancel.Add_Click({ Request-MspkiGuiCancel })
 
     # Toolbar and welcome buttons
@@ -1861,6 +1873,7 @@ function Initialize-MspkiGuiApplication {
     $ui.FindingHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'FindingHost' -Tag (& $script:MspkiGuiTagOf $e) })
     $ui.MapHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'MapHost' -Tag (& $script:MspkiGuiTagOf $e) })
     $ui.ObjHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'ObjHost' -Tag (& $script:MspkiGuiTagOf $e) })
+    $ui.TimelineHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'TimelineHost' -Tag (& $script:MspkiGuiTagOf $e) })
     $ui.SvcHost.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Invoke-MspkiGuiPaneCommand -HostName 'SvcHost' -Tag (& $script:MspkiGuiTagOf $e) })
     # PKI services page: a service opens its object, a finding opens the finding (both in the pane on the right)
     $ui.SvcList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Open-MspkiGuiServiceItem -Tag (& $script:MspkiGuiTagOf $e) })
@@ -1868,6 +1881,7 @@ function Initialize-MspkiGuiApplication {
     # Discovery Map: selection, expand/collapse
     $ui.MapTree.Add_SelectedItemChanged({ Show-MspkiGuiNodePane -Node $script:MspkiGui.Ui.MapTree.SelectedItem })
     Initialize-MspkiGuiMapPage
+    Initialize-MspkiGuiTimelinePage
 
     # Objects page: search, type filter, needs-attention switch, selection
     $ui.FltObj.Add_TextChanged({ Update-MspkiGuiObjectFilter })
