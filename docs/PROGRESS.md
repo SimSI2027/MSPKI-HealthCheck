@@ -528,3 +528,13 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Snapshots: width-dependent rules (compact navigation, tile columns) follow the fixed render width and the fixed size is the content's own size, so 1080 x 700, 1360 x 860 and 1920 x 1080 frames are faithful on this 1386 x 788 VM; live frames `03a-d`, `03e-live-motion`.
 - Tests: Gui 39, GuiMission 32 (+16), RunEvents 10. Round 1 found a snapshot defect of mine (frames cut at minimum size), a Windows message box, and unseen motion; all fixed (GUI-DESIGN section 7).
 - Next: GX3 (guided troubleshooting walkthrough, Observed highlighting, copy the checks, mark as checked).
+
+## GX3 (2026-11-27): guided troubleshooting walkthrough - DONE (PASS in round 2)
+- Details pane: "What to do about it" right after "What was found": what it means, causes ranked (a 3 px accent strip and "Observed in this run" when the run saw evidence),
+  each read-only check on its own row with a copy button and a "mark as checked" box, "Copy all checks", the fix with its owner and a copy button, sources with a copy button.
+  Copy buttons answer with a check mark for 1.4 s (also the pane's main Copy). `src/Gui/GuiState.ps1`: marks kept in `<run>\gui-state.json` only when the run folder is
+  inside the output folder (otherwise in memory, and the pane says so); every write goes through `Test-MspkiGuiPathInside`; hygiene allows this one writer.
+- J3: Overview action -> finding with the walkthrough in view -> copy a check = 2 clicks. The pane never runs anything: `tests/GuiWalkthrough.Tests.ps1` (16) checks by AST that the
+  pane handler only calls the clipboard and named window helpers. Snapshots `23-walkthrough`, `24-walkthrough-causes`, `25-walkthrough-checked`; lab run (normal user) under out\ only.
+- Fixed in passing: README and TESTING had a carriage return where a backtick-r had been eaten (`results.json`, `report.html`).
+- Next: GX4 (Ctrl+K command palette, keyboard-first paths, in-app toasts replacing the Windows message boxes).

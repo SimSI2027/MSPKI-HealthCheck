@@ -14,6 +14,26 @@ function Test-MspkiGuiSnapshotFolder {
     return ($f.Length -gt $r.Length -and $f.StartsWith($r, [System.StringComparison]::OrdinalIgnoreCase))
 }
 
+function Find-MspkiGuiSnapshotVisual {
+    <#
+    .SYNOPSIS
+    The first element below Root (visual tree, breadth first) for which Test returns true, or $null.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Root, [Parameter(Mandatory = $true)][scriptblock]$Test)
+    $q = New-Object System.Collections.Queue
+    $q.Enqueue($Root)
+    while ($q.Count -gt 0) {
+        $v = $q.Dequeue()
+        if ($v -ne $Root -and (& $Test $v)) { return $v }
+        if ($v -is [System.Windows.Media.Visual]) {
+            $n = [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($v)
+            for ($i = 0; $i -lt $n; $i++) { $q.Enqueue([System.Windows.Media.VisualTreeHelper]::GetChild($v, $i)) }
+        }
+    }
+    return $null
+}
+
 function Wait-MspkiGuiIdle {
     <#
     .SYNOPSIS
@@ -404,6 +424,34 @@ function Invoke-MspkiGuiSnapshot {
             Update-MspkiGuiFilter
             & $shot '22-findings-nomatch'
             Clear-MspkiGuiFilter
+            # Guided walkthrough (GX3, journey J3): the first "What to do next" action opened as a click would, the causes in view, one check
+            # marked as checked and a copy button answering "Copied". The copy frame shows the mark only: the snapshot never touches the clipboard.
+            $act = @(@($ui.ActionList.ItemsSource) | Where-Object { $_ -and $_.Tag }) | Select-Object -First 1
+            if ($null -ne $act -and $g.RowById.ContainsKey([string]$act.Tag)) {
+                Show-MspkiGuiFinding -Id ([string]$act.Tag)
+                Wait-MspkiGuiIdle -Rounds 3
+                & $shot '23-walkthrough'
+                $walk = {
+                    $sv = Find-MspkiGuiSnapshotVisual -Root $ui.FindingHost -Test { param($v) $v -is [System.Windows.Controls.ScrollViewer] }
+                    $lbl = Find-MspkiGuiSnapshotVisual -Root $ui.FindingHost -Test { param($v) $v -is [System.Windows.Controls.TextBlock] -and $v.Text -eq 'What to do about it' }
+                    if ($null -ne $sv -and $null -ne $lbl -and $null -ne $sv.Content) { & $scrollTo $sv $lbl $sv.Content 8 }
+                }
+                & $walk
+                & $shot '24-walkthrough-causes'
+                $c1 = @($ui.FindingHost.Content.DiagCauses | Where-Object { $_.HasChecks }) | Select-Object -First 1
+                if ($null -ne $c1) {
+                    Invoke-MspkiGuiPaneCommand -HostName 'FindingHost' -Tag ([string]@($c1.Checks)[0].ToggleTag)
+                    Show-MspkiGuiFindingPane -Finding $g.RowById[[string]$act.Tag].Finding
+                    Wait-MspkiGuiIdle -Rounds 3
+                    $sv = Find-MspkiGuiSnapshotVisual -Root $ui.FindingHost -Test { param($v) $v -is [System.Windows.Controls.ScrollViewer] }
+                    $chk = Find-MspkiGuiSnapshotVisual -Root $ui.FindingHost -Test { param($v) $v -is [System.Windows.Controls.CheckBox] }
+                    if ($null -ne $sv -and $null -ne $chk -and $null -ne $sv.Content) { & $scrollTo $sv $chk $sv.Content 140 }
+                    $copyBtn = Find-MspkiGuiSnapshotVisual -Root $ui.FindingHost -Test { param($v) $v -is [System.Windows.Controls.Button] -and [string]$v.Tag -eq [string]@($c1.Checks)[0].CopyTag }
+                    if ($null -ne $copyBtn) { $g.LastClicked = $copyBtn; Show-MspkiGuiCopiedMark; Wait-MspkiGuiIdle -Rounds 2 }
+                    & $shot '25-walkthrough-checked'
+                    [void](Switch-MspkiGuiCheckedKey -State $g.CheckState -FindingId ([string]$act.Tag) -Key ([string]@($c1.Checks)[0].Key) -AllowedRoot $g.OutputRoot)
+                }
+            }
             if ($g.Rows.Count -gt 0) { $ui.FindingsGrid.SelectedIndex = 0 }
             # Discovery map: expand everything, select the first CA node, then drill into its first finding.
             & $page $ui.TabMap

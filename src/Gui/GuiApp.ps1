@@ -8,6 +8,7 @@ $script:MspkiGui = $null
 # every caller of this file (the start script, the tests) gets them.
 . (Join-Path $PSScriptRoot 'GuiMission.ps1')
 . (Join-Path $PSScriptRoot 'GuiMapView.ps1')
+. (Join-Path $PSScriptRoot 'GuiState.ps1')
 
 function Import-MspkiGuiAssembly {
     <#
@@ -495,6 +496,33 @@ function Show-MspkiGuiEntityPane {
     $g.Ui[$HostName].Content = Get-MspkiGuiEntityPane -Index $g.Index -Id $t[$t.Count - 1] -RowById $g.RowById -Trail ([string[]]$t) -OriginText $origin
 }
 
+function Show-MspkiGuiCopiedMark {
+    <#
+    .SYNOPSIS
+    Answers a copy button within a frame: its icon becomes a check mark with "Copied" for a moment, then returns.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $b = $g.LastClicked
+    if ($null -eq $b -or $b -isnot [System.Windows.Controls.Button]) { return }
+    $orig = $b.Content
+    $origTip = $b.ToolTip
+    $mark = New-Object System.Windows.Controls.StackPanel
+    $mark.Orientation = 'Horizontal'; $mark.HorizontalAlignment = 'Center'
+    $gl = New-Object System.Windows.Controls.TextBlock
+    $gl.Style = $g.Window.FindResource('CmdGlyph'); $gl.Text = [string][char]0xE73E; $gl.Foreground = $g.Window.FindResource('B.GoodFore'); $gl.Margin = New-Object System.Windows.Thickness(0)
+    [void]$mark.Children.Add($gl)
+    $b.Content = $mark
+    $b.ToolTip = 'Copied to the clipboard'
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromMilliseconds(1400)
+    $state = @{ Button = $b; Content = $orig; Tip = $origTip; Timer = $timer }
+    $timer.Tag = $state
+    $timer.Add_Tick({ param($s, $e) $st = $s.Tag; $s.Stop(); try { $st.Button.Content = $st.Content; $st.Button.ToolTip = $st.Tip } catch { $null = $_ } })
+    $timer.Start()
+}
+
 function Invoke-MspkiGuiPaneCommand {
     <#
     .SYNOPSIS
@@ -509,7 +537,27 @@ function Invoke-MspkiGuiPaneCommand {
     if (-not $Tag -or $null -eq $c) { return }
     if (-not $g.Nav.ContainsKey($HostName)) { Reset-MspkiGuiPaneNav -HostName $HostName }
     $nav = $g.Nav[$HostName]
-    if ($Tag -eq 'Copy') { if ($c.CopyText) { [void](Set-MspkiGuiClipboard -Text $c.CopyText) }; return }
+    if ($Tag -eq 'Copy') { if ($c.CopyText -and (Set-MspkiGuiClipboard -Text $c.CopyText)) { Show-MspkiGuiCopiedMark }; return }
+    # The guided walkthrough (GX3). A check is only ever COPIED, so that the user can run it themselves where they choose; nothing in the
+    # window executes it. (tests\GuiWalkthrough.Tests.ps1 checks this function's code.)
+    if ($Tag -match '^(copycheck|copychecks|copyfix|copysource|toggle):') {
+        $parts = $Tag.Split(':')
+        $kind = $parts[0]
+        if ($kind -eq 'copysource') {
+            $s = @($c.DiagSourceItems)[[int]$parts[1]]
+            if ($null -ne $s -and (Set-MspkiGuiClipboard -Text ([string]$s.Url))) { Show-MspkiGuiCopiedMark }
+            return
+        }
+        $cause = @($c.DiagCauses | Where-Object { [string]$_.Rank -eq $parts[1] })[0]
+        if ($null -eq $cause) { return }
+        switch ($kind) {
+            'copychecks' { if (Set-MspkiGuiClipboard -Text ([string]$cause.ChecksCopyText)) { Show-MspkiGuiCopiedMark } }
+            'copycheck' { $chk = @($cause.Checks)[[int]$parts[2]]; if ($null -ne $chk -and (Set-MspkiGuiClipboard -Text ([string]$chk.Text))) { Show-MspkiGuiCopiedMark } }
+            'copyfix' { if (Set-MspkiGuiClipboard -Text ([string]$cause.FixText)) { Show-MspkiGuiCopiedMark } }
+            'toggle' { if ($null -ne $g.CheckState) { [void](Switch-MspkiGuiCheckedKey -State $g.CheckState -FindingId ([string]$c.Id) -Key ('{0}:{1}' -f $parts[1], $parts[2]) -AllowedRoot $g.OutputRoot) } }
+        }
+        return
+    }
     if ($Tag -eq 'Back') {
         if ($null -ne $nav.Return) { $ui[$HostName].Content = $nav.Return; $nav.Return = $null; return }
         if (@($nav.Trail).Count -gt 1) { $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Back; Show-MspkiGuiEntityPane -HostName $HostName; return }
@@ -660,7 +708,7 @@ function Clear-MspkiGuiResult {
     foreach ($n in @('KpiList', 'TileList', 'SevTileList', 'CaList', 'CoverageList', 'CoverageOkList', 'ActionList')) { $ui[$n].ItemsSource = $null }
     if ($null -ne $g.Storyboard) { try { $g.Storyboard.Stop($ui.PanelResults); $g.Storyboard.Remove($ui.PanelResults) } catch { $null = $_ } }
     $g.Storyboard = $null; $g.MapModel = $null; $g.MapDrawn = $null; $g.MapDrawnWidth = 0; $g.MapAnimatePending = $false; $g.Score = $null; $g.Actions = $null
-    $g.Live = $null; $g.ActionsExpanded = $false
+    $g.Live = $null; $g.ActionsExpanded = $false; $g.CheckState = $null
     $ui.MapCanvas.Children.Clear()
     $ui.AreaPanel.Children.Clear()
     $ui.TxtNoSeverity.Visibility = 'Collapsed'
@@ -703,6 +751,7 @@ function Show-MspkiGuiResult {
     $ui = $g.Ui
     Clear-MspkiGuiResult
     $g.Data = $Data
+    $g.CheckState = New-MspkiGuiCheckState -ResultsPath ([string]$Data.ResultsPath) -AllowedRoot $g.OutputRoot
     $findings = @($Data.Findings | Where-Object { $null -ne $_ })
     $graph = $null
     if ($null -ne $Data.PSObject.Properties['Graph']) { $graph = $Data.Graph }
@@ -1373,9 +1422,10 @@ function Initialize-MspkiGuiApplication {
     $btnClick = [System.Windows.Controls.Primitives.ButtonBase]::ClickEvent
     $tagOf = {
         param($e)
-        $b = $e.OriginalSource -as [System.Windows.Controls.Button]
-        if ($null -eq $b) { $b = $e.Source -as [System.Windows.Controls.Button] }
+        $b = $e.OriginalSource -as [System.Windows.Controls.Primitives.ButtonBase]
+        if ($null -eq $b) { $b = $e.Source -as [System.Windows.Controls.Primitives.ButtonBase] }
         if ($null -eq $b) { return '' }
+        $script:MspkiGui.LastClicked = $b
         return [string]$b.Tag
     }
     $tileHandler = [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFilteredStatus -Value $t } }

@@ -66,7 +66,7 @@ BeforeAll {
     }
     $script:writePattern = '(?i)WriteAllText|AppendAllText|WriteAllBytes|WriteAllLines|Set-Content|Add-Content|Out-File|New-Item|CreateDirectory|Export-Csv|Export-Clixml|StreamWriter|FileStream|Copy-Item|Move-Item|Rename-Item|Remove-Item|Clear-Content|File\s*\]\s*::\s*(Create|CreateText|OpenWrite|AppendText|Replace|Move|Copy|Delete|SetAttributes)|OpenWrite|\.Save\(|SaveAs\(|Tee-Object'
     # GuiSnapshot.ps1 writes the developer snapshots (PNG) and only after Test-MspkiGuiSnapshotFolder accepted a folder inside out\ (tests\Gui.Tests.ps1).
-    $script:writeAllowed = @('OutputFolder.ps1', 'GuiSnapshot.ps1')
+    $script:writeAllowed = @('OutputFolder.ps1', 'GuiSnapshot.ps1', 'GuiState.ps1')
 }
 
 Describe 'Code file <Name>' -ForEach $script:codeFiles {

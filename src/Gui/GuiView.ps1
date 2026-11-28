@@ -143,41 +143,72 @@ function Get-MspkiGuiEmptyPane {
 function ConvertTo-MspkiGuiDiagnosisView {
     <#
     .SYNOPSIS
-    The "Probable causes and next steps" of a finding as plain view-model text for the details pane (and a plain-text copy of it).
+    The "Probable causes and next steps" of a finding as view-model data for the guided walkthrough in the details pane (and a
+    plain-text copy of it): what it means, the causes ranked, what this run observed for each, each read-only check as its own row
+    (with the keys the pane uses to copy it or mark it as checked), the fix with its owner, and the sources.
     A $null diagnosis (a passing finding) gives HasDiagnosis = $false.
     #>
     [CmdletBinding()]
-    param([AllowNull()]$Diagnosis)
+    param([AllowNull()]$Diagnosis, [string[]]$CheckedKeys = @())
     $d = $Diagnosis
     if ($null -eq $d) {
-        return [pscustomobject][ordered]@{ HasDiagnosis = $false; Title = ''; Summary = ''; BasisNote = ''; Causes = @(); SourcesText = ''; CopyText = '' }
+        return [pscustomobject][ordered]@{ HasDiagnosis = $false; Title = ''; Summary = ''; BasisNote = ''; Causes = @(); SourceItems = @(); SourcesText = ''; CopyText = ''; ObservedCount = 0 }
     }
     $bullet = [string][char]0x2022
     $lines = New-Object 'System.Collections.Generic.List[string]'
     $lines.Add('Probable causes and next steps: ' + [string]$d.Title)
     $lines.Add([string]$d.Summary)
     $lines.Add([string]$d.BasisNote)
+    $checked = @{}
+    foreach ($k in @($CheckedKeys)) { if ($k) { $checked[[string]$k] = $true } }
     $causes = @(foreach ($c in @($d.Causes)) {
+        $rank = [int]$c.Rank
         $because = @($c.Because | Where-Object { $_ })
         $confirm = @($c.Confirm | Where-Object { $_ })
         $fix = @($c.Fix | Where-Object { $_ })
         $bt = (($because | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
-        $ct = (($confirm | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
         $ft = (($fix | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
+        $i = 0
+        $checks = @(foreach ($t in $confirm) {
+            $key = '{0}:{1}' -f $rank, $i
+            $short = [string]$t; if ($short.Length -gt 60) { $short = $short.Substring(0, 57) + '...' }
+            [pscustomobject][ordered]@{
+                Key = $key; Text = [string]$t; Checked = $checked.ContainsKey($key)
+                CopyTag = ('copycheck:{0}:{1}' -f $rank, $i); ToggleTag = ('toggle:{0}:{1}' -f $rank, $i)
+                ToggleName = ('Mark as checked: {0}' -f $short); CopyName = ('Copy this check: {0}' -f $short)
+            }
+            $i++
+        })
+        $ct = (($confirm | ForEach-Object { '{0} {1}' -f $bullet, $_ }) -join "`r`n")
         $lines.Add(('{0}. {1} [{2}]' -f $c.Rank, $c.Cause, $c.Likelihood))
         if ($bt) { $lines.Add('   Observed in this run:'); $lines.Add($bt) }
         if ($ct) { $lines.Add('   How to confirm (read-only):'); $lines.Add($ct) }
         if ($ft) { $lines.Add(('   How to fix (action for the {0}):' -f $c.FixOwner)); $lines.Add($ft) }
         [pscustomobject][ordered]@{
-            Heading    = ('{0}. {1}' -f $c.Rank, $c.Cause)
-            Likelihood = [string]$c.Likelihood
-            IsTop      = ([int]$c.Rank -eq 1)
-            HasBecause = [bool]$bt
+            Rank        = $rank
+            Heading     = ('{0}. {1}' -f $c.Rank, $c.Cause)
+            Cause       = [string]$c.Cause
+            Likelihood  = [string]$c.Likelihood
+            IsTop       = ($rank -eq 1)
+            Observed    = [bool]$bt
+            HasBecause  = [bool]$bt
             BecauseText = $bt
+            Checks      = $checks
+            HasChecks   = ($checks.Count -gt 0)
+            CopyChecksTag = ('copychecks:{0}' -f $rank)
+            ChecksCopyText = (($checks | ForEach-Object -Begin { $n = 0 } -Process { $n++; '{0}. {1}' -f $n, $_.Text }) -join "`r`n")
             ConfirmText = $ct
-            FixLabel   = ('How to fix (action for the {0}; this tool changes nothing)' -f $c.FixOwner)
-            FixText    = $ft
+            FixOwner    = [string]$c.FixOwner
+            FixLabel    = ('How to fix: an action for the {0} (this tool changes nothing)' -f $c.FixOwner)
+            FixText     = $ft
+            HasFix      = [bool]$ft
+            CopyFixTag  = ('copyfix:{0}' -f $rank)
         }
+    })
+    $j = 0
+    $srcItems = @(foreach ($s in @($d.Sources)) {
+        [pscustomobject][ordered]@{ Title = [string]$s.Title; Publisher = [string]$s.Publisher; Url = [string]$s.Url; CopyTag = ('copysource:{0}' -f $j); CopyName = ('Copy the address of: {0}' -f $s.Title) }
+        $j++
     })
     $srcText = ((@($d.Sources) | ForEach-Object { '{0} ({1}){2}{3}' -f $_.Title, $_.Publisher, "`r`n", $_.Url }) -join "`r`n`r`n")
     if ($srcText) { $lines.Add('Sources:'); $lines.Add($srcText) }
@@ -187,6 +218,8 @@ function ConvertTo-MspkiGuiDiagnosisView {
         Summary      = [string]$d.Summary
         BasisNote    = [string]$d.BasisNote
         Causes       = $causes
+        ObservedCount = @($causes | Where-Object { $_.Observed }).Count
+        SourceItems  = $srcItems
         SourcesText  = $srcText
         CopyText     = ($lines -join "`r`n")
     }
@@ -199,8 +232,16 @@ function Get-MspkiGuiFindingDetail {
     Empty values show as a dash so that no field looks forgotten.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Finding, [bool]$CanGoBack = $false, [string]$BackText = 'Back to the item')
+    param([Parameter(Mandatory = $true)]$Finding, [bool]$CanGoBack = $false, [string]$BackText = 'Back to the item', [string[]]$CheckedKeys = $null, [string]$CheckNote = '')
     $f = $Finding
+    # The checks this user marked as done for this finding (kept with the run); the window passes none in unit tests.
+    if ($null -eq $CheckedKeys) {
+        $CheckedKeys = @()
+        if ($null -ne $script:MspkiGui -and $script:MspkiGui.ContainsKey('CheckState') -and $null -ne $script:MspkiGui.CheckState) {
+            $CheckedKeys = @(Get-MspkiGuiCheckedKey -State $script:MspkiGui.CheckState -FindingId ([string]$f.Id))
+            $CheckNote = [string]$script:MspkiGui.CheckState.Note
+        }
+    }
     $dash = [string][char]0x2014
     $fieldNames = @('Id', 'Timestamp', 'Stage', 'Category', 'Role', 'Target', 'Endpoint', 'RelatedCA', 'Confidence', 'Status', 'Severity', 'StatusCode', 'Scope', 'Forest', 'Domain')
     $fields = @(foreach ($n in $fieldNames) {
@@ -221,7 +262,7 @@ function Get-MspkiGuiFindingDetail {
     $title = (@($f.Category, $f.Target) | Where-Object { $_ }) -join $script:MspkiGuiDot
     $dg = $null
     try { $dg = Get-MspkiFindingDiagnosis -Finding $f } catch { $dg = $null }
-    $diag = ConvertTo-MspkiGuiDiagnosisView -Diagnosis $dg
+    $diag = ConvertTo-MspkiGuiDiagnosisView -Diagnosis $dg -CheckedKeys $CheckedKeys
     $copy = New-Object 'System.Collections.Generic.List[string]'
     $copy.Add(('{0} [{1}] {2}' -f $f.Id, $f.Status, $title))
     $copy.Add([string]$f.Message)
@@ -239,6 +280,9 @@ function Get-MspkiGuiFindingDetail {
         DiagBasis      = $diag.BasisNote
         DiagCauses     = $diag.Causes
         DiagSources    = $diag.SourcesText
+        DiagSourceItems = $diag.SourceItems
+        DiagObservedCount = $diag.ObservedCount
+        CheckNote      = $CheckNote
         Id             = [string]$f.Id
         Status         = [string]$f.Status
         StatusPill     = (Get-MspkiGuiStatusPill -Value ([string]$f.Status))

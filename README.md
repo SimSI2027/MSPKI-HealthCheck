@@ -71,9 +71,10 @@ If it says it needs a single-threaded session, start it as `powershell.exe -STA 
   templates, CES and NDES, each with its status and confidence. **Findings**: every finding in a table you can search, filter
   by status, category and confidence, and sort by clicking a column heading. **Details**: select a finding to see all of it
   (sources, evidence, the DNS/TCP/TLS/HTTP/redirect/content/chain results, remediation, notes). Every finding that is not passing also has
-  **Probable causes and next steps**: what it means in plain words, the likely causes in order (ranked with what the run actually saw),
-  a read-only way to check each one, how to fix it (an action for the PKI owner: this tool changes nothing) and the sources. The same
-  section is in esults.json and in eport.html. The advice comes from src/Knowledge and is listed with its dates in
+  **What to do about it**, a guided walkthrough: what it means in plain words, the likely causes in order (a cause the run saw evidence
+  for is marked **Observed in this run**), each read-only check on its own line with a copy button and a box to mark it as checked (kept
+  with the run in `gui-state.json` when the run is under the output folder), how to fix it (an action for the PKI owner: this tool changes
+  nothing) and the sources. Every button there only copies text: the window never runs a check. The same advice is in `results.json` and in `report.html`. The advice comes from src/Knowledge and is listed with its dates in
   docs/KNOWLEDGE-SOURCES.md; a cause is probable, never proven.
 - **Objects** (Ctrl+5): everything the run found (forest, domains, CAs, CA certificates, CRLs, URLs, hosts, PKI services,
   templates, certificates on this computer, AD objects, accounts), grouped by type, with a search box, a type filter and

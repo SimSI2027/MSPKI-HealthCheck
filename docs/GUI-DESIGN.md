@@ -277,3 +277,19 @@ lead to the Findings page or the full list.
 Known, accepted (each has a work package): the popup is a separate window, so it is not in the PNGs (judged from its code and a test); the live colours say "answered" or
 "did not answer", health is graded when the run ends (findings only exist then); a redraw of the live map repositions earlier nodes when a batch changes the columns (GX6
 adds clustering and a stable layout); no healthy celebration yet (GX9); generator and discriminator are the same model.
+
+### GX3 round 1 (2026-11-27; guided walkthrough in the details pane; Alcyone `mixed-sample` results plus a real lab run kept under out\ only; PNGs at 1360 x 860; frames 23 opened from the first Overview action, 24 the causes, 25 one check marked and its copy button answering)
+Scores: A1 8, A2 7, A3 7, A4 8, A5 8, A6 8, A7 8, A8 7, A9 8, A10 8; B1 7, B2 8, B3 8, B4 8, B5 8; C1 7, C2 8, C3 8, C4 8. **Not a pass.**
+Defects: (1) three nested cards (section, accent frame, cause) left a cause heading about 200 px wide, wrapped to seven lines (A2, A3); (2) the walkthrough sat
+below the fold, under the finding's own "Suggested action" (B1, J3 needed scrolling); (3) the storage note ("checked marks last...") stood between the heading
+and the causes (A8); (4) the snapshot of a marked check showed nothing new: the frame scrolled to the section heading, not to the check (a method defect).
+Generator: one card per cause with a 3 px accent strip when this run observed something for it and the pills ("Most likely", "Observed in this run") on their own
+row above the heading; no outer card; the walkthrough follows "What was found" directly and the suggestion moves below it; the storage note sits under the causes
+and is shorter; a marked check turns muted at once (bound to its own box, not to the view model); frame 25 scrolls to the first check.
+
+### GX3 round 2 (same frames at 1080 x 700 (minimum), 1360 x 860 and 1920 x 1080, world and lab)
+Scores: A1 9, A2 8, A3 8, A4 8, A5 8, A6 8, A7 8, A8 8, A9 8, A10 8; B1-B5 8; C1 8, C2 8, C3 8, C4 8. **PASS** (scope: the walkthrough). One defect fixed in the
+round: a tick box sat about 10 px below the first line of its check (now aligned). J3: the first Overview action opens the finding with the walkthrough in view (1
+click), a check's copy button copies it (2 clicks); the button answers with a green check mark for 1.4 s, with no animation (reduced motion needs nothing).
+Known, accepted: the details pane keeps its width (about 400 px at 1360 x 860), so long checks wrap; the tick boxes are keyboard-reachable but there is no shortcut yet
+(GX4 command palette); generator and discriminator are the same model.

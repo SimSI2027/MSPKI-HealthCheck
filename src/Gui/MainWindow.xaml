@@ -270,6 +270,117 @@
               <TextBlock Text="What was found" Style="{StaticResource Label}" Margin="0,0,0,6"/>
               <TextBox Text="{Binding Message, Mode=OneWay}" Style="{StaticResource ValueText}" FontSize="14"/>
 
+
+
+              <!-- Guided walkthrough (docs/GUI-EXPERIENCE.md, journey J3): what it means, causes ranked (with what this run observed), read-only checks to copy and mark as checked,
+                   the fix and who owns it, sources. Nothing here runs anything: the buttons only copy text. -->
+              <StackPanel Visibility="{Binding HasDiagnosis, Converter={StaticResource BoolToVis}}" Margin="0,20,0,0">
+                <TextBlock Text="What to do about it" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                  <StackPanel>
+                    <TextBlock Text="{Binding DiagTitle}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap"/>
+                    <TextBox Text="{Binding DiagSummary, Mode=OneWay}" Style="{StaticResource ValueText}" Margin="0,4,0,0"/>
+                    <TextBlock Text="{Binding DiagBasis}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                    <TextBlock Text="Probable causes, most likely first" Style="{StaticResource Label}" Margin="0,18,0,0"/>
+                    <ItemsControl ItemsSource="{Binding DiagCauses}" Focusable="False" Margin="0,2,0,0">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <!-- A cause this run observed evidence for carries a quiet accent bar and the word "Observed". -->
+                          <Border BorderBrush="{StaticResource B.Divider}" BorderThickness="1" CornerRadius="6" Background="{StaticResource B.Card}" Margin="0,8,0,0">
+                            <DockPanel>
+                              <Border DockPanel.Dock="Left" Width="3" CornerRadius="2" Margin="-1,8,0,8">
+                                <Border.Style>
+                                  <Style TargetType="Border">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Style.Triggers><DataTrigger Binding="{Binding Observed}" Value="True"><Setter Property="Background" Value="{StaticResource B.Accent}"/></DataTrigger></Style.Triggers>
+                                  </Style>
+                                </Border.Style>
+                              </Border>
+                              <StackPanel Margin="11,10,12,10">
+                                <StackPanel>
+                                  <WrapPanel Margin="0,0,0,6">
+                                    <Border CornerRadius="10" Padding="8,1" BorderThickness="1" Margin="0,0,6,0">
+                                      <Border.Style>
+                                        <Style TargetType="Border">
+                                          <Setter Property="Background" Value="{StaticResource B.NeutralBack}"/>
+                                          <Setter Property="BorderBrush" Value="{StaticResource B.NeutralLine}"/>
+                                          <Style.Triggers><DataTrigger Binding="{Binding IsTop}" Value="True"><Setter Property="Background" Value="{StaticResource B.GoodBack}"/><Setter Property="BorderBrush" Value="{StaticResource B.GoodLine}"/></DataTrigger></Style.Triggers>
+                                        </Style>
+                                      </Border.Style>
+                                      <TextBlock Text="{Binding Likelihood}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource B.Text}"/>
+                                    </Border>
+                                    <Border Background="{StaticResource B.AccentSoft}" BorderBrush="{StaticResource B.AccentStroke}" BorderThickness="1" CornerRadius="10" Padding="8,1" Visibility="{Binding Observed, Converter={StaticResource BoolToVis}}" ToolTip="Something this run observed backs this cause">
+                                      <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE7B3;" FontSize="11" Margin="0,0,5,0" Foreground="{StaticResource B.AccentDark}"/><TextBlock Text="Observed in this run" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource B.AccentDark}"/></StackPanel>
+                                    </Border>
+                                  </WrapPanel>
+                                  <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Visibility="{Binding HasBecause, Converter={StaticResource BoolToVis}}" Margin="0,8,0,0">
+                                  <TextBlock Text="Why this run points to it" Style="{StaticResource Small}" FontWeight="SemiBold" Foreground="{StaticResource B.AccentDark}"/>
+                                  <TextBox Text="{Binding BecauseText, Mode=OneWay}" Style="{StaticResource ValueText}"/>
+                                </StackPanel>
+                                <StackPanel Visibility="{Binding HasChecks, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0">
+                                  <DockPanel>
+                                    <Button DockPanel.Dock="Right" Tag="{Binding CopyChecksTag}" Style="{StaticResource SubtleButton}" Padding="8,0" ToolTip="Copy every check of this cause as text. They only look; run them yourself where you choose." AutomationProperties.Name="Copy all checks of this cause">
+                                      <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8C8;" Margin="0,0,6,0"/><TextBlock Text="Copy all checks" FontSize="12"/></StackPanel>
+                                    </Button>
+                                    <TextBlock Text="How to confirm (read-only)" Style="{StaticResource Small}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                  </DockPanel>
+                                  <ItemsControl ItemsSource="{Binding Checks}" Focusable="False" Margin="0,4,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate>
+                                        <Grid Margin="0,2,0,2">
+                                          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                          <CheckBox x:Name="ChkDone" IsChecked="{Binding Checked, Mode=OneWay}" Tag="{Binding ToggleTag}" VerticalAlignment="Top" Margin="0,0,10,0" ToolTip="Mark as checked (kept with this run)" AutomationProperties.Name="{Binding ToggleName}"/>
+                                          <TextBox Grid.Column="1" Text="{Binding Text, Mode=OneWay}" FontFamily="{StaticResource F.Mono}" FontSize="12" VerticalAlignment="Top" Margin="0,3,0,0">
+                                            <TextBox.Style>
+                                              <Style TargetType="TextBox" BasedOn="{StaticResource ValueText}">
+                                                <Style.Triggers><DataTrigger Binding="{Binding IsChecked, ElementName=ChkDone}" Value="True"><Setter Property="Foreground" Value="{StaticResource B.Muted}"/></DataTrigger></Style.Triggers>
+                                              </Style>
+                                            </TextBox.Style>
+                                          </TextBox>
+                                          <Button Grid.Column="2" Tag="{Binding CopyTag}" Style="{StaticResource SubtleButton}" Width="30" Padding="0" VerticalAlignment="Top" Margin="6,0,0,0" ToolTip="Copy this check" AutomationProperties.Name="{Binding CopyName}">
+                                            <TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8C8;" Margin="0" HorizontalAlignment="Center"/>
+                                          </Button>
+                                        </Grid>
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                </StackPanel>
+                                <StackPanel Visibility="{Binding HasFix, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0">
+                                  <DockPanel>
+                                    <Button DockPanel.Dock="Right" Tag="{Binding CopyFixTag}" Style="{StaticResource SubtleButton}" Width="30" Padding="0" ToolTip="Copy the fix steps, to hand them to the owner" AutomationProperties.Name="Copy the fix steps of this cause">
+                                      <TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8C8;" Margin="0" HorizontalAlignment="Center"/>
+                                    </Button>
+                                    <TextBlock Text="{Binding FixLabel}" Style="{StaticResource Small}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                  </DockPanel>
+                                  <TextBox Text="{Binding FixText, Mode=OneWay}" Style="{StaticResource ValueText}"/>
+                                </StackPanel>
+                              </StackPanel>
+                            </DockPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding CheckNote}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                    <TextBlock Text="Sources" Style="{StaticResource Label}" Margin="0,18,0,4"/>
+                    <ItemsControl ItemsSource="{Binding DiagSourceItems}" Focusable="False">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <DockPanel Margin="0,0,0,6">
+                            <Button DockPanel.Dock="Right" Tag="{Binding CopyTag}" Style="{StaticResource SubtleButton}" Width="30" Padding="0" VerticalAlignment="Top" ToolTip="Copy the address" AutomationProperties.Name="{Binding CopyName}">
+                              <TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8C8;" Margin="0" HorizontalAlignment="Center"/>
+                            </Button>
+                            <StackPanel>
+                              <TextBlock TextWrapping="Wrap"><Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=" "/><Run Text="{Binding Publisher, Mode=OneWay}" Foreground="{StaticResource B.Muted}"/></TextBlock>
+                              <TextBox Text="{Binding Url, Mode=OneWay}" Style="{StaticResource ValueText}" FontSize="12" FontFamily="{StaticResource F.Mono}"/>
+                            </StackPanel>
+                          </DockPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+              </StackPanel>
+
               <Border Visibility="{Binding HasRemediation, Converter={StaticResource BoolToVis}}" Margin="0,16,0,0" Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoLine}" BorderThickness="1" CornerRadius="6" Padding="12,10">
                 <DockPanel>
                   <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE82F;" Foreground="{StaticResource B.InfoFore}" VerticalAlignment="Top" Margin="0,1,10,0"/>
@@ -279,58 +390,6 @@
                   </StackPanel>
                 </DockPanel>
               </Border>
-
-              <!-- Probable causes and next steps (docs/KNOWLEDGE-SOURCES.md): ranked causes, how to confirm (read-only), how to fix (PKI owner), sources -->
-              <StackPanel Visibility="{Binding HasDiagnosis, Converter={StaticResource BoolToVis}}" Margin="0,20,0,0">
-                <TextBlock Text="Probable causes and next steps" Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                <Border Background="{StaticResource B.Card}" BorderBrush="{StaticResource B.Divider}" BorderThickness="1" CornerRadius="6" Padding="14,12">
-                  <StackPanel>
-                    <TextBlock Text="{Binding DiagTitle}" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap"/>
-                    <TextBox Text="{Binding DiagSummary, Mode=OneWay}" Style="{StaticResource ValueText}" Margin="0,4,0,0"/>
-                    <TextBlock Text="{Binding DiagBasis}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                    <ItemsControl ItemsSource="{Binding DiagCauses}" Focusable="False" Margin="0,8,0,0">
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                          <Border BorderBrush="{StaticResource B.Divider}" BorderThickness="0,1,0,0" Padding="0,10,0,4" Margin="0,6,0,0">
-                            <StackPanel>
-                              <DockPanel>
-                                <Border DockPanel.Dock="Right" CornerRadius="10" Padding="8,1" Margin="8,0,0,0" BorderThickness="1" VerticalAlignment="Top">
-                                  <Border.Style>
-                                    <Style TargetType="Border">
-                                      <Setter Property="Background" Value="{StaticResource B.InfoBack}"/>
-                                      <Setter Property="BorderBrush" Value="{StaticResource B.InfoLine}"/>
-                                      <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsTop}" Value="True">
-                                          <Setter Property="Background" Value="{StaticResource B.GoodBack}"/>
-                                          <Setter Property="BorderBrush" Value="{StaticResource B.GoodLine}"/>
-                                        </DataTrigger>
-                                      </Style.Triggers>
-                                    </Style>
-                                  </Border.Style>
-                                  <TextBlock Text="{Binding Likelihood}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource B.InfoFore}"/>
-                                </Border>
-                                <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                              </DockPanel>
-                              <Border Visibility="{Binding HasBecause, Converter={StaticResource BoolToVis}}" Background="{StaticResource B.InfoBack}" BorderBrush="{StaticResource B.InfoLine}" BorderThickness="1" CornerRadius="4" Padding="10,6" Margin="0,6,0,0">
-                                <StackPanel>
-                                  <TextBlock Text="Observed in this run" Style="{StaticResource Small}" Foreground="{StaticResource B.InfoFore}" FontWeight="SemiBold"/>
-                                  <TextBox Text="{Binding BecauseText, Mode=OneWay}" Style="{StaticResource ValueText}"/>
-                                </StackPanel>
-                              </Border>
-                              <TextBlock Text="How to confirm (read-only)" Style="{StaticResource Small}" FontWeight="SemiBold" Margin="0,8,0,0"/>
-                              <TextBox Text="{Binding ConfirmText, Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="{StaticResource F.Mono}" FontSize="12"/>
-                              <TextBlock Text="{Binding FixLabel}" Style="{StaticResource Small}" FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap"/>
-                              <TextBox Text="{Binding FixText, Mode=OneWay}" Style="{StaticResource ValueText}"/>
-                            </StackPanel>
-                          </Border>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <TextBlock Text="Sources" Style="{StaticResource Small}" FontWeight="SemiBold" Margin="0,12,0,0"/>
-                    <TextBox Text="{Binding DiagSources, Mode=OneWay}" Style="{StaticResource ValueText}" FontSize="12"/>
-                  </StackPanel>
-                </Border>
-              </StackPanel>
 
               <StackPanel Visibility="{Binding HasObjects, Converter={StaticResource BoolToVis}}" Margin="0,20,0,0">
                 <TextBlock Style="{StaticResource Label}" Margin="0,0,0,4"><Run Text="Objects this finding is about ("/><Run Text="{Binding ObjectCount, Mode=OneWay}"/><Run Text=")"/></TextBlock>
