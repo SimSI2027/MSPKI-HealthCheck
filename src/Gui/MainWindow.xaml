@@ -1361,17 +1361,17 @@
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="5*" MinWidth="420"/>
-                  <ColumnDefinition Width="16"/>
-                  <ColumnDefinition Width="3*" MinWidth="300" MaxWidth="640"/>
+                  <ColumnDefinition x:Name="MapGapCol" Width="16"/>
+                  <ColumnDefinition x:Name="MapPaneCol" Width="3*" MinWidth="300" MaxWidth="640"/>
                 </Grid.ColumnDefinitions>
                 <Border x:Name="MapCanvasPanel" Style="{StaticResource Panel}" ClipToBounds="True">
                   <DockPanel>
                     <Border DockPanel.Dock="Top" Padding="16,12,16,4" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
                       <WrapPanel>
-                        <TextBox x:Name="FltMap" Style="{StaticResource SearchBox}" Width="240" Margin="0,0,12,8" Tag="Search the map (Ctrl+F)" ToolTip="Type words: matching objects stay bright, the rest is dimmed." AutomationProperties.Name="Search the map"/>
-                        <ComboBox x:Name="FltMapStatus" Style="{StaticResource FilterCombo}" Tag="Status" Width="176" Margin="0,0,12,8" AutomationProperties.Name="Status filter" ToolTip="Show objects with this status, with the CAs that lead to them"/>
-                        <ComboBox x:Name="FltMapType" Style="{StaticResource FilterCombo}" Tag="Show" Width="196" Margin="0,0,12,8" AutomationProperties.Name="Object type filter" ToolTip="Show one kind of object"/>
-                        <ComboBox x:Name="FltMapFocus" Style="{StaticResource FilterCombo}" Tag="CA" Width="216" Margin="0,0,12,8" AutomationProperties.Name="Focus on one CA" ToolTip="Show one CA with what it issued, publishes and depends on"/>
+                        <TextBox x:Name="FltMap" Style="{StaticResource SearchBox}" Width="220" Margin="0,0,8,8" Tag="Search the map (Ctrl+F)" ToolTip="Type words: matching objects stay bright, the rest is dimmed." AutomationProperties.Name="Search the map"/>
+                        <ComboBox x:Name="FltMapStatus" Style="{StaticResource FilterCombo}" Tag="Status" Width="168" Margin="0,0,8,8" AutomationProperties.Name="Status filter" ToolTip="Show objects with this status, with the CAs that lead to them"/>
+                        <ComboBox x:Name="FltMapType" Style="{StaticResource FilterCombo}" Tag="Show" Width="176" Margin="0,0,8,8" AutomationProperties.Name="Object type filter" ToolTip="Show one kind of object"/>
+                        <ComboBox x:Name="FltMapFocus" Style="{StaticResource FilterCombo}" Tag="CA" Width="196" Margin="0,0,8,8" AutomationProperties.Name="Focus on one CA" ToolTip="Show one CA with what it issued, publishes and depends on"/>
                         <CheckBox x:Name="ChkMapProblems" Style="{StaticResource Switch}" Content="Only problems" VerticalAlignment="Center" Margin="0,0,12,8" AutomationProperties.Name="Show only problems" ToolTip="Failing, warning and could-not-check objects, with the path to them"/>
                       </WrapPanel>
                     </Border>
@@ -1411,7 +1411,7 @@
                       <Border x:Name="MapBusy" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="12,6" CornerRadius="14" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" Visibility="Collapsed" IsHitTestVisible="False" Effect="{StaticResource PopupShadow}">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE895;" FontSize="12" Foreground="{DynamicResource B.Accent}" Margin="0,0,8,0" VerticalAlignment="Center"/><TextBlock Text="Updating the map..." Style="{StaticResource Small}"/></StackPanel>
                       </Border>
-                      <Border x:Name="MapZoomBar" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12" Padding="4" CornerRadius="6" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" Effect="{StaticResource CardShadow}" Visibility="Collapsed">
+                      <Border x:Name="MapZoomBar" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12,12,210,12" Padding="4" CornerRadius="6" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" Effect="{StaticResource CardShadow}" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
                           <Button x:Name="BtnZoomOut" Style="{StaticResource SubtleButton}" Width="32" Padding="0" AutomationProperties.Name="Zoom out" ToolTip="Zoom out (Ctrl+minus)"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE71F;" FontSize="14" Margin="0" HorizontalAlignment="Center"/></Button>
                           <Slider x:Name="SldZoom" Style="{StaticResource ZoomSlider}" Width="104" Minimum="0.25" Maximum="2.5" Value="1" Margin="4,0" VerticalAlignment="Center" AutomationProperties.Name="Zoom" ToolTip="Zoom (Ctrl and the mouse wheel)" SmallChange="0.1" LargeChange="0.25"/>
@@ -1457,8 +1457,8 @@
                     </TreeView>
                   </DockPanel>
                 </Border>
-                <GridSplitter Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Focusable="False"/>
-                <Border Grid.Column="2" Style="{StaticResource Panel}" ClipToBounds="True">
+                <GridSplitter x:Name="MapSplitter" Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Focusable="False"/>
+                <Border x:Name="MapPanePanel" Grid.Column="2" Style="{StaticResource Panel}" ClipToBounds="True">
                   <ContentControl x:Name="MapHost" Style="{StaticResource PaneHost}"/>
                 </Border>
               </Grid>

@@ -452,7 +452,7 @@ function Set-MspkiGuiMapTransform {
 function Set-MspkiGuiMapFit {
     <#
     .SYNOPSIS
-    Fits the whole map into the window (Ctrl+0, the Fit button), above the zoom bar. -Readable (a new run): never below 67 %, so a large
+    Fits the whole map into the window (Ctrl+0, the Fit button), above the zoom bar. -Readable (a new run): never below 84 % (map labels at 10 px or more, D-06), so a large
     estate opens readable, centred, with the minimap showing the whole.
     #>
     param([switch]$Readable)
@@ -462,8 +462,8 @@ function Set-MspkiGuiMapFit {
     if ($null -eq $cv) { return }
     $vw = $ui.MapViewport.ActualWidth; $vh = [math]::Max(120.0, $ui.MapViewport.ActualHeight - 52)
     $f = Get-MspkiGuiMapFit -ContentWidth $cv.Width -ContentHeight $cv.Height -ViewWidth $vw -ViewHeight $vh
-    if ($Readable -and $f.Scale -lt 0.67) {
-        $s = 0.67
+    if ($Readable -and $f.Scale -lt 0.84) {
+        $s = 0.84
         Set-MspkiGuiMapTransform -Scale $s -X ([math]::Max(16.0, ($vw - $cv.Width * $s) / 2.0)) -Y (($vh - $cv.Height * $s) / 2.0)
         return
     }
@@ -897,4 +897,28 @@ function Initialize-MspkiGuiMapPage {
         [void](New-MspkiGuiBuildPaths)
     }
     catch { $null = $_ }
+}
+
+function Update-MspkiGuiMapPaneSpace {
+    <#
+    .SYNOPSIS
+    D-06: the Discovery map page gives the map the whole width until something is selected; the details pane opens beside it when the map
+    or the tree shows an object, and closes again when nothing is selected.
+    #>
+    [CmdletBinding()]
+    param()
+    $ui = $script:MspkiGui.Ui
+    if ($null -eq $ui.MapPaneCol) { return }
+    $c = $ui.MapHost.Content
+    $empty = ($null -eq $c -or [string]$c.Kind -eq 'None')
+    if ($empty) {
+        $ui.MapPaneCol.MinWidth = 0; $ui.MapPaneCol.Width = New-Object System.Windows.GridLength(0)
+        $ui.MapGapCol.Width = New-Object System.Windows.GridLength(0)
+        $ui.MapPanePanel.Visibility = 'Collapsed'; $ui.MapSplitter.Visibility = 'Collapsed'
+    }
+    elseif ($ui.MapPanePanel.Visibility -ne 'Visible') {
+        $ui.MapPaneCol.Width = New-Object System.Windows.GridLength(3, [System.Windows.GridUnitType]::Star); $ui.MapPaneCol.MinWidth = 300
+        $ui.MapGapCol.Width = New-Object System.Windows.GridLength(16)
+        $ui.MapPanePanel.Visibility = 'Visible'; $ui.MapSplitter.Visibility = 'Visible'
+    }
 }

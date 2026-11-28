@@ -312,9 +312,12 @@ function New-MspkiGuiMapLinkVisual {
     $x2 = [double]$b.X - 3; $y2 = [double]$b.Y + $Top
     if ($x2 -le $x1 + 4) { $x1 = [double]$a.X + 26 }
     $mid = $x1 + ($x2 - $x1) * 0.5
+    $c1 = $mid; $c2 = $mid
+    # D-09: across a wide gap (many links), the links of one object run together as a trunk and fan out near their targets.
+    if (($x2 - $x1) -gt 150) { $c1 = $x1 + ($x2 - $x1) * 0.8; $c2 = $x1 + ($x2 - $x1) * 0.55 }
     $fig = New-Object System.Windows.Media.PathFigure
     $fig.StartPoint = New-Object System.Windows.Point($x1, $y1)
-    [void]$fig.Segments.Add((New-Object System.Windows.Media.BezierSegment((New-Object System.Windows.Point($mid, $y1)), (New-Object System.Windows.Point($mid, $y2)), (New-Object System.Windows.Point($x2, $y2)), $true)))
+    [void]$fig.Segments.Add((New-Object System.Windows.Media.BezierSegment((New-Object System.Windows.Point($c1, $y1)), (New-Object System.Windows.Point($c2, $y2)), (New-Object System.Windows.Point($x2, $y2)), $true)))
     $geo = New-Object System.Windows.Media.PathGeometry
     [void]$geo.Figures.Add($fig)
     $geo.Freeze()
@@ -347,7 +350,7 @@ function New-MspkiGuiMapLinkVisual {
     if ($markGlyph -ne 0 -and $null -ne $Marked -and $Marked.ContainsKey($mk)) { $markGlyph = 0 }
     if ($markGlyph -ne 0 -and $null -ne $Marked) { $Marked[$mk] = $true }
     $tt = 0.78; $u = 1 - $tt
-    $mx = $u * $u * $u * $x1 + 3 * $u * $u * $tt * $mid + 3 * $u * $tt * $tt * $mid + $tt * $tt * $tt * $x2
+    $mx = $u * $u * $u * $x1 + 3 * $u * $u * $tt * $c1 + 3 * $u * $tt * $tt * $c2 + $tt * $tt * $tt * $x2
     $my = $u * $u * $u * $y1 + 3 * $u * $u * $tt * $y1 + 3 * $u * $tt * $tt * $y2 + $tt * $tt * $tt * $y2
     if ($markGlyph -ne 0) {
         $marker = New-Object System.Windows.Controls.Border

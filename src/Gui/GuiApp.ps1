@@ -1976,6 +1976,10 @@ function Initialize-MspkiGuiApplication {
     $ui.BtnScoreHow.Add_Click({ $sc = $script:MspkiGui.Score; if ($null -ne $sc) { $script:MspkiGui.Ui.TxtScoreHow.Text = $sc.HowText; $script:MspkiGui.Ui.PopScore.IsOpen = $true } })
     $ui.BtnReplay.Add_Click({ Start-MspkiGuiMissionAnimation })
     $ui.FindingsGrid.Add_SizeChanged({ try { Update-MspkiGuiGridColumns } catch { [void](Invoke-MspkiGuiUnhandledError -Exception $_.Exception -Source 'grid') } })
+    # D-06: the map pane opens and closes with what it shows (a property change of the host, no polling).
+    $script:MspkiGuiMapPaneWatch = [System.EventHandler]{ try { Update-MspkiGuiMapPaneSpace } catch { $null = $_ } }
+    [System.ComponentModel.DependencyPropertyDescriptor]::FromProperty([System.Windows.Controls.ContentControl]::ContentProperty, [System.Windows.Controls.ContentControl]).AddValueChanged($ui.MapHost, $script:MspkiGuiMapPaneWatch)
+    Update-MspkiGuiMapPaneSpace
     $ui.MapCanvasHost.Add_SizeChanged({ try { Invoke-MspkiGuiMapDraw } catch { [void](Invoke-MspkiGuiUnhandledError -Exception $_.Exception -Source 'map') } })
 
     # Details panes (Findings, Discovery map, Objects): Copy, Back, related objects, breadcrumbs, findings. One handler each.

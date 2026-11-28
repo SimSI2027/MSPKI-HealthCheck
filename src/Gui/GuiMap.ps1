@@ -549,9 +549,23 @@ function Set-MspkiGuiMapLayout {
     if ($Natural) { $Width = $need + 24 }
     elseif ($need -gt $Width) { $scale = [math]::Max(0.45, 1.0 - ($need - $Width) / [math]::Max(1.0, $sumWant)) }
     elseif ($layers -gt 1) { $extra = ($Width - $need) / ($layers - 1) }
+    # D-09: a gap that many links cross gets wider (at least 160 px above 30 links), so they fan out instead of forming a rope.
+    $layerOf = @{}; foreach ($n in $Model.Nodes) { $layerOf[[string]$n.Id] = [int]$n.Layer }
+    $pairLinks = @{}
+    foreach ($lk in @($Model.Links)) {
+        if (-not $layerOf.ContainsKey([string]$lk.From) -or -not $layerOf.ContainsKey([string]$lk.To)) { continue }
+        $lo = [math]::Min($layerOf[[string]$lk.From], $layerOf[[string]$lk.To])
+        $pairLinks[$lo] = 1 + [int]$pairLinks[$lo]
+    }
+    $gapAfter = @{}
+    foreach ($l in 0..($layers - 1)) {
+        $cnt = [int]$pairLinks[$l]
+        $gapAfter[$l] = $(if ($Natural -and $cnt -gt 30) { [math]::Min(420.0, [math]::Max(160.0, 52.0 + $cnt * 1.5)) } else { $link })
+    }
     $colX = @{}
     $x = $left
-    foreach ($l in 0..($layers - 1)) { $colX[$l] = $x; $x += $node + 4 + [math]::Floor($want[$l] * $scale) + $link + $extra }
+    foreach ($l in 0..($layers - 1)) { $colX[$l] = $x; $x += $node + 4 + [math]::Floor($want[$l] * $scale) + $gapAfter[$l] + $extra }
+    if ($Natural) { $Width = [math]::Max($Width, $colX[$layers - 1] + $node + 4 + $want[$layers - 1] + 24) }
     $nbIx = Get-MspkiGuiMapNeighbourIndex -Model $Model
     $nb = $nbIx.Nb; $byId = $nbIx.ById
     $placed = @{}
