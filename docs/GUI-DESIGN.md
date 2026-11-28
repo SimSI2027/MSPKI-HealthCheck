@@ -326,3 +326,65 @@ theme button and #242424 text where WPF drew #000). **PASS** (scope: theming). C
 (text 4.5:1, data colours, control borders and badge glyphs 3:1).
 Known, accepted: the high-contrast frame shows this computer's normal SystemColors (a real high-contrast theme changes them; the mapping is tested key by key); the role
 badge in the header keeps its fixed colours (the header is dark in every theme); the palette backdrop and shadows are fixed; generator and discriminator are the same model.
+
+### GX6 round 1 (2026-11-27; full-page Discovery map and the owner's nine review items; Alcyone `mixed-sample` results; light at 1360 x 860; frames 12 Overview map, 30 map, 30a opened, 30b keyboard focus, 30c only problems, 30d search, 30e zoomed with minimap, 30f no match, 30g replay at 1400 ms)
+Scores: A1 8, A2 8, A3 7, A4 8, A5 7, A6 6, A7 8, A8 7, A9 7, A10 7; B1 8, B2 8, B3 8, B4 8, B5 8; C1 8, C2 8, C3 8, C4 7. **Not a pass.**
+Defects: (1) the three filter boxes showed "@{Text=All statuses; Value=All}" (the FilterCombo template ignores DisplayMemberPath: A3, A6); (2) Replay and Export image stayed
+disabled after the map was drawn (A6); (3) the details pane opened on the tree's forest item, unrelated to the map (A8); (4) with "Only problems", the directory node stood
+alone without the addresses that lead to it (A9); (5) the map opened at 64 % because of generous column spacing (A5).
+Generator: plain-text choices with the value looked up by position; the buttons follow the drawn map; the pane belongs to the view on show (a hint on the map, the tree's
+item in Tree); the context of a shown problem is everything upstream of it (a host's addresses, an address's CA, the CA's issuers); link spacing 52 px and labels 200 px.
+
+### GX6 round 2 (same frames, plus a generated 500-object estate (light, 1360 x 860), a 300-object estate (dark, 1920 x 1080), the world at minimum size (dark), at 150 % (dark) and 200 % (light), and a real lab run kept under out\ only)
+First pass of the round: (1) on a dense fan the link markers stacked in one column in the middle of the links (A10); (2) the 500-object map opened at 25 % (unreadable, A9);
+(3) the Overview card grew to about 1100 px for the large estate (A5); (4) at 150 % the "shown for context" line wrapped onto the next label (A10).
+Generator: one marker per target and tone, 78 % along the link, beside the node it belongs to; a new run opens at 67 % or more, centred, with the minimap showing the whole
+(Fit and Ctrl+0 still show everything); the Overview map is at most 560 px tall and fades into an "Open the whole map (N objects)" button; map labels never wrap.
+Scores after the fixes: A1 9, A2 8, A3 8, A4 8, A5 8, A6 8, A7 8, A8 8, A9 8, A10 8; B1 8, B2 9, B3 8, B4 8, B5 9; C1 9, C2 9, C3 8, C4 8. **PASS** (scope: the Discovery map page,
+the Overview map card, the status bar and banner of an earlier run).
+Owner review: (1) Zenith Issuing CA has a dashed "issuer not confirmed" link to Lodestar Root CA (the only root found), with the reason on hover; a placeholder "Unknown issuer"
+when there is no single root; (2) crossings on the demo world go from 12 to 0 (asserted); (3) pulses stay under the opaque label boxes and within the row spacing, the canvas
+clips; (4) badges are 18 px with a 9 px glyph, up and right of the circle (never on the icon), with the status word in the tooltip and the pane; (5) a link into a failing
+address is red dashed with a cross marker, a warning amber with a warning marker; (6) every link explains itself in plain words on hover; (7) one icon table (section 8), an
+earlier run is information; (8) the status bar keeps "Showing an earlier run", the banner has the full sentence and "Run now"; (9) Open report follows report.html (or
+<name>-report.html) beside the loaded file, checked again when the window comes back to the front (verified on the lab run).
+Known, accepted: link hover text and node hover cards are tooltips (popups are not in the PNGs; their text is asserted in tests); links between a root and an address skip
+the issuing column, and such long links can pass behind a label box (the box hides them, by design); the generated estate's random host assignment keeps many crossings
+(the count still goes down: 6694 to 6028); generator and discriminator are the same model.
+
+## 8. Icon meanings (one table for the whole window; GX6 audit)
+One glyph means one thing everywhere: status pills, badges on map nodes and links, banners, toasts, the status bar and the palette. Icons
+are Segoe Fluent Icons with Segoe MDL2 Assets as the fallback; colour is never the only signal (the word or the tooltip is always there).
+| Glyph | Code | Meaning | Tone | Where |
+|---|---|---|---|---|
+| circled cross | EA39 | Critical finding; the overall level "At risk" / "Action needed" | Bad | status pills, score band, health banner |
+| cross | E711 | Failing (Fail status, a failed check, a failing map node or link, an expired item, a failed action); in a button: Cancel / close | Bad | pills, map badges and link markers, toasts, status bar, Cancel |
+| warning triangle | E7BA | Warning, or a risk rated High/Medium (severity), or a place where an object is expected and missing | Warn (Bad for High severity) | pills, map badges and link markers, banner "Needs review", missing places |
+| lock | E72E | Could not check: permission denied, or a CA whose properties could not be read | Admin | pills, map badges |
+| error badge | E783 | The check itself failed (Error status) | Admin | pills |
+| stopwatch | E916 | Timed out | Warn / Bad | pills, coverage rows |
+| clock | E823 | Days left before an expiry | Warn / Bad | CA card pills |
+| check mark | E73E | Pass, done, confirmed, copied | Good | pills, status bar, copy buttons |
+| info | E946 | Information: a note, an earlier run loaded, a hint; never a problem | Info | banners, status bar, toasts, pills |
+| sync | E895 | Running / updating | Info | status bar, run hero, "Updating the map" |
+| question in a circle | E9CE | Not confirmed / unknown (the "Unknown issuer" node, the "issuer not confirmed" link marker), and "How is this scored?" | Neutral | map, palette |
+| question | E897 | Inferred or unknown confidence | Warn / Neutral | confidence pills |
+| dash | E738 | Not applicable, not tested, not scored | Neutral | pills |
+| skip | E7E8 | Skipped | Neutral | pills, coverage |
+Object glyphs (no status): CA EB95, address E774, web host E968, directory E8D4, address group E8B7 (the group shows its count instead), map E81E,
+tree E8A4. Commands: run E768, open E8E5, folder E838, export E896 (CSV) and EB9F (image), copy E8C8, search E721, zoom in E8A3, zoom out E71F, fit E9A6.
+
+## 9. Terms (use these words, and only these)
+| Say | Not | Meaning |
+|---|---|---|
+| finding | issue, alert, result | one thing the run checked and what it saw |
+| failing / warning / could not check / healthy / no finding | error, broken, red, OK | the five map and status words (Error status = "the check failed") |
+| published address (address) | URL, endpoint, link | an AIA, CDP, OCSP or enrollment URL a CA names |
+| host | server, machine | the computer an address names |
+| link (on the map) | edge, line, arrow | a relationship between two objects; its hover text says what it means |
+| issuer not confirmed | orphan, unknown parent | the CA's issuer could not be read; the most likely one is shown dashed |
+| group | cluster | the addresses one host serves, folded into one counted node |
+| earlier run | old run, history file | a results.json opened from disk; nothing is scanned |
+| run | scan | one health check |
+| Discovery map | graph, topology | the page and the Overview card |
+| Explain cards | tooltips | the "What it is" notes (GX9 adds the glossary) |

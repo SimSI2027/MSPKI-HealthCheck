@@ -825,7 +825,7 @@
             <Button x:Name="BtnOpenResults" AutomationProperties.Name="Open results" Style="{StaticResource SubtleButton}" ToolTip="Look at an earlier run without scanning anything (Ctrl+O).">
               <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8E5;"/><TextBlock Text="Open results"/></StackPanel>
             </Button>
-            <Button x:Name="BtnOpenReport" AutomationProperties.Name="Open the HTML report" Style="{StaticResource SubtleButton}" Margin="4,0,0,0" IsEnabled="False" ToolTip="Open the HTML report of this run in the browser.">
+            <Button x:Name="BtnOpenReport" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Open the HTML report" Style="{StaticResource SubtleButton}" Margin="4,0,0,0" IsEnabled="False" ToolTip="Open the HTML report of this run in the browser.">
               <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE774;"/><TextBlock Text="Open report"/></StackPanel>
             </Button>
             <Button x:Name="BtnOpenFolder" AutomationProperties.Name="Open the output folder" Style="{StaticResource SubtleButton}" Margin="4,0,0,0" ToolTip="Open the folder that holds the results of this run.">
@@ -1055,9 +1055,19 @@
                           <TextBlock Style="{StaticResource Small}" Margin="0,2,0,0" TextWrapping="Wrap" Text="How this run found your PKI: each CA, the addresses it publishes in its certificates and properties, and what serves them. Select a node to open it."/>
                         </StackPanel>
                       </DockPanel>
-                      <Border x:Name="MapCanvasHost" Margin="0,16,0,0" ClipToBounds="True">
-                        <Canvas x:Name="MapCanvas" Height="0" HorizontalAlignment="Left"/>
-                      </Border>
+                      <Grid Margin="0,16,0,0">
+                        <Border x:Name="MapCanvasHost" ClipToBounds="True" MaxHeight="560">
+                          <Canvas x:Name="MapCanvas" Height="0" HorizontalAlignment="Left"/>
+                        </Border>
+                        <Border x:Name="MapMoreStrip" VerticalAlignment="Bottom" Height="72" Visibility="Collapsed" IsHitTestVisible="False" Background="{DynamicResource B.Card}">
+                          <Border.OpacityMask>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Offset="0" Color="Transparent"/><GradientStop Offset="0.7" Color="#000000"/></LinearGradientBrush>
+                          </Border.OpacityMask>
+                        </Border>
+                        <Button x:Name="BtnMapMore" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,8" Padding="16,0" Visibility="Collapsed" AutomationProperties.Name="Open the whole map" ToolTip="The map is larger than this card: open it on the Discovery map page (Ctrl+3)">
+                          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE81E;"/><TextBlock x:Name="TxtMapMore" Text="Open the whole map"/></StackPanel>
+                        </Button>
+                      </Grid>
                       <TextBlock x:Name="TxtMapEmpty" Visibility="Collapsed" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,12,0,4"/>
                       <Border Style="{StaticResource Divider}" Margin="0,8,0,8"/>
                       <DockPanel>
@@ -1077,7 +1087,8 @@
                   <Border Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,16" Visibility="{Binding Visibility, ElementName=TxtNote}">
                     <DockPanel>
                       <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE946;" Foreground="{DynamicResource B.InfoFore}" VerticalAlignment="Top" Margin="4,1,10,0"/>
-                      <TextBlock x:Name="TxtNote" Visibility="Collapsed" TextWrapping="Wrap"/>
+                      <Button x:Name="BtnNoteRun" DockPanel.Dock="Right" Padding="14,0" Margin="16,-4,0,-4" VerticalAlignment="Center" Visibility="Collapsed" IsEnabled="{Binding IsEnabled, ElementName=BtnRun}" AutomationProperties.Name="Run the health check now" ToolTip="Start a new read-only run (F5)"><StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE768;"/><TextBlock Text="Run now"/></StackPanel></Button>
+                      <TextBlock x:Name="TxtNote" Visibility="Collapsed" TextWrapping="Wrap" VerticalAlignment="Center"/>
                     </DockPanel>
                   </Border>
 
@@ -1263,20 +1274,109 @@
             </DockPanel>
           </TabItem>
 
-          <!-- Discovery map -->
+          <!-- Discovery map (GX6): the full-page map (zoom, pan, minimap, groups, filters, search, keyboard), with the tree as its text alternative. -->
           <TabItem x:Name="TabMap" Header="Discovery map">
             <DockPanel Margin="24,20,24,24">
-              <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
-                <TextBlock Text="Discovery map" Style="{StaticResource PageTitle}"/>
-                <TextBlock Text="Everything the run found, where it came from and what was checked on it." Style="{StaticResource PageSub}" Margin="0,2,0,0"/>
-              </StackPanel>
+              <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="16,2,0,0">
+                  <Border BorderBrush="{DynamicResource B.Control}" BorderThickness="1" CornerRadius="4" Background="{DynamicResource B.Card}" Padding="2" Margin="0,0,12,0">
+                    <StackPanel Orientation="Horizontal">
+                      <RadioButton x:Name="RbMapCanvas" Style="{StaticResource Segment}" GroupName="MapView" IsChecked="True" AutomationProperties.Name="Show the map" ToolTip="The map: CAs, the addresses they publish and what serves them">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE81E;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Map"/></StackPanel>
+                      </RadioButton>
+                      <RadioButton x:Name="RbMapTree" Style="{StaticResource Segment}" GroupName="MapView" AutomationProperties.Name="Show the tree" ToolTip="The same objects as an indented list (screen-reader friendly)">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8A4;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Tree"/></StackPanel>
+                      </RadioButton>
+                    </StackPanel>
+                  </Border>
+                  <Button x:Name="BtnMapReplay" Style="{StaticResource SubtleButton}" Padding="10,0" AutomationProperties.Name="Replay discovery" ToolTip="Play the discovery of this run again">
+                    <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE768;"/><TextBlock Text="Replay"/></StackPanel>
+                  </Button>
+                  <Button x:Name="BtnMapExport" Style="{StaticResource SubtleButton}" Padding="10,0" Margin="4,0,0,0" AutomationProperties.Name="Export the map as an image" ToolTip="Save the whole map as a PNG image in this run's output folder">
+                    <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xEB9F;"/><TextBlock Text="Export image"/></StackPanel>
+                  </Button>
+                </StackPanel>
+                <StackPanel>
+                  <TextBlock Text="Discovery map" Style="{StaticResource PageTitle}"/>
+                  <TextBlock Text="Everything the run found, where it came from and what was checked on it. Select an object to open it; hover a link to see what it means." Style="{StaticResource PageSub}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+              </DockPanel>
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="5*" MinWidth="420"/>
                   <ColumnDefinition Width="16"/>
                   <ColumnDefinition Width="3*" MinWidth="300" MaxWidth="640"/>
                 </Grid.ColumnDefinitions>
-                <Border Style="{StaticResource Panel}" ClipToBounds="True">
+                <Border x:Name="MapCanvasPanel" Style="{StaticResource Panel}" ClipToBounds="True">
+                  <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="16,12,16,4" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
+                      <WrapPanel>
+                        <TextBox x:Name="FltMap" Style="{StaticResource SearchBox}" Width="240" Margin="0,0,12,8" Tag="Search the map (Ctrl+F)" ToolTip="Type words: matching objects stay bright, the rest is dimmed." AutomationProperties.Name="Search the map"/>
+                        <ComboBox x:Name="FltMapStatus" Style="{StaticResource FilterCombo}" Tag="Status" Width="176" Margin="0,0,12,8" AutomationProperties.Name="Status filter" ToolTip="Show objects with this status, with the CAs that lead to them"/>
+                        <ComboBox x:Name="FltMapType" Style="{StaticResource FilterCombo}" Tag="Show" Width="196" Margin="0,0,12,8" AutomationProperties.Name="Object type filter" ToolTip="Show one kind of object"/>
+                        <ComboBox x:Name="FltMapFocus" Style="{StaticResource FilterCombo}" Tag="CA" Width="216" Margin="0,0,12,8" AutomationProperties.Name="Focus on one CA" ToolTip="Show one CA with what it issued, publishes and depends on"/>
+                        <CheckBox x:Name="ChkMapProblems" Style="{StaticResource Switch}" Content="Only problems" VerticalAlignment="Center" Margin="0,0,12,8" AutomationProperties.Name="Show only problems" ToolTip="Failing, warning and could-not-check objects, with the path to them"/>
+                      </WrapPanel>
+                    </Border>
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,1,0,0" Padding="16,8,12,8">
+                      <DockPanel>
+                        <WrapPanel x:Name="MapPageLegend" DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,0"><Ellipse Width="10" Height="10" Fill="{DynamicResource B.GoodBack}" Stroke="{DynamicResource B.GoodLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Healthy" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,0"><Ellipse Width="10" Height="10" Fill="{DynamicResource B.WarnBack}" Stroke="{DynamicResource B.WarnLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Warning" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,0"><Ellipse Width="10" Height="10" Fill="{DynamicResource B.BadBack}" Stroke="{DynamicResource B.BadLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Failing" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,0"><Ellipse Width="10" Height="10" Fill="{DynamicResource B.AdminBack}" Stroke="{DynamicResource B.AdminLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="Could not check" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,0"><Ellipse Width="10" Height="10" Fill="{DynamicResource B.NeutralBack}" Stroke="{DynamicResource B.NeutralLine}" StrokeThickness="1.5" Margin="0,0,6,0"/><TextBlock Text="No finding" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,0"><Rectangle Width="16" Height="2" Fill="{DynamicResource B.Accent}" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="Issued by" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,0"><Line X1="0" Y1="6" X2="16" Y2="6" Stroke="{DynamicResource B.BadData}" StrokeThickness="2" StrokeDashArray="2,1.5" Margin="0,0,4,0" VerticalAlignment="Center"/><Border Width="12" Height="12" CornerRadius="6" Background="{DynamicResource B.BadFore}" Margin="0,0,6,0"><TextBlock Style="{StaticResource Glyph}" Text="&#xE711;" FontSize="7" FontWeight="Bold" Foreground="{DynamicResource B.OnData}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="Link fails here" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal" Margin="0,0,16,0"><Line X1="0" Y1="6" X2="16" Y2="6" Stroke="{DynamicResource B.WarnData}" StrokeThickness="2" Margin="0,0,4,0" VerticalAlignment="Center"/><Border Width="12" Height="12" CornerRadius="6" Background="{DynamicResource B.WarnFore}" Margin="0,0,6,0"><TextBlock Style="{StaticResource Glyph}" Text="&#xE7BA;" FontSize="7" FontWeight="Bold" Foreground="{DynamicResource B.OnData}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="Link has a warning" Style="{StaticResource Small}"/></StackPanel>
+                          <StackPanel Orientation="Horizontal"><Line X1="0" Y1="6" X2="16" Y2="6" Stroke="{DynamicResource B.ControlStrong}" StrokeThickness="1.5" StrokeDashArray="2,2" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="Issuer not confirmed" Style="{StaticResource Small}"/></StackPanel>
+                        </WrapPanel>
+                        <Button x:Name="BtnMapCollapse" DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" Visibility="Collapsed" VerticalAlignment="Center" AutomationProperties.Name="Group the addresses again" ToolTip="Fold the expanded groups back into one counted node per host">
+                          <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE70E;" FontSize="12"/><TextBlock Text="Group again"/></StackPanel>
+                        </Button>
+                        <TextBlock x:Name="TxtMapPageStats" Style="{StaticResource Small}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                      </DockPanel>
+                    </Border>
+                    <Grid x:Name="MapViewport" Background="{DynamicResource B.Card}" ClipToBounds="True" Focusable="True" FocusVisualStyle="{StaticResource FocusRingInset}" KeyboardNavigation.IsTabStop="True"
+                          AutomationProperties.Name="Discovery map" AutomationProperties.HelpText="Arrow keys move between objects and Enter opens one. Shift and the arrow keys pan, plus and minus zoom, 0 fits the map. Drag to pan; Ctrl and the mouse wheel zoom.">
+                      <Border x:Name="MapWorld" HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <Border.RenderTransform>
+                          <TransformGroup><ScaleTransform x:Name="MapScale"/><TranslateTransform x:Name="MapPan"/></TransformGroup>
+                        </Border.RenderTransform>
+                      </Border>
+                      <StackPanel x:Name="MapEmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440" Margin="24" Visibility="Collapsed">
+                        <Border Width="48" Height="48" CornerRadius="24" Background="{DynamicResource B.Hover}" HorizontalAlignment="Center" Margin="0,0,0,12">
+                          <TextBlock Style="{StaticResource Glyph}" Text="&#xE81E;" FontSize="20" Foreground="{DynamicResource B.Muted}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock x:Name="TxtMapPageEmpty" TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource B.Muted}"/>
+                        <Button x:Name="BtnMapClearEmpty" HorizontalAlignment="Center" Margin="0,12,0,0" Padding="16,0" Visibility="Collapsed" AutomationProperties.Name="Clear the map filters" Content="Clear filters"/>
+                      </StackPanel>
+                      <Border x:Name="MapBusy" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="12,6" CornerRadius="14" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" Visibility="Collapsed" IsHitTestVisible="False" Effect="{StaticResource PopupShadow}">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE895;" FontSize="12" Foreground="{DynamicResource B.Accent}" Margin="0,0,8,0" VerticalAlignment="Center"/><TextBlock Text="Updating the map..." Style="{StaticResource Small}"/></StackPanel>
+                      </Border>
+                      <Border x:Name="MapZoomBar" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12" Padding="4" CornerRadius="6" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" Effect="{StaticResource CardShadow}" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                          <Button x:Name="BtnZoomOut" Style="{StaticResource SubtleButton}" Width="32" Padding="0" AutomationProperties.Name="Zoom out" ToolTip="Zoom out (Ctrl+minus)"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE71F;" FontSize="14" Margin="0" HorizontalAlignment="Center"/></Button>
+                          <Slider x:Name="SldZoom" Style="{StaticResource ZoomSlider}" Width="104" Minimum="0.25" Maximum="2.5" Value="1" Margin="4,0" VerticalAlignment="Center" AutomationProperties.Name="Zoom" ToolTip="Zoom (Ctrl and the mouse wheel)" SmallChange="0.1" LargeChange="0.25"/>
+                          <Button x:Name="BtnZoomIn" Style="{StaticResource SubtleButton}" Width="32" Padding="0" AutomationProperties.Name="Zoom in" ToolTip="Zoom in (Ctrl+plus)"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE8A3;" FontSize="14" Margin="0" HorizontalAlignment="Center"/></Button>
+                          <TextBlock x:Name="TxtZoom" Width="48" TextAlignment="Center" VerticalAlignment="Center" Style="{StaticResource Small}" Text="100 %"/>
+                          <Button x:Name="BtnZoomFit" Style="{StaticResource SubtleButton}" Padding="8,0" AutomationProperties.Name="Fit the map to the window" ToolTip="Fit the map to the window (Ctrl+0)">
+                            <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource CmdGlyph}" Text="&#xE9A6;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Fit"/></StackPanel>
+                          </Button>
+                        </StackPanel>
+                      </Border>
+                      <Border x:Name="MiniMap" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12" Width="186" Height="126" Padding="4" CornerRadius="6" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" Effect="{StaticResource CardShadow}" Visibility="Collapsed" Cursor="Hand" ToolTip="The whole map: click or drag to move the view" AutomationProperties.Name="Minimap">
+                        <Grid ClipToBounds="True">
+                          <Rectangle x:Name="MiniMapImage" HorizontalAlignment="Left" VerticalAlignment="Top" Width="176" Height="116"/>
+                          <Canvas x:Name="MiniMapCanvas" Background="Transparent">
+                            <Rectangle x:Name="MiniMapView" Stroke="{DynamicResource B.Accent}" StrokeThickness="1.5" Fill="{DynamicResource B.AccentSoft}" Opacity="0.55" RadiusX="2" RadiusY="2"/>
+                          </Canvas>
+                        </Grid>
+                      </Border>
+                    </Grid>
+                  </DockPanel>
+                </Border>
+                <Border x:Name="MapTreePanel" Style="{StaticResource Panel}" ClipToBounds="True" Visibility="Collapsed">
                   <DockPanel>
                     <Border DockPanel.Dock="Top" Padding="12,0,16,0" Height="48" BorderBrush="{DynamicResource B.Divider}" BorderThickness="0,0,0,1">
                       <DockPanel>
@@ -1291,7 +1391,7 @@
                         </StackPanel>
                       </DockPanel>
                     </Border>
-                    <TreeView x:Name="MapTree" ItemTemplate="{StaticResource MapNode}" AutomationProperties.Name="Discovery map">
+                    <TreeView x:Name="MapTree" ItemTemplate="{StaticResource MapNode}" AutomationProperties.Name="Discovery map as a tree">
                       <TreeView.ItemContainerStyle>
                         <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
                           <Setter Property="IsExpanded" Value="{Binding Expanded, Mode=OneTime}"/>

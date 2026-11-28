@@ -63,6 +63,10 @@ function Get-MspkiGuiPaletteCommand {
         @('actions', 'Show all actions', 'Every "What to do next" action, most urgent first', [char]0xE762, '', 'what to do next todo'),
         @('score', 'How is this scored?', 'The health score in plain words', [char]0xE9CE, '', 'score explain help'),
         @('options', 'Show the run options', 'Timeout, network checks, proxy, NDES admin probe', [char]0xE713, '', 'settings timeout proxy'),
+        @('mapfit', 'Fit the map to the window', 'Show the whole Discovery map', [char]0xE9A6, 'Ctrl+0', 'zoom discovery map whole'),
+        @('mapproblems', 'Show only problems on the map', 'Failing, warning and could-not-check objects with the path to them', [char]0xE7BA, '', 'discovery map filter failing broken'),
+        @('mapreplay', 'Replay discovery', 'Play the discovery of this run again on the map', [char]0xE768, '', 'animation discovery map build'),
+        @('mapexport', 'Export the map as an image', 'Save the whole Discovery map as a PNG in the run''s output folder', [char]0xEB9F, '', 'png picture save discovery map'),
         @('copylog', 'Copy the run log', 'Every line of the run log, to the clipboard', [char]0xE8C8, '', 'clipboard'),
         @('themeauto', 'Theme: follow Windows', 'Light or dark as Windows is set; high contrast always wins', [char]0xE7F4, '', 'appearance colour color mode system'),
         @('themelight', 'Theme: light', 'Light background', [char]0xE706, '', 'appearance colour color mode'),
@@ -122,6 +126,8 @@ function Find-MspkiGuiPaletteItem {
             $t = [string]$it.TitleLower
             $score = 3
             if ($t.StartsWith($q, [System.StringComparison]::Ordinal) -or $t.StartsWith('go to ' + $q, [System.StringComparison]::Ordinal)) { $score = 0 }
+            # A page whose name holds the query as a whole word comes first ("map" means the map page, before the map commands).
+            elseif ([string]$it.Kind -eq 'Page' -and (' ' + $t + ' ').Contains(' ' + $q + ' ')) { $score = 0 }
             elseif ($t.IndexOf(' ' + $words[0], [System.StringComparison]::Ordinal) -ge 0) { $score = 1 }
             elseif ($t.IndexOf($words[0], [System.StringComparison]::Ordinal) -ge 0) { $score = 2 }
             $hits.Add([pscustomobject]@{ Score = $score; KindOrder = [int]$it.KindOrder; Seq = [int]$it.Seq; Len = $t.Length; Item = $it })

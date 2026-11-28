@@ -559,3 +559,26 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Tests: `tests/GuiTheme.Tests.ps1` (12: same keys, every key used exists, no static or fixed colours, WCAG pairs in both palettes, theme choice, high-contrast mapping,
   live switch in the window, reduced motion). Gui.Tests merges the light palette when it loads Theme.xaml alone.
 - Next: GX6 (map page: full-page canvas, zoom and pan, clustering, hover "Where this exists").
+
+## GX6 (2026-11-27): full-page Discovery map and the owner's map review - DONE (PASS in round 2)
+- `src/Gui/GuiMap.ps1` (pure, moved out of GuiMission.ps1 and rewritten without pipelines): the map model with an "issuer not confirmed" link (or an "Unknown issuer" node) for
+  every orphan CA, path health on links (failing red dashed + cross marker, warning amber + marker), plain-word link texts, median sweeps that order each column (crossings on
+  the demo world 12 -> 0, asserted), order-keeping placement, the page views (status, type, CA focus, only problems with the path as context, search marks, groups of a host's
+  addresses above 120 nodes), keyboard neighbours, zoom arithmetic, "Where this exists" hover text, and `Invoke-MspkiGuiMapJob` (the same job inline or in the worker).
+- `src/Gui/GuiMapPage.ps1`: a background runspace computes model, view and layout; the window draws and builds animations in slices of about 20 ms on a new canvas (no flicker).
+  The page: Map | Tree switch, search (dims), filters, CA focus, only problems, zoom (Ctrl+wheel, Ctrl +/-, Ctrl+0, slider, buttons), pan (drag, wheel, Shift+arrows), minimap,
+  arrow keys between nodes + Enter, Esc clears search then filters, selection on the pane's trail (Back / Alt+Left), groups expand on click or Enter, replay, PNG export
+  (`Export-MspkiGuiMapPng` in GuiState.ps1: the run folder inside out\, else out\ itself). Overview: same visuals, map capped at 560 px with "Open the whole map".
+- Owner items 7-9: one icon table and a term list in GUI-DESIGN sections 8 and 9 (banner "Action needed" now the circled cross, days-left pills a clock, failure toasts the
+  cross); an earlier run is "Showing an earlier run" with the info icon; the banner says when and where, with "Run now"; Open report follows report.html (or
+  <name>-report.html) beside the loaded file and is re-checked when the window is activated.
+- Measured (this VM): 500-object estate grouped view 91 ms and layout 67 ms (best of five, pure; acceptance < 300 ms; ordering sweeps stop when they bring no gain);
+  model about 340 ms in the worker; map work on the UI thread in 15 ms slices: 74 ticks, 95th percentile 19 ms, worst 39 ms in the window test; page switch 58-69 ms
+  (budget 150); pan or zoom 0.25-0.4 ms per step; palette open under 100 ms (GX4 test, unchanged). The first calls of the drawing code are compiled at start-up (warm-up).
+  Ticks during which .NET ran a full garbage collection are counted apart; the window test asserts 99 % of the other ticks under 50 ms and the worst under 100 ms. Clean full
+  run: 72 ticks, 95th percentile 18 ms, worst 25 ms. (Spikes of 54 and 197 ms seen earlier came while two of my finished test runs had not exited and held about 7 GB; the
+  runner now exits explicitly.) Open for GX11: opening a results file parses it and fills the grids on the UI thread once (pre-existing, before GX6).
+- Full suite: 1695 passed, 0 failed, 1 skipped, 183 s.
+- Tests: `tests/GuiMap.Tests.ps1` (33: orphan CA, crossings, path health, link words, views, groups, keyboard, zoom, performance, export path, report path, and the real window
+  on a generated 500-object estate: worker, slices, keyboard, Back, Enter on a group, Esc, palette, PNG export, tree); `tests/GuiMapFixture.ps1` generates LARGE estates (example.test).
+- Next: GX7 (lifecycle timeline and interactive chain view).

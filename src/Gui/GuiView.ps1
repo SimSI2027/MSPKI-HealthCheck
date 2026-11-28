@@ -406,8 +406,8 @@ function Get-MspkiGuiCaCard {
             else { if ($p.IssuingCaWarningDays) { $warn = [int]$p.IssuingCaWarningDays }; if ($p.IssuingCaCriticalDays) { $crit = [int]$p.IssuingCaCriticalDays } }
         }
         if ($days -lt 0) { $expiryPill = New-MspkiGuiPill -Text ('Expired {0} days ago' -f (-$days)) -Tone Bad -Code 0xE711 }
-        elseif ($days -le $crit) { $expiryPill = New-MspkiGuiPill -Text ('{0} days left' -f $days) -Tone Bad -Code 0xE7BA }
-        elseif ($days -le $warn) { $expiryPill = New-MspkiGuiPill -Text ('{0} days left' -f $days) -Tone Warn -Code 0xE7BA }
+        elseif ($days -le $crit) { $expiryPill = New-MspkiGuiPill -Text ('{0} days left' -f $days) -Tone Bad -Code 0xE823 }
+        elseif ($days -le $warn) { $expiryPill = New-MspkiGuiPill -Text ('{0} days left' -f $days) -Tone Warn -Code 0xE823 }
         else { $expiryPill = New-MspkiGuiPill -Text ('{0} days left' -f $days) -Tone Good -Code 0xE73E }
         $expiry = 'Certificate expires {0}' -f $endText
     }
@@ -534,7 +534,7 @@ function Get-MspkiGuiHealth {
     }
     if ($partial) { $extra += ' The run did not finish, so these results are partial.' }
     if ($crit + $fail + $high -gt 0) {
-        return [pscustomobject][ordered]@{ Tone = 'Bad'; Glyph = [string][char]0xE7BA; Title = 'Action needed'; Text = ('{0}.{1}' -f ($bits -join ', '), $extra).Trim(); Level = 'Red' }
+        return [pscustomobject][ordered]@{ Tone = 'Bad'; Glyph = [string][char]0xEA39; Title = 'Action needed'; Text = ('{0}.{1}' -f ($bits -join ', '), $extra).Trim(); Level = 'Red' }
     }
     if ($err + $warn + $review -gt 0 -or $CoverageProblems -gt 0 -or $partial) {
         $t = ($bits -join ', ')

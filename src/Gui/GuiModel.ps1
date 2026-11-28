@@ -327,8 +327,8 @@ function Read-MspkiGuiResults {
     $folder = Split-Path -Parent $full
     $html = Join-Path $folder 'report.html'
     $log = Join-Path $folder 'run.log'
-    $htmlPath = ''; $logPath = ''
-    if (Test-Path -LiteralPath $html -PathType Leaf) { $htmlPath = $html }
+    $htmlPath = Find-MspkiGuiReportPath -ResultsPath $full
+    $logPath = ''
     if (Test-Path -LiteralPath $log -PathType Leaf) { $logPath = $log }
     return [pscustomobject][ordered]@{
         RunInfo      = $j.RunInfo
@@ -343,6 +343,23 @@ function Read-MspkiGuiResults {
         ReportPath   = $htmlPath
         LogPath      = $logPath
     }
+}
+
+function Find-MspkiGuiReportPath {
+    <#
+    .SYNOPSIS
+    The HTML report of a results file: report.html in the same folder, or <name>-report.html for <name>-results.json. '' when there is none.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$ResultsPath, [AllowEmptyString()][string]$Known = '')
+    if ($Known -and (Test-Path -LiteralPath $Known -PathType Leaf)) { return $Known }
+    if (-not $ResultsPath) { return '' }
+    $folder = Split-Path -Parent $ResultsPath
+    $stem = [System.IO.Path]::GetFileNameWithoutExtension($ResultsPath)
+    $names = @('report.html')
+    if ($stem -match '(?i)results$') { $names += ($stem -replace '(?i)results$', 'report') + '.html' }
+    foreach ($n in $names) { $p = Join-Path $folder $n; if (Test-Path -LiteralPath $p -PathType Leaf) { return $p } }
+    return ''
 }
 
 function Test-MspkiGuiTimeout {

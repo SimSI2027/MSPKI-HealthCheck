@@ -255,6 +255,8 @@ function Invoke-MspkiGuiSnapshot {
     $shot = {
         param([string]$Name)
         $p = Join-Path $Folder ($Name + '.png')
+        # The map is computed in the background and drawn in slices: every frame waits until it is complete.
+        if ($null -ne $script:MspkiGui.MapQueue -and ($null -ne $script:MspkiGui.MapJob -or $script:MspkiGui.MapQueue.Count -gt 0 -or $script:MspkiGui.MapDraws.Count -gt 0 -or $script:MspkiGui.MapAnims.Count -gt 0)) { Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2 }
         [void](Save-MspkiGuiSnapshotImage -Window $Window -Path $p -Scale $Scale -Width $renderW -Height $renderH -KeepLayout)
         $files.Add($p)
     }
@@ -389,6 +391,8 @@ function Invoke-MspkiGuiSnapshot {
             if ($null -eq $g.Data) { throw 'The results file could not be opened.' }
             $data = $g.Data
             Wait-MspkiGuiIdle -Rounds 4
+            Wait-MspkiGuiMapIdle
+            Wait-MspkiGuiIdle -Rounds 2
             $osv = $ui.PanelResults.Parent
             while ($null -ne $osv -and $osv -isnot [System.Windows.Controls.ScrollViewer]) { $osv = [System.Windows.LogicalTreeHelper]::GetParent($osv) }
             foreach ($ms in @(300, 1250, 2100)) {
@@ -467,8 +471,52 @@ function Invoke-MspkiGuiSnapshot {
             Wait-MspkiGuiIdle -Rounds 3
             foreach ($tc in @($ui.ToastHost.Children)) { $tc.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $null); $tc.Opacity = 1 }
             if ($toastsShown) { & $shot '29-toasts'; $ui.ToastHost.Children.Clear() }
-            # Discovery map: expand everything, select the first CA node, then drill into its first finding.
+            # Discovery map (GX6): the full-page map fitted, a node opened, the keyboard focus, filters, search, zoomed with the minimap,
+            # a filter with no match, and the replay held mid-build.
             & $page $ui.TabMap
+            $ui.RbMapCanvas.IsChecked = $true
+            Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 3
+            Set-MspkiGuiMapFit -Readable; Wait-MspkiGuiIdle -Rounds 2
+            & $shot '30-map'
+            Set-MspkiGuiMapFit; Wait-MspkiGuiIdle -Rounds 2
+            & $shot '30h-map-fit-all'
+            Set-MspkiGuiMapFit -Readable; Wait-MspkiGuiIdle -Rounds 2
+            $pm = $g.MapPageModel
+            if ($null -ne $pm) {
+                $pickNode = @($pm.Nodes | Where-Object { $_.Kind -eq 'CA' -and $_.Tone -eq 'Admin' }) + @($pm.Nodes | Where-Object { $_.Kind -eq 'CA' }) | Select-Object -First 1
+                if ($null -ne $pickNode) { Select-MspkiGuiMapNode -Id ([string]$pickNode.Id) -Open; Wait-MspkiGuiIdle -Rounds 3; & $shot '30a-map-selected' }
+                [void]$ui.MapViewport.Focus(); [void][System.Windows.Input.Keyboard]::Focus($ui.MapViewport)
+                foreach ($k in 'Right', 'Down', 'Down') { [void](Invoke-MspkiGuiMapKey -Key $k) }
+                Wait-MspkiGuiIdle -Rounds 2
+                & $shot '30b-map-keyboard'
+                $ui.ChkMapProblems.IsChecked = $true; Update-MspkiGuiMapPage; Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2
+                & $shot '30c-map-problems'
+                $ui.ChkMapProblems.IsChecked = $false
+                $g.MapFilterSilent = $true; $ui.FltMap.Text = 'lodestar'; $g.MapFilterSilent = $false
+                Update-MspkiGuiMapPage; Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2
+                & $shot '30d-map-search'
+                $g.MapFilterSilent = $true; $ui.FltMap.Text = ''; $g.MapFilterSilent = $false
+                Update-MspkiGuiMapPage; Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2
+                Step-MspkiGuiMapZoomBy -Direction In; Step-MspkiGuiMapZoomBy -Direction In; Step-MspkiGuiMapZoomBy -Direction In
+                Wait-MspkiGuiIdle -Rounds 2
+                & $shot '30e-map-zoomed'
+                Set-MspkiGuiMapFit
+                $g.MapFilterSilent = $true; $ui.FltMapStatus.SelectedIndex = 4; $ui.FltMapType.SelectedIndex = 1; $g.MapFilterSilent = $false
+                Update-MspkiGuiMapPage; Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2
+                & $shot '30f-map-nomatch'
+                Clear-MspkiGuiMapFilter; Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2
+                Start-MspkiGuiMapReplay; Wait-MspkiGuiMapIdle
+                if ($null -ne $g.MapPageStoryboard) {
+                    $g.MapPageStoryboard.Pause($ui.MapWorld)
+                    $g.MapPageStoryboard.SeekAlignedToLastTick($ui.MapWorld, [TimeSpan]::FromMilliseconds(1400), [System.Windows.Media.Animation.TimeSeekOrigin]::BeginTime)
+                    Wait-MspkiGuiIdle -Rounds 2
+                    & $shot '30g-map-replay-1400ms'
+                    $g.MapPageStoryboard.SeekAlignedToLastTick($ui.MapWorld, [TimeSpan]::FromMilliseconds([double]$g.MapPageModel.TotalMs + 300), [System.Windows.Media.Animation.TimeSeekOrigin]::BeginTime)
+                    Wait-MspkiGuiIdle -Rounds 2
+                }
+            }
+            # The tree (the text alternative): expand everything, select the first CA node, then drill into its first finding.
+            $ui.RbMapTree.IsChecked = $true
             Set-MspkiGuiTreeExpansion -Parent $ui.MapTree -Expand $true
             Wait-MspkiGuiIdle -Rounds 3
             $pick = $null
@@ -480,7 +528,7 @@ function Invoke-MspkiGuiSnapshot {
                 else { foreach ($c in @($n.Children)) { $stack.Push($c) } }
             }
             if ($null -ne $pick) { Show-MspkiGuiNodePane -Node $pick }
-            & $shot '30-map'
+            & $shot '34-map-tree'
             $first = $null
             if ($null -ne $g.MapPane) { $first = @($g.MapPane.Findings | Where-Object { $_ }) | Select-Object -First 1 }
             if ($null -ne $first -and $g.RowById.ContainsKey([string]$first.Id)) {
@@ -502,6 +550,7 @@ function Invoke-MspkiGuiSnapshot {
                 & $shot '33-map-object-trail'
                 Show-MspkiGuiNodePane -Node $pick
             }
+            $ui.RbMapCanvas.IsChecked = $true
             # Objects page: the full list, a host (identity), an object that is expected but missing somewhere, and a filter with no match.
             & $page $ui.TabObjects
             & $shot '70-objects'

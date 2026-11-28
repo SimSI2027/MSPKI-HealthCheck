@@ -8,6 +8,7 @@ $script:MspkiGui = $null
 # every caller of this file (the start script, the tests) gets them.
 . (Join-Path $PSScriptRoot 'GuiMission.ps1')
 . (Join-Path $PSScriptRoot 'GuiMapView.ps1')
+. (Join-Path $PSScriptRoot 'GuiMapPage.ps1')
 . (Join-Path $PSScriptRoot 'GuiState.ps1')
 . (Join-Path $PSScriptRoot 'GuiPalette.ps1')
 . (Join-Path $PSScriptRoot 'GuiTheme.ps1')
@@ -214,11 +215,11 @@ function Set-MspkiGuiState {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$Text,
-        [ValidateSet('Ready', 'Running', 'Done', 'Warn', 'Bad')][string]$State = 'Ready'
+        [ValidateSet('Ready', 'Running', 'Done', 'Warn', 'Bad', 'Loaded')][string]$State = 'Ready'
     )
     $ui = $script:MspkiGui.Ui
     $spec = @{
-        Ready = @(0xE946, 'Info'); Running = @(0xE895, 'Info'); Done = @(0xE73E, 'Good'); Warn = @(0xE7BA, 'Warn'); Bad = @(0xE711, 'Bad')
+        Ready = @(0xE946, 'Info'); Loaded = @(0xE946, 'Info'); Running = @(0xE895, 'Info'); Done = @(0xE73E, 'Good'); Warn = @(0xE7BA, 'Warn'); Bad = @(0xE711, 'Bad')
     }[$State]
     $ui.StatusIcon.Text = [string][char]$spec[0]
     $ui.StatusIcon.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, (Get-MspkiGuiToneKey -Tone $spec[1]))
@@ -577,7 +578,7 @@ function Invoke-MspkiGuiPaneCommand {
     }
     if ($Tag -eq 'Back') {
         if ($null -ne $nav.Return) { $ui[$HostName].Content = $nav.Return; $nav.Return = $null; return }
-        if (@($nav.Trail).Count -gt 1) { $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Back; Show-MspkiGuiEntityPane -HostName $HostName; return }
+        if (@($nav.Trail).Count -gt 1) { $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Back; Show-MspkiGuiEntityPane -HostName $HostName; if ($HostName -eq 'MapHost') { Sync-MspkiGuiMapSelection }; return }
         if ($null -ne $nav.Origin) { $ui[$HostName].Content = $nav.Origin; $nav.Origin = $null; $nav.Trail = [string[]]@() }
         return
     }
@@ -592,6 +593,7 @@ function Invoke-MspkiGuiPaneCommand {
         $nav.Return = $null
         $nav.Trail = Step-MspkiGuiTrail -Trail $nav.Trail -Action Crumb -Index ([int]$Tag.Substring(6))
         Show-MspkiGuiEntityPane -HostName $HostName
+        if ($HostName -eq 'MapHost') { Sync-MspkiGuiMapSelection }
         return
     }
     if ($g.RowById.ContainsKey($Tag)) {
@@ -706,7 +708,7 @@ function Clear-MspkiGuiResult {
     $ui.FindingsGrid.ItemsSource = $null
     $ui.ChipList.ItemsSource = $null
     $ui.MapTree.ItemsSource = $null
-    $ui.MapHost.Content = Get-MspkiGuiEmptyPane -Text 'Select an item in the tree to see what was found and why.'
+    $ui.MapHost.Content = Get-MspkiGuiEmptyPane -Text 'Select an object on the map, or an item in the tree, to see what was found and why.'
     $ui.FindingHost.Content = Get-MspkiGuiEmptyPane
     foreach ($h in @('FindingHost', 'MapHost', 'ObjHost', 'SvcHost')) { Reset-MspkiGuiPaneNav -HostName $h }
     $ui.SvcList.ItemsSource = $null
@@ -745,6 +747,8 @@ function Clear-MspkiGuiResult {
     $ui.ChkGroup.IsChecked = $false
     $g.Filter.Text = ''; $g.Filter.Status = @(); $g.Filter.Category = ''; $g.Filter.Confidence = ''; $g.Filter.Severity = ''; $g.Filter.Area = $null
     $ui.BtnOpenReport.IsEnabled = $false
+    $ui.BtnOpenReport.ToolTip = 'Open the HTML report of the run on show'
+    if ($null -ne $g.MapQueue) { Reset-MspkiGuiMapPage }
     $ui.TxtCount.Text = '0 findings'
     $ui.TxtOutputPath.Text = $g.OutputRoot
     $ui.TxtOutputPath.ToolTip = $g.OutputRoot
@@ -849,6 +853,7 @@ function Show-MspkiGuiResult {
     $ui.MapTree.UpdateLayout()
     $rc = $ui.MapTree.ItemContainerGenerator.ContainerFromIndex(0)
     if ($null -ne $rc) { $rc.IsSelected = $true }
+    if ($ui.RbMapCanvas.IsChecked) { Set-MspkiGuiMapViewMode -Mode Map }
 
     # Objects (the entity graph; results written before format 2 have none)
     $g.ObjRows = @(Get-MspkiGuiObjectList -Index $g.Index -RowById $g.RowById)
@@ -885,7 +890,7 @@ function Show-MspkiGuiResult {
     $ui.TxtSvcEmpty.Visibility = 'Collapsed'
 
     # Buttons, folder and notes
-    $ui.BtnOpenReport.IsEnabled = [bool]$Data.ReportPath
+    Update-MspkiGuiReportButton
     $where = [string]$Data.OutputFolder
     if (-not $where) { $where = $g.OutputRoot }
     $ui.TxtOutputPath.Text = $where
@@ -894,10 +899,30 @@ function Show-MspkiGuiResult {
     if ($Banner) { $notes.Add($Banner) }
     # A partial run is already called out in the health banner (text and state), so it gets no second note here.
     if ($notes.Count -gt 0) { $ui.TxtNote.Text = ($notes -join ' '); $ui.TxtNote.Visibility = 'Visible' }
+    $ui.BtnNoteRun.Visibility = $(if ($notes.Count -gt 0 -and [bool]$g.NoteIsLoaded) { 'Visible' } else { 'Collapsed' })
+    $g.NoteIsLoaded = $false
     if ($s.Duration) { $ui.TxtElapsed.Text = 'Took {0}' -f $s.Duration } else { $ui.TxtElapsed.Text = '' }
 
     # Mission control: score, areas, what to do next, and the discovery map (built on screen once the Overview has a size).
     Update-MspkiGuiMission -Data $Data -Animate
+}
+
+function Update-MspkiGuiReportButton {
+    <#
+    .SYNOPSIS
+    Enables "Open report" when the run on show has an HTML report (report.html, or <name>-report.html beside <name>-results.json): looked
+    for again each time, so a report written later is found when the window comes back to the front. The tooltip says why it is off.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $ui = $g.Ui
+    $d = $g.Data
+    if ($null -eq $d -or $null -ne $g.Run) { return }
+    $p = Find-MspkiGuiReportPath -ResultsPath ([string]$d.ResultsPath) -Known ([string]$d.ReportPath)
+    if ($p -ne [string]$d.ReportPath) { $d.ReportPath = $p }
+    $ui.BtnOpenReport.IsEnabled = [bool]$p
+    $ui.BtnOpenReport.ToolTip = $(if ($p) { 'Open {0} in the browser' -f $p } else { 'There is no HTML report next to this results.json (report.html), so there is nothing to open.' })
 }
 
 function Show-MspkiGuiLogFile {
@@ -928,15 +953,17 @@ function Open-MspkiGuiResultsFile {
     $g = $script:MspkiGui
     try {
         $data = Read-MspkiGuiResults -Path $Path
-        $banner = 'Showing an earlier run loaded from {0}. Nothing was scanned.' -f $data.ResultsPath
+        $when = ConvertTo-MspkiGuiDateTime -Value $(if ($null -ne $data.RunInfo) { $data.RunInfo.StartedUtc } else { $null })
+        $banner = 'Showing an earlier run{0}, loaded from {1}. Nothing was scanned.' -f $(if ($null -ne $when) { ' from ' + $when.ToString('yyyy-MM-dd HH:mm') + ' UTC' } else { '' }), $data.ResultsPath
+        $g.NoteIsLoaded = $true
         if ($data.Notice) { $banner = '{0} {1}' -f $banner, $data.Notice }
         Show-MspkiGuiResult -Data $data -Banner $banner
         Show-MspkiGuiLogFile -Path $data.LogPath
         $g.Ui.Progress.Value = 0
         $g.Ui.TxtTarget.Text = ''
-        $state = 'Done'
-        if ($g.Summary.Health.Level -ne 'Green') { $state = 'Warn' }
-        Set-MspkiGuiState -Text ('Loaded {0} from an earlier run' -f (Format-MspkiGuiCount -Count @($data.Findings).Count -Singular 'finding')) -State $state
+        # Item 8 of the owner's review: the banner above says it all (with "Run now"); the status bar keeps a short form, with the info icon
+        # (loading a file is information, not a warning: the health is on the Overview).
+        Set-MspkiGuiState -Text 'Showing an earlier run' -State Loaded
         $g.Ui.Tabs.SelectedItem = $g.Ui.TabSummary
     }
     catch {
@@ -1331,7 +1358,7 @@ function Show-MspkiGuiToast {
     $toastHost = $g.Ui.ToastHost
     if ($Seconds -le 0) { $Seconds = @{ Info = 5; Good = 5; Warn = 8; Bad = 12 }[$Tone] }
     $fore = @{ Info = 'B.InfoFore'; Good = 'B.GoodFore'; Warn = 'B.WarnFore'; Bad = 'B.BadFore' }[$Tone]
-    $glyph = @{ Info = 0xE946; Good = 0xE73E; Warn = 0xE7BA; Bad = 0xEA39 }[$Tone]
+    $glyph = @{ Info = 0xE946; Good = 0xE73E; Warn = 0xE7BA; Bad = 0xE711 }[$Tone]
     $card = New-Object System.Windows.Controls.Border
     $card.SetResourceReference([System.Windows.Controls.Border]::BackgroundProperty, 'B.Card')
     $card.SetResourceReference([System.Windows.Controls.Border]::BorderBrushProperty, 'B.Border')
@@ -1414,7 +1441,7 @@ function Get-MspkiGuiCommandAvailability {
     $ui = $g.Ui
     return @{
         run = [bool]$ui.BtnRun.IsEnabled; cancel = [bool]$ui.BtnCancel.IsEnabled; open = [bool]$ui.BtnOpenResults.IsEnabled
-        report = [bool]$ui.BtnOpenReport.IsEnabled; folder = [bool]$ui.BtnOpenFolder.IsEnabled; export = ($g.Rows.Count -gt 0)
+        report = [bool]$ui.BtnOpenReport.IsEnabled; folder = [bool]$ui.BtnOpenFolder.IsEnabled; export = ($g.Rows.Count -gt 0); mapfit = ($null -ne $g.MapPageDrawn); mapreplay = ($null -ne $g.MapPageDrawn); mapexport = ($null -ne $g.MapPageDrawn); mapproblems = ($null -ne $g.MapPageDrawn)
         actions = ($null -ne $g.Actions -and @($g.Actions).Count -gt 0); score = ($null -ne $g.Score -and [bool]$g.Score.HasScore)
         options = [bool]$ui.ExpOptions.IsEnabled; copylog = (@($ui.LogList.Items).Count -gt 0)
     }
@@ -1513,6 +1540,10 @@ function Invoke-MspkiGuiCommand {
         'themeauto' { Set-MspkiGuiTheme -Mode Auto }
         'themelight' { Set-MspkiGuiTheme -Mode Light }
         'themedark' { Set-MspkiGuiTheme -Mode Dark }
+        'mapfit' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; Set-MspkiGuiMapFit }
+        'mapreplay' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; Start-MspkiGuiMapReplay }
+        'mapexport' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; Export-MspkiGuiMapPng }
+        'mapproblems' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; $ui.ChkMapProblems.IsChecked = $true; $g.MapExpanded = @{}; Update-MspkiGuiMapPage }
         'copylog' { & $click $ui.BtnCopyLog; if (@($ui.LogList.Items).Count -gt 0) { [void](Show-MspkiGuiToast -Text 'The run log is on the clipboard.' -Tone Good) } }
     }
 }
@@ -1574,7 +1605,7 @@ function Move-MspkiGuiRegionFocus {
     $content = $null; $details = $null
     if ($sel -eq $ui.TabSummary) { $content = $ui.PanelResults; if ($ui.PanelResults.Visibility -ne 'Visible') { $content = $ui.BtnWelcomeRun } }
     elseif ($sel -eq $ui.TabFindings) { $content = $ui.FindingsGrid; $details = $ui.FindingHost }
-    elseif ($sel -eq $ui.TabMap) { $content = $ui.MapTree; $details = $ui.MapHost }
+    elseif ($sel -eq $ui.TabMap) { $content = $(if ($ui.MapTreePanel.IsVisible) { $ui.MapTree } else { $ui.MapViewport }); $details = $ui.MapHost }
     elseif ($sel -eq $ui.TabLog) { $content = $ui.LogList }
     elseif ($sel -eq $ui.TabObjects) { $content = $ui.ObjList; $details = $ui.ObjHost }
     elseif ($sel -eq $ui.TabServices) { $content = $ui.SvcList; $details = $ui.SvcHost }
@@ -1629,7 +1660,9 @@ function Invoke-MspkiGuiShortcut {
     if ($Key -eq 'F6') { Move-MspkiGuiRegionFocus -Back:$Shift; return $true }
     if ($Key -eq 'Escape') {
         $f = [System.Windows.Input.Keyboard]::FocusedElement
-        if (($f -eq $u.FltText -and $u.FltText.Text) -or ($f -eq $u.FltLog -and $u.FltLog.Text) -or ($f -eq $u.FltObj -and $u.FltObj.Text)) { $f.Text = ''; return $true }
+        if (($f -eq $u.FltText -and $u.FltText.Text) -or ($f -eq $u.FltLog -and $u.FltLog.Text) -or ($f -eq $u.FltObj -and $u.FltObj.Text) -or ($f -eq $u.FltMap -and $u.FltMap.Text)) { $f.Text = ''; return $true }
+        # On the map: Esc first clears the search, then the filters (the focus stays where it is).
+        if ($u.Tabs.SelectedItem -eq $u.TabMap -and $null -eq $s.Run -and $null -ne $s.MapPageModel -and ($u.FltMap.Text -or $s.MapPageModel.Filtered)) { if ($u.FltMap.Text) { $u.FltMap.Text = '' } else { Clear-MspkiGuiMapFilter }; return $true }
         if ($null -ne $s.Run) { Request-MspkiGuiCancel; return $true }
         return $false
     }
@@ -1649,10 +1682,12 @@ function Invoke-MspkiGuiShortcut {
             'D5' { Select-MspkiGuiTab -Index 4; return $true }
             'D6' { Select-MspkiGuiTab -Index 5; return $true }
             'O' { if ($u.BtnOpenResults.IsEnabled) { Invoke-MspkiGuiOpenDialog }; return $true }
+            { $_ -in @('OemPlus', 'Add', 'OemMinus', 'Subtract', 'D0', 'NumPad0') -and $u.Tabs.SelectedItem -eq $u.TabMap -and $u.MapCanvasPanel.IsVisible } { [void](Invoke-MspkiGuiMapKey -Key ([System.Windows.Input.Key]$Key)); return $true }
             'F' {
                 if ($u.Tabs.SelectedItem -eq $u.TabFindings) { [void]$u.FltText.Focus(); return $true }
                 elseif ($u.Tabs.SelectedItem -eq $u.TabLog) { [void]$u.FltLog.Focus(); return $true }
                 elseif ($u.Tabs.SelectedItem -eq $u.TabObjects) { [void]$u.FltObj.Focus(); return $true }
+                elseif ($u.Tabs.SelectedItem -eq $u.TabMap) { $u.RbMapCanvas.IsChecked = $true; [void]$u.FltMap.Focus(); return $true }
             }
         }
     }
@@ -1741,6 +1776,8 @@ function Initialize-MspkiGuiApplication {
     $ui.BtnCancel.Add_Click({ Request-MspkiGuiCancel })
     $ui.BtnOpenResults.Add_Click({ Invoke-MspkiGuiOpenDialog })
     $ui.BtnWelcomeOpen.Add_Click({ Invoke-MspkiGuiOpenDialog })
+    $ui.BtnNoteRun.Add_Click({ Start-MspkiGuiRun })
+    $g.Window.Add_Activated({ try { Update-MspkiGuiReportButton } catch { $null = $_ } })
     $ui.BtnOpenReport.Add_Click({
         $d = $script:MspkiGui.Data
         if ($null -ne $d) { Open-MspkiGuiPath -Path ([string]$d.ReportPath) -What 'HTML report' }
@@ -1830,6 +1867,7 @@ function Initialize-MspkiGuiApplication {
 
     # Discovery Map: selection, expand/collapse
     $ui.MapTree.Add_SelectedItemChanged({ Show-MspkiGuiNodePane -Node $script:MspkiGui.Ui.MapTree.SelectedItem })
+    Initialize-MspkiGuiMapPage
 
     # Objects page: search, type filter, needs-attention switch, selection
     $ui.FltObj.Add_TextChanged({ Update-MspkiGuiObjectFilter })
@@ -1912,6 +1950,7 @@ function Initialize-MspkiGuiApplication {
     $g.Window.Add_Closed({
         $s = $script:MspkiGui
         if ($null -ne $s.ThemeTimer) { $s.ThemeTimer.Stop() }
+        Stop-MspkiGuiMapWorker
         if ($null -ne $s.Timer) { $s.Timer.Stop() }
     })
 

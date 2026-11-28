@@ -193,153 +193,253 @@ function Measure-MspkiGuiTextWidth {
     return $TextBlock.DesiredSize.Width
 }
 
+function New-MspkiGuiMapNodeVisual {
+    <#
+    .SYNOPSIS
+    Adds one map node to a canvas: the probe pulse (behind everything), the circle with its icon (or the count of a group), the status
+    badge (icon, never colour alone, outside the icon), and the label in an opaque box so that links and pulses pass behind the text.
+    Returns the drawn record. The label box and the circle carry the node's id in Tag ("node:<id>") and its accessible name.
+    #>
+    param([Parameter(Mandatory = $true)]$Node, [Parameter(Mandatory = $true)]$Canvas, [double]$Top, [double]$Gap = 38)
+    $w = $script:MspkiGui.Window
+    $n = $Node
+    $x = [double]$n.X; $y = [double]$n.Y + $Top
+    $keys = $script:MspkiGuiToneKeys[[string]$n.Tone]
+    if ($null -eq $keys) { $keys = $script:MspkiGuiToneKeys['Neutral'] }
+    $word = $script:MspkiGuiToneWord[[string]$n.Tone]
+    $tag = 'node:' + [string]$n.Id
+    $tip = '{0}{1}{2}{1}Status: {3}{4}' -f [string]$n.FullName, [Environment]::NewLine, [string]$n.Sub, $word, $(if ($n.Kind -eq 'Cluster') { '' } elseif ($n.Kind -eq 'Unknown') { [Environment]::NewLine + [string]$n.Explain } else { '. Select to open it.' })
+    if ($n.Kind -eq 'Cluster') { $tip = '{0}{1}Worst status: {2}. Select to expand the group.' -f [string]$n.FullName, [Environment]::NewLine, $word }
+    if ($null -ne $n.PSObject.Properties['WhereText'] -and $n.WhereText) { $tip += [Environment]::NewLine + [Environment]::NewLine + [string]$n.WhereText }
+    $acc = '{0}, {1}, {2}' -f [string]$n.Label, [string]$n.Sub, $word
+
+    # Probe pulse: at most the row spacing across, so it never reaches a neighbouring label (owner review item 3).
+    $pulse = $null
+    if ($n.Kind -in @('Endpoint', 'Host', 'Cluster')) {
+        $pulse = New-Object System.Windows.Shapes.Ellipse
+        $pulse.Width = 26; $pulse.Height = 26; $pulse.Stroke = $w.FindResource('B.Accent'); $pulse.StrokeThickness = 2
+        $pulse.Opacity = 0; $pulse.IsHitTestVisible = $false
+        $pulse.RenderTransformOrigin = New-Object System.Windows.Point(0.5, 0.5)
+        $pulse.RenderTransform = New-Object System.Windows.Media.ScaleTransform(1, 1)
+        $pulse.Tag = [math]::Max(1.15, [math]::Min(2.3, ($Gap - 4) / 26.0))
+        [System.Windows.Controls.Canvas]::SetLeft($pulse, $x); [System.Windows.Controls.Canvas]::SetTop($pulse, $y - 13)
+        [System.Windows.Controls.Panel]::SetZIndex($pulse, 1)
+        [void]$Canvas.Children.Add($pulse)
+    }
+    $body = New-Object System.Windows.Controls.Grid
+    $body.Width = 26; $body.Height = 26
+    $body.RenderTransformOrigin = New-Object System.Windows.Point(0.5, 0.5)
+    $body.RenderTransform = New-Object System.Windows.Media.ScaleTransform(1, 1)
+    $body.Tag = $tag; $body.Cursor = [System.Windows.Input.Cursors]::Hand; $body.ToolTip = $tip; $body.Background = [System.Windows.Media.Brushes]::Transparent
+    [System.Windows.Automation.AutomationProperties]::SetName($body, $acc)
+    $circle = New-Object System.Windows.Shapes.Ellipse
+    $circle.Fill = New-MspkiGuiBrushOf -Key $keys[0]
+    $circle.Stroke = New-MspkiGuiBrushOf -Key $keys[1]
+    $circle.StrokeThickness = 1.5
+    if ($n.Kind -eq 'Unknown') { $circle.StrokeDashArray = [System.Windows.Media.DoubleCollection]::Parse('2.0 2.0') }
+    $icon = New-Object System.Windows.Controls.TextBlock
+    if ($n.Kind -eq 'Cluster') { $icon.Text = [string]$n.Count; $icon.FontSize = $(if ($n.Count -ge 100) { 9 } else { 11 }); $icon.FontWeight = 'Bold' }
+    else { $icon.Style = $w.FindResource('Glyph'); $icon.Text = [string]$n.Glyph; $icon.FontSize = 12 }
+    $icon.Foreground = New-MspkiGuiBrushOf -Key $keys[2]
+    $icon.HorizontalAlignment = 'Center'; $icon.VerticalAlignment = 'Center'
+    [void]$body.Children.Add($circle); [void]$body.Children.Add($icon)
+    [System.Windows.Controls.Canvas]::SetLeft($body, $x); [System.Windows.Controls.Canvas]::SetTop($body, $y - 13)
+    [System.Windows.Controls.Panel]::SetZIndex($body, 3)
+    [void]$Canvas.Children.Add($body)
+
+    # Status badge: 18 px, a 10 px glyph, up and to the right of the circle so it never covers the icon (owner review item 4).
+    $mark = $null
+    $badge = @{ Bad = 0xE711; Warn = 0xE7BA; Admin = 0xE72E }
+    if ($badge.ContainsKey([string]$n.Tone)) {
+        $mark = New-Object System.Windows.Controls.Border
+        $mark.Width = 18; $mark.Height = 18; $mark.CornerRadius = New-Object System.Windows.CornerRadius(9)
+        $mark.Background = $w.FindResource($keys[2]); $mark.BorderBrush = $w.FindResource('B.Card'); $mark.BorderThickness = New-Object System.Windows.Thickness(2)
+        $mark.IsHitTestVisible = $false
+        $mg = New-Object System.Windows.Controls.TextBlock
+        $mg.Style = $w.FindResource('Glyph'); $mg.Text = [string][char]$badge[[string]$n.Tone]; $mg.FontSize = 9; $mg.FontWeight = 'Bold'; $mg.Foreground = $w.FindResource('B.OnData')
+        $mg.HorizontalAlignment = 'Center'; $mg.VerticalAlignment = 'Center'
+        $mark.Child = $mg
+        [System.Windows.Controls.Canvas]::SetLeft($mark, $x + 18); [System.Windows.Controls.Canvas]::SetTop($mark, $y - 23)
+        [System.Windows.Controls.Panel]::SetZIndex($mark, 4)
+        [void]$Canvas.Children.Add($mark)
+    }
+    # Label in an opaque box as wide as its text (hover and selection tint it).
+    $sp = New-Object System.Windows.Controls.StackPanel
+    $t1 = New-Object System.Windows.Controls.TextBlock
+    $t1.Text = [string]$n.Label; $t1.FontWeight = 'SemiBold'; $t1.FontSize = 12; $t1.TextTrimming = 'CharacterEllipsis'; $t1.TextWrapping = 'NoWrap'; $t1.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, 'B.Text')
+    $t2 = New-Object System.Windows.Controls.TextBlock
+    $t2.Text = $(if ($n.Context) { [string]$n.Sub + ' ' + [char]0x00B7 + ' shown for context' } else { [string]$n.Sub }); $t2.Style = $w.FindResource('Small'); $t2.TextTrimming = 'CharacterEllipsis'; $t2.TextWrapping = 'NoWrap'
+    [void]$sp.Children.Add($t1); [void]$sp.Children.Add($t2)
+    $max = [math]::Max(40.0, [double]$n.LabelWidth)
+    $used = [math]::Min($max, [math]::Max((Measure-MspkiGuiTextWidth -TextBlock $t1), (Measure-MspkiGuiTextWidth -TextBlock $t2)))
+    $sp.Width = $used + 1
+    $lab = New-Object System.Windows.Controls.Border
+    $lab.Child = $sp; $lab.Padding = New-Object System.Windows.Thickness(4, 1, 4, 1); $lab.CornerRadius = New-Object System.Windows.CornerRadius(4)
+    $lab.SetResourceReference([System.Windows.Controls.Border]::BackgroundProperty, 'B.Card')
+    $lab.Tag = $tag; $lab.Cursor = [System.Windows.Input.Cursors]::Hand; $lab.ToolTip = $tip
+    [System.Windows.Automation.AutomationProperties]::SetName($lab, $acc)
+    [System.Windows.Automation.AutomationProperties]::SetHelpText($lab, $(if ($n.Kind -eq 'Cluster') { 'Select to expand the group' } else { 'Select to open its details' }))
+    $lab.Add_MouseEnter({ param($s, $e) if (-not $s.IsEnabled) { return }; if ([string]$s.Uid -ne 'selected') { $s.SetResourceReference([System.Windows.Controls.Border]::BackgroundProperty, 'B.Hover') } })
+    $lab.Add_MouseLeave({ param($s, $e) if ([string]$s.Uid -ne 'selected') { $s.SetResourceReference([System.Windows.Controls.Border]::BackgroundProperty, 'B.Card') } })
+    [System.Windows.Controls.Canvas]::SetLeft($lab, $x + 34); [System.Windows.Controls.Canvas]::SetTop($lab, $y - 18)
+    [System.Windows.Controls.Panel]::SetZIndex($lab, 3)
+    [void]$Canvas.Children.Add($lab)
+    foreach ($el in @($body, $lab)) { $el.Add_MouseLeftButtonUp({ param($s, $e) Invoke-MspkiGuiMapNodeClick -Tag ([string]$s.Tag) -Source $s; $e.Handled = $true }) }
+    $dim = $(if (-not $n.Match) { 0.25 } elseif ($n.Context) { 0.6 } else { 1.0 })
+    if ($dim -lt 1.0) { foreach ($el in @($body, $lab, $mark)) { if ($null -ne $el) { $el.Opacity = $dim } } }
+    return [pscustomobject]@{
+        Node = $n; Body = $body; Circle = $circle; Icon = $icon; Pulse = $pulse; Mark = $mark; Label = $lab; LabelEnd = ($x + 34 + $used + 10 + 4); Dim = $dim
+        Fill = (Get-MspkiGuiColorOf -Key $keys[0]); Line = (Get-MspkiGuiColorOf -Key $keys[1]); Fore = (Get-MspkiGuiColorOf -Key $keys[2])
+        NeutralFill = (Get-MspkiGuiColorOf -Key 'B.Card'); NeutralLine = (Get-MspkiGuiColorOf -Key 'B.BorderStrong'); NeutralFore = (Get-MspkiGuiColorOf -Key 'B.Muted')
+    }
+}
+
+function New-MspkiGuiMapLinkVisual {
+    <#
+    .SYNOPSIS
+    Adds one link to a canvas: a quiet line, the accent chain, a dashed "issuer not confirmed" line, or the path health of the address it
+    leads to (failing: red dashed with a cross marker; warning: amber with a warning marker; never colour alone). A wide invisible stroke
+    carries the plain-words tooltip, so the link is easy to hover.
+    #>
+    param([Parameter(Mandatory = $true)]$Link, [Parameter(Mandatory = $true)]$From, [Parameter(Mandatory = $true)]$To, [Parameter(Mandatory = $true)]$Canvas, [double]$Top, [double]$StartX, [hashtable]$Marked = $null)
+    $w = $script:MspkiGui.Window
+    $a = $From; $b = $To
+    $x1 = $StartX; $y1 = [double]$a.Y + $Top
+    $x2 = [double]$b.X - 3; $y2 = [double]$b.Y + $Top
+    if ($x2 -le $x1 + 4) { $x1 = [double]$a.X + 26 }
+    $mid = $x1 + ($x2 - $x1) * 0.5
+    $fig = New-Object System.Windows.Media.PathFigure
+    $fig.StartPoint = New-Object System.Windows.Point($x1, $y1)
+    [void]$fig.Segments.Add((New-Object System.Windows.Media.BezierSegment((New-Object System.Windows.Point($mid, $y1)), (New-Object System.Windows.Point($mid, $y2)), (New-Object System.Windows.Point($x2, $y2)), $true)))
+    $geo = New-Object System.Windows.Media.PathGeometry
+    [void]$geo.Figures.Add($fig)
+    $geo.Freeze()
+    $p = New-Object System.Windows.Shapes.Path
+    $p.Data = $geo; $p.SnapsToDevicePixels = $true; $p.IsHitTestVisible = $false
+    $dashed = $false
+    $markGlyph = 0; $markKey = ''
+    switch ([string]$Link.Kind) {
+        'chain' { $p.Stroke = $w.FindResource('B.Accent'); $p.StrokeThickness = 2 }
+        'unconfirmed' { $p.Stroke = $w.FindResource('B.ControlStrong'); $p.StrokeThickness = 1.5; $dashed = $true; $p.StrokeDashArray = [System.Windows.Media.DoubleCollection]::Parse('3.0 3.0'); $markGlyph = 0xE9CE; $markKey = 'B.NeutralFore' }
+        default {
+            if ($Link.Tone -eq 'Bad') { $p.Stroke = $w.FindResource('B.BadData'); $p.StrokeThickness = 2; $dashed = $true; $p.StrokeDashArray = [System.Windows.Media.DoubleCollection]::Parse('4.0 3.0'); $markGlyph = 0xE711; $markKey = 'B.BadFore' }
+            elseif ($Link.Tone -eq 'Warn') { $p.Stroke = $w.FindResource('B.WarnData'); $p.StrokeThickness = 2; $markGlyph = 0xE7BA; $markKey = 'B.WarnFore' }
+            else { $p.Stroke = $w.FindResource('B.BorderStrong'); $p.StrokeThickness = 1 }
+        }
+    }
+    [System.Windows.Controls.Panel]::SetZIndex($p, 0)
+    [void]$Canvas.Children.Add($p)
+    $hit = New-Object System.Windows.Shapes.Path
+    $hit.Data = $geo; $hit.Stroke = [System.Windows.Media.Brushes]::Transparent; $hit.StrokeThickness = 10
+    $hit.ToolTip = [string]$Link.Text
+    [System.Windows.Controls.ToolTipService]::SetInitialShowDelay($hit, 250)
+    [System.Windows.Automation.AutomationProperties]::SetName($hit, [string]$Link.Text)
+    [System.Windows.Controls.Panel]::SetZIndex($hit, 0)
+    [void]$Canvas.Children.Add($hit)
+    $marker = $null
+    # One marker per target and tone, near the target end of the link (78 % along it): on a dense fan the markers line up beside the
+    # nodes they belong to instead of piling up in the middle.
+    $mk = [string]$To.Id + '|' + $markGlyph
+    if ($markGlyph -ne 0 -and $null -ne $Marked -and $Marked.ContainsKey($mk)) { $markGlyph = 0 }
+    if ($markGlyph -ne 0 -and $null -ne $Marked) { $Marked[$mk] = $true }
+    $tt = 0.78; $u = 1 - $tt
+    $mx = $u * $u * $u * $x1 + 3 * $u * $u * $tt * $mid + 3 * $u * $tt * $tt * $mid + $tt * $tt * $tt * $x2
+    $my = $u * $u * $u * $y1 + 3 * $u * $u * $tt * $y1 + 3 * $u * $tt * $tt * $y2 + $tt * $tt * $tt * $y2
+    if ($markGlyph -ne 0) {
+        $marker = New-Object System.Windows.Controls.Border
+        $marker.Width = 16; $marker.Height = 16; $marker.CornerRadius = New-Object System.Windows.CornerRadius(8)
+        $marker.Background = $w.FindResource($markKey); $marker.BorderBrush = $w.FindResource('B.Card'); $marker.BorderThickness = New-Object System.Windows.Thickness(1.5)
+        $marker.ToolTip = [string]$Link.Text
+        $mg = New-Object System.Windows.Controls.TextBlock
+        $mg.Style = $w.FindResource('Glyph'); $mg.Text = [string][char]$markGlyph; $mg.FontSize = 8; $mg.FontWeight = 'Bold'; $mg.Foreground = $w.FindResource('B.OnData')
+        $mg.HorizontalAlignment = 'Center'; $mg.VerticalAlignment = 'Center'
+        $marker.Child = $mg
+        [System.Windows.Controls.Canvas]::SetLeft($marker, $mx - 8); [System.Windows.Controls.Canvas]::SetTop($marker, $my - 8)
+        [System.Windows.Controls.Panel]::SetZIndex($marker, 2)
+        [void]$Canvas.Children.Add($marker)
+    }
+    $chord = [math]::Sqrt(($x2 - $x1) * ($x2 - $x1) + ($y2 - $y1) * ($y2 - $y1))
+    return [pscustomobject]@{ Path = $p; Hit = $hit; Marker = $marker; Link = $Link; Dashed = $dashed; Length = ($chord * 1.5 + 8) / $p.StrokeThickness }
+}
+
 function Show-MspkiGuiMap {
     <#
     .SYNOPSIS
-    Draws the discovery map model on the Overview canvas for the canvas's current width. Returns the drawn elements, which the
-    build animation uses. Column captions sit at the top; each node opens its object details when selected.
+    Draws a laid-out map model on the Overview canvas (column captions at the top). Returns the drawn elements, which the build animation
+    uses. Each node opens the full-page map with that node selected.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Model, [double]$Width)
+    param([Parameter(Mandatory = $true)]$Model, [double]$Width, $Canvas = $null)
     $g = $script:MspkiGui
     $w = $g.Window
-    $cv = $g.Ui.MapCanvas
+    $cv = $(if ($null -ne $Canvas) { $Canvas } else { $g.Ui.MapCanvas })
     $cv.Children.Clear()
-    $height = Set-MspkiGuiMapLayout -Model $Model -Width $Width -LabelWidth 190
+    $cv.ClipToBounds = $true
+    $height = [double]$Model.Height
+    if ($height -le 0) { $height = Set-MspkiGuiMapLayout -Model $Model -Width $Width -LabelWidth 190 }
     $top = $script:MspkiGuiMapHeaderHeight
     $cv.Height = $height + $top
     $cv.Width = $Width
     $byId = @{}
-    foreach ($n in $Model.Nodes) { $byId[$n.Id] = $n }
-    $drawn = [pscustomobject]@{ Nodes = (New-Object System.Collections.ArrayList); Links = (New-Object System.Collections.ArrayList) }
-
-    # Column captions: what each column holds.
-    $caLayers = @($Model.Nodes | Where-Object { $_.Kind -eq 'CA' } | ForEach-Object { [int]$_.Layer } | Select-Object -Unique)
-    foreach ($l in 0..([int]$Model.Layers - 1)) {
-        $first = @($Model.Nodes | Where-Object { [int]$_.Layer -eq $l })[0]
-        if ($null -eq $first) { continue }
-        $cap = switch ([string]$first.Kind) {
-            'CA' { $(if ($caLayers.Count -gt 1 -and $l -eq 0) { 'Root CAs' } elseif ($caLayers.Count -gt 1) { 'Issuing CAs' } else { 'Certification authorities' }) }
-            'Endpoint' { 'Addresses the CAs publish' }
-            default { 'Served by' }
-        }
+    foreach ($n in $Model.Nodes) { $byId[[string]$n.Id] = $n }
+    $drawn = [pscustomobject]@{ Nodes = (New-Object System.Collections.ArrayList); Links = (New-Object System.Collections.ArrayList); ById = @{} }
+    foreach ($cap in (Get-MspkiGuiMapCaption -Model $Model)) {
         $t = New-Object System.Windows.Controls.TextBlock
-        $t.Text = $cap; $t.Style = $w.FindResource('Label')
-        [System.Windows.Controls.Canvas]::SetLeft($t, [double]$first.X); [System.Windows.Controls.Canvas]::SetTop($t, 0)
+        $t.Text = $cap.Text; $t.Style = $w.FindResource('Label')
+        [System.Windows.Controls.Canvas]::SetLeft($t, [double]$cap.X); [System.Windows.Controls.Canvas]::SetTop($t, 0)
         [void]$cv.Children.Add($t)
     }
-
-    # Labels first (measured), so that each link can start where its label text ends.
-    $labelEnd = @{}
-    $labels = @{}
-    foreach ($n in $Model.Nodes) {
-        $sp = New-Object System.Windows.Controls.StackPanel
-        $sp.Width = [math]::Max(40.0, [double]$n.LabelWidth)
-        $t1 = New-Object System.Windows.Controls.TextBlock
-        $t1.Text = [string]$n.Label; $t1.FontWeight = 'SemiBold'; $t1.FontSize = 12; $t1.TextTrimming = 'CharacterEllipsis'; $t1.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, 'B.Text')
-        $t2 = New-Object System.Windows.Controls.TextBlock
-        $t2.Text = [string]$n.Sub; $t2.Style = $w.FindResource('Small'); $t2.TextTrimming = 'CharacterEllipsis'
-        [void]$sp.Children.Add($t1); [void]$sp.Children.Add($t2)
-        $used = [math]::Min($sp.Width, [math]::Max((Measure-MspkiGuiTextWidth -TextBlock $t1), (Measure-MspkiGuiTextWidth -TextBlock $t2)))
-        $labelEnd[$n.Id] = [double]$n.X + 32 + $used + 6
-        $labels[$n.Id] = $sp
-    }
-    # Links (under the nodes): a chain link in the accent colour, the others as quiet lines.
+    $gap = $(if ($null -ne $Model.PSObject.Properties['Gap'] -and $Model.Gap) { [double]$Model.Gap } else { 38.0 })
+    $marked = @{}
+    foreach ($n in $Model.Nodes) { $d = New-MspkiGuiMapNodeVisual -Node $n -Canvas $cv -Top $top -Gap $gap; [void]$drawn.Nodes.Add($d); $drawn.ById[[string]$n.Id] = $d }
     foreach ($l in $Model.Links) {
-        if (-not $byId.ContainsKey($l.From) -or -not $byId.ContainsKey($l.To)) { continue }
-        $a = $byId[$l.From]; $b = $byId[$l.To]
-        $x1 = $labelEnd[$a.Id]; $y1 = [double]$a.Y + $top
-        $x2 = [double]$b.X - 3; $y2 = [double]$b.Y + $top
-        if ($x2 -le $x1 + 4) { $x1 = [double]$a.X + 26 }
-        $mid = $x1 + ($x2 - $x1) * 0.5
-        $fig = New-Object System.Windows.Media.PathFigure
-        $fig.StartPoint = New-Object System.Windows.Point($x1, $y1)
-        [void]$fig.Segments.Add((New-Object System.Windows.Media.BezierSegment((New-Object System.Windows.Point($mid, $y1)), (New-Object System.Windows.Point($mid, $y2)), (New-Object System.Windows.Point($x2, $y2)), $true)))
-        $geo = New-Object System.Windows.Media.PathGeometry
-        [void]$geo.Figures.Add($fig)
-        $p = New-Object System.Windows.Shapes.Path
-        $p.Data = $geo
-        $p.SnapsToDevicePixels = $true
-        if ($l.Kind -eq 'chain') { $p.Stroke = $w.FindResource('B.Accent'); $p.StrokeThickness = 2 }
-        else { $p.Stroke = $w.FindResource('B.BorderStrong'); $p.StrokeThickness = 1 }
-        $p.ToolTip = $(switch ($l.Kind) { 'chain' { 'Issued by (certificate chain)' } 'publishes' { 'Published in the CA''s certificates or properties' } default { 'Served by this host' } })
-        $chord = [math]::Sqrt(($x2 - $x1) * ($x2 - $x1) + ($y2 - $y1) * ($y2 - $y1))
-        [void]$cv.Children.Add($p)
-        [void]$drawn.Links.Add([pscustomobject]@{ Path = $p; From = $a; To = $b; Length = ($chord * 1.5 + 8) / $p.StrokeThickness })
-    }
-    # Nodes: hover area, probe pulse, circle with icon, status badge (icon, never colour alone), label.
-    $neutralFill = Get-MspkiGuiColorOf -Key 'B.Card'
-    $neutralLine = Get-MspkiGuiColorOf -Key 'B.BorderStrong'
-    $neutralFore = Get-MspkiGuiColorOf -Key 'B.Muted'
-    $badge = @{ Bad = 0xE711; Warn = 0xE7BA; Admin = 0xE72E }
-    $toneWord = @{ Good = 'healthy'; Warn = 'warning'; Bad = 'failing'; Admin = 'could not be checked'; Neutral = 'no finding'; Info = 'information' }
-    foreach ($n in $Model.Nodes) {
-        $x = [double]$n.X; $y = [double]$n.Y + $top
-        $keys = $script:MspkiGuiToneKeys[[string]$n.Tone]
-        $hit = New-Object System.Windows.Controls.Border
-        $hit.Width = 32 + [double]$labels[$n.Id].Width + 6; $hit.Height = 36
-        $hit.CornerRadius = New-Object System.Windows.CornerRadius(6)
-        $hit.Background = [System.Windows.Media.Brushes]::Transparent
-        $hit.Cursor = [System.Windows.Input.Cursors]::Hand
-        $hit.Tag = 'ent:' + [string]$n.EntityId
-        $hit.ToolTip = '{0}{1}{2}: {3}. Select to open it.' -f [string]$n.FullName, [Environment]::NewLine, [string]$n.Sub, $toneWord[[string]$n.Tone]
-        [System.Windows.Automation.AutomationProperties]::SetName($hit, ('{0}, {1}, {2}' -f [string]$n.Label, [string]$n.Sub, $toneWord[[string]$n.Tone]))
-        $hit.Add_MouseEnter({ param($s, $e) $s.Background = $script:MspkiGui.Window.FindResource('B.Hover') })
-        $hit.Add_MouseLeave({ param($s, $e) $s.Background = [System.Windows.Media.Brushes]::Transparent })
-        $hit.Add_MouseLeftButtonUp({ param($s, $e) $t = [string]$s.Tag; if ($t.StartsWith('ent:')) { Show-MspkiGuiObject -Id $t.Substring(4) } })
-        [System.Windows.Controls.Canvas]::SetLeft($hit, $x - 4); [System.Windows.Controls.Canvas]::SetTop($hit, $y - 18)
-        [void]$cv.Children.Add($hit)
-
-        $pulse = $null
-        if ($n.Kind -in @('Endpoint', 'Host')) {
-            $pulse = New-Object System.Windows.Shapes.Ellipse
-            $pulse.Width = 26; $pulse.Height = 26; $pulse.Stroke = $w.FindResource('B.Accent'); $pulse.StrokeThickness = 2
-            $pulse.Opacity = 0; $pulse.IsHitTestVisible = $false
-            $pulse.RenderTransformOrigin = New-Object System.Windows.Point(0.5, 0.5)
-            $pulse.RenderTransform = New-Object System.Windows.Media.ScaleTransform(1, 1)
-            [System.Windows.Controls.Canvas]::SetLeft($pulse, $x); [System.Windows.Controls.Canvas]::SetTop($pulse, $y - 13)
-            [void]$cv.Children.Add($pulse)
-        }
-        $body = New-Object System.Windows.Controls.Grid
-        $body.Width = 26; $body.Height = 26; $body.IsHitTestVisible = $false
-        $body.RenderTransformOrigin = New-Object System.Windows.Point(0.5, 0.5)
-        $body.RenderTransform = New-Object System.Windows.Media.ScaleTransform(1, 1)
-        $circle = New-Object System.Windows.Shapes.Ellipse
-        $circle.Fill = New-MspkiGuiBrushOf -Key $keys[0]
-        $circle.Stroke = New-MspkiGuiBrushOf -Key $keys[1]
-        $circle.StrokeThickness = 1.5
-        $icon = New-Object System.Windows.Controls.TextBlock
-        $icon.Style = $w.FindResource('Glyph'); $icon.Text = [string]$n.Glyph; $icon.FontSize = 12
-        $icon.Foreground = New-MspkiGuiBrushOf -Key $keys[2]
-        $icon.HorizontalAlignment = 'Center'; $icon.VerticalAlignment = 'Center'
-        [void]$body.Children.Add($circle); [void]$body.Children.Add($icon)
-        [System.Windows.Controls.Canvas]::SetLeft($body, $x); [System.Windows.Controls.Canvas]::SetTop($body, $y - 13)
-        [void]$cv.Children.Add($body)
-
-        $mark = $null
-        if ($badge.ContainsKey([string]$n.Tone)) {
-            $mark = New-Object System.Windows.Controls.Border
-            $mark.Width = 16; $mark.Height = 16; $mark.CornerRadius = New-Object System.Windows.CornerRadius(8)
-            $mark.Background = $w.FindResource($keys[2]); $mark.BorderBrush = $w.FindResource('B.Card'); $mark.BorderThickness = New-Object System.Windows.Thickness(1.5)
-            $mark.IsHitTestVisible = $false
-            $mg = New-Object System.Windows.Controls.TextBlock
-            $mg.Style = $w.FindResource('Glyph'); $mg.Text = [string][char]$badge[[string]$n.Tone]; $mg.FontSize = 9; $mg.FontWeight = 'Bold'; $mg.Foreground = $w.FindResource('B.OnData')
-            $mg.HorizontalAlignment = 'Center'; $mg.VerticalAlignment = 'Center'
-            $mark.Child = $mg
-            [System.Windows.Controls.Canvas]::SetLeft($mark, $x + 15); [System.Windows.Controls.Canvas]::SetTop($mark, $y - 19)
-            [void]$cv.Children.Add($mark)
-        }
-        $lab = $labels[$n.Id]
-        $lab.IsHitTestVisible = $false
-        [System.Windows.Controls.Canvas]::SetLeft($lab, $x + 32); [System.Windows.Controls.Canvas]::SetTop($lab, $y - 16)
-        [void]$cv.Children.Add($lab)
-        [void]$drawn.Nodes.Add([pscustomobject]@{
-            Node = $n; Body = $body; Circle = $circle; Icon = $icon; Pulse = $pulse; Mark = $mark; Label = $lab
-            Fill = (Get-MspkiGuiColorOf -Key $keys[0]); Line = (Get-MspkiGuiColorOf -Key $keys[1]); Fore = (Get-MspkiGuiColorOf -Key $keys[2])
-            NeutralFill = $neutralFill; NeutralLine = $neutralLine; NeutralFore = $neutralFore
-        })
+        if (-not $drawn.ById.ContainsKey([string]$l.From) -or -not $drawn.ById.ContainsKey([string]$l.To)) { continue }
+        $da = $drawn.ById[[string]$l.From]
+        $lv = New-MspkiGuiMapLinkVisual -Link $l -From $byId[[string]$l.From] -To $byId[[string]$l.To] -Canvas $cv -Top $top -StartX $da.LabelEnd -Marked $marked
+        $lv | Add-Member -NotePropertyName From -NotePropertyValue $byId[[string]$l.From]
+        $lv | Add-Member -NotePropertyName To -NotePropertyValue $byId[[string]$l.To]
+        [void]$drawn.Links.Add($lv)
     }
     return $drawn
+}
+
+function Get-MspkiGuiMapCaption {
+    # Column captions: what each column holds, at the column's x.
+    param([Parameter(Mandatory = $true)]$Model)
+    $first = @{}; $caLayers = @{}
+    foreach ($n in $Model.Nodes) {
+        $l = [int]$n.Layer
+        if (-not $first.ContainsKey($l)) { $first[$l] = $n }
+        if ($n.Kind -in @('CA', 'Unknown')) { $caLayers[$l] = $true }
+    }
+    $out = @()
+    foreach ($l in 0..([int]$Model.Layers - 1)) {
+        if (-not $first.ContainsKey($l)) { continue }
+        $f = $first[$l]
+        $text = switch ([string]$f.Kind) {
+            { $_ -in @('CA', 'Unknown') } { $(if ($caLayers.Count -gt 1 -and $l -eq 0) { 'Root CAs' } elseif ($caLayers.Count -gt 1) { 'Issuing CAs' } else { 'Certification authorities' }) }
+            { $_ -in @('Endpoint', 'Cluster') } { 'Addresses the CAs publish' }
+            default { 'Served by' }
+        }
+        $out += [pscustomobject]@{ Text = $text; X = [double]$f.X }
+    }
+    return $out
+}
+
+function New-MspkiGuiBuildPaths {
+    # The property paths and easings the build animations use (created once per storyboard).
+    $out = New-MspkiGuiEase -Mode Out
+    return @{
+        Op = New-Object System.Windows.PropertyPath([System.Windows.UIElement]::OpacityProperty)
+        Sx = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.UIElement]::RenderTransformProperty, [System.Windows.Media.ScaleTransform]::ScaleXProperty)
+        Sy = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.UIElement]::RenderTransformProperty, [System.Windows.Media.ScaleTransform]::ScaleYProperty)
+        Ty = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.UIElement]::RenderTransformProperty, [System.Windows.Media.TranslateTransform]::YProperty)
+        FillC = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.Shapes.Shape]::FillProperty, [System.Windows.Media.SolidColorBrush]::ColorProperty)
+        LineC = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.Shapes.Shape]::StrokeProperty, [System.Windows.Media.SolidColorBrush]::ColorProperty)
+        ForeC = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.Controls.TextBlock]::ForegroundProperty, [System.Windows.Media.SolidColorBrush]::ColorProperty)
+        DashOff = New-Object System.Windows.PropertyPath([System.Windows.Shapes.Shape]::StrokeDashOffsetProperty)
+        Out = $out; InOut = (New-MspkiGuiEase -Mode InOut)
+    }
 }
 
 function New-MspkiGuiMissionStoryboard {
@@ -347,32 +447,23 @@ function New-MspkiGuiMissionStoryboard {
     .SYNOPSIS
     One Storyboard for the whole Overview build: the score ring sweeps, the area bars grow, the action rows rise in, and the map
     builds itself (CAs, then each published address with a probe pulse, then its health colour, hosts after their first address).
+    -HeroOnly leaves the map out: the window then adds it in slices (Start-MspkiGuiAnimBuild), so a large map never blocks the window.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Drawn, [double]$TotalMs = 3000, [switch]$NoMap)
+    param([Parameter(Mandatory = $true)]$Drawn, [double]$TotalMs = 3000, [switch]$NoMap, [switch]$HeroOnly)
     $g = $script:MspkiGui
     $ui = $g.Ui
     $sb = New-Object System.Windows.Media.Animation.Storyboard
-    $op = New-Object System.Windows.PropertyPath([System.Windows.UIElement]::OpacityProperty)
-    $sx = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.UIElement]::RenderTransformProperty, [System.Windows.Media.ScaleTransform]::ScaleXProperty)
-    $sy = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.UIElement]::RenderTransformProperty, [System.Windows.Media.ScaleTransform]::ScaleYProperty)
-    $ty = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.UIElement]::RenderTransformProperty, [System.Windows.Media.TranslateTransform]::YProperty)
-    $fillC = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.Shapes.Shape]::FillProperty, [System.Windows.Media.SolidColorBrush]::ColorProperty)
-    $lineC = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.Shapes.Shape]::StrokeProperty, [System.Windows.Media.SolidColorBrush]::ColorProperty)
-    $foreC = New-Object System.Windows.PropertyPath('(0).(1)', [System.Windows.Controls.TextBlock]::ForegroundProperty, [System.Windows.Media.SolidColorBrush]::ColorProperty)
-    $dashOff = New-Object System.Windows.PropertyPath([System.Windows.Shapes.Shape]::StrokeDashOffsetProperty)
-    $out = New-MspkiGuiEase -Mode Out
-    $inOut = New-MspkiGuiEase -Mode InOut
-
+    $P = New-MspkiGuiBuildPaths
     # Score ring and number.
     $len = [double]$ui.ScoreArc.StrokeDashArray[0]
-    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $ui.ScoreArc -Path $dashOff -StartMs 150 -DurationMs 900 -From $len -To 0 -Ease $inOut
-    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $ui.TxtScore -Path $op -StartMs 350 -DurationMs 400 -From 0 -To 1 -Ease $out
+    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $ui.ScoreArc -Path $P.DashOff -StartMs 150 -DurationMs 900 -From $len -To 0 -Ease $P.InOut
+    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $ui.TxtScore -Path $P.Op -StartMs 350 -DurationMs 400 -From 0 -To 1 -Ease $P.Out
     # Area bars, left to right, one after the other.
     $i = 0
     foreach ($f in @($g.AreaFills)) {
-        if ($null -ne $f.Fill) { Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $f.Fill -Path $sx -StartMs (200 + 60 * $i) -DurationMs 500 -From 0 -To 1 -Ease $out }
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $f.Text -Path $op -StartMs (200 + 60 * $i + 250) -DurationMs 250 -From 0 -To 1 -Ease $out
+        if ($null -ne $f.Fill) { Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $f.Fill -Path $P.Sx -StartMs (200 + 60 * $i) -DurationMs 500 -From 0 -To 1 -Ease $P.Out }
+        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $f.Text -Path $P.Op -StartMs (200 + 60 * $i + 250) -DurationMs 250 -From 0 -To 1 -Ease $P.Out
         $i++
     }
     # Action rows rise 8 px and fade in.
@@ -381,71 +472,104 @@ function New-MspkiGuiMissionStoryboard {
         $c = $ui.ActionList.ItemContainerGenerator.ContainerFromIndex($k)
         if ($null -eq $c) { continue }
         $c.RenderTransform = New-Object System.Windows.Media.TranslateTransform(0, 0)
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $c -Path $op -StartMs (300 + 50 * $k) -DurationMs 220 -From 0 -To 1 -Ease $out
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $c -Path $ty -StartMs (300 + 50 * $k) -DurationMs 220 -From 8 -To 0 -Ease $out
+        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $c -Path $P.Op -StartMs (300 + 50 * $k) -DurationMs 220 -From 0 -To 1 -Ease $P.Out
+        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $c -Path $P.Ty -StartMs (300 + 50 * $k) -DurationMs 220 -From 8 -To 0 -Ease $P.Out
     }
-    # The map was built live during the run (-NoMap): the nodes are already there, so only their health colour fades from the
-    # neutral live look to the graded one (staggered 40 ms), then the badge.
-    if ($NoMap) {
-        $k = 0
-        foreach ($d in @($Drawn.Nodes | Sort-Object { [double]$_.Node.Y })) {
-            $tr = 200.0 + 40 * $k; $k++
-            Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Circle -Path $fillC -StartMs $tr -DurationMs 280 -From $d.NeutralFill -To $d.Fill -Color
-            Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Circle -Path $lineC -StartMs $tr -DurationMs 280 -From $d.NeutralLine -To $d.Line -Color
-            Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Icon -Path $foreC -StartMs $tr -DurationMs 280 -From $d.NeutralFore -To $d.Fore -Color
-            if ($null -ne $d.Mark) { Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Mark -Path $op -StartMs ($tr + 160) -DurationMs 200 -From 0 -To 1 -Ease $out }
-        }
-        $sb.Duration = New-Object System.Windows.Duration([TimeSpan]::FromMilliseconds([math]::Max(1200.0, 200 + 40 * $k + 700)))
-        return $sb
-    }
-    # The map builds itself.
-    foreach ($d in $Drawn.Nodes) {
-        $n = $d.Node
-        $t0 = [double]$n.AppearMs
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Body -Path $op -StartMs $t0 -DurationMs 200 -From 0 -To 1 -Ease $out
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Body -Path $sx -StartMs $t0 -DurationMs 280 -From 0.6 -To 1 -Ease $out
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Body -Path $sy -StartMs $t0 -DurationMs 280 -From 0.6 -To 1 -Ease $out
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Label -Path $op -StartMs ($t0 + 80) -DurationMs 220 -From 0 -To 1 -Ease $out
-        # Health becomes known: neutral until the result time, then the status colours fade in, then the badge.
-        $tr = [math]::Max([double]$n.ResultMs, $t0 + 200)
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Circle -Path $fillC -StartMs $tr -DurationMs 240 -From $d.NeutralFill -To $d.Fill -Color
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Circle -Path $lineC -StartMs $tr -DurationMs 240 -From $d.NeutralLine -To $d.Line -Color
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Icon -Path $foreC -StartMs $tr -DurationMs 240 -From $d.NeutralFore -To $d.Fore -Color
-        if ($null -ne $d.Mark) { Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $d.Mark -Path $op -StartMs ($tr + 120) -DurationMs 200 -From 0 -To 1 -Ease $out }
-        # A probe: two pulses expand from the address and fade out (base opacity 0, so nothing stays behind).
-        if ($null -ne $d.Pulse -and [double]$n.ProbeMs -gt 0) {
-            $p0 = [double]$n.ProbeMs
-            $a = New-Object System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames
-            $s = New-Object System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames
-            $kt = { param($ms) [System.Windows.Media.Animation.KeyTime]::FromTimeSpan([TimeSpan]::FromMilliseconds($ms)) }
-            [void]$a.KeyFrames.Add((New-Object System.Windows.Media.Animation.DiscreteDoubleKeyFrame(0.0, (& $kt 0))))
-            [void]$s.KeyFrames.Add((New-Object System.Windows.Media.Animation.DiscreteDoubleKeyFrame(1.0, (& $kt 0))))
-            foreach ($c in 0, 1) {
-                $c0 = $p0 + 430 * $c
-                [void]$a.KeyFrames.Add((New-Object System.Windows.Media.Animation.DiscreteDoubleKeyFrame(0.7, (& $kt $c0))))
-                [void]$a.KeyFrames.Add((New-Object System.Windows.Media.Animation.LinearDoubleKeyFrame(0.0, (& $kt ($c0 + 420)))))
-                [void]$s.KeyFrames.Add((New-Object System.Windows.Media.Animation.DiscreteDoubleKeyFrame(1.0, (& $kt $c0))))
-                $e = New-Object System.Windows.Media.Animation.EasingDoubleKeyFrame(2.3, (& $kt ($c0 + 420))); $e.EasingFunction = $out
-                [void]$s.KeyFrames.Add($e)
-            }
-            $s2 = $s.Clone()
-            foreach ($pair in @(@($a, $op), @($s, $sx), @($s2, $sy))) {
-                [System.Windows.Media.Animation.Storyboard]::SetTarget($pair[0], $d.Pulse)
-                [System.Windows.Media.Animation.Storyboard]::SetTargetProperty($pair[0], $pair[1])
-                $sb.Children.Add($pair[0])
-            }
-        }
-    }
-    foreach ($l in $Drawn.Links) {
-        $p = $l.Path
-        $dash = New-Object System.Windows.Media.DoubleCollection
-        [void]$dash.Add($l.Length); [void]$dash.Add($l.Length)
-        $p.StrokeDashArray = $dash
-        $t0 = [math]::Max([double]$l.From.AppearMs, [double]$l.To.AppearMs - 60)
-        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $p -Path $dashOff -StartMs $t0 -DurationMs 260 -From $l.Length -To 0 -Ease $out
-    }
-    $sb.Duration = New-Object System.Windows.Duration([TimeSpan]::FromMilliseconds($TotalMs))
+    $sb.Duration = New-Object System.Windows.Duration([TimeSpan]::FromMilliseconds($(if ($NoMap) { [math]::Max(1200.0, 200 + 40 * @($Drawn.Nodes).Count + 700) } else { $TotalMs })))
+    if ($HeroOnly) { return $sb }
+    Add-MspkiGuiMapBuildAnimation -Storyboard $sb -Drawn $Drawn -Settle:$NoMap
     return $sb
+}
+
+function Get-MspkiGuiSettleOrder {
+    # The map nodes from top to bottom (the order in which their health colours settle after a live build).
+    param([Parameter(Mandatory = $true)]$Drawn)
+    $a = [object[]]@($Drawn.Nodes)
+    $k = [double[]]@(foreach ($d in $a) { [double]$d.Node.Y * 1000 + [double]$d.Node.Layer })
+    [Array]::Sort([Array]$k, [Array]$a)
+    return , $a
+}
+
+function Add-MspkiGuiNodeBuild {
+    <#
+    .SYNOPSIS
+    The build animation of one map node: it fades and grows in at its AppearMs, an address pulses when it is probed, its health colour and
+    badge arrive at ResultMs. -SettleIndex (a map that was built live): only the health colour settles, staggered 40 ms by position.
+    #>
+    param([Parameter(Mandatory = $true)]$Storyboard, [Parameter(Mandatory = $true)]$D, [Parameter(Mandatory = $true)][hashtable]$P, [int]$SettleIndex = -1)
+    $sb = $Storyboard
+    $n = $D.Node
+    if ($SettleIndex -ge 0) {
+        $tr = 200.0 + 40 * $SettleIndex
+        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Circle -Path $P.FillC -StartMs $tr -DurationMs 280 -From $D.NeutralFill -To $D.Fill -Color
+        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Circle -Path $P.LineC -StartMs $tr -DurationMs 280 -From $D.NeutralLine -To $D.Line -Color
+        Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Icon -Path $P.ForeC -StartMs $tr -DurationMs 280 -From $D.NeutralFore -To $D.Fore -Color
+        if ($null -ne $D.Mark) { Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Mark -Path $P.Op -StartMs ($tr + 160) -DurationMs 200 -From 0 -To 1 -Ease $P.Out }
+        return
+    }
+    $t0 = [double]$n.AppearMs
+    $dim = [double]$D.Dim
+    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Body -Path $P.Op -StartMs $t0 -DurationMs 200 -From 0 -To $dim -Ease $P.Out
+    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Body -Path $P.Sx -StartMs $t0 -DurationMs 280 -From 0.6 -To 1 -Ease $P.Out
+    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Body -Path $P.Sy -StartMs $t0 -DurationMs 280 -From 0.6 -To 1 -Ease $P.Out
+    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Label -Path $P.Op -StartMs ($t0 + 80) -DurationMs 220 -From 0 -To $dim -Ease $P.Out
+    # Health becomes known: neutral until the result time, then the status colours fade in, then the badge.
+    $tr = [math]::Max([double]$n.ResultMs, $t0 + 200)
+    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Circle -Path $P.FillC -StartMs $tr -DurationMs 240 -From $D.NeutralFill -To $D.Fill -Color
+    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Circle -Path $P.LineC -StartMs $tr -DurationMs 240 -From $D.NeutralLine -To $D.Line -Color
+    Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Icon -Path $P.ForeC -StartMs $tr -DurationMs 240 -From $D.NeutralFore -To $D.Fore -Color
+    if ($null -ne $D.Mark) { Add-MspkiGuiKeyAnimation -Storyboard $sb -Target $D.Mark -Path $P.Op -StartMs ($tr + 120) -DurationMs 200 -From 0 -To $dim -Ease $P.Out }
+    # A probe: two pulses expand from the address and fade out (base opacity 0, so nothing stays behind).
+    if ($null -ne $D.Pulse -and [double]$n.ProbeMs -gt 0) {
+        $p0 = [double]$n.ProbeMs
+        $a = New-Object System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames
+        $s = New-Object System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames
+        $kt = { param($ms) [System.Windows.Media.Animation.KeyTime]::FromTimeSpan([TimeSpan]::FromMilliseconds($ms)) }
+        [void]$a.KeyFrames.Add((New-Object System.Windows.Media.Animation.DiscreteDoubleKeyFrame(0.0, (& $kt 0))))
+        [void]$s.KeyFrames.Add((New-Object System.Windows.Media.Animation.DiscreteDoubleKeyFrame(1.0, (& $kt 0))))
+        foreach ($c in 0, 1) {
+            $c0 = $p0 + 430 * $c
+            [void]$a.KeyFrames.Add((New-Object System.Windows.Media.Animation.DiscreteDoubleKeyFrame(0.7, (& $kt $c0))))
+            [void]$a.KeyFrames.Add((New-Object System.Windows.Media.Animation.LinearDoubleKeyFrame(0.0, (& $kt ($c0 + 420)))))
+            [void]$s.KeyFrames.Add((New-Object System.Windows.Media.Animation.DiscreteDoubleKeyFrame(1.0, (& $kt $c0))))
+            $e = New-Object System.Windows.Media.Animation.EasingDoubleKeyFrame([double]$D.Pulse.Tag, (& $kt ($c0 + 420))); $e.EasingFunction = $P.Out
+            [void]$s.KeyFrames.Add($e)
+        }
+        $s2 = $s.Clone()
+        foreach ($pair in @(@($a, $P.Op), @($s, $P.Sx), @($s2, $P.Sy))) {
+            [System.Windows.Media.Animation.Storyboard]::SetTarget($pair[0], $D.Pulse)
+            [System.Windows.Media.Animation.Storyboard]::SetTargetProperty($pair[0], $pair[1])
+            $sb.Children.Add($pair[0])
+        }
+    }
+}
+
+function Add-MspkiGuiLinkBuild {
+    # The build animation of one link: it draws in after its ends appear (a dashed one fades in instead), then its marker.
+    param([Parameter(Mandatory = $true)]$Storyboard, [Parameter(Mandatory = $true)]$L, [Parameter(Mandatory = $true)][hashtable]$P)
+    $path = $L.Path
+    $t0 = [math]::Max([double]$L.From.AppearMs, [double]$L.To.AppearMs - 60)
+    $to = [double]$path.Opacity
+    if ($L.Dashed) { Add-MspkiGuiKeyAnimation -Storyboard $Storyboard -Target $path -Path $P.Op -StartMs $t0 -DurationMs 260 -From 0 -To $to -Ease $P.Out }
+    else {
+        $dash = New-Object System.Windows.Media.DoubleCollection
+        [void]$dash.Add($L.Length); [void]$dash.Add($L.Length)
+        $path.StrokeDashArray = $dash
+        Add-MspkiGuiKeyAnimation -Storyboard $Storyboard -Target $path -Path $P.DashOff -StartMs $t0 -DurationMs 260 -From $L.Length -To 0 -Ease $P.Out
+    }
+    if ($null -ne $L.Marker) { Add-MspkiGuiKeyAnimation -Storyboard $Storyboard -Target $L.Marker -Path $P.Op -StartMs ([math]::Max($t0 + 200, [double]$L.To.ResultMs)) -DurationMs 200 -From 0 -To ([double]$L.Marker.Opacity) -Ease $P.Out }
+}
+
+function Add-MspkiGuiMapBuildAnimation {
+    <#
+    .SYNOPSIS
+    Adds the whole map build to a storyboard at once (developer snapshots and tests; the window adds it in slices with Start-MspkiGuiAnimBuild).
+    #>
+    param([Parameter(Mandatory = $true)]$Storyboard, [Parameter(Mandatory = $true)]$Drawn, [switch]$Settle)
+    $P = New-MspkiGuiBuildPaths
+    if ($Settle) { $k = 0; foreach ($d in (Get-MspkiGuiSettleOrder -Drawn $Drawn)) { Add-MspkiGuiNodeBuild -Storyboard $Storyboard -D $d -P $P -SettleIndex $k; $k++ }; return }
+    foreach ($d in $Drawn.Nodes) { Add-MspkiGuiNodeBuild -Storyboard $Storyboard -D $d -P $P }
+    foreach ($l in $Drawn.Links) { Add-MspkiGuiLinkBuild -Storyboard $Storyboard -L $l -P $P }
 }
 
 function Update-MspkiGuiMission {
@@ -471,46 +595,46 @@ function Update-MspkiGuiMission {
     $ui.BannerTitle.Text = Get-MspkiGuiHeadline -Health $(if ($null -ne $g.Summary) { $g.Summary.Health } else { $null }) -Actions $g.Actions -Score $g.Score -Completed $completed -HasCa $hasCa
     $status = @{}
     foreach ($f in $findings) { $status[[string]$f.Id] = [string]$f.Status }
-    $g.MapModel = Get-MspkiGuiMapModel -Index $g.Index -FindingStatus $status
-    $g.MapDrawnWidth = 0
+    # The map is computed by the background map worker (GuiMapPage.ps1); a new generation drops anything still pending for the last results.
+    Reset-MspkiGuiMapPage
+    $g.MapStatus = $status
+    $g.MapModel = $null
+    $g.MapDrawnWidth = 0; $g.MapRequestedWidth = 0
     $g.MapAnimatePending = [bool]$Animate
     # A map that was built live during the run is not built a second time: only the health colours settle (Replay plays the full build).
     $g.MapNoMapOnce = ([bool]$Animate -and [bool]$g.LiveWasShown)
     $g.LiveWasShown = $false
-    $hasMap =($null -ne $g.MapModel -and @($g.MapModel.Nodes).Count -gt 0)
+    $hasMap = $false
+    if ($null -ne $g.Index) { foreach ($e in $g.Index.Entities.Values) { if ([string]$e.Type -in @('CA', 'CACertificate', 'Endpoint')) { $hasMap = $true; break } } }
+    $g.MapHas = $hasMap
     $ui.MapCanvas.Children.Clear()
     $ui.MapCanvas.Height = $(if ($hasMap) { 240 } else { 0 })
+    $ui.MapMoreStrip.Visibility = 'Collapsed'; $ui.BtnMapMore.Visibility = 'Collapsed'
     $ui.TxtMapEmpty.Visibility = $(if ($hasMap) { 'Collapsed' } else { 'Visible' })
     $ui.TxtMapEmpty.Text = $(if ($null -eq $g.Index) { 'These results were written by an older version of the tool, without the object graph, so there is no map. Run the health check again to see it.' } else { 'This run found no CA certificate or published address to draw.' })
     $ui.BtnReplay.IsEnabled = $hasMap
     $ui.MapLegend.Visibility = $(if ($hasMap) { 'Visible' } else { 'Collapsed' })
-    $ui.TxtMapStats.Text = $(if ($hasMap) { '{0}{1}{2}' -f (Format-MspkiGuiCount -Count @($g.MapModel.Nodes).Count -Singular 'object'), $script:MspkiGuiDot, (Format-MspkiGuiCount -Count @($g.MapModel.Links).Count -Singular 'link') } else { '' })
-    Invoke-MspkiGuiMapDraw
+    $ui.TxtMapStats.Text = ''
+    Invoke-MspkiGuiMapDraw -Force
+    Update-MspkiGuiMapPage -Fit
 }
 
 function Invoke-MspkiGuiMapDraw {
     <#
     .SYNOPSIS
-    Draws (or redraws, after a width change) the map for the canvas host's width; plays the build when one is pending.
+    Asks the map worker for the Overview map at the canvas host's width (again after a width change); it is drawn, and the build played
+    when one is pending, when it arrives.
     #>
     [CmdletBinding()]
     param([switch]$Force)
     $g = $script:MspkiGui
-    if ($null -eq $g -or $null -eq $g.MapModel -or @($g.MapModel.Nodes).Count -eq 0) { return }
+    if ($null -eq $g -or -not $g.MapHas -or $null -eq $g.Data) { return }
     $ui = $g.Ui
     $width = [math]::Floor($ui.MapCanvasHost.ActualWidth)
     if ($width -lt 200) { return }
-    if (-not $Force -and [math]::Abs($width - [double]$g.MapDrawnWidth) -lt 8 -and -not $g.MapAnimatePending) { return }
-    if ($null -ne $g.Storyboard) { try { $g.Storyboard.Stop($ui.PanelResults); $g.Storyboard.Remove($ui.PanelResults) } catch { $null = $_ } ; $g.Storyboard = $null }
-    $g.MapDrawn = Show-MspkiGuiMap -Model $g.MapModel -Width $width
-    $g.MapDrawnWidth = $width
-    $g.MapTotalMs = Set-MspkiGuiMapTimeline -Model $g.MapModel
-    if ($g.MapAnimatePending) {
-        $g.MapAnimatePending = $false
-        $noMap = [bool]$g.MapNoMapOnce
-        $g.MapNoMapOnce = $false
-        Start-MspkiGuiMissionAnimation -NoMap:$noMap
-    }
+    if (-not $Force -and [math]::Abs($width - [double]$g.MapRequestedWidth) -lt 8) { return }
+    $g.MapRequestedWidth = $width
+    Request-MspkiGuiMapJob -Kind Overview -Width $width -Options @{ Threshold = $script:MspkiGuiMapClusterThreshold }
 }
 
 function Start-MspkiGuiMissionAnimation {
@@ -523,8 +647,12 @@ function Start-MspkiGuiMissionAnimation {
     $g = $script:MspkiGui
     if ($null -eq $g.MapDrawn) { return }
     if (Test-MspkiGuiReducedMotion) { return }
+    # The score part at once; the map part in slices (a large map never blocks the window); it starts when complete.
+    $sb = New-MspkiGuiMissionStoryboard -Drawn $g.MapDrawn -TotalMs ([double]$g.MapTotalMs) -NoMap:$NoMap -HeroOnly
+    if ($null -ne $g.MapAnims) { Start-MspkiGuiAnimBuild -Kind Overview -Storyboard $sb -Drawn $g.MapDrawn -Settle:$NoMap; return }
+    Add-MspkiGuiMapBuildAnimation -Storyboard $sb -Drawn $g.MapDrawn -Settle:$NoMap
     if ($null -ne $g.Storyboard) { try { $g.Storyboard.Stop($g.Ui.PanelResults); $g.Storyboard.Remove($g.Ui.PanelResults) } catch { $null = $_ } }
-    $g.Storyboard = New-MspkiGuiMissionStoryboard -Drawn $g.MapDrawn -TotalMs ([double]$g.MapTotalMs) -NoMap:$NoMap
+    $g.Storyboard = $sb
     $g.Storyboard.Begin($g.Ui.PanelResults, $true)
 }
 
@@ -603,7 +731,8 @@ function Enter-MspkiGuiRunningMode {
     if ($null -ne $g.Storyboard) { try { $g.Storyboard.Stop($ui.PanelResults); $g.Storyboard.Remove($ui.PanelResults) } catch { $null = $_ }; $g.Storyboard = $null }
     $g.Live = New-MspkiGuiLiveState
     $g.LiveWasShown = $false
-    $g.MapModel = $null; $g.MapDrawn = $null; $g.MapDrawnWidth = 0; $g.MapAnimatePending = $false; $g.MapNoMapOnce = $false
+    $g.MapModel = $null; $g.MapDrawn = $null; $g.MapDrawnWidth = 0; $g.MapAnimatePending = $false; $g.MapNoMapOnce = $false; $g.MapHas = $false
+    if ($null -ne $g.MapQueue) { $g.MapQueue.Clear(); $g.MapDraws.Clear(); $g.MapGen = [int]$g.MapGen + 1 }
     # Area rows in their neutral, waiting form.
     $s = Get-MspkiGuiHealthScore -Findings @() -Completed $true -HasCa $true
     foreach ($a in @($s.Areas)) {
@@ -640,7 +769,7 @@ function Start-MspkiGuiLivePulse {
     $ease = New-Object System.Windows.Media.Animation.QuadraticEase
     $ease.EasingMode = [System.Windows.Media.Animation.EasingMode]::EaseOut
     $a = New-Object System.Windows.Media.Animation.DoubleAnimation(0.7, 0.0, $dur); $a.RepeatBehavior = [System.Windows.Media.Animation.RepeatBehavior]::Forever
-    $s = New-Object System.Windows.Media.Animation.DoubleAnimation(1.0, 2.3, $dur); $s.RepeatBehavior = [System.Windows.Media.Animation.RepeatBehavior]::Forever; $s.EasingFunction = $ease
+    $s = New-Object System.Windows.Media.Animation.DoubleAnimation(1.0, [double]$pulse.Tag, $dur); $s.RepeatBehavior = [System.Windows.Media.Animation.RepeatBehavior]::Forever; $s.EasingFunction = $ease
     $pulse.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $a)
     $pulse.RenderTransform.BeginAnimation([System.Windows.Media.ScaleTransform]::ScaleXProperty, $s)
     $pulse.RenderTransform.BeginAnimation([System.Windows.Media.ScaleTransform]::ScaleYProperty, $s)
@@ -695,7 +824,7 @@ function Update-MspkiGuiLiveMap {
         }
         if ($null -ne $d.Pulse -and $st.Probes.Contains([string]$d.Node.EntityId) -and $pulsing -lt 6) {
             $pulsing++
-            if ($reduced) { $d.Pulse.Opacity = 0.75; $d.Pulse.RenderTransform.ScaleX = 1.45; $d.Pulse.RenderTransform.ScaleY = 1.45 } else { Start-MspkiGuiLivePulse -Drawn $d }
+            if ($reduced) { $d.Pulse.Opacity = 0.75; $d.Pulse.RenderTransform.ScaleX = [double]$d.Pulse.Tag; $d.Pulse.RenderTransform.ScaleY = [double]$d.Pulse.Tag } else { Start-MspkiGuiLivePulse -Drawn $d }
         }
     }
     if (-not $reduced) {

@@ -101,3 +101,57 @@ function Switch-MspkiGuiCheckedKey {
     [void](Save-MspkiGuiCheckState -State $State -AllowedRoot $AllowedRoot)
     return $on
 }
+
+function Get-MspkiGuiMapExportPath {
+    <#
+    .SYNOPSIS
+    Where "Export image" writes the map: the run's own folder when it is inside the output folder (out\), otherwise the output folder itself.
+    Returns '' when the result would not be strictly inside the output folder.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$RunFolder, [Parameter(Mandatory = $true)][string]$AllowedRoot, [datetime]$Now = [datetime]::Now)
+    $target = $(if ($RunFolder -and (Test-MspkiGuiPathInside -Path $RunFolder -Root $AllowedRoot)) { $RunFolder } else { $AllowedRoot })
+    $path = Join-Path $target ('discovery-map-{0}.png' -f $Now.ToString('yyyyMMdd-HHmmss'))
+    if (-not (Test-MspkiGuiPathInside -Path $path -Root $AllowedRoot)) { return '' }
+    return $path
+}
+
+function Export-MspkiGuiMapPng {
+    <#
+    .SYNOPSIS
+    Saves the whole Discovery map (every object, not only the part in view) as a PNG at twice the screen size, under the output folder only
+    (Get-MspkiGuiMapExportPath). Says where it went in a toast; nothing else is written.
+    #>
+    [CmdletBinding()]
+    param()
+    $g = $script:MspkiGui
+    $cv = $g.MapPageCanvas
+    if ($null -eq $cv -or $null -eq $g.Data) { return '' }
+    $path = Get-MspkiGuiMapExportPath -RunFolder ([string]$g.Data.OutputFolder) -AllowedRoot $g.OutputRoot
+    if (-not $path) { [void](Show-MspkiGuiToast -Text 'The map can only be saved inside the output folder, and that is not possible for this run.' -Tone Warn); return '' }
+    try {
+        $folder = Split-Path -Parent $path
+        if (-not (Test-Path -LiteralPath $folder -PathType Container)) { [void][System.IO.Directory]::CreateDirectory($folder) }
+        $scale = [math]::Min(2.0, 8000.0 / [math]::Max($cv.Width, $cv.Height))
+        $w = [int][math]::Ceiling($cv.Width * $scale); $h = [int][math]::Ceiling($cv.Height * $scale)
+        $dv = New-Object System.Windows.Media.DrawingVisual
+        $dc = $dv.RenderOpen()
+        $dc.DrawRectangle($g.Window.FindResource('B.Card'), $null, (New-Object System.Windows.Rect(0, 0, $w, $h)))
+        $vb = New-Object System.Windows.Media.VisualBrush($cv)
+        $vb.ViewboxUnits = 'Absolute'; $vb.Viewbox = New-Object System.Windows.Rect(0, 0, $cv.Width, $cv.Height); $vb.Stretch = 'Fill'
+        $dc.DrawRectangle($vb, $null, (New-Object System.Windows.Rect(0, 0, $w, $h)))
+        $dc.Close()
+        $rtb = New-Object System.Windows.Media.Imaging.RenderTargetBitmap($w, $h, 96, 96, [System.Windows.Media.PixelFormats]::Pbgra32)
+        $rtb.Render($dv)
+        $enc = New-Object System.Windows.Media.Imaging.PngBitmapEncoder
+        $enc.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($rtb))
+        $fs = [System.IO.File]::Create($path)
+        try { $enc.Save($fs) } finally { $fs.Dispose() }
+        [void](Show-MspkiGuiToast -Title 'Map saved' -Text ('{0} is in {1}' -f (Split-Path -Leaf $path), $folder) -Tone Good)
+        return $path
+    }
+    catch {
+        [void](Show-MspkiGuiToast -Title 'The map was not saved' -Text $_.Exception.Message -Tone Bad)
+        return ''
+    }
+}

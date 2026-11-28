@@ -130,7 +130,9 @@ Describe 'The walkthrough never runs a check (static)' {
     }
     It 'the pane command handler calls only known window helpers (the clipboard, never a process)' {
         $allowed = @('Add-MspkiGuiPaneObject', 'Get-MspkiGuiFindingDetail', 'Reset-MspkiGuiPaneNav', 'Set-MspkiGuiClipboard', 'Show-MspkiGuiCopiedMark',
-            'Show-MspkiGuiEntityPane', 'Step-MspkiGuiTrail', 'Switch-MspkiGuiCheckedKey', 'Where-Object')
+            'Show-MspkiGuiEntityPane', 'Step-MspkiGuiTrail', 'Switch-MspkiGuiCheckedKey', 'Where-Object',
+            # GX6: after Back or a breadcrumb in the map's pane, the map selects the object shown (selection only).
+            'Sync-MspkiGuiMapSelection')
         foreach ($n in 'Invoke-MspkiGuiPaneCommand', 'Show-MspkiGuiCopiedMark') {
             $fn = & $script:FnAst $n
             $fn | Should -Not -BeNullOrEmpty

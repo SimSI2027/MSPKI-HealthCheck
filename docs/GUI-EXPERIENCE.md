@@ -44,7 +44,7 @@ Each journey has a target that the usability rubric checks (`docs/GUI-DESIGN.md`
 |---|---|---|---|
 | 1 | **Overview (mission control)** | score, areas, what to do next, live map, CA cards, top issues, coverage | exists; redesigned in GX2 |
 | 2 | **Findings** | the full list; filters; the guided walkthrough in the details pane | exists; walkthrough in GX4 |
-| 3 | **Map** | the hierarchy as a full-page interactive canvas (zoom, pan, focus a CA), with the existing tree as an alternative view | exists as a tree; canvas in GX3 |
+| 3 | **Map** | the hierarchy as a full-page interactive canvas (zoom, pan, focus a CA), with the existing tree as an alternative view | done in GX6 (map and tree) |
 | 4 | **Timeline** | CA certificate and CRL lifecycle: expiry countdowns, the CRL "heartbeat" (publish, next update, overlap) | new, GX5 |
 | 5 | **Objects** | every object of the graph, searchable | exists |
 | 6 | **PKI services** | Web Enrollment, CES, CEP, NDES, OCSP, Intune connector | exists |
@@ -164,10 +164,22 @@ Never animated: numbers in grids, filters, typing, the log, anything during keyb
   exclamation marks except the healthy celebration ("Everything checked is healthy.").
 
 ## 10. Risks and open questions
-- Large estates (hundreds of endpoints) need clustering on the map; tested with a generated 500-entity fixture (GX3).
+- Large estates (hundreds of endpoints) need clustering on the map: done in GX6 (the addresses of one host become a counted group above 120 nodes); tested with a generated 500-entity fixture.
 - Animations on a software-rendered remote session (RDP) can be slow: when `RenderCapability.Tier` is 0 the window uses reduced motion.
-- Comparing runs needs a stable finding identity; findings do not carry one yet (GX6 adds a deterministic `Key`).
+- Comparing runs needs a stable finding identity; findings do not carry one yet (GX8 adds a deterministic `Key`).
 - A score can be misread as a certification: the wording and the "How is this scored?" link are part of the Must.
+
+## 10b. What the full-page map taught (GX6, 2026-11-27)
+- **Work off the UI thread, then in slices.** The map model, view and layout run in a background runspace (pure functions only); the window creates elements and build
+  animations in slices of 15 ms on a new canvas that replaces the old one when complete. Creating a large build storyboard in one go took 363 ms; in slices 95 % of the
+  ticks stay under 20 ms. Attaching 700 elements at once costs about 40 ms, so the new canvas is attached (collapsed) before the first slice. Windows PowerShell compiles a
+  function after about 16 calls: the drawing code is warmed up at start-up so that compile never lands in a slice. Panning and zooming change two transforms (0.3 ms).
+- **Order before position.** Median sweeps fix the order inside each column (the mean oscillates when a shared host has one far address); positions then follow the order
+  (least squares under a minimum gap). Crossings are counted, not guessed.
+- **Keyboard on a canvas.** Arrow keys move a focus ring between nodes in reading order (linked nodes first when changing column), Enter opens, Shift+arrows pan; selection
+  pushes onto the pane's trail, so Back and Alt+Left also move the map selection.
+- **Windows PowerShell 5.1 traps met here:** `[Array]::Sort($keys, $items)` sorts a copy of the items unless both are cast to `[Array]`; `Key.Enter` is `Key.Return`, so
+  compare enums, not names; variables are case-insensitive (`$p` overwrote a typed `$P`); `-in` on an enum compares strings.
 
 ## 11. What the GX0 prototype taught (2026-11-23)
 The mission-control Overview and the discovery map were built in the real window (`src/Gui/GuiMission.ps1`, `src/Gui/GuiMapView.ps1`) and
