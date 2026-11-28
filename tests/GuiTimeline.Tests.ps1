@@ -205,7 +205,7 @@ Describe 'Timeline rows' {
         $row.Due.Text | Should -Be 'Expired 3 days 1 hour ago'
         $row.AutomationName | Should -Match 'Failing'
         $row.HasTail | Should -BeTrue
-        @($items | Where-Object Kind -eq 'Copy')[0].Due.Text | Should -Match '^Number \w+ · '
+        @($items | Where-Object Kind -eq 'Copy')[0].Due.Text | Should -Match '^CRL 0x\w+ · '
         # Without the copies: only the CA and CRL rows.
         $r2 = Invoke-MspkiGuiTimelineJob -Request @{ Kind = 'Timeline'; Gen = 1; Options = @{ Now = $script:Expired.Now; View = 'Crls'; SpanDays = 0; Copies = $false } } -Index $script:Expired.Ix -Status $script:Expired.St -Cache @{ TlGen = 1; TlModel = $m }
         @($r2.Items | Where-Object Kind -eq 'Copy').Count | Should -Be 0
@@ -225,7 +225,7 @@ Describe 'The certificate chain' {
         # The leaf's addresses come from its CA's settings and say so (Inferred).
         $c.Cards[0].Note | Should -Match 'Inferred'
         @($c.Cards[0].Cdp).Count | Should -Be 3
-        foreach ($a in $c.Cards[0].Cdp) { $a.Tone | Should -Be 'Bad'; $a.Text | Should -Match '^Served CRL number \w+ · expired ' }
+        foreach ($a in $c.Cards[0].Cdp) { $a.Tone | Should -Be 'Bad'; $a.Text | Should -Match '^Served CRL 0x\w+ · expired ' }
         # A certificate whose every CDP address fails is itself failing (the card's colour), even though its dates are fine.
         $c.Cards[0].ValidityTone | Should -Be 'Good'
         $c.Cards[0].Tone | Should -Be 'Bad'

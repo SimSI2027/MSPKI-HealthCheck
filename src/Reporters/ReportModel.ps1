@@ -185,7 +185,8 @@ function Get-MspkiDiscoveryTree {
         if (@($C.Sources) -contains 'CA:GetCAProperty') { $conf = 'Confirmed' }
         $label = 'CA certificate'
         if ($C.Generation) { $label += ' ' + $C.Generation }
-        $label += ' - ' + $C.Lifecycle
+        # D-37: "V1.0 · current" / "V0.0 · replaced" (GUI-DESIGN section 9 words).
+        $label += ' ' + [string][char]0x00B7 + ' ' + $(switch ([string]$C.Lifecycle) { 'Current' { 'current' } 'Historical' { 'replaced' } default { ([string]$C.Lifecycle).ToLowerInvariant() } })
         $n = New-MspkiMapNode -Type 'Certificate' -Label $label -Detail $d -Sources @($C.Sources) -Confidence $conf -Findings (& $take $cf)
         foreach ($l in @(& $leadsForCert $C.Thumbprint)) {
             $leadPlaced[$l.Id] = $true

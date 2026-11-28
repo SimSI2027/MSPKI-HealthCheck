@@ -243,7 +243,7 @@ Describe 'GUI model helpers' {
         $ids = @($script:data.Findings | ForEach-Object { $_.Id })
         foreach ($n in $nodes) { foreach ($id in @($n.FindingIds)) { $ids | Should -Contain $id } }
         # A node whose descendants are worse than itself says so.
-        @($nodes | Where-Object { $_.BelowText -like 'worst below:*' }).Count | Should -BeGreaterThan 0
+        @($nodes | Where-Object { $_.BelowText -like 'contains *' }).Count | Should -BeGreaterThan 0
         (Get-MspkiGuiNodeSummary -Node $vm) | Should -BeLike 'Forest*'
         (Get-MspkiGuiNodeSummary -Node $null) | Should -Be ''
     }

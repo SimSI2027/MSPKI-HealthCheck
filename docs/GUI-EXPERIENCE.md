@@ -43,14 +43,14 @@ Each journey has a target that the usability rubric checks (`docs/GUI-DESIGN.md`
 | # | Page | Purpose | Status |
 |---|---|---|---|
 | 1 | **Overview (mission control)** | score, areas, what to do next, live map, CA cards, top issues, coverage | exists; redesigned in GX2 |
-| 2 | **Findings** | the full list; filters; the guided walkthrough in the details pane | exists; walkthrough in GX4 |
+| 2 | **Findings** | the full list; filters; the guided walkthrough in the details pane | done (walkthrough GX3; readable grid GX8b) |
 | 3 | **Map** | the hierarchy as a full-page interactive canvas (zoom, pan, focus a CA), with the existing tree as an alternative view | done in GX6 (map and tree) |
-| 4 | **Timeline** | CA certificate and CRL lifecycle: expiry countdowns, the CRL "heartbeat" (publish, next update, overlap) | new, GX5 |
+| 4 | **Timeline** | CA certificate and CRL lifecycle: expiry countdowns, the CRL "heartbeat" (publish, next update, overlap) | done in GX7 (Ctrl+4) |
 | 5 | **Objects** | every object of the graph, searchable | exists |
 | 6 | **PKI services** | Web Enrollment, CES, CEP, NDES, OCSP, Intune connector | exists |
 | 7 | **History** | earlier runs, score trend, compare two runs | done in GX8 (Ctrl+7) |
 | 8 | **Run log** | the live log | exists (Ctrl+8) |
-| 9 | **Learn** | concept cards and the glossary, opened from any "Explain" link | new, GX7 |
+| 9 | **Learn** | concept cards and the glossary, opened from any "Explain" link | GX9 (Ctrl+9) |
 
 ### One drill-down pattern everywhere
 - Anything that stands for an object or a finding (a map node, a score bar, an action, a tile, a row, a chip, a timeline bar) opens the

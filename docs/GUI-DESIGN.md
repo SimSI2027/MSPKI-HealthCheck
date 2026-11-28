@@ -74,7 +74,7 @@ error (run ended without results), no CAs found, plus every tab and the details 
 
 **Frame.** Custom title bar (in-box `WindowChrome`, no compiled code): app mark, name, version, a "Read-only" badge, the user
 badge and caption buttons (minimise, maximise/restore, close; close turns red on hover). Under it, left: navigation pane
-(Overview, Findings, Discovery map, Run log, Objects, PKI services, with Ctrl+1..6) and the environment the run sees (forest, domain, domain
+(Overview, Findings, Discovery map, Timeline, Objects, PKI services, History, Run log, with Ctrl+1..8; Learn joins as Ctrl+9 in GX9) and the environment the run sees (forest, domain, domain
 controller, run as). Right: command bar (Run = the only primary button, Cancel, Open results, Open report, Open folder), the
 run-options strip (collapsed summary; expands to the form), a 3 px progress bar while running, then the page.
 
@@ -107,7 +107,7 @@ chips fully rounded. Controls 32 px; grid rows 36 px; nav items 36 px; title bar
 16 px in nav and command bar, 12–14 px inline. Glyph code points for data live in `GuiModel.ps1` / `GuiView.ps1`.
 
 **Accessibility.** Icon + text on every status, never colour alone. Full keyboard path: Tab order through the frame, arrow keys in
-nav, grid and tree; F5 run, Esc cancel / clear filter, Ctrl+F search, Ctrl+O open, Ctrl+1..4 pages. Visible focus ring on every
+nav, grid and tree; F5 run, Esc cancel / clear filter, Ctrl+F search, Ctrl+O open, Ctrl+K command palette, Ctrl+1..8 pages, F6 to the details pane, Alt+Left back. Visible focus ring on every
 focusable control. Layout rounding on, so lines stay crisp from 100 % to 200 % DPI.
 
 ## 4. Feature inventory (every one must survive a redesign)
@@ -418,7 +418,7 @@ are Segoe Fluent Icons with Segoe MDL2 Assets as the fallback; colour is never t
 | skip (next track) | E893 | Skipped on purpose (for example a cancelled run or a check that does not apply). Never the power button E7E8 | Neutral | pills, coverage |
 Object glyphs (no status): CA EB95, address E774, web host E968, directory E8D4, address group E8B7 (the group shows its count instead), map E81E,
 tree E8A4, timeline page E787 (calendar), Certificates view EB95 (the CA glyph), CRLs view and every CRL EA41 (a list; E8C9 is an exclamation mark and read as a warning), History page E81C (history), Chain view E71B
-(link), certificate on this computer E8D7 (key); History: better E70E (chevron up), worse E70D (chevron down), changed E8AB (switch), object added
+(link), certificate on this computer E977 (a computer; never the key E8D7: the tool never reads keys), AD container E8D4 (the directory glyph); History: better E70E (chevron up), worse E70D (chevron down), changed E8AB (switch), object added
 E710 (plus), object gone E738 (minus, see the table). Commands: refresh E72C, run E768, open E8E5, folder E838, export E896 (CSV) and EB9F (image), copy E8C8, search E721, zoom in E8A3, zoom out
 E71F, fit E9A6.
 

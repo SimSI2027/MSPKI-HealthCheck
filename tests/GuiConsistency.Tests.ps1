@@ -205,3 +205,17 @@ Describe 'D-10: places and counts agree' {
         (Get-MspkiGuiEntityPane -Index $idx -Id 'service:ces:x' -RowById $byId).FindingCount | Should -Be 1
     }
 }
+
+Describe 'Low items: tree words, service titles, permission titles, old engine words' {
+    It 'titles a service by kind and host (D-44)' {
+        $graph = ConvertFrom-MspkiJson -Text '{ "Entities": [ { "Id": "service:ces:y", "Type": "Service", "Name": "CES https://enroll.example.test/Example CA_CES_Kerberos/service.svc/CES", "Properties": { "Kind": "CES", "Url": "https://enroll.example.test/Example CA_CES_Kerberos/service.svc/CES" } } ], "Relations": [], "Observations": [] }'
+        $idx = New-MspkiGuiGraphIndex -Graph $graph -Findings @()
+        (Get-MspkiGuiEntityPane -Index $idx -Id 'service:ces:y').Title | Should -Be 'CES on enroll'
+    }
+    It 'names what a permission refusal was reading (D-39)' {
+        $f = [pscustomobject]@{ Message = 'Permission denied while reading the CA''s properties.' }
+        $d = [pscustomobject]@{ Topic = 'PERMISSION_DENIED'; Title = 'The account running the tool was not allowed to read something'; Summary = 's'; BasisNote = 'b'; Causes = @(); Sources = @() }
+        (ConvertTo-MspkiGuiDiagnosisView -Diagnosis $d -Finding $f).Title | Should -Be 'The account running the tool was refused while reading the CA''s properties'
+        Format-MspkiGuiTextTimes -Text 'x (not probed in this phase)' | Should -Be 'x (not contacted in this run)'
+    }
+}

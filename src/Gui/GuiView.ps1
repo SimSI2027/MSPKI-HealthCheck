@@ -2,7 +2,7 @@
 # No WPF types here, so they can be tested without a window. Needs GuiModel.ps1 (pills, ranks) to be loaded first.
 
 $script:MspkiGuiNodeStyle = @{
-    Forest = @('Forest', 0xE774); Group = @('Group', 0xE8B7); Container = @('Container', 0xE8F1)
+    Forest = @('Forest', 0xE774); Group = @('Group', 0xE8B7); Container = @('Container', 0xE8D4)
     Certificate = @('Certificate', 0xEB95); CA = @('Certification authority', 0xE83D); Endpoint = @('Endpoint', 0xE71B)
 }
 
@@ -37,7 +37,7 @@ function ConvertTo-MspkiGuiTreeNode {
     $belowText = ''
     $belowRank = Get-MspkiGuiRank -Kind Status -Value $below
     if ($below -and $belowRank -gt (Get-MspkiGuiRank -Kind Status -Value $status) -and $belowRank -ge (Get-MspkiGuiRank -Kind Status -Value 'Warning')) {
-        $belowText = 'worst below: {0}' -f $below
+        $belowText = 'contains {0}' -f (Get-MspkiGuiStatusLabel -Value $below).ToLowerInvariant()
     }
     $conf = [string]$Node.Confidence
     $confText = ''
@@ -242,7 +242,10 @@ function ConvertTo-MspkiGuiDiagnosisView {
     }
     $bullet = [string][char]0x2022
     $lines = New-Object 'System.Collections.Generic.List[string]'
-    $lines.Add('Probable causes and next steps: ' + [string]$d.Title)
+    # D-39: a permission refusal names what was read ("... was refused while reading the CA's properties").
+    $diagTitle = [string]$d.Title
+    if ([string]$d.Topic -eq 'PERMISSION_DENIED' -and $null -ne $Finding) { $pm = [regex]::Match([string]$Finding.Message, '(?i)Permission denied while ([^.]+)'); if ($pm.Success) { $diagTitle = 'The account running the tool was refused while {0}' -f $pm.Groups[1].Value } }
+    $lines.Add('Probable causes and next steps: ' + $diagTitle)
     $lines.Add([string]$d.Summary)
     $lines.Add([string]$d.BasisNote)
     $checked = @{}
@@ -303,7 +306,7 @@ function ConvertTo-MspkiGuiDiagnosisView {
     if ($srcText) { $lines.Add('Sources:'); $lines.Add($srcText) }
     return [pscustomobject][ordered]@{
         HasDiagnosis = $true
-        Title        = [string]$d.Title
+        Title        = $diagTitle
         Summary      = [string]$d.Summary
         BasisNote    = [string]$d.BasisNote
         Causes       = $causes

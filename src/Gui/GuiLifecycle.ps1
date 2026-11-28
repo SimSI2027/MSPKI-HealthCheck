@@ -46,7 +46,8 @@ function Format-MspkiGuiTimelineDate {
     param([AllowNull()]$Date, [switch]$WithTime, [switch]$Short)
     if ($null -eq $Date) { return '' }
     $c = [System.Globalization.CultureInfo]::InvariantCulture
-    if ($Short) { return ([datetime]$Date).ToString('d MMM HH:mm', $c) }
+    # D-33: a short date carries the year when it is not this year ("1 Jun 2027 08:00").
+    if ($Short) { $d = [datetime]$Date; if ($d.Year -ne [datetime]::UtcNow.Year) { return $d.ToString('d MMM yyyy HH:mm', $c) }; return $d.ToString('d MMM HH:mm', $c) }
     if ($WithTime) { return ([datetime]$Date).ToString('d MMM yyyy, HH:mm', $c) + ' UTC' }
     return ([datetime]$Date).ToString('d MMM yyyy', $c)
 }
@@ -247,9 +248,9 @@ function Get-MspkiGuiLifecycleModel {
                 if ([string]$o.Kind -ne 'Seen') { continue }
                 $cp = Read-MspkiGuiCrlCopy -Detail ([string]$o.Detail)
                 if ($null -eq $cp) { continue }
-                $ct = 'Good'; $tx = 'Number {0} {1} until {2}' -f $cp.Number, [char]0x00B7, (Format-MspkiGuiTimelineDate -Date $cp.NextUpdate -Short)
-                if ($null -ne $cp.NextUpdate -and $cp.NextUpdate -lt $Now) { $ct = 'Bad'; $tx = 'Number {0} {1} expired {2} ago' -f $cp.Number, [char]0x00B7, (Get-MspkiGuiSpanText -Days ($cp.NextUpdate - $Now).TotalDays -Coarse) }
-                elseif ($num -and (Compare-MspkiGuiHexNumber $cp.Number $num) -lt 0) { $ct = 'Warn'; $tx = 'Number {0} {1} older than number {2}' -f $cp.Number, [char]0x00B7, $num }
+                $ct = 'Good'; $tx = 'CRL {0} {1} until {2}' -f (Format-MspkiGuiCrlNumber $cp.Number), [char]0x00B7, (Format-MspkiGuiTimelineDate -Date $cp.NextUpdate -Short)
+                if ($null -ne $cp.NextUpdate -and $cp.NextUpdate -lt $Now) { $ct = 'Bad'; $tx = 'CRL {0} {1} expired {2} ago' -f (Format-MspkiGuiCrlNumber $cp.Number), [char]0x00B7, (Get-MspkiGuiSpanText -Days ($cp.NextUpdate - $Now).TotalDays -Coarse) }
+                elseif ($num -and (Compare-MspkiGuiHexNumber $cp.Number $num) -lt 0) { $ct = 'Warn'; $tx = 'CRL {0} {1} older than {2}' -f (Format-MspkiGuiCrlNumber $cp.Number), [char]0x00B7, (Format-MspkiGuiCrlNumber $num) }
                 [void]$copies.Add([pscustomobject]@{ Where = $where; Location = $loc; Source = [string]$o.Source; Number = $cp.Number; ThisUpdate = $cp.ThisUpdate; NextUpdate = $cp.NextUpdate; Tone = $ct; Text = $tx; Missing = $false })
             }
         }
@@ -503,9 +504,9 @@ function Get-MspkiGuiChainAddress {
     $dot = [string][char]0x00B7
     if ($null -ne $copy) {
         $served = $true
-        if ($null -ne $copy.NextUpdate -and $copy.NextUpdate -lt $Now) { $tone = 'Bad'; $text = 'Served CRL number {0} {1} expired {2} ago' -f $copy.Number, $dot, (Get-MspkiGuiSpanText -Days ($copy.NextUpdate - $Now).TotalDays) }
-        elseif ($newest -and (Compare-MspkiGuiHexNumber $copy.Number $newest) -lt 0) { $tone = 'Warn'; $text = 'Served CRL number {0} {1} older than number {2}' -f $copy.Number, $dot, $newest }
-        else { $tone = 'Good'; $text = 'Served CRL number {0} {1} valid until {2}' -f $copy.Number, $dot, (Format-MspkiGuiTimelineDate -Date $copy.NextUpdate -Short) }
+        if ($null -ne $copy.NextUpdate -and $copy.NextUpdate -lt $Now) { $tone = 'Bad'; $text = 'Served CRL {0} {1} expired {2} ago' -f (Format-MspkiGuiCrlNumber $copy.Number), $dot, (Get-MspkiGuiSpanText -Days ($copy.NextUpdate - $Now).TotalDays) }
+        elseif ($newest -and (Compare-MspkiGuiHexNumber $copy.Number $newest) -lt 0) { $tone = 'Warn'; $text = 'Served CRL {0} {1} older than {2}' -f (Format-MspkiGuiCrlNumber $copy.Number), $dot, (Format-MspkiGuiCrlNumber $newest) }
+        else { $tone = 'Good'; $text = 'Served CRL {0} {1} valid until {2}' -f (Format-MspkiGuiCrlNumber $copy.Number), $dot, (Format-MspkiGuiTimelineDate -Date $copy.NextUpdate -Short) }
     }
     elseif ($served) { $tone = 'Good'; $text = $(if ($Kind -eq 'AIA') { 'Served the issuer''s certificate (key proven)' } else { 'Served the CRL' }) }
     elseif ($wrong) { $tone = 'Bad'; $text = 'Served a certificate that is not the issuer' }
@@ -844,4 +845,12 @@ function Get-MspkiGuiChainLinkHeading {
     $tail = $(if ($warn -eq 1 -and $total -eq 1) { ', with a warning' } elseif ($warn -gt 0) { ', {0} with a warning' -f $warn } else { '' })
     if ($total -eq 1) { return $(if ($ok -ge 1) { 'Issued by {0} its AIA address served it{1}' -f $dot, $tail } else { 'Issued by {0} its AIA address did not serve it' -f $dot }) }
     return ('Issued by {0} {1} of {2} AIA addresses served it{3}' -f $dot, $ok, $total, $tail)
+}
+
+function Format-MspkiGuiCrlNumber {
+    # D-31: a CRL number as the CA writes it, always marked as hexadecimal ("0x2B"), so "42" is never read as decimal.
+    param([AllowEmptyString()][AllowNull()][string]$Number)
+    if (-not $Number) { return '' }
+    $n = ($Number -replace '^(?i)0x', '').Trim().ToUpperInvariant()
+    return ('0x{0}' -f $n)
 }

@@ -12,7 +12,7 @@ $script:MspkiGuiEntityType = [ordered]@{
     Host             = @{ Label = 'Host'; Glyph = [string][char]0xE7F8; About = 'A server name the run touched. Its identity is what DNS (addresses, aliases, reverse names), TLS (the certificate it serves) and HTTP (its Server header) say about it; when these disagree, clients and people can end up talking to the wrong machine.' }
     Service          = @{ Label = 'PKI service'; Glyph = [string][char]0xE912; About = 'An enrollment or validation service: Web Enrollment, CEP/CES (enrollment over HTTPS), NDES/SCEP (devices), OCSP (online revocation answers) or the Intune Certificate Connector.' }
     Template         = @{ Label = 'Certificate template'; Glyph = [string][char]0xE8A5; About = 'A certificate template says what a certificate is for, who may request it and how the subject is built. Its permissions decide who can enroll; a template that lets anyone supply any subject is a common way to take over a domain.' }
-    LocalCertificate = @{ Label = 'Certificate on this computer'; Glyph = [string][char]0xE8D7; About = 'A certificate in a store of this computer that this PKI issued. Its template, issuer and the Lifecycle event that installed it show how it got here: autoenrollment, a policy such as the Remote Desktop template, or a manual request.' }
+    LocalCertificate = @{ Label = 'Certificate on this computer'; Glyph = [string][char]0xE977; About = 'A certificate in a store of this computer that this PKI issued. Its template, issuer and the Lifecycle event that installed it show how it got here: autoenrollment, a policy such as the Remote Desktop template, or a manual request.' }
     ADObject         = @{ Label = 'AD object'; Glyph = [string][char]0xE8B7; About = 'An object in the Public Key Services container of AD. Clients and CAs read these to find CAs, templates and trusted certificates.' }
     Account          = @{ Label = 'Account'; Glyph = [string][char]0xE77B; About = 'An AD account named in a template permission. For NDES it is the service account or computer that requests the RA certificates; its SPNs or computer name point at the NDES server.' }
     RACertificate    = @{ Label = 'NDES RA certificate'; Glyph = [string][char]0xE8D7; About = 'The registration authority (RA) certificates of NDES: one signs, one encrypts SCEP messages. When they expire, devices can no longer enroll through SCEP (for example Intune devices).' }
@@ -249,8 +249,11 @@ function Get-MspkiGuiEntityPane {
     foreach ($s in $seen) { $copy.Add(('{0}: {1} {2} [{3}] {4}' -f $s.KindText, $s.Source, $s.Location, $s.ConfidencePill.Text, $s.Detail).Trim()) }
     foreach ($s in $miss) { $copy.Add(('MISSING: {0} {1} {2}' -f $s.Source, $s.Location, $s.Detail).Trim()) }
     foreach ($r in $related) { $copy.Add(('{0}: {1}' -f $r.Label, $r.Name)) }
+    # D-44: a service is titled by what it is and where ("CES on enroll"); its address stays in the properties.
+    $paneTitle = Get-MspkiGuiReadableName -Name (Get-MspkiGuiEntityName -Index $Index -Id $Id)
+    if ([string]$e.Type -eq 'Service' -and $null -ne $e.Properties -and $null -ne $e.Properties.PSObject.Properties['Url'] -and $null -ne $e.Properties.PSObject.Properties['Kind']) { $um = [regex]::Match([string]$e.Properties.Url, '^(?i)[a-z]+://([^/:?#]+)'); if ($um.Success) { $paneTitle = '{0} on {1}' -f [string]$e.Properties.Kind, ($um.Groups[1].Value -split '\.')[0] } }
     return [pscustomobject][ordered]@{
-        Kind = 'Entity'; Known = $true; Id = $Id; Title = (Get-MspkiGuiReadableName -Name (Get-MspkiGuiEntityName -Index $Index -Id $Id)); TypeText = $ti.Label; TypeGlyph = $ti.Glyph; About = $ti.About; HasAbout = [bool]$ti.About
+        Kind = 'Entity'; Known = $true; Id = $Id; Title = $paneTitle; TypeText = $ti.Label; TypeGlyph = $ti.Glyph; About = $ti.About; HasAbout = [bool]$ti.About
         Facts = $props; HasProperties = ($props.Count -gt 0); HostFacts = $hostFacts; HasHostFacts = ($hostFacts.Count -gt 0)
         Seen = $seen; SeenCount = $seen.Count; NoSeen = ($seen.Count -eq 0); Missing = $miss; HasMissing = ($miss.Count -gt 0); MissingCount = $miss.Count
         Related = $related; RelatedCount = $related.Count; NoRelated = ($related.Count -eq 0); Findings = [object[]]$rows; FindingCount = $rows.Count; NoFindings = ($rows.Count -eq 0)

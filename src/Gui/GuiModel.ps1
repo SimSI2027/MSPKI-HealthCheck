@@ -173,6 +173,8 @@ function Format-MspkiGuiTextTimes {
     [CmdletBinding()]
     param([AllowEmptyString()][AllowNull()][string]$Text)
     if (-not $Text) { return '' }
+    # D-39: an older engine's developer words, as people would say them.
+    $Text = $Text.Replace('(not probed in this phase)', '(not contacted in this run)')
     return [regex]::Replace($Text, '\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})\b', { param($m) Format-MspkiGuiTime -Value $m.Value })
 }
 

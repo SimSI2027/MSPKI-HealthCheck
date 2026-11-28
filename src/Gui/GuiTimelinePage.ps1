@@ -294,7 +294,7 @@ function Update-MspkiGuiChainView {
             (& $sec $card.Cdp ('Where clients check revocation (CDP, {0})' -f @($card.Cdp).Count) 'CRL Distribution Points: the addresses in this certificate where a client downloads the CRL that says whether it was revoked')
             (& $sec $card.Ocsp ('Online responder (OCSP, {0})' -f @($card.Ocsp).Count) 'An OCSP responder answers whether a certificate was revoked, instead of a client downloading the whole CRL')
         ) | Where-Object { $null -ne $_ })
-        $glyph = $(if ($card.Placeholder) { [string][char]0xE9CE } elseif ($card.Sub -like 'Certificate on this computer*') { [string][char]0xE8D7 } else { [string][char]0xEB95 })
+        $glyph = $(if ($card.Placeholder) { [string][char]0xE9CE } elseif ($card.Sub -like 'Certificate on this computer*') { [string][char]0xE977 } else { [string][char]0xEB95 })
         $pillTone = [string]$card.ValidityTone; if (-not $pillTone) { $pillTone = 'Neutral' }
         $items.Add([pscustomobject]@{ Kind = 'Card'; Tag = $(if ($card.Id) { 'ent:' + $card.Id } else { '' }); CanOpen = [bool]$card.Id; Tone = $card.Tone; Glyph = $glyph; Title = $card.Title; Sub = $card.Sub
                 Pill = [pscustomobject]@{ Text = [string]$card.Validity; Tone = $pillTone; Glyph = $(if ($pillTone -eq 'Bad') { [string][char]0xE711 } elseif ($card.Validity) { [string][char]0xE823 } else { '' }) }
