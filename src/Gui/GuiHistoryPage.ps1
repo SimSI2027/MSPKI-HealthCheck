@@ -162,6 +162,8 @@ function Show-MspkiGuiHistoryCompareEmpty {
     $ui.TxtHistCmpEmpty.Text = $Text
     $ui.HistCmpEmpty.Visibility = 'Visible'
     $ui.HistCmpScroll.Visibility = 'Collapsed'
+    # D-27: with only one saved run, the next step is a new run, so the button is here.
+    $ui.BtnHistRun.Visibility = $(if ($Text -like 'Only one run*') { 'Visible' } else { 'Collapsed' })
 }
 
 function Show-MspkiGuiHistoryCompare {
@@ -204,7 +206,8 @@ function Show-MspkiGuiHistoryTrend {
     $cv.Children.Clear()
     $v = $g.HistView
     $pts = @(); if ($null -ne $v) { $pts = @($v.Trend) }
-    if ($pts.Count -eq 0) { $ui.HistTrendBar.Visibility = 'Collapsed'; return }
+    # D-27: a chart needs at least two scored runs; one lone dot says nothing.
+    if (@($pts | Where-Object { $null -ne $_.Score }).Count -lt 2) { $ui.HistTrendBar.Visibility = 'Collapsed'; return }
     $ui.HistTrendBar.Visibility = 'Visible'
     $first = $pts[0].Score; $last = $pts[$pts.Count - 1].Score
     # Runs without a score (no CA found) are not points; the text says "scored runs" when that leaves some out.

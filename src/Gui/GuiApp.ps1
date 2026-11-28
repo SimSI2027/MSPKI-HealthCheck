@@ -346,7 +346,9 @@ function Update-MspkiGuiLogView {
     $shown = @($ui.LogList.Items).Count
     $ui.TxtLogCount.Text = '{0} of {1} shown' -f $shown, (Format-MspkiGuiCount -Count $g.LogRows.Count -Singular 'line')
     $ui.TxtLogEmpty.Visibility = 'Collapsed'
-    if ($g.LogRows.Count -eq 0) { $ui.TxtLogEmpty.Text = 'The log fills in while a run is in progress.'; $ui.TxtLogEmpty.Visibility = 'Visible' }
+    $ui.BtnLogOpenFolder.Visibility = 'Collapsed'
+    if ($g.LogRows.Count -eq 0 -and [bool]$g.NoLogForRun) { $ui.TxtLogEmpty.Text = 'No log for this run: there is no run.log next to its results.json. The findings are complete without it.'; $ui.TxtLogEmpty.Visibility = 'Visible'; $ui.TxtLogCount.Text = 'No log for this run'; $ui.BtnLogOpenFolder.Visibility = 'Visible' }
+    elseif ($g.LogRows.Count -eq 0) { $ui.TxtLogEmpty.Text = 'The log fills in while a run is in progress.'; $ui.TxtLogEmpty.Visibility = 'Visible' }
     elseif ($shown -eq 0) { $ui.TxtLogEmpty.Text = 'No log line matches the filter.'; $ui.TxtLogEmpty.Visibility = 'Visible' }
     if ($Scroll -and [bool]$ui.ChkFollow.IsChecked -and $shown -gt 0) { $ui.LogList.ScrollIntoView($ui.LogList.Items[$shown - 1]) }
 }
@@ -371,8 +373,10 @@ function Update-MspkiGuiFilter {
     $ui.TxtShowing.Text = 'Showing {0} of {1}' -f $shown, (Format-MspkiGuiCount -Count $g.Rows.Count -Singular 'finding')
     if ($null -ne $g.Filter.Area) { $ui.TxtShowing.Text += ('{0}area: {1}' -f $script:MspkiGuiDot, $g.Filter.Area.Name) }
     $ui.TxtGridEmpty.Visibility = 'Collapsed'
+    $ui.BtnGridClear.Visibility = 'Collapsed'
     if ($g.Rows.Count -gt 0 -and $shown -eq 0) {
-        $ui.TxtGridEmpty.Text = 'No finding matches the current filters. Use "Clear filters" to see all of them.'
+        $ui.TxtGridEmpty.Text = 'No finding matches the current filters.'
+        $ui.BtnGridClear.Visibility = 'Visible'
         $ui.TxtGridEmpty.Visibility = 'Visible'
     }
     elseif ($g.Rows.Count -eq 0) {
@@ -779,7 +783,9 @@ function Clear-MspkiGuiResult {
     if ($null -ne $g.MapQueue) { Reset-MspkiGuiMapPage }
     Reset-MspkiGuiTimelinePage
     Reset-MspkiGuiHistoryPage
-    $ui.TxtCount.Text = '0 findings'
+    # D-35: no count before the first result.
+    $ui.TxtCount.Text = ''
+    $ui.CountBlock.Visibility = 'Collapsed'
     $ui.TxtOutputPath.Text = $g.OutputRoot
     $ui.TxtOutputPath.ToolTip = $g.OutputRoot
     [void](Update-MspkiGuiHeader -Summary $null)
@@ -873,6 +879,7 @@ function Show-MspkiGuiResult {
     $ui.ChipList.ItemsSource = $g.Chips
     $ui.TxtTabFindings.Text = '{0}' -f $g.Rows.Count
     $ui.TxtCount.Text = '{0} finding{1}' -f $g.Rows.Count, $(if ($g.Rows.Count -eq 1) { '' } else { 's' })
+    $ui.CountBlock.Visibility = 'Visible'
     Update-MspkiGuiFilter
     if ($g.Rows.Count -gt 0) { $ui.FindingsGrid.SelectedIndex = 0 }
 
@@ -975,8 +982,10 @@ function Show-MspkiGuiLogFile {
     param([AllowEmptyString()][string]$Path)
     $g = $script:MspkiGui
     $g.LogRows.Clear()
+    $g.NoLogForRun = $false
     if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        Add-MspkiGuiLogRow -Row (New-MspkiGuiLogRow -Text '(no run.log was found next to this results.json)' -Level 'Info')
+        # D-19: no fake log line; the page shows a designed empty state instead.
+        $g.NoLogForRun = $true
     }
     else {
         foreach ($line in [System.IO.File]::ReadLines($Path)) { Add-MspkiGuiLogRow -Row (ConvertTo-MspkiGuiLogRowFromLine -Line $line) }
@@ -1094,6 +1103,7 @@ function Start-MspkiGuiRun {
     }
     Clear-MspkiGuiResult
     $g.LogRows.Clear()
+    $g.NoLogForRun = $false
     Update-MspkiGuiLogView
     $g.FinishedStages = New-Object 'System.Collections.Generic.List[string]'
     $ui.Progress.Value = 0
@@ -1879,6 +1889,9 @@ function Initialize-MspkiGuiApplication {
     $ui.BtnWelcomeOpen.Add_Click({ Invoke-MspkiGuiOpenDialog })
     $ui.BtnNoteRun.Add_Click({ Start-MspkiGuiRun })
     $ui.BtnErrRun.Add_Click({ Start-MspkiGuiRun })
+    $ui.BtnGridClear.Add_Click({ Clear-MspkiGuiFilter })
+    $ui.BtnHistRun.Add_Click({ Start-MspkiGuiRun })
+    $ui.BtnLogOpenFolder.Add_Click({ $script:MspkiGui.Ui.BtnOpenFolder.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) })
     $ui.BtnErrLog.Add_Click({ Select-MspkiGuiTab -Index 7 })
     $ui.BtnErrOptions.Add_Click({ $u = $script:MspkiGui.Ui; $u.ExpOptions.IsExpanded = $true; [void]$u.TxtTimeout.Focus(); $u.TxtTimeout.SelectAll() })
     $g.Window.Add_Activated({ try { Update-MspkiGuiReportButton } catch { $null = $_ } })

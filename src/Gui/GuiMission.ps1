@@ -127,6 +127,31 @@ function Get-MspkiGuiHealthScore {
     return [pscustomobject]$result
 }
 
+$script:MspkiGuiPlainNoun = @{
+    AIA = @('AIA address', 'AIA addresses'); CDP = @('CRL address', 'CRL addresses'); OCSP = @('OCSP responder', 'OCSP responders'); CRL = @('CRL', 'CRLs')
+    CA = @('CA', 'CAs'); Hierarchy = @('CA chain', 'CA chains'); Template = @('certificate template', 'certificate templates'); ADContainer = @('AD container', 'AD containers')
+    CES = @('enrollment web service', 'enrollment web services'); CEP = @('enrollment policy service', 'enrollment policy services'); NDES = @('NDES service', 'NDES services')
+}
+
+function Get-MspkiGuiPlainActionTitle {
+    <#
+    .SYNOPSIS
+    The title of an action for findings without a knowledge topic (D-21), in plain words: "22 AIA addresses failing", "1 CRL with a warning".
+    A single finding keeps its own message when no noun is known for its category.
+    #>
+    [CmdletBinding()]
+    param([string]$Category, [string]$Status, [int]$Count = 1, [string]$Message = '')
+    $noun = $script:MspkiGuiPlainNoun[$Category]
+    if ($null -eq $noun) {
+        if ($Count -le 1 -and $Message) { return (Get-MspkiGuiReadableName -Name $Message) }
+        $noun = @(('{0} finding' -f $Category), ('{0} findings' -f $Category))
+    }
+    $what = $(if ($Count -eq 1) { $noun[0] } else { $noun[1] })
+    $state = switch ($Status) { 'Critical' { 'critical' } 'Fail' { 'failing' } 'Error' { 'could not be checked' } default { 'with a warning' } }
+    if ($Status -eq 'Warning') { return ('{0} {1} {2}' -f $Count, $what, $state) }
+    return ('{0} {1} {2}' -f $Count, $what, $state)
+}
+
 function Get-MspkiGuiNextAction {
     <#
     .SYNOPSIS
@@ -146,7 +171,8 @@ function Get-MspkiGuiNextAction {
         if (-not $weight.ContainsKey($st)) { continue }
         $d = $null
         try { $d = Get-MspkiFindingDiagnosis -Finding $f } catch { $d = $null }
-        $key = $(if ($null -ne $d -and $d.Topic) { 'topic:' + $d.Topic } else { 'finding:' + [string]$f.Id })
+        # D-21: a finding without a knowledge topic joins the others of its category and status ("22 AIA addresses failing"), never one action each.
+        $key = $(if ($null -ne $d -and $d.Topic) { 'topic:' + $d.Topic } else { 'plain:{0}:{1}' -f [string]$f.Category, $st })
         if (-not $groups.Contains($key)) { $groups[$key] = [pscustomobject]@{ Diagnosis = $d; Findings = (New-Object System.Collections.ArrayList) } }
         [void]$groups[$key].Findings.Add($f)
     }
@@ -159,6 +185,7 @@ function Get-MspkiGuiNextAction {
         $prio = $weight[[string]$worst.Status] + 4 * $sevRank + 2 * [math]::Min($n, 5)
         $d = $gr.Diagnosis
         $title = [string]$worst.Message
+        if ($null -eq $d -and $k -like 'plain:*') { $title = Get-MspkiGuiPlainActionTitle -Category ([string]$worst.Category) -Status ([string]$worst.Status) -Count $gr.Findings.Count -Message ([string]$worst.Message) }
         $cause = ''; $observed = $false
         if ($null -ne $d) {
             if ($d.Title) { $title = [string]$d.Title }

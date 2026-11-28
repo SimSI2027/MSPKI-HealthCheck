@@ -174,3 +174,16 @@ Describe 'D-17 / readable text: checks ready to paste, names without DNs, the re
         Test-MspkiGuiCheckIsCommand -Text 'On the CA (owner): Application log' | Should -BeFalse
     }
 }
+
+Describe 'D-21: findings without a knowledge topic become one plain action per category and status' {
+    It 'groups 22 topic-less AIA failures into one action with a plain title' {
+        $f = @(foreach ($i in 1..22) { [pscustomobject]@{ Id = ('F{0:000}' -f $i); Status = 'Fail'; Severity = 'Medium'; Category = 'AIA'; StatusCode = 'TEST'; Target = ('h{0}.example.test' -f $i); Message = ('AIA address {0} checked.' -f $i); Evidence = @(); Sources = @() } })
+        $a = Get-MspkiGuiNextAction -Findings $f -Max 10
+        $a.Total | Should -Be 1
+        $a.Items[0].Title | Should -Be '22 AIA addresses failing'
+        $a.Items[0].Count | Should -Be 22
+    }
+    It 'says a single plain finding in words too' {
+        Get-MspkiGuiPlainActionTitle -Category CDP -Status Warning -Count 1 | Should -Be '1 CRL address with a warning'
+    }
+}

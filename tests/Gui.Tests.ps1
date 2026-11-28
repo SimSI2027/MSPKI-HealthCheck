@@ -539,7 +539,7 @@ Describe 'GUI window (single-threaded runspace)' {
         $r.Output | Should -Be $TestDrive
         $r.RunEnabled | Should -BeTrue
         $r.CancelEnabled | Should -BeFalse
-        $r.Count | Should -Be '0 findings'
+        $r.Count | Should -Be '' -Because 'D-35: no count before the first result'
     }
 
     It 'shows the fixture: summary, tiles, chips, grid, panes, tree, filters, export' {

@@ -109,7 +109,7 @@ function Get-MspkiGuiPaletteIndex {
     }
     foreach ($o in @($ObjRows)) {
         if ($null -eq $o) { continue }
-        $list.Add((New-MspkiGuiPaletteEntry -Kind Object -Title (Get-MspkiGuiReadableName -Name ([string]$o.Name)) -Detail ([string]$o.TypeText) -Glyph ([string]$o.Glyph) -Action ('ent:' + [string]$o.Id) -Extra ([string]$o.SearchText)))
+        $list.Add((New-MspkiGuiPaletteEntry -Kind Object -Title (Get-MspkiGuiReadableName -Name ([string]$o.Name)) -Detail ([string]$o.TypeText) -Glyph ([string]$o.Glyph) -Action ('ent:' + [string]$o.Id) -Extra ([string]$o.SearchText) -Seq ([int]$o.TypeOrder)))
     }
     return , $list.ToArray()
 }
