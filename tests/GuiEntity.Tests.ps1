@@ -129,7 +129,7 @@ Describe 'Object views' {
         $c = Get-MspkiGuiEntityPane -Index $ix -Id 'cacert:aa'
         $c.MissingBadge | Should -Be 'Missing in 1 expected place'
         $c.SeenBadge | Should -Be 'Seen or named in 1 place'
-        $c.Seen[0].TimeText | Should -Be '2026-11-22 00:00:00 UTC'
+        $c.Seen[0].TimeText | Should -Be '22 Nov 2026, 00:00 UTC'
     }
 
     It 'finds the objects behind Discovery map items and adds them as links to a pane' {

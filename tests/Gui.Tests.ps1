@@ -220,7 +220,7 @@ Describe 'GUI model helpers' {
         $s.User | Should -Be 'CORP\demo.user'
         $s.IsAdmin | Should -BeLike 'No*'
         $s.Total | Should -Be 30
-        $s.Tiles.Count | Should -Be 8
+        $s.Tiles.Count | Should -Be 9
         (($s.Tiles | Measure-Object -Property Count -Sum).Sum) | Should -Be 30
         @($s.Tiles | Where-Object { $_.Status -eq 'Fail' })[0].Count | Should -Be 1
         $s.CAs.Count | Should -Be 2
@@ -248,11 +248,13 @@ Describe 'GUI model helpers' {
         (Get-MspkiGuiNodeSummary -Node $null) | Should -Be ''
     }
 
-    It 'shows every field of a finding in the details' {
+    It 'shows every field of a finding that has a value, with readable names (D-23)' {
         $f = @($script:data.Findings | Where-Object { @($_.Evidence).Count -gt 0 -and $_.Remediation })[0]
         $d = Get-MspkiGuiFindingDetail -Finding $f
-        $d.Fields.Count | Should -Be 15
-        @($d.Fields | Where-Object { $_.Name -eq 'Id' })[0].Value | Should -Be $f.Id
+        $d.Fields.Count | Should -BeGreaterThan 4
+        @($d.Fields | Where-Object { $_.Name -eq 'Finding id' })[0].Value | Should -Be $f.Id
+        @($d.Fields | Where-Object { -not $_.Value -or $_.Value -eq [string][char]0x2014 }).Count | Should -Be 0
+        @($d.Fields | Where-Object { $_.Name -in @('RelatedCA', 'StatusCode') }).Count | Should -Be 0
         @($d.Layers | ForEach-Object { $_.Name }) | Should -Be @('DNS', 'TCP', 'TLS', 'HTTP', 'Redirect', 'Content', 'Chain', 'Discovery')
         $d.Sources.Count | Should -BeGreaterThan 0
         $d.Evidence | Should -Not -BeNullOrEmpty
@@ -324,7 +326,7 @@ Describe 'GUI model helpers' {
     It 'fills the KPI tiles, CA cards, top issues and coverage so that nothing is blank' {
         $s = Get-MspkiGuiSummary -RunInfo $script:data.RunInfo -Inventory $script:data.Inventory -Findings $script:data.Findings -ExitCode $script:data.ExitCode
         $s.Kpis.Count | Should -Be 4
-        @($s.Kpis | ForEach-Object { $_.Label }) | Should -Be @('Certification authorities', 'CA certificates', 'Endpoints', 'Certificate templates')
+        @($s.Kpis | ForEach-Object { $_.Label }) | Should -Be @('Certification authorities', 'CA certificates', 'Published addresses', 'Certificate templates')
         $s.Kpis[0].Value | Should -Be 2
         $s.Kpis[1].Value | Should -Be 3
         $s.Kpis[3].Sub | Should -BeLike '*in Active Directory*'
@@ -346,11 +348,11 @@ Describe 'GUI model helpers' {
         $c2.CrlPill.Text | Should -BeLike 'CRL not read*'
         # Top issues: worst first, never more than ten, never a pass or information.
         $s.TopIssues.Count | Should -BeLessOrEqual 10
-        $s.TopIssues[0].StatusPill.Text | Should -Be 'Fail'
+        $s.TopIssues[0].StatusPill.Text | Should -Be 'Failing'
         @($s.TopIssues | Where-Object { $_.StatusPill.Text -in @('Pass', 'Information') }).Count | Should -Be 0
         # Coverage: every method with an outcome pill and a reason, problems first.
         $s.Coverage.Total | Should -Be 4
-        $s.Coverage.Items[0].Bucket | Should -Be 'Permission denied'
+        $s.Coverage.Items[0].Bucket | Should -Be 'Could not check'
         $s.Coverage.Items[-1].Bucket | Should -Be 'Succeeded'
         foreach ($i in $s.Coverage.Items) { $i.Reason | Should -Not -BeNullOrEmpty; $i.Pill.Glyph | Should -Not -BeNullOrEmpty }
         $s.Coverage.Text | Should -BeLike '*4 methods tried*'
@@ -628,7 +630,7 @@ Describe 'GUI window (single-threaded runspace)' {
         $r.Results | Should -Be 'Visible'
         $r.GridCount | Should -Be 30
         $r.Kpis | Should -Be 4
-        $r.Tiles | Should -Be 8
+        $r.Tiles | Should -Be 9
         $r.SevTiles | Should -Be 5
         $r.Cas | Should -Be 2
         $r.Top | Should -BeGreaterThan 0

@@ -458,6 +458,30 @@ function New-MspkiGuiChip {
     return $chip
 }
 
+function Update-MspkiGuiGridColumns {
+    <#
+    .SYNOPSIS
+    Sizes the Findings grid's columns to its width (Get-MspkiGuiGridColumnPlan): no horizontal scroll at any window size.
+    #>
+    [CmdletBinding()]
+    param()
+    $ui = $script:MspkiGui.Ui
+    $w = [double]$ui.FindingsGrid.ActualWidth
+    if ($w -le 0) { return }
+    $p = Get-MspkiGuiGridColumnPlan -Width $w
+    foreach ($n in @('Status', 'Target', 'Category', 'Severity', 'Confidence', 'ConfidenceIcon')) {
+        $col = $ui['Col' + $n]
+        if ($null -eq $col) { continue }
+        $v = [double]$p.$n
+        if ($v -le 0) { $col.Visibility = 'Collapsed' }
+        else {
+            $col.Visibility = 'Visible'
+            if ($col.MinWidth -gt $v) { $col.MinWidth = $v }
+            $col.Width = New-Object System.Windows.Controls.DataGridLength($v)
+        }
+    }
+}
+
 function Show-MspkiGuiFindingPane {
     <#
     .SYNOPSIS
@@ -793,10 +817,12 @@ function Show-MspkiGuiResult {
     $ui.BannerGlyph.Text = $h.Glyph
     $ui.BannerTitle.Text = $h.Title
     $ui.BannerText.Text = $h.Text
-    $ui.BannerMeta1.Text = 'Exit code: {0}' -f $(if ($s.ExitCode) { $s.ExitCode } else { [string][char]0x2014 })
+    # D-36: the exit code is for scripts; people see it in the run details tooltip.
+    $ui.BannerMeta1.Text = ''
+    $ui.BannerMetaLine.ToolTip = 'Exit code for scripts: {0}' -f $(if ($s.ExitCode) { $s.ExitCode } else { [string][char]0x2014 })
     $ui.BannerMeta2.Text = '{0}{1}' -f $(if ($s.RunState) { $s.RunState } else { 'State unknown' }), $(if ($s.Duration) { ' in ' + $s.Duration } else { '' })
     $sd = ConvertTo-MspkiGuiDateTime -Value $s.Started
-    $ui.BannerMeta3.Text = 'Started: {0}' -f $(if ($null -ne $sd) { $sd.ToString('yyyy-MM-dd HH:mm') + ' UTC' } else { [string][char]0x2014 })
+    $ui.BannerMeta3.Text = 'Started: {0}' -f $(if ($null -ne $sd) { Format-MspkiGuiTime -Value $sd } else { [string][char]0x2014 })
     $ui.TxtTotal.Text = 'Findings ({0} in total)' -f $s.Total
     $ui.KpiList.ItemsSource = @($s.Kpis)
     $ui.TileList.ItemsSource = @($s.Tiles)
@@ -840,7 +866,7 @@ function Show-MspkiGuiResult {
     foreach ($n in @('FltSeverity', 'FltCategory', 'FltConfidence')) { $ui[$n].SelectedIndex = 0 }
     $chips = New-Object 'System.Collections.Generic.List[object]'
     foreach ($st in (Get-MspkiGuiStatusOrder)) {
-        $n = @($g.Rows | Where-Object { $_.Status -eq $st }).Count
+        $n = @($g.Rows | Where-Object { $_.StatusKey -eq $st }).Count
         if ($n -gt 0) { $chips.Add((New-MspkiGuiChip -Status $st -Count $n)) }
     }
     $g.Chips = $chips.ToArray()
@@ -1873,11 +1899,13 @@ function Initialize-MspkiGuiApplication {
     $ui.CaList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t -and $t.StartsWith('ent:')) { Show-MspkiGuiObject -Id $t.Substring(4) } })
     # Mission control: actions open their finding (causes and checks), area bars filter the Findings page, the map redraws on resize.
     $ui.ActionList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFinding -Id $t } })
+    $ui.CoverageList.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) $t = (& $script:MspkiGuiTagOf $e); if ($t) { Show-MspkiGuiFinding -Id $t } })
     $ui.AreaPanel.AddHandler($btnClick, [System.Windows.RoutedEventHandler]{ param($s, $e) Show-MspkiGuiArea -Tag (& $script:MspkiGuiTagOf $e) })
     $ui.BtnAllActions.Add_Click({ Switch-MspkiGuiActionList })
     $ui.BtnScoreRing.Add_Click({ Show-MspkiGuiAllActions })
     $ui.BtnScoreHow.Add_Click({ $sc = $script:MspkiGui.Score; if ($null -ne $sc) { $script:MspkiGui.Ui.TxtScoreHow.Text = $sc.HowText; $script:MspkiGui.Ui.PopScore.IsOpen = $true } })
     $ui.BtnReplay.Add_Click({ Start-MspkiGuiMissionAnimation })
+    $ui.FindingsGrid.Add_SizeChanged({ try { Update-MspkiGuiGridColumns } catch { [void](Invoke-MspkiGuiUnhandledError -Exception $_.Exception -Source 'grid') } })
     $ui.MapCanvasHost.Add_SizeChanged({ try { Invoke-MspkiGuiMapDraw } catch { [void](Invoke-MspkiGuiUnhandledError -Exception $_.Exception -Source 'map') } })
 
     # Details panes (Findings, Discovery map, Objects): Copy, Back, related objects, breadcrumbs, findings. One handler each.

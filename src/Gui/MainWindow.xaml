@@ -171,7 +171,6 @@
                 </StackPanel>
               </DockPanel>
               <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,10,0,0"/>
-              <TextBox Text="{Binding Id, Mode=OneWay}" Style="{StaticResource ValueText}" FontFamily="{StaticResource F.Mono}" FontSize="12" Foreground="{DynamicResource B.Muted}" Margin="0,2,0,0"/>
               <WrapPanel Margin="0,8,0,0">
                 <Border Style="{StaticResource PillBorder}" Visibility="{Binding HasMissing, Converter={StaticResource BoolToVis}}" Background="{DynamicResource B.WarnBack}" BorderBrush="{DynamicResource B.WarnLine}" TextElement.Foreground="{DynamicResource B.WarnFore}">
                   <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE7BA;" FontSize="12" Margin="0,0,5,0"/><TextBlock Text="{Binding MissingBadge}" FontWeight="SemiBold" FontSize="12"/></StackPanel>
@@ -263,7 +262,6 @@
                 </WrapPanel>
               </DockPanel>
               <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,10,0,0"/>
-              <TextBlock Text="{Binding Id}" Style="{StaticResource Small}" FontFamily="{StaticResource F.Mono}" Margin="0,2,0,0"/>
             </StackPanel>
           </Border>
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
@@ -401,7 +399,7 @@
 
               <TextBlock Text="Checked layers" Style="{StaticResource Label}" Margin="0,20,0,6"/>
               <ItemsControl ItemsSource="{Binding Layers}" Focusable="False">
-                <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate><ContentPresenter Content="{Binding Pill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -623,9 +621,12 @@
         <StackPanel Margin="0,0,0,12">
           <DockPanel>
             <ContentPresenter DockPanel.Dock="Left" Content="{Binding Pill}" ContentTemplate="{StaticResource PillTemplate}" VerticalAlignment="Center"/>
-            <TextBlock Text="{Binding Method}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="4,0,0,0" ToolTip="{Binding Method}"/>
+            <Button DockPanel.Dock="Right" Tag="{Binding FindingTag}" Visibility="{Binding HasFinding, Converter={StaticResource BoolToVis}}" Style="{StaticResource SubtleButton}" Padding="8,0" Margin="8,0,0,0" ToolTip="Open the finding with its likely causes and read-only checks" AutomationProperties.Name="Why and what to do">
+              <TextBlock Text="Why and what to do" FontSize="12"/>
+            </Button>
+            <TextBlock Text="{Binding MethodText}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="4,0,0,0" ToolTip="{Binding Method}"/>
           </DockPanel>
-          <TextBlock Text="{Binding Reason}" Style="{StaticResource Small}" Margin="0,4,0,0"/>
+          <TextBlock Text="{Binding Reason}" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,4,0,0"/>
         </StackPanel>
       </DataTemplate>
 
@@ -1003,7 +1004,7 @@
                         </DockPanel>
                         <TextBlock x:Name="BannerText" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource B.Muted}"/>
                         <TextBlock x:Name="BannerMetaLine" Style="{StaticResource Small}" TextWrapping="Wrap" Margin="0,6,0,0">
-                          <Run x:Name="BannerMeta1"/><Run Text=" &#x00B7; "/><Run x:Name="BannerMeta2"/><Run Text=" &#x00B7; "/><Run x:Name="BannerMeta3"/>
+                          <Run x:Name="BannerMeta2"/><Run Text=" &#x00B7; "/><Run x:Name="BannerMeta3"/><Run x:Name="BannerMeta1" Text=""/>
                         </TextBlock>
                         <!-- While the run is going: the same hero is the live mission control (progress, what is being checked, controls). -->
                         <StackPanel x:Name="RunStrip" Visibility="Collapsed" Margin="0,18,0,0">
@@ -1188,8 +1189,8 @@
                           </Grid>
                         </DockPanel>
                         <ItemsControl x:Name="ChipList" IsTabStop="False" Focusable="False">
-                          <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                          <ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="Margin" Value="0,0,0,8"/></Style></ItemsControl.ItemContainerStyle>
+                          <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="Margin" Value="0,0,0,8"/><Setter Property="HorizontalAlignment" Value="Left"/></Style></ItemsControl.ItemContainerStyle>
                         </ItemsControl>
                         <WrapPanel>
                           <ComboBox x:Name="FltSeverity" Style="{StaticResource FilterCombo}" Tag="Severity" Width="160" Margin="0,0,8,8" AutomationProperties.Name="Severity filter"/>
@@ -1207,7 +1208,7 @@
                       </DockPanel>
                     </Border>
                     <Grid>
-                      <DataGrid x:Name="FindingsGrid" EnableRowVirtualization="True" CanUserSortColumns="True" AutomationProperties.Name="Findings">
+                      <DataGrid x:Name="FindingsGrid" EnableRowVirtualization="True" CanUserSortColumns="True" HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Findings">
                         <DataGrid.ContextMenu>
                           <ContextMenu x:Name="GridMenu">
                             <MenuItem x:Name="MenuCopyRows" Header="Copy selected rows" InputGestureText="Ctrl+C" Icon="&#xE8C8;"/>
@@ -1242,25 +1243,31 @@
                           </GroupStyle>
                         </DataGrid.GroupStyle>
                         <DataGrid.Columns>
-                          <DataGridTemplateColumn Header="Status" SortMemberPath="StatusRank" Width="144" MinWidth="144">
+                          <!-- D-05: readable target, a wide message, no horizontal scroll. Widths follow the grid's width (Update-MspkiGuiGridColumns). -->
+                          <DataGridTemplateColumn x:Name="ColStatus" Header="Status" SortMemberPath="StatusRank" Width="136" MinWidth="120">
                             <DataGridTemplateColumn.CellTemplate>
                               <DataTemplate><ContentPresenter Content="{Binding StatusPill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                           </DataGridTemplateColumn>
-                          <!-- Most useful first: status, target and message stay in view at the minimum size; the rest scroll. -->
-                          <DataGridTextColumn Header="Target" Binding="{Binding Target}" Width="150" MinWidth="120">
-                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/><Setter Property="ToolTip" Value="{Binding Target}"/></Style></DataGridTextColumn.ElementStyle>
+                          <DataGridTextColumn x:Name="ColTarget" Header="Target" Binding="{Binding TargetText}" SortMemberPath="TargetText" Width="180" MinWidth="110">
+                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/><Setter Property="ToolTip" Value="{Binding TargetTip}"/></Style></DataGridTextColumn.ElementStyle>
                           </DataGridTextColumn>
-                          <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" MinWidth="200">
+                          <DataGridTextColumn x:Name="ColMessage" Header="Message" Binding="{Binding Message}" Width="*" MinWidth="160">
                             <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/><Setter Property="ToolTip" Value="{Binding Message}"/></Style></DataGridTextColumn.ElementStyle>
                           </DataGridTextColumn>
-                          <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="128" MinWidth="96">
-                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/></Style></DataGridTextColumn.ElementStyle>
+                          <DataGridTextColumn x:Name="ColCategory" Header="Category" Binding="{Binding Category}" Width="90" MinWidth="80">
+                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/><Setter Property="ToolTip" Value="{Binding Category}"/></Style></DataGridTextColumn.ElementStyle>
                           </DataGridTextColumn>
-                          <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" SortMemberPath="SeverityRank" Width="88" MinWidth="80"/>
-                          <DataGridTemplateColumn Header="Confidence" SortMemberPath="ConfidenceRank" Width="136" MinWidth="128">
+                          <DataGridTextColumn x:Name="ColSeverity" Header="Severity" Binding="{Binding SeverityText}" SortMemberPath="SeverityRank" Width="80" MinWidth="72"/>
+                          <DataGridTemplateColumn x:Name="ColConfidence" Header="Confidence" SortMemberPath="ConfidenceRank" Width="124" MinWidth="120">
                             <DataGridTemplateColumn.CellTemplate>
                               <DataTemplate><ContentPresenter Content="{Binding ConfidencePill}" ContentTemplate="{StaticResource PillTemplate}"/></DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                          </DataGridTemplateColumn>
+                          <!-- Narrow grids: confidence as its icon only, the word in the tooltip. -->
+                          <DataGridTemplateColumn x:Name="ColConfidenceIcon" Header="" SortMemberPath="ConfidenceRank" Width="36" MinWidth="36" Visibility="Collapsed">
+                            <DataGridTemplateColumn.CellTemplate>
+                              <DataTemplate><TextBlock Style="{StaticResource Glyph}" Text="{Binding ConfidencePill.Glyph}" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="{Binding ConfidencePill.Text}" AutomationProperties.Name="{Binding ConfidencePill.Text}"/></DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                           </DataGridTemplateColumn>
                         </DataGrid.Columns>
@@ -1613,7 +1620,7 @@
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xEB95;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Certificates"/></StackPanel>
                       </RadioButton>
                       <RadioButton x:Name="RbTlCrls" Style="{StaticResource Segment}" GroupName="TlView" AutomationProperties.Name="Show the CRLs" ToolTip="The CRL heartbeat: when each CRL was published, when the next one is due and when it runs out">
-                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE8C9;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="CRLs"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xEA41;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="CRLs"/></StackPanel>
                       </RadioButton>
                       <RadioButton x:Name="RbTlChain" Style="{StaticResource Segment}" GroupName="TlView" AutomationProperties.Name="Show the certificate chain" ToolTip="From a certificate up to its root, with the result of every AIA and CDP address">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Glyph}" Text="&#xE71B;" FontSize="14" Margin="0,0,8,0"/><TextBlock Text="Chain"/></StackPanel>
@@ -1797,7 +1804,7 @@
                               </Border>
                               <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
-                                <TextBlock Text="{Binding Id}" Style="{StaticResource Small}" FontFamily="{StaticResource F.Mono}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Id}"/>
+                                <TextBlock Text="{Binding SubText}" Style="{StaticResource Small}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Id}"/>
                               </StackPanel>
                             </DockPanel>
                           </DataTemplate>

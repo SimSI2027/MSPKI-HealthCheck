@@ -405,7 +405,7 @@ are Segoe Fluent Icons with Segoe MDL2 Assets as the fallback; colour is never t
 | circled cross | EA39 | Critical finding; the overall level "At risk" / "Action needed" | Bad | status pills, score band, health banner |
 | cross | E711 | Failing (Fail status, a failed check, a failing map node or link, an expired item, a failed action); in a button: Cancel / close | Bad | pills, map badges and link markers, toasts, status bar, Cancel |
 | warning triangle | E7BA | Warning, or a risk rated High/Medium (severity), or a place where an object is expected and missing | Warn (Bad for High severity) | pills, map badges and link markers, banner "Needs review", missing places |
-| lock | E72E | Could not check: permission denied, or a CA whose properties could not be read | Admin | pills, map badges |
+| lock | E72E | Could not check: permission denied or not supported here (the engine's Skipped with PERMISSION_DENIED or UNSUPPORTED), or a CA whose properties could not be read | Admin | pills, chips, CA cards, tiles, coverage, map badges |
 | error badge | E783 | The check itself failed (Error status) | Admin | pills |
 | stopwatch | E916 | Timed out | Warn / Bad | pills, coverage rows |
 | clock | E823 | Days left before an expiry; a countdown ("Expires in", "Next update in", "As of the run") | Warn / Bad (Neutral on the as-of pill) | CA card pills, timeline countdowns, validity pills |
@@ -415,9 +415,9 @@ are Segoe Fluent Icons with Segoe MDL2 Assets as the fallback; colour is never t
 | question in a circle | E9CE | Not confirmed / unknown (the "Unknown issuer" node, the "issuer not confirmed" link marker), and "How is this scored?" | Neutral | map, palette |
 | question | E897 | Inferred or unknown confidence | Warn / Neutral | confidence pills |
 | dash (minus) | E738 | Not applicable, not tested, not scored; on History, an object only the older run found (paired with plus E710, an object only the newer run found) | Neutral | pills, History |
-| skip | E7E8 | Skipped | Neutral | pills, coverage |
+| skip (next track) | E893 | Skipped on purpose (for example a cancelled run or a check that does not apply). Never the power button E7E8 | Neutral | pills, coverage |
 Object glyphs (no status): CA EB95, address E774, web host E968, directory E8D4, address group E8B7 (the group shows its count instead), map E81E,
-tree E8A4, timeline page E787 (calendar), Certificates view EB95 (the CA glyph), CRLs view E8C9 (the CRL glyph), History page E81C (history), Chain view E71B
+tree E8A4, timeline page E787 (calendar), Certificates view EB95 (the CA glyph), CRLs view and every CRL EA41 (a list; E8C9 is an exclamation mark and read as a warning), History page E81C (history), Chain view E71B
 (link), certificate on this computer E8D7 (key); History: better E70E (chevron up), worse E70D (chevron down), changed E8AB (switch), object added
 E710 (plus), object gone E738 (minus, see the table). Commands: refresh E72C, run E768, open E8E5, folder E838, export E896 (CSV) and EB9F (image), copy E8C8, search E721, zoom in E8A3, zoom out
 E71F, fit E9A6.

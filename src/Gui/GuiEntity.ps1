@@ -7,7 +7,7 @@ $script:MspkiGuiEntityType = [ordered]@{
     Domain           = @{ Label = 'Domain'; Glyph = [string][char]0xE774; About = 'A domain of the forest, or a trusted domain. Computers and users of every domain in the forest use the same Enterprise CAs and templates.' }
     CA               = @{ Label = 'Certification authority'; Glyph = [string][char]0xEB95; About = 'A certification authority (CA) signs certificates and publishes the list of the ones it revoked (CRL). An Enterprise CA is registered in AD and issues from certificate templates. If it stops, nothing new is issued and its CRLs expire, after which clients that check revocation reject every certificate it issued.' }
     CACertificate    = @{ Label = 'CA certificate'; Glyph = [string][char]0xEB95; About = 'One generation of a CA''s own certificate. Clients build a chain from a certificate up to a trusted root through these; each generation must be reachable (AIA) and, for logon, trusted in NTAuth until every certificate it signed has expired.' }
-    CRL              = @{ Label = 'Certificate revocation list'; Glyph = [string][char]0xE8C9; About = 'A signed list of revoked certificates, one per CA key (base and delta). Clients download it from the CDP URLs in each certificate; an expired or unreachable CRL makes revocation checks fail, which blocks VPN, Wi-Fi, smart card logon and TLS clients that require them.' }
+    CRL              = @{ Label = 'Certificate revocation list'; Glyph = [string][char]0xEA41; About = 'A signed list of revoked certificates, one per CA key (base and delta). Clients download it from the CDP URLs in each certificate; an expired or unreachable CRL makes revocation checks fail, which blocks VPN, Wi-Fi, smart card logon and TLS clients that require them.' }
     Endpoint         = @{ Label = 'Endpoint (URL)'; Glyph = [string][char]0xE71B; About = 'A URL where a certificate, a CRL or a service is published (HTTP, LDAP or file). Clients fetch these during chain building; one that does not answer slows every check or makes it fail.' }
     Host             = @{ Label = 'Host'; Glyph = [string][char]0xE7F8; About = 'A server name the run touched. Its identity is what DNS (addresses, aliases, reverse names), TLS (the certificate it serves) and HTTP (its Server header) say about it; when these disagree, clients and people can end up talking to the wrong machine.' }
     Service          = @{ Label = 'PKI service'; Glyph = [string][char]0xE912; About = 'An enrollment or validation service: Web Enrollment, CEP/CES (enrollment over HTTPS), NDES/SCEP (devices), OCSP (online revocation answers) or the Intune Certificate Connector.' }
@@ -114,14 +114,6 @@ function ConvertTo-MspkiGuiValueText {
     return [string]$Value
 }
 
-function Get-MspkiGuiReadableName {
-    # A heading for people: a distinguished name inside an object's name becomes its common name ("Base CRL of CN=Example CA, DC=corp" ->
-    # "Base CRL of Example CA"; "CN=web01.example.test" -> "web01.example.test"). The full name stays in the properties and in the copy text.
-    param([AllowEmptyString()][string]$Name)
-    if (-not $Name) { return '' }
-    return [regex]::Replace($Name, '(?i)\bCN=((?:[^,\\]|\\.)+)(?:\s*,\s*(?:CN|OU|O|DC|L|S|ST|C)=(?:[^,\\]|\\.)+)*', '$1')
-}
-
 function Get-MspkiGuiEntityName {
     param($Index, [string]$Id)
     if ($null -ne $Index -and $Index.Entities.ContainsKey($Id)) {
@@ -203,6 +195,8 @@ function Get-MspkiGuiEntityPane {
         $skip = @(); if ([string]$e.Type -eq 'Host') { $skip = @('A', 'AAAA', 'Ptr', 'AliasChain', 'CanonicalName', 'QueryName', 'DnsMethod', 'DnsLookup', 'TlsCertificates', 'HttpServer', 'Addresses') }
         $props = @($e.Properties.PSObject.Properties | Where-Object { $null -ne $_.Value -and [string]$_.Value -ne '' -and $skip -notcontains $_.Name } | Sort-Object Name | ForEach-Object { [pscustomobject]@{ Name = (Get-MspkiGuiPropertyLabel -Name $_.Name); Value = (ConvertTo-MspkiGuiValueText $_.Value) } } | Where-Object { $_.Value })
     }
+    # D-13: the technical id is a property at the bottom (and in the copied text), not a line under the title.
+    $props = @($props) + @([pscustomobject]@{ Name = 'Technical id'; Value = $Id })
     $obs = @(); if ($Index.Obs.ContainsKey($Id)) { $obs = @($Index.Obs[$Id]) }
     $toRow = {
         param($o)
@@ -210,7 +204,7 @@ function Get-MspkiGuiEntityPane {
         [pscustomobject][ordered]@{
             KindText = $(switch ([string]$o.Kind) { 'Seen' { 'Seen here' } 'Referenced' { 'Named here' } default { 'Missing' } })
             Source = [string]$o.Source; Location = [string]$o.Location; Detail = [string]$o.Detail; HasDetail = [bool]$o.Detail; Time = [string]$o.Timestamp; IsMissing = $missing
-            TimeText = $(if ($null -ne ($t = ConvertTo-MspkiGuiDateTime -Value $o.Timestamp)) { $t.ToString('yyyy-MM-dd HH:mm:ss') + ' UTC' } else { '' })
+            TimeText = $(if ($null -ne ($t = ConvertTo-MspkiGuiDateTime -Value $o.Timestamp)) { Format-MspkiGuiTime -Value $t } else { '' })
             ConfidencePill = (Get-MspkiGuiStatusPill -Value ([string]$o.Confidence) -Kind Confidence)
             Glyph = $(if ($missing) { [string][char]0xE7BA } elseif ([string]$o.Kind -eq 'Seen') { [string][char]0xE73E } else { [string][char]0xE71B })
         }
@@ -281,7 +275,7 @@ function Get-MspkiGuiObjectList {
         $miss = 0; if ($Index.Obs.ContainsKey($id)) { $miss = @($Index.Obs[$id] | Where-Object { $_.Kind -eq 'ExpectedMissing' }).Count }
         $fids = @(); if ($Index.Findings.ContainsKey($id)) { $fids = @($Index.Findings[$id] | Select-Object -Unique) }
         $worst = ''; $rank = -1
-        foreach ($f in $fids) { if ($RowById.ContainsKey($f) -and [int]$RowById[$f].StatusRank -gt $rank) { $rank = [int]$RowById[$f].StatusRank; $worst = [string]$RowById[$f].Status } }
+        foreach ($f in $fids) { if ($RowById.ContainsKey($f) -and [int]$RowById[$f].StatusRank -gt $rank) { $rank = [int]$RowById[$f].StatusRank; $worst = [string]$RowById[$f].StatusKey; if (-not $worst) { $worst = [string]$RowById[$f].Status } } }
         $nf = $fids.Count
         $fpill = New-MspkiGuiPill -Text '' -Tone Neutral
         if ($nf -gt 0) {
@@ -291,7 +285,15 @@ function Get-MspkiGuiObjectList {
         $mpill = New-MspkiGuiPill -Text '' -Tone Neutral
         if ($miss -gt 0) { $mpill = New-MspkiGuiPill -Text ('{0} missing' -f $miss) -Tone Warn -Code 0xE7BA }
         $attention = ($miss -gt 0 -or ($worst -and $quiet -notcontains $worst))
-        [pscustomobject][ordered]@{ Id = $id; Name = (Get-MspkiGuiEntityName -Index $Index -Id $id); Type = [string]$_.Type; TypeText = $t.Label; Glyph = $t.Glyph; TypeOrder = [Math]::Max(0, [array]::IndexOf($order, [string]$_.Type))
+        # D-13: the second line says what it is, where, and how it is doing, in words (the technical id is in the tooltip).
+        $hostPart = ''
+        $hm = [regex]::Match([string]$_.Name, '^(?i)[a-z]+://([^/:?#]+)')
+        if ($hm.Success) { $hostPart = $hm.Groups[1].Value }
+        elseif ($null -ne $_.Properties -and $null -ne $_.Properties.PSObject.Properties['DnsHostName'] -and $_.Properties.DnsHostName) { $hostPart = [string]$_.Properties.DnsHostName }
+        $stateWord = $(if ($worst) { (Get-MspkiGuiStatusLabel -Value $worst).ToLowerInvariant() } elseif ($nf -eq 0) { 'no findings' } else { '' })
+        if ($miss -gt 0) { $stateWord = (@($stateWord, ('{0} missing' -f $miss)) | Where-Object { $_ }) -join ', ' }
+        $sub = (@($t.Label, $hostPart, $stateWord) | Where-Object { $_ }) -join (' ' + [string][char]0x00B7 + ' ')
+        [pscustomobject][ordered]@{ Id = $id; SubText = $sub; Name = (Get-MspkiGuiEntityName -Index $Index -Id $id); Type = [string]$_.Type; TypeText = $t.Label; Glyph = $t.Glyph; TypeOrder = [Math]::Max(0, [array]::IndexOf($order, [string]$_.Type))
             FindingCount = $nf; WorstStatus = $worst; FindingPill = $fpill; MissingCount = $miss; HasMissing = ($miss -gt 0); MissingPill = $mpill; NeedsAttention = [bool]$attention
             Tag = ('ent:{0}' -f $id); SearchText = ('{0} {1} {2}' -f $_.Name, $id, $t.Label).ToLowerInvariant() }
     } | Sort-Object TypeOrder, Name)
@@ -503,7 +505,7 @@ function Get-MspkiGuiServiceSection {
             $why = $(if ($cannot) { 'Not there where this run could look; some places could not be checked from here, so it may still exist elsewhere (see the findings).' } else { 'Looked for in this run; nothing was there.' })
         }
         elseif ($cannot) { $st = New-MspkiGuiPill -Text 'Cannot be checked from here' -Tone Admin -Code 0xE72E; $why = 'This run could not look (permission, unsupported or unreachable): not found is not the same as not present.' }
-        else { $st = New-MspkiGuiPill -Text 'Not checked in this run' -Tone Neutral -Code 0xE7E8; $why = 'No check in this run covered it (for example a run with the network checks turned off, or a cancelled run).' }
+        else { $st = New-MspkiGuiPill -Text 'Not checked in this run' -Tone Neutral -Code 0xE738; $why = 'No check in this run covered it (for example a run with the network checks turned off, or a cancelled run).' }
         $risk = @($mine | Where-Object { $quiet -notcontains [string]$_.Status -or [string]$_.Finding.StatusCode -eq 'CONFIG_RISK' })
         [void]$out.Add([pscustomobject][ordered]@{
             Kind = $kind; Label = $k.Label; Glyph = [string][char]$k.Glyph; About = $k.About; Scope = $k.Scope

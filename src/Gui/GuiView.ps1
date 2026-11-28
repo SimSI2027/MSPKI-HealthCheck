@@ -9,14 +9,14 @@ $script:MspkiGuiNodeStyle = @{
 # Outcome of a discovery method -> bucket, tone, icon and text. Used by the "Discovery coverage" list.
 $script:MspkiGuiOutcomeStyle = @{
     Success = @('Succeeded', 'Good', 0xE73E, 'Succeeded', 3)
-    PermissionDenied = @('Permission denied', 'Admin', 0xE72E, 'Permission denied', 0)
+    PermissionDenied = @('Could not check', 'Admin', 0xE72E, 'Access denied', 0)
     Error = @('Failed', 'Bad', 0xE711, 'Failed', 0)
     Unreachable = @('Failed', 'Bad', 0xE711, 'Unreachable', 0)
     Timeout = @('Failed', 'Bad', 0xE916, 'Timed out', 0)
     Unsupported = @('Failed', 'Warn', 0xE7BA, 'Unsupported', 0)
     NotDomainJoined = @('Failed', 'Warn', 0xE7BA, 'Not domain-joined', 0)
     NotFound = @('Not found', 'Info', 0xE946, 'Not found', 2)
-    Skipped = @('Skipped', 'Neutral', 0xE7E8, 'Skipped', 1)
+    Skipped = @('Skipped', 'Neutral', 0xE893, 'Skipped', 1)
 }
 
 function ConvertTo-MspkiGuiTreeNode {
@@ -264,11 +264,18 @@ function Get-MspkiGuiFindingDetail {
         }
     }
     $dash = [string][char]0x2014
-    $fieldNames = @('Id', 'Timestamp', 'Stage', 'Category', 'Role', 'Target', 'Endpoint', 'RelatedCA', 'Confidence', 'Status', 'Severity', 'StatusCode', 'Scope', 'Forest', 'Domain')
+    # D-23: only the properties that have a value, with readable names; the finding id is last ("Finding id").
+    $fieldNames = @('Category', 'Target', 'Endpoint', 'RelatedCA', 'Role', 'Status', 'StatusCode', 'Severity', 'Confidence', 'Scope', 'Stage', 'Timestamp', 'Forest', 'Domain', 'Id')
+    $hasLabel = [bool](Get-Command -Name 'Get-MspkiGuiPropertyLabel' -ErrorAction SilentlyContinue)
     $fields = @(foreach ($n in $fieldNames) {
         $v = [string]$f.$n
-        if (-not $v) { $v = $dash }
-        [pscustomobject][ordered]@{ Name = $n; Value = $v }
+        if (-not $v) { continue }
+        if ($n -eq 'Severity' -and $v -eq 'None') { continue }
+        if ($n -eq 'Status') { $v = Get-MspkiGuiStatusLabel -Value (Get-MspkiGuiFindingStatusKey -Finding $f) }
+        if ($n -eq 'Timestamp') { $dt = ConvertTo-MspkiGuiDateTime -Value $f.Timestamp; if ($null -ne $dt) { $v = Format-MspkiGuiTime -Value $dt } }
+        $label = $n
+        if ($n -eq 'Id') { $label = 'Finding id' } elseif ($n -eq 'StatusCode') { $label = 'Status code' } elseif ($n -eq 'RelatedCA') { $label = 'Related CA' } elseif ($hasLabel) { $label = Get-MspkiGuiPropertyLabel -Name $n }
+        [pscustomobject][ordered]@{ Name = $label; Value = $v }
     })
     $layerMap = @(@('DNS', 'DnsStatus'), @('TCP', 'TcpStatus'), @('TLS', 'TlsStatus'), @('HTTP', 'HttpStatus'), @('Redirect', 'RedirectStatus'),
         @('Content', 'ContentStatus'), @('Chain', 'ChainStatus'), @('Discovery', 'DiscoveryStatus'))
@@ -280,7 +287,7 @@ function Get-MspkiGuiFindingDetail {
     })
     $sources = [string[]]@($f.Sources | Where-Object { $_ })
     $evidence = ((@($f.Evidence) | Where-Object { $null -ne $_ }) -join "`r`n")
-    $title = (@($f.Category, $f.Target) | Where-Object { $_ }) -join $script:MspkiGuiDot
+    $title = Get-MspkiGuiFindingTitle -Finding $f
     $dg = $null
     try { $dg = Get-MspkiFindingDiagnosis -Finding $f } catch { $dg = $null }
     $diag = ConvertTo-MspkiGuiDiagnosisView -Diagnosis $dg -CheckedKeys $CheckedKeys
@@ -306,11 +313,11 @@ function Get-MspkiGuiFindingDetail {
         CheckNote      = $CheckNote
         Id             = [string]$f.Id
         Status         = [string]$f.Status
-        StatusPill     = (Get-MspkiGuiStatusPill -Value ([string]$f.Status))
+        StatusPill     = (Get-MspkiGuiStatusPill -Value (Get-MspkiGuiFindingStatusKey -Finding $f))
         SeverityPill   = (Get-MspkiGuiStatusPill -Value ([string]$f.Severity) -Kind Severity)
         ConfidencePill = (Get-MspkiGuiStatusPill -Value ([string]$f.Confidence) -Kind Confidence)
         Title          = $title
-        Message        = [string]$f.Message
+        Message        = (Get-MspkiGuiReadableName -Name (Format-MspkiGuiTextTimes -Text ([string]$f.Message)))
         Fields         = $fields
         Sources        = $sources
         Layers         = $layers
@@ -369,14 +376,14 @@ function Get-MspkiGuiRoleText {
 function Get-MspkiGuiWorstStatus {
     <#
     .SYNOPSIS
-    The most serious status among findings ('' when there are none).
+    The most serious status among findings, as the window names it (Get-MspkiGuiStatusKey: "CouldNotCheck" for a permission or support skip; '' when there are none).
     #>
     [CmdletBinding()]
     param([AllowEmptyCollection()][object[]]$Findings = @())
     $worst = ''; $rank = -2
     foreach ($f in @($Findings | Where-Object { $null -ne $_ })) {
         $r = Get-MspkiGuiRank -Kind Status -Value ([string]$f.Status)
-        if ($r -gt $rank) { $rank = $r; $worst = [string]$f.Status }
+        if ($r -gt $rank) { $rank = $r; $worst = Get-MspkiGuiFindingStatusKey -Finding $f }
     }
     return $worst
 }
@@ -442,8 +449,9 @@ function Get-MspkiGuiCaCard {
             'Pass' { $crlPill = New-MspkiGuiPill -Text 'CRL healthy' -Tone Good -Code 0xE73E }
             'Information' { $crlPill = New-MspkiGuiPill -Text 'CRL information only' -Tone Info -Code 0xE946 }
             'Warning' { $crlPill = New-MspkiGuiPill -Text 'CRL warning' -Tone Warn -Code 0xE7BA }
-            'Error' { $crlPill = New-MspkiGuiPill -Text 'CRL check error' -Tone Admin -Code 0xE783 }
-            'Skipped' { $crlPill = New-MspkiGuiPill -Text 'CRL check skipped' -Tone Neutral -Code 0xE7E8 }
+            'Error' { $crlPill = New-MspkiGuiPill -Text 'CRL check failed' -Tone Admin -Code 0xE783 }
+            'Skipped' { $crlPill = New-MspkiGuiPill -Text 'CRL check skipped' -Tone Neutral -Code 0xE893 }
+            'CouldNotCheck' { $crlPill = New-MspkiGuiPill -Text 'CRL could not be checked' -Tone Admin -Code 0xE72E }
             default { $crlPill = New-MspkiGuiPill -Text 'CRL failing' -Tone Bad -Code 0xE711 }
         }
     }
@@ -480,23 +488,73 @@ function Get-MspkiGuiCaCard {
     }
 }
 
+$script:MspkiGuiMethodWords = [ordered]@{
+    'AD:RootDSE' = 'Finding the forest and domain controller'; 'AD:PublicKeyServices' = 'Reading the Public Key Services containers'
+    'AD:Forest' = 'Reading the forest'; 'AD:Partitions' = 'Reading the domain names'; 'AD:Sites' = 'Reading the sites'; 'AD:Trusts' = 'Reading the trusts'
+    'AD:EnrollmentServices' = 'Reading the Enrollment Services objects'; 'AD:KRA' = 'Reading the key recovery agents'; 'AD:OID' = 'Reading the issuance policies'
+    'AD:ComputerSite' = 'Finding this computer''s site'; 'CA:GetCAProperty' = 'Reading the CA''s properties'; 'CA:CertificateAuthority.View' = 'Reading the CA database view'
+    'Local:EventLog' = 'Reading this computer''s event log'; 'Local:Win32_ComputerSystem' = 'Reading this computer''s domain membership'
+}
+
+function Get-MspkiGuiMethodText {
+    <#
+    .SYNOPSIS
+    A discovery method in words ("CA:GetCAProperty" -> "Reading the CA's properties"); the method name itself when no words are known.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Method)
+    foreach ($k in $script:MspkiGuiMethodWords.Keys) {
+        if ($Method -eq $k -or $Method.StartsWith($k + ':') -or $Method.StartsWith($k + '.')) { return [string]$script:MspkiGuiMethodWords[$k] }
+    }
+    return $Method
+}
+
 function Get-MspkiGuiCoverage {
     <#
     .SYNOPSIS
     The discovery methods of a run with their outcome and the reason, problems first, plus a one-line count.
     #>
     [CmdletBinding()]
-    param([AllowNull()]$RunInfo = $null)
+    param([AllowNull()]$RunInfo = $null, [AllowEmptyCollection()][object[]]$Findings = @())
     $methods = @()
     if ($null -ne $RunInfo -and $null -ne $RunInfo.Methods) { $methods = @($RunInfo.Methods | Where-Object { $null -ne $_ }) }
     $items = @(foreach ($m in $methods) {
         $o = [string]$m.Outcome
         $st = $script:MspkiGuiOutcomeStyle[$o]
         if ($null -eq $st) { $st = @($o, 'Neutral', 0xE897, $o, 1) }
-        $reason = [string]$m.Detail
+        $detail = [string]$m.Detail
+        $what = Get-MspkiGuiMethodText -Method ([string]$m.Method)
+        $subject = ''; $code = ''
+        $dm = [regex]::Match($detail, '^(?<s>.+?):\s*(?<c>0x[0-9A-Fa-f]{8})\s*$')
+        if ($dm.Success) { $subject = $dm.Groups['s'].Value; $code = $dm.Groups['c'].Value }
+        # D-20: the reason in words; the raw code stays at the end for people who search for it.
+        $reason = $detail
+        if ($code) {
+            $name = ($subject -replace '^.*\\', '')
+            switch ($o) {
+                'PermissionDenied' { $reason = ('{0} for {1} was refused (access denied, {2}). The account running the check is not allowed to read it.' -f $what, $name, $code) }
+                'Timeout' { $reason = ('{0} for {1} timed out ({2}).' -f $what, $name, $code) }
+                default { $reason = ('{0} for {1} did not work ({2}).' -f $what, $name, $code) }
+            }
+        }
         if (-not $reason) { $reason = 'No further detail was recorded.' }
+        # The finding that explains it (its walkthrough says why and what to do).
+        $fid = ''
+        if ($o -ne 'Success') {
+            $src = [string]$m.Method
+            foreach ($f in @($Findings | Where-Object { $null -ne $_ })) {
+                if ((Get-MspkiGuiFindingStatusKey -Finding $f) -eq 'Pass') { continue }
+                $fs = @($f.Sources | ForEach-Object { [string]$_ })
+                if ($fs -notcontains $src) { continue }
+                if ($subject -and ([string]$f.Endpoint) -ne $subject -and ([string]$f.Target) -ne ($subject -replace '^.*\\', '')) { continue }
+                $fid = [string]$f.Id; break
+            }
+        }
         [pscustomobject][ordered]@{
             Method = [string]$m.Method
+            MethodText = $what
+            FindingTag = $fid
+            HasFinding = [bool]$fid
             Outcome = $o
             Bucket = [string]$st[0]
             Pill = (New-MspkiGuiPill -Text ([string]$st[3]) -Tone $st[1] -Code $st[2])
@@ -508,10 +566,10 @@ function Get-MspkiGuiCoverage {
     $sorted = @($items | Sort-Object Order, Method)
     $counts = @{}
     foreach ($i in $items) { $counts[$i.Bucket] = 1 + [int]$counts[$i.Bucket] }
-    $parts = @(foreach ($b in @('Succeeded', 'Permission denied', 'Failed', 'Skipped', 'Not found')) { if ($counts.ContainsKey($b)) { '{0} {1}' -f $counts[$b], $b.ToLowerInvariant() } })
+    $parts = @(foreach ($b in @('Succeeded', 'Could not check', 'Failed', 'Skipped', 'Not found')) { if ($counts.ContainsKey($b)) { '{0} {1}' -f $counts[$b], $b.ToLowerInvariant() } })
     $text = 'No discovery method details were recorded for this run.'
     if ($items.Count -gt 0) { $text = '{0} tried: {1}' -f (Format-MspkiGuiCount -Count $items.Count -Singular 'method'), ($parts -join ', ') }
-    $problems = @($items | Where-Object { $_.Bucket -in @('Permission denied', 'Failed') }).Count
+    $problems = @($items | Where-Object { $_.Bucket -in @('Could not check', 'Failed') }).Count
     $attention = @($sorted | Where-Object { $_.Bucket -ne 'Succeeded' })
     $ok = @($sorted | Where-Object { $_.Bucket -eq 'Succeeded' })
     $okText = ''
@@ -520,7 +578,7 @@ function Get-MspkiGuiCoverage {
     return [pscustomobject][ordered]@{
         Items = [object[]]$sorted; Attention = [object[]]$attention; Succeeded = [object[]]$ok; SucceededText = $okText
         Text = $text; Total = $items.Count; Problems = $problems
-        SucceededCount = [int]$counts['Succeeded']; PermissionDenied = [int]$counts['Permission denied']; Failed = [int]$counts['Failed']
+        SucceededCount = [int]$counts['Succeeded']; PermissionDenied = [int]$counts['Could not check']; Failed = [int]$counts['Failed']
         Skipped = [int]$counts['Skipped']; NotFound = [int]$counts['Not found']
     }
 }
@@ -606,9 +664,9 @@ function Get-MspkiGuiSummary {
     $tiles = @(foreach ($s in $script:MspkiGuiStatusOrder) {
         $p = Get-MspkiGuiStatusPill -Value $s
         [pscustomobject][ordered]@{
-            Status = $s; Count = @($all | Where-Object { $_.Status -eq $s }).Count
+            Status = $s; Count = @($all | Where-Object { (Get-MspkiGuiFindingStatusKey -Finding $_) -eq $s }).Count
             Label = $p.Text; Tone = $p.Tone; Glyph = $p.Glyph; Tag = $s
-            AccessibleName = ('{0}: {1}' -f $p.Text, @($all | Where-Object { $_.Status -eq $s }).Count)
+            AccessibleName = ('{0}: {1}' -f $p.Text, @($all | Where-Object { (Get-MspkiGuiFindingStatusKey -Finding $_) -eq $s }).Count)
         }
     })
     $sevTiles = @(foreach ($s in @('High', 'Medium', 'Low', 'ReviewRequired', 'Information')) {
@@ -657,11 +715,11 @@ function Get-MspkiGuiSummary {
     $kpis = @(
         [pscustomobject][ordered]@{ Label = 'Certification authorities'; Value = $caCount; Sub = 'Enterprise CAs found in Active Directory'; Glyph = [string][char]0xE83D; Tag = 'type:CA' }
         [pscustomobject][ordered]@{ Label = 'CA certificates'; Value = $certs.Count; Sub = $certSub; Glyph = [string][char]0xEB95; Tag = 'type:CACertificate' }
-        [pscustomobject][ordered]@{ Label = 'Endpoints'; Value = $leadCount; Sub = ('AIA, CDP, OCSP and enrollment URLs; {0}' -f $epSub); Glyph = [string][char]0xE71B; Tag = 'type:Endpoint' }
+        [pscustomobject][ordered]@{ Label = 'Published addresses'; Value = $leadCount; Sub = ('AIA, CDP, OCSP and enrollment addresses; {0}' -f $epSub); Glyph = [string][char]0xE71B; Tag = 'type:Endpoint' }
         [pscustomobject][ordered]@{ Label = 'Certificate templates'; Value = $published.Count; Sub = $tplSub; Glyph = [string][char]0xE8A5; Tag = 'type:Template' }
     )
 
-    $coverage = Get-MspkiGuiCoverage -RunInfo $RunInfo
+    $coverage = Get-MspkiGuiCoverage -RunInfo $RunInfo -Findings $all
     $health = Get-MspkiGuiHealth -Findings $all -RunInfo $RunInfo -CoverageProblems $coverage.Problems
 
     $top = @($all | Where-Object { (Get-MspkiGuiRank -Kind Status -Value ([string]$_.Status)) -ge 4 } |
@@ -669,9 +727,9 @@ function Get-MspkiGuiSummary {
         Select-Object -First 10 | ForEach-Object {
             $msg = ([string]$_.Message) -replace '\s*[\r\n]+\s*', ' '
             if ($msg.Length -gt 200) { $msg = $msg.Substring(0, 197) + '...' }
-            $title = (@($_.Category, $_.Target) | Where-Object { $_ }) -join $script:MspkiGuiDot
+            $title = Get-MspkiGuiFindingTitle -Finding $_
             [pscustomobject][ordered]@{
-                Id = [string]$_.Id; StatusPill = (Get-MspkiGuiStatusPill -Value ([string]$_.Status)); Title = $title; Message = $msg
+                Id = [string]$_.Id; StatusPill = (Get-MspkiGuiStatusPill -Value (Get-MspkiGuiFindingStatusKey -Finding $_)); Title = $title; Message = $msg
                 Meta = (@([string]$_.Id, ('Severity {0}' -f $_.Severity), ('Confidence {0}' -f $_.Confidence)) -join $script:MspkiGuiDot)
             }
         })

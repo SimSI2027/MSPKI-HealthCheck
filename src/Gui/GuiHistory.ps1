@@ -317,7 +317,7 @@ function Get-MspkiGuiCompareView {
         $tone = & $toneOfStatus $x.Status
         $glyph = $glyphOf[$tone]
         $msg = [string]$x.Message
-        $before = Get-MspkiGuiStatusWord -Status ([string]$x.Before); $after = Get-MspkiGuiStatusWord -Status ([string]$x.After)
+        $before = Get-MspkiGuiHistoryStatusWord -Status ([string]$x.Before); $after = Get-MspkiGuiHistoryStatusWord -Status ([string]$x.After)
         $sub = $msg
         $title = '{0} {1} {2}' -f $x.Category, $dot, (Get-MspkiGuiReadableName -Name ([string]$x.Target))
         switch ([string]$x.Kind) {
@@ -372,7 +372,7 @@ function Get-MspkiGuiEntityTypeLabel {
     return $Type
 }
 
-function Get-MspkiGuiStatusWord {
+function Get-MspkiGuiHistoryStatusWord {
     # A finding's status as a word in a sentence ("Was passing, now failing").
     param([AllowEmptyString()][string]$Status)
     switch ($Status) {

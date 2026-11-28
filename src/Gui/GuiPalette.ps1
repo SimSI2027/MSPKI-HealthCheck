@@ -69,7 +69,7 @@ function Get-MspkiGuiPaletteCommand {
         @('mapproblems', 'Show only problems on the map', 'Failing, warning and could-not-check objects with the path to them', [char]0xE7BA, '', 'discovery map filter failing broken'),
         @('mapreplay', 'Replay discovery', 'Play the discovery of this run again on the map', [char]0xE768, '', 'animation discovery map build'),
         @('tlcerts', 'Show when the CA certificates expire', 'The Timeline page: every CA certificate generation on a time axis', [char]0xEB95, '', 'timeline expiry renew lifetime generation'),
-        @('tlcrls', 'Show the CRL heartbeat', 'The Timeline page: when each CRL was published, is due and runs out, and the copy at every address', [char]0xE8C9, '', 'timeline crl next update overlap expired revocation'),
+        @('tlcrls', 'Show the CRL heartbeat', 'The Timeline page: when each CRL was published, is due and runs out, and the copy at every address', [char]0xEA41, '', 'timeline crl next update overlap expired revocation'),
         @('tlchain', 'Show the certificate chain', 'From a CA certificate up to its root, with the result of every AIA and CDP address', [char]0xE71B, '', 'chain path aia cdp issuer trust'),
         @('mapexport', 'Export the map as an image', 'Save the whole Discovery map as a PNG in the run''s output folder', [char]0xEB9F, '', 'png picture save discovery map'),
         @('histprev', 'Compare with the run before', 'The History page: what changed since the run before the one on show', [char]0xE81C, '', 'history compare changed difference previous last time trend'),

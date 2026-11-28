@@ -162,7 +162,7 @@ function Get-MspkiGuiNextAction {
         }
         if ($title.Length -gt 110) { $title = $title.Substring(0, 107) + '...' }
         $area = @($script:MspkiGuiScoreAreas | Where-Object { $_.Categories -contains [string]$worst.Category })[0]
-        $pill = Get-MspkiGuiStatusPill -Value ([string]$worst.Status)
+        $pill = Get-MspkiGuiStatusPill -Value (Get-MspkiGuiFindingStatusKey -Finding $worst)
         [pscustomobject][ordered]@{
             Priority = $prio; Title = $title; Cause = $cause; HasCause = [bool]$cause; Observed = $observed
             ObservedText = $(if ($observed) { 'Observed' } else { '' })
