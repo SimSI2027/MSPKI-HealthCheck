@@ -16,9 +16,9 @@ BeforeAll {
 }
 
 Describe 'Palette content' {
-    It 'lists the eight pages with their Ctrl+n shortcut' {
+    It 'lists the nine pages with their Ctrl+n shortcut' {
         $p = @(Get-MspkiGuiPalettePage)
-        $p.Count | Should -Be 8
+        $p.Count | Should -Be 9
         $p[0].Action | Should -Be 'page:0'
         $p[7].Shortcut | Should -Be 'Ctrl+8'
         $p[6].Title | Should -Be 'Go to History'
@@ -59,7 +59,7 @@ Describe 'Find-MspkiGuiPaletteItem' {
         $r = @(Find-MspkiGuiPaletteItem -Query '' -Fixed $script:Fixed -Items $script:Items)
         $r[0].Kind | Should -Be 'Command'
         @($r | Where-Object Kind -eq 'Finding').Count | Should -Be 0
-        @($r | Where-Object Kind -eq 'Page').Count | Should -Be 8
+        @($r | Where-Object Kind -eq 'Page').Count | Should -Be 9
     }
     It 'finds a page by its name' {
         (@(Find-MspkiGuiPaletteItem -Query 'objects' -Fixed $script:Fixed -Items $script:Items))[0].Action | Should -Be 'page:4'

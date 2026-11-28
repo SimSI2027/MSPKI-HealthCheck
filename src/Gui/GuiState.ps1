@@ -155,3 +155,24 @@ function Export-MspkiGuiMapPng {
         return ''
     }
 }
+
+function Save-MspkiGuiSettings {
+    <#
+    .SYNOPSIS
+    Writes the window settings to gui-settings.json in the output folder. Refuses any other place; keeps at most the last 20 celebrated runs.
+    Returns whether it was written; a failure is kept in SaveError and never stops the window.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Settings, [Parameter(Mandatory = $true)][string]$AllowedRoot)
+    if (-not $Settings.Path) { return $false }
+    if (-not (Test-MspkiGuiPathInside -Path $Settings.Path -Root $AllowedRoot)) { return $false }
+    try {
+        $cel = @($Settings.Celebrated | Where-Object { $_ } | Select-Object -Last 20)
+        $doc = [ordered]@{ Format = 1; TourDone = [bool]$Settings.TourDone; ExplainMode = [bool]$Settings.ExplainMode; Celebrated = [string[]]$cel }
+        [void][System.IO.Directory]::CreateDirectory((Split-Path -Parent $Settings.Path))
+        [System.IO.File]::WriteAllText($Settings.Path, ($doc | ConvertTo-Json -Depth 3), (New-Object System.Text.UTF8Encoding($false)))
+        $Settings.SaveError = ''
+        return $true
+    }
+    catch { $Settings.SaveError = $_.Exception.Message; return $false }
+}

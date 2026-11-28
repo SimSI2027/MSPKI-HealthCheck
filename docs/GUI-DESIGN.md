@@ -446,3 +446,14 @@ E71F, fit E9A6.
 | History / compare | diff, delta | the History page; "What changed" compares an older run with a newer one of the same forest |
 | new problem / resolved / changed / still open | added, fixed, modified | a failure or warning the newer run has and the older did not / the older had and the newer does not / in both with another status, code or severity / in both, the same |
 | objects added / gone | new entities, deleted | objects (by their ids, which are the same in every run) found by only one of the two runs |
+
+### GX9 round 1 (2026-11-28; Explain mode, Learn page, tour, celebration; Alcyone `expired-crl`; light at 1360 x 860; frames 15 explain, 16-tour-1..4, 37 Learn, 37a search, 37b no match)
+- Defects: Explain mode underlined everyday words ("3 findings", "1 finding", action titles through "finding") so the page looked like a page of links
+  (A7, B2); tour stop 4 pointed at Run while its text was about Ctrl+K and Explain (B1). Strong: the Learn page (two panes, search, designed
+  no-match), tour cards placed beside their target inside the window, the scrim keeps the page readable.
+- Fixes: everyday words are explained only when they are the whole label; stop 4 points at the Explain button.
+
+### GX9 round 2 (same frames, plus dark at minimum size)
+- Explain mode marks the terms only (area names, acronyms, "Partial score", "Held down by", "Could not check"); the tour fits at minimum size in
+  dark with its card inside the window; Learn reads well in dark. Celebration has no frame (it needs a healthy live run; its rule is unit-tested,
+  and with reduced motion only the notice shows). Verdict: PASS (generator and discriminator are the same model; GX11 uses a separate session).

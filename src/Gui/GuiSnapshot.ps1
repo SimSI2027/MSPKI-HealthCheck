@@ -223,6 +223,7 @@ function Get-MspkiGuiSnapshotExpectedPage {
     if ($n -ge 30 -and $n -le 34) { return 'TabMap' }
     if ($n -eq 35) { return 'TabTimeline' }
     if ($n -eq 36) { return 'TabHistory' }
+    if ($n -eq 37) { return 'TabLearn' }
     if ($n -ge 70 -and $n -le 79) { return 'TabObjects' }
     if ($n -ge 80 -and $n -le 89) { return 'TabServices' }
     if ($n -ge 90) { return 'TabFindings' }
@@ -251,6 +252,7 @@ function Invoke-MspkiGuiSnapshot {
     )
     if (-not (Test-MspkiGuiSnapshotFolder -Folder $Folder -AllowedRoot $AllowedRoot)) { throw ('Snapshots can only be written inside {0} (they can contain real names).' -f $AllowedRoot) }
     $g = $script:MspkiGui
+    $g.SnapshotMode = $true
     $ui = $g.Ui
     [void][System.IO.Directory]::CreateDirectory($Folder)
     $Window.WindowStartupLocation = 'Manual'
@@ -657,6 +659,31 @@ function Invoke-MspkiGuiSnapshot {
             $ui.SvcScroll.ScrollToTop()
             & $page $ui.TabLog
             & $shot '40-log'
+            # GX9: Explain mode on the Overview, the four tour stops, and the Learn page (a term, a search, no match). Settings are not saved
+            # by the snapshot (SnapshotMode keeps gui-settings.json as it is).
+            & $page $ui.TabSummary
+            $osv2 = $ui.PanelResults.Parent
+            while ($null -ne $osv2 -and $osv2 -isnot [System.Windows.Controls.ScrollViewer]) { $osv2 = [System.Windows.LogicalTreeHelper]::GetParent($osv2) }
+            if ($null -ne $osv2) { $osv2.ScrollToTop() }
+            $ui.TglExplain.IsChecked = $true; [void](Update-MspkiGuiExplain); Wait-MspkiGuiIdle -Rounds 2
+            & $shot '15-explain'
+            $ui.TglExplain.IsChecked = $false; [void](Update-MspkiGuiExplain)
+            Start-MspkiGuiTour
+            foreach ($ti in 0..3) {
+                $g.TourIndex = $ti; Show-MspkiGuiTourStop; Wait-MspkiGuiIdle -Rounds 3
+                if ($renderW -gt 0) { Set-MspkiGuiSnapshotLayout -Window $Window -Width $renderW -Height $renderH; Show-MspkiGuiTourStop; Wait-MspkiGuiIdle -Rounds 2 }
+                & $shot ('16-tour-{0}' -f ($ti + 1))
+            }
+            $ui.TourLayer.Visibility = 'Collapsed'; $g.TourStops = $null
+            if ($null -ne $osv2) { $osv2.ScrollToTop() }
+            & $page $ui.TabLearn
+            Show-MspkiGuiLearnItem -Name 'CDP'; Wait-MspkiGuiIdle -Rounds 2
+            & $shot '37-learn'
+            $ui.FltLearn.Text = 'revoked'; Wait-MspkiGuiIdle -Rounds 2
+            & $shot '37a-learn-search'
+            $ui.FltLearn.Text = 'no-such-term-text'; Wait-MspkiGuiIdle -Rounds 2
+            & $shot '37b-learn-nomatch'
+            $ui.FltLearn.Text = ''
             # High contrast (GX5): the window with the SystemColors palette as this computer has it now (a real high-contrast theme
             # changes those colours); the findings page shows the most kinds of element.
             $Window.Resources.MergedDictionaries[0] = (Import-MspkiGuiPalette -Theme HighContrast)

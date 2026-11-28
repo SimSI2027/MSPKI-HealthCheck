@@ -26,7 +26,7 @@ function New-MspkiGuiPaletteEntry {
 function Get-MspkiGuiPalettePage {
     <#
     .SYNOPSIS
-    The pages of the window as palette items, in navigation order (Ctrl+1..8).
+    The pages of the window as palette items, in navigation order (Ctrl+1..9).
     #>
     [CmdletBinding()]
     param()
@@ -38,7 +38,8 @@ function Get-MspkiGuiPalettePage {
         @('Objects', 'Everything the run found, by type', [char]0xE8A9),
         @('PKI services', 'CAs, web enrollment, OCSP, NDES, CEP/CES', [char]0xE968),
         @('History', 'Earlier runs, the score over time, and what changed between two runs', [char]0xE81C),
-        @('Run log', 'What the run did, step by step', [char]0xE9D5)
+        @('Run log', 'What the run did, step by step', [char]0xE9D5),
+        @('Learn', 'What the objects and words of this window mean: concept cards and the glossary', [char]0xE7BE)
     )
     $i = 0
     return @(foreach ($p in $pages) {
@@ -75,6 +76,8 @@ function Get-MspkiGuiPaletteCommand {
         @('histprev', 'Compare with the run before', 'The History page: what changed since the run before the one on show', [char]0xE81C, '', 'history compare changed difference previous last time trend'),
         @('histrefresh', 'Read the list of earlier runs again', 'The History page: every run saved in the output folder', [char]0xE72C, '', 'history refresh runs reload'),
         @('copylog', 'Copy the run log', 'Every line of the run log, to the clipboard', [char]0xE8C8, '', 'clipboard'),
+        @('tour', 'Take the tour', 'Four stops on the Overview: the score, what to do next, the map, Ctrl+K', [char]0xE7BE, '', 'help start new introduction guide'),
+        @('explain', 'Explain mode on or off', 'Underline the PKI terms and say what each one means when you point at it', [char]0xE736, '', 'glossary help terms meaning define what is'),
         @('themeauto', 'Theme: follow Windows', 'Light or dark as Windows is set; high contrast always wins', [char]0xE7F4, '', 'appearance colour color mode system'),
         @('themelight', 'Theme: light', 'Light background', [char]0xE706, '', 'appearance colour color mode'),
         @('themedark', 'Theme: dark', 'Dark background', [char]0xE708, '', 'appearance colour color mode night')

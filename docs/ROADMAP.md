@@ -77,7 +77,7 @@ Design: `docs/GUI-EXPERIENCE.md`. Judged on the upgraded rubric (`docs/GUI-DESIG
 | GX7 | Lifecycle timeline (expiry countdowns, CRL heartbeat) and interactive chain view | DONE (2026-11-28, PASS in round 2) |
 | GX8 | Run history and compare two runs | DONE (2026-11-28, PASS in round 2) |
 | GX8b | Consistency pass after the independent review (`docs/REVIEW-GX.md`): D-01..D-28, terms check against GUI-DESIGN §9 | DONE (2026-11-28; every Blocker, High and Medium fixed; D-34, D-46, D-47 and part of D-09 open for GX11) |
-| GX9 | "Explain it to me" mode, Learn page, glossary, first-run tour, healthy celebration | TODO |
+| GX9 | "Explain it to me" mode, Learn page, glossary, first-run tour, healthy celebration | DONE (2026-11-28, PASS in round 2) |
 | GX10 | Executive summary export (printable HTML) | TODO |
 | GX11 | Adversarial round on the upgraded rubric (max 3 rounds; PASS gate for the program) | TODO |
 

@@ -185,7 +185,9 @@ Describe 'The walkthrough never runs a check (static)' {
     }
     It 'GuiState.ps1 writes only through the inside-the-output-folder check' {
         $t = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'src\Gui\GuiState.ps1') -Raw
-        ([regex]::Matches($t, 'WriteAllText')).Count | Should -Be 1
+        # Two writes (the walkthrough marks and the window settings, GX9), each behind its own inside-the-output-folder check.
+        ([regex]::Matches($t, 'WriteAllText')).Count | Should -Be 2
+        $t | Should -Match 'Test-MspkiGuiPathInside -Path \$Settings\.Path'
         $t | Should -Match 'Test-MspkiGuiPathInside -Path \$State\.Path'
     }
     It 'every walkthrough button in the window has a tag and an accessible name' {

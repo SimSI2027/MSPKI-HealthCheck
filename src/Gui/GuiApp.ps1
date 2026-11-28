@@ -16,6 +16,8 @@ $script:MspkiGui = $null
 . (Join-Path $PSScriptRoot 'GuiState.ps1')
 . (Join-Path $PSScriptRoot 'GuiPalette.ps1')
 . (Join-Path $PSScriptRoot 'GuiTheme.ps1')
+. (Join-Path $PSScriptRoot 'GuiLearn.ps1')
+. (Join-Path $PSScriptRoot 'GuiLearnPage.ps1')
 
 function Import-MspkiGuiAssembly {
     <#
@@ -949,6 +951,8 @@ function Show-MspkiGuiResult {
 
     # Mission control: score, areas, what to do next, and the discovery map (built on screen once the Overview has a size).
     Update-MspkiGuiMission -Data $Data -Animate
+    Request-MspkiGuiExplainUpdate
+    Request-MspkiGuiTourOffer
 
     # Timeline and chains (GX7): computed by the map worker after the Overview asked for its map (a new results generation starts there).
     Update-MspkiGuiTimelineData -Data $Data
@@ -1236,6 +1240,8 @@ function Complete-MspkiGuiRun {
             $ui.Progress.Value = 100; Set-MspkiGuiState -Text ('Finished: {0}' -f $g.Summary.Health.Title) -State $state
             $tone = 'Good'; if ($state -ne 'Done') { $tone = 'Info' }
             if (-not $g.CloseRequested) { [void](Show-MspkiGuiToast -Title 'Run finished' -Text ('{0}. The results are on the Overview.' -f $g.Summary.Health.Title) -Tone $tone) }
+            # GX9: once per healthy live run, a short celebration (the toast says what it does and does not mean).
+            if (-not $g.CloseRequested) { try { [void](Invoke-MspkiGuiCelebration -RunKey ([string]$result.OutputFolder)) } catch { $null = $_ } }
         }
         if (-not $g.CloseRequested) { $ui.Tabs.SelectedItem = $ui.TabSummary }
     }
@@ -1440,7 +1446,7 @@ function Select-MspkiGuiTab {
     [CmdletBinding()]
     param([int]$Index)
     $ui = $script:MspkiGui.Ui
-    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabTimeline, $ui.TabObjects, $ui.TabServices, $ui.TabHistory, $ui.TabLog)
+    $tabs = @($ui.TabSummary, $ui.TabFindings, $ui.TabMap, $ui.TabTimeline, $ui.TabObjects, $ui.TabServices, $ui.TabHistory, $ui.TabLog, $ui.TabLearn)
     if ($Index -ge 0 -and $Index -lt $tabs.Count) { $ui.Tabs.SelectedItem = $tabs[$Index] }
 }
 
@@ -1454,7 +1460,7 @@ function Show-MspkiGuiToast {
     Returns $false when the window is not there yet (the caller then falls back to a message box).
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string]$Text, [string]$Title = '', [ValidateSet('Info', 'Good', 'Warn', 'Bad')][string]$Tone = 'Info', [int]$Seconds = 0)
+    param([Parameter(Mandatory = $true)][string]$Text, [string]$Title = '', [ValidateSet('Info', 'Good', 'Warn', 'Bad')][string]$Tone = 'Info', [int]$Seconds = 0, [string]$ActionText = '', [scriptblock]$Action = $null)
     $g = $script:MspkiGui
     if ($null -eq $g -or $null -eq $g.Ui -or -not $g.Ui.ContainsKey('ToastHost') -or -not $g.Window.IsVisible) { return $false }
     $toastHost = $g.Ui.ToastHost
@@ -1502,6 +1508,14 @@ function Show-MspkiGuiToast {
     $tx.Text = $Text; $tx.TextWrapping = 'Wrap'
     $tx.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, 'B.Text')
     [void]$sp.Children.Add($tx)
+    # GX9: an optional action in the notice (for example "Take the tour"); choosing it closes the notice.
+    $act = $null
+    if ($ActionText -and $null -ne $Action) {
+        $act = New-Object System.Windows.Controls.Button
+        $act.Style = $g.Window.FindResource('LinkButton'); $act.Content = $ActionText; $act.HorizontalAlignment = 'Left'; $act.Margin = New-Object System.Windows.Thickness(0, 6, 0, 0)
+        [System.Windows.Automation.AutomationProperties]::SetName($act, $ActionText)
+        [void]$sp.Children.Add($act)
+    }
     [void]$dock.Children.Add($sp)
     $card.Child = $dock
     $name = $Text; if ($Title) { $name = '{0}: {1}' -f $Title, $Text }
@@ -1510,7 +1524,9 @@ function Show-MspkiGuiToast {
     $timer = New-Object System.Windows.Threading.DispatcherTimer
     $timer.Interval = [TimeSpan]::FromSeconds($Seconds)
     $state = @{ Card = $card; Host = $toastHost; Timer = $timer }
+    $state.Action = $Action
     $timer.Tag = $state; $card.Tag = $state; $close.Tag = $state
+    if ($null -ne $act) { $act.Tag = $state; $act.Add_Click({ param($s, $e) $st = $s.Tag; $st.Timer.Stop(); if ($st.Host.Children.Contains($st.Card)) { $st.Host.Children.Remove($st.Card) }; $e.Handled = $true; try { & $st.Action } catch { $null = $_ } }) }
     $timer.Add_Tick({ param($s, $e) $st = $s.Tag; $s.Stop(); if ($st.Host.Children.Contains($st.Card)) { $st.Host.Children.Remove($st.Card) } })
     $close.Add_Click({ param($s, $e) $st = $s.Tag; $st.Timer.Stop(); if ($st.Host.Children.Contains($st.Card)) { $st.Host.Children.Remove($st.Card) }; $e.Handled = $true })
     $card.Add_MouseEnter({ param($s, $e) $s.Tag.Timer.Stop() })
@@ -1547,7 +1563,7 @@ function Get-MspkiGuiCommandAvailability {
         actions = ($null -ne $g.Actions -and @($g.Actions).Count -gt 0); score = ($null -ne $g.Score -and [bool]$g.Score.HasScore)
         options = [bool]$ui.ExpOptions.IsEnabled; copylog = (@($ui.LogList.Items).Count -gt 0)
         tlcerts = ($null -ne $g.TlModel -and [int]$g.TlModel.CertCount -gt 0); tlcrls = ($null -ne $g.TlModel -and [int]$g.TlModel.CrlCount -gt 0); tlchain = (@($g.TlChainIds).Count -gt 0)
-        histprev = (Test-MspkiGuiHistoryCanComparePrevious); histrefresh = $true
+        histprev = (Test-MspkiGuiHistoryCanComparePrevious); histrefresh = $true; tour = ($ui.PanelResults.Visibility -eq 'Visible')
     }
 }
 
@@ -1651,6 +1667,8 @@ function Invoke-MspkiGuiCommand {
         'tlchain' { Select-MspkiGuiTab -Index 3; $ui.RbTlChain.IsChecked = $true; Set-MspkiGuiFocusLater -Element $ui.FltTlChain }
         'histprev' { Select-MspkiGuiTab -Index 6; Invoke-MspkiGuiHistoryComparePrevious; Set-MspkiGuiFocusLater -Element $ui.HistList }
         'histrefresh' { Select-MspkiGuiTab -Index 6; Update-MspkiGuiHistoryPage -Force; Set-MspkiGuiFocusLater -Element $ui.HistList }
+        'tour' { Start-MspkiGuiTour }
+        'explain' { Set-MspkiGuiExplainMode -On (-not [bool]$ui.TglExplain.IsChecked) }
         'mapexport' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; Export-MspkiGuiMapPng }
         'mapproblems' { Select-MspkiGuiTab -Index 2; $ui.RbMapCanvas.IsChecked = $true; $ui.ChkMapProblems.IsChecked = $true; $g.MapExpanded = @{}; Update-MspkiGuiMapPage }
         'copylog' { & $click $ui.BtnCopyLog; if (@($ui.LogList.Items).Count -gt 0) { [void](Show-MspkiGuiToast -Text 'The run log is on the clipboard.' -Tone Good) } }
@@ -1717,6 +1735,7 @@ function Move-MspkiGuiRegionFocus {
     elseif ($sel -eq $ui.TabMap) { $content = $(if ($ui.MapTreePanel.IsVisible) { $ui.MapTree } else { $ui.MapViewport }); $details = $ui.MapHost }
     elseif ($sel -eq $ui.TabTimeline) { $content = $(if ($ui.TlChainScroll.IsVisible) { $ui.FltTlChain } else { $ui.TlList }); $details = $ui.TimelineHost }
     elseif ($sel -eq $ui.TabLog) { $content = $ui.LogList }
+    elseif ($sel -eq $ui.TabLearn) { $content = $ui.LearnList; $details = $ui.LearnDetailScroll }
     elseif ($sel -eq $ui.TabHistory) { $content = $ui.HistList; $details = $(if ($ui.HistCmpScroll.IsVisible) { $ui.HistCmpScroll } else { $null }) }
     elseif ($sel -eq $ui.TabObjects) { $content = $ui.ObjList; $details = $ui.ObjHost }
     elseif ($sel -eq $ui.TabServices) { $content = $ui.SvcList; $details = $ui.SvcHost }
@@ -1794,11 +1813,13 @@ function Invoke-MspkiGuiShortcut {
             'D6' { Select-MspkiGuiTab -Index 5; return $true }
             'D7' { Select-MspkiGuiTab -Index 6; return $true }
             'D8' { Select-MspkiGuiTab -Index 7; return $true }
+            'D9' { Select-MspkiGuiTab -Index 8; return $true }
             'O' { if ($u.BtnOpenResults.IsEnabled) { Invoke-MspkiGuiOpenDialog }; return $true }
             { $_ -in @('OemPlus', 'Add', 'OemMinus', 'Subtract', 'D0', 'NumPad0') -and $u.Tabs.SelectedItem -eq $u.TabMap -and $u.MapCanvasPanel.IsVisible } { [void](Invoke-MspkiGuiMapKey -Key ([System.Windows.Input.Key]$Key)); return $true }
             'F' {
                 if ($u.Tabs.SelectedItem -eq $u.TabFindings) { [void]$u.FltText.Focus(); return $true }
                 elseif ($u.Tabs.SelectedItem -eq $u.TabLog) { [void]$u.FltLog.Focus(); return $true }
+                elseif ($u.Tabs.SelectedItem -eq $u.TabLearn) { [void]$u.FltLearn.Focus(); return $true }
                 elseif ($u.Tabs.SelectedItem -eq $u.TabObjects) { [void]$u.FltObj.Focus(); return $true }
                 elseif ($u.Tabs.SelectedItem -eq $u.TabMap) { $u.RbMapCanvas.IsChecked = $true; [void]$u.FltMap.Focus(); return $true }
             }
@@ -1982,6 +2003,8 @@ function Initialize-MspkiGuiApplication {
     $script:MspkiGuiMapPaneWatch = [System.EventHandler]{ try { Update-MspkiGuiMapPaneSpace } catch { $null = $_ } }
     [System.ComponentModel.DependencyPropertyDescriptor]::FromProperty([System.Windows.Controls.ContentControl]::ContentProperty, [System.Windows.Controls.ContentControl]).AddValueChanged($ui.MapHost, $script:MspkiGuiMapPaneWatch)
     Update-MspkiGuiMapPaneSpace
+    # GX9: the Learn page, Explain mode and the tour (settings in outgui-settings.json).
+    Initialize-MspkiGuiLearn
     $ui.MapCanvasHost.Add_SizeChanged({ try { Invoke-MspkiGuiMapDraw } catch { [void](Invoke-MspkiGuiUnhandledError -Exception $_.Exception -Source 'map') } })
 
     # Details panes (Findings, Discovery map, Objects): Copy, Back, related objects, breadcrumbs, findings. One handler each.
@@ -2022,6 +2045,7 @@ function Initialize-MspkiGuiApplication {
         $u = $script:MspkiGui.Ui
         # D-28: on the Overview the live ring and stage line show the progress; the thin top bar is for the other pages.
         $u.Progress.Opacity = $(if ($u.Tabs.SelectedItem -eq $u.TabSummary) { 0.0 } else { 1.0 })
+        Request-MspkiGuiExplainUpdate
         if ($u.Tabs.SelectedItem -eq $u.TabHistory) { Update-MspkiGuiHistoryPage }
         if ($u.Tabs.SelectedItem -eq $u.TabLog) {
             [void]$u.LogList.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [System.Action]{ Update-MspkiGuiLogView -Scroll })

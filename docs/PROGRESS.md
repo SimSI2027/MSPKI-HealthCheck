@@ -632,3 +632,13 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
   silently replaced a new one).
 - Snapshot method (D-07): settles after the map worker, tree frames on the map page, `frames.csv` checked by the window test.
 - Next: GX9 (Explain, Learn, glossary, tour, celebration) with the review's changes in ROADMAP.
+
+## GX9 (2026-11-28): Explain mode, Learn page, glossary, tour, celebration - DONE (PASS in round 2)
+- `src/Knowledge/Glossary.psd1` (data only, 33 terms keyed on the GUI-DESIGN §9 words and the Overview's acronyms); `src/Gui/GuiLearn.ps1`
+  (pure: glossary lookup, Learn items = concept cards from the existing object notes + terms, tour stops, settings read, celebration rule);
+  `Save-MspkiGuiSettings` in GuiState.ps1 (out\gui-settings.json only); `src/Gui/GuiLearnPage.ps1` (window: Learn page Ctrl+9, Explain mode
+  toggle in the command bar, tour layer, celebration pulse + notice). Toasts can carry one action ("Take the tour").
+- The tour is offered once in a notice after the first results (never starts by itself); Ctrl+K "Take the tour" and "Explain mode on or off".
+- Tests: `tests/GuiLearn.Tests.ps1` (13: data-only glossary, §9 keys, J5 term coverage, no match inside words, Learn items, tour targets,
+  settings guard, celebration rule, real window: explain budget < 400 ms, Ctrl+9, tour steps, settings file). Palette tests for nine pages.
+- Next: GX10 (executive summary).
