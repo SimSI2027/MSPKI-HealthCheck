@@ -13,3 +13,4 @@ desktop.ini
 
 # Dev-only tooling
 .tools/
+site/data/

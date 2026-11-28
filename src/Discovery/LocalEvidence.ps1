@@ -72,7 +72,7 @@ function ConvertTo-MspkiLocalCertificateInfo {
     TemplateName; TemplateOid; TemplateMajorVersion; DnsNames; Urls }.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate, [string]$Store = '', [DateTime]$Now = [DateTime]::UtcNow)
+    param([Parameter(Mandatory = $true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate, [string]$Store = '', [DateTime]$Now = (Get-MspkiUtcNow))
     $c = $Certificate
     $isCA = $false
     $bc = Get-MspkiCertificateExtension -Certificate $c -Oid $script:MspkiOid.BasicConstraints

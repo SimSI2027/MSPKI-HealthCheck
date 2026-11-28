@@ -99,7 +99,7 @@ function Add-MspkiInventoryToEntityGraph {
         }
         if ($ctx.DomainController) { [void](Add-MspkiHostEntity -HostName $ctx.DomainController -Role 'DomainController') }
         if ($ctx.ComputerDomain) {
-            $local = ('{0}.{1}' -f $env:COMPUTERNAME, $ctx.ComputerDomain)
+            $local = ('{0}.{1}' -f (Get-MspkiLocalComputerName), $ctx.ComputerDomain)
             [void](Add-MspkiHostEntity -HostName $local -Role 'ThisComputer')
         }
     }
@@ -182,7 +182,7 @@ function Add-MspkiInventoryToEntityGraph {
         if ($caId) { Add-MspkiRelation -From $id -Type 'certificateOf' -To $caId -Source ([string]$c.AssociationBasis) }
         # Expected but missing: an Enterprise CA certificate generation that is not expired belongs in AIA (chain building) and NTAuth.
         $expired = $false
-        if ($null -ne $i -and $i.NotAfter) { try { $expired = ([datetime]$i.NotAfter).ToUniversalTime() -lt [DateTime]::UtcNow } catch { } }
+        if ($null -ne $i -and $i.NotAfter) { try { $expired = ([datetime]$i.NotAfter).ToUniversalTime() -lt (Get-MspkiUtcNow) } catch { } }
         if ($pks -and -not $expired -and $c.Role -like 'Enterprise*') {
             if (-not $c.InAIA) {
                 $why = $(if ($c.InNTAuth) { 'In NTAuth but not in AIA: clients that need this generation to build a chain cannot find it in AD.' } else { 'Not in the AIA container: clients cannot find this generation in AD to build a chain.' })
@@ -457,7 +457,7 @@ function Add-MspkiFindingEntityLink {
     $fallback = @(Get-MspkiEntityList -Type 'Forest' | ForEach-Object { $_.Id }) | Select-Object -First 1
     if (-not $fallback) {
         $me = @(Get-MspkiEntityList -Type 'Host' | Where-Object { @($_.Properties['Roles']) -contains 'ThisComputer' }) | Select-Object -First 1
-        if ($null -eq $me) { $fallback = Add-MspkiHostEntity -HostName $env:COMPUTERNAME -Role 'ThisComputer' } else { $fallback = $me.Id }
+        if ($null -eq $me) { $fallback = Add-MspkiHostEntity -HostName (Get-MspkiLocalComputerName) -Role 'ThisComputer' } else { $fallback = $me.Id }
     }
     $caByConfig = @{}
     foreach ($e in (Get-MspkiEntityList -Type 'CA')) { if ($e.Properties['Config']) { $caByConfig[([string]$e.Properties['Config']).ToLowerInvariant()] = $e.Id } }

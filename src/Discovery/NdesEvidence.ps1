@@ -149,7 +149,7 @@ function Get-MspkiNetBiosDomainMap {
     param([Parameter(Mandatory = $true)]$Context, [int]$TimeoutSeconds = 5)
     $map = @{}
     if (-not $Context.ConfigNC) { return $map }
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     try {
         $recs = @(Get-MspkiLdapObject -Server $Context.DomainController -BaseDN ('CN=Partitions,{0}' -f $Context.ConfigNC) -Scope OneLevel `
             -Filter '(&(objectClass=crossRef)(nETBIOSName=*))' -Properties @('nETBIOSName', 'dnsRoot') -TimeoutSeconds ([math]::Max(10, $TimeoutSeconds * 3)))

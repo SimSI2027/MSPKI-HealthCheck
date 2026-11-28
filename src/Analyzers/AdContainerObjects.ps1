@@ -43,7 +43,7 @@ function Test-MspkiAdContainerObject {
     whose msDS-OIDToGroupLink does not resolve to a group. A failed read is never reported as "missing".
     #>
     [CmdletBinding()]
-    param([AllowNull()]$Inventory, [DateTime]$Now = [DateTime]::UtcNow)
+    param([AllowNull()]$Inventory, [DateTime]$Now = (Get-MspkiUtcNow))
     $findings = New-Object System.Collections.ArrayList
     if ($null -eq $Inventory) { return , $findings.ToArray() }
     $common = @{ Stage = 'Analysis'; Scope = 'Local' }

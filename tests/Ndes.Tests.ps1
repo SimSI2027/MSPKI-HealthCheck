@@ -143,10 +143,12 @@ Describe 'NDES requests: nothing else in the source can send anything to a NDES 
             if ($left -match '\.Method$') { $a.Right.Extent.Text | Should -Be "'GET'" }
             if ($left -match '\.(Credentials|ClientCertificates)$') { $a.Right.Extent.Text | Should -Be '$null' }
             # The proxy is $null (a direct connection) unless -UseSystemProxy was given; then it is the system proxy WITHOUT credentials.
-            if ($left -match '\.Proxy$') { $a.Right.Extent.Text | Should -BeIn @('$null', '$sysProxy') }
+            if ($left -match '\.Proxy$') { $a.Right.Extent.Text | Should -BeIn @('$null', '$sysProxy', '$SystemProxy') }
             if ($left -match '\.(UseDefaultCredentials|PreAuthenticate|AllowAutoRedirect)$') { $a.Right.Extent.Text | Should -Be '$false' }
         }
         $text = & $script:codeText (Join-Path $script:srcRoot 'Probes\WebProbes.ps1')
+        # The one request function gets the system proxy only from Invoke-MspkiHttpGet, which reads it only with -UseSystemProxy.
+        @([regex]::Matches($text, '-SystemProxy\s+(\S+)') | ForEach-Object { $_.Groups[1].Value }) | Should -Be @('$sysProxy')
         $text | Should -Not -Match '(?i)GetRequestStream|ContentLength\s*=|Authorization|Headers\.Add|Headers\.Set'
     }
 

@@ -90,7 +90,7 @@ function Resolve-MspkiDnsIdentity {
         $hasDnsClient = $null -ne (Get-Command -Name 'Resolve-DnsName' -ErrorAction SilentlyContinue)
         $method = $(if ($hasDnsClient) { 'DnsClient' } else { 'DotNet' })
         $limit = [int][Math]::Min(600, [Math]::Max(10, [Math]::Ceiling(($TimeoutMs / 1000.0) * (2 + $todo.Count))))
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $sw = (New-MspkiStopwatch)
         $call = Invoke-MspkiTimeLimitedScript -ScriptBlock (Get-MspkiDnsIdentityScript) -ArgumentList @([string[]]$todo.ToArray(), [string[]]$suffixes, $hasDnsClient) `
             -TimeoutSeconds $limit -ProgressText ('DNS identity of {0} host(s)' -f $todo.Count)
         $raws = @{}

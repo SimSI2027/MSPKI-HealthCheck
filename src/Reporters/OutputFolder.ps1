@@ -12,7 +12,7 @@ function New-MspkiOutputFolder {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$Root,
-        [DateTime]$Now = (Get-Date)
+        [DateTime]$Now = (Get-MspkiUtcNow).ToLocalTime()
     )
     $rootFull = [System.IO.Path]::GetFullPath($Root)
     $name = $Now.ToString('yyyyMMdd-HHmmss')

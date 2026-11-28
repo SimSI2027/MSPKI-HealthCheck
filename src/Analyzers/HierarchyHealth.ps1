@@ -180,7 +180,7 @@ function Test-MspkiCaGeneration {
     SignatureOid, SelfIssued, Lifecycle, CAName, and Parents (objects with Subject, NotAfter, Thumbprint).
     #>
     [CmdletBinding()]
-    param([AllowEmptyCollection()][object[]]$Generations = @(), [datetime]$Now = [DateTime]::UtcNow)
+    param([AllowEmptyCollection()][object[]]$Generations = @(), [datetime]$Now = (Get-MspkiUtcNow))
     $out = New-Object System.Collections.ArrayList
     foreach ($ca in @($Generations | Group-Object { if ($_.CAName) { $_.CAName } else { $_.Subject } })) {
         $gens = @($ca.Group | Sort-Object { $_.NotBefore })
@@ -234,7 +234,7 @@ function Test-MspkiNtAuthAiaMatch {
     Pass when every non-expired NTAuth generation is also in AIA.
     #>
     [CmdletBinding()]
-    param([AllowEmptyCollection()][object[]]$CACertificates = @(), [datetime]$Now = [DateTime]::UtcNow)
+    param([AllowEmptyCollection()][object[]]$CACertificates = @(), [datetime]$Now = (Get-MspkiUtcNow))
     $out = New-Object System.Collections.ArrayList
     $nt = @($CACertificates | Where-Object { $_.InNTAuth })
     if ($nt.Count -eq 0) { return , $out.ToArray() }
@@ -270,7 +270,7 @@ function Test-MspkiOfflineRootCrl {
         $ThisUpdate = $null,
         $NextUpdate = $null,
         [string]$CrlId = '',
-        [datetime]$Now = [DateTime]::UtcNow,
+        [datetime]$Now = (Get-MspkiUtcNow),
         [int]$MinimumLifetimeDays = 30,
         [int]$WarningDays = 14
     )
@@ -435,7 +435,7 @@ function Invoke-MspkiHierarchyAnalysis {
     $out = New-Object System.Collections.ArrayList
     $inv = $Discovery.Inventory
     $entries = @(Get-MspkiDiscoveredCertificateEntry -Discovery $Discovery)
-    $now = [DateTime]::UtcNow
+    $now = (Get-MspkiUtcNow)
     $ms = $TimeoutSeconds * 1000
 
     # Generations with their parents (by key id, else by name).

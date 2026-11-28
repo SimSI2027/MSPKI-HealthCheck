@@ -114,7 +114,7 @@ function Get-MspkiCrlFreshness {
         [Parameter(Mandatory = $true)]$Crl,
         [int]$WarningPercent = 75,
         [int]$CriticalPercent = 95,
-        [DateTime]$Now = [DateTime]::UtcNow
+        [DateTime]$Now = (Get-MspkiUtcNow)
     )
     $now = $Now.ToUniversalTime()
     if ($null -eq $Crl.NextUpdate) {

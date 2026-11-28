@@ -113,7 +113,7 @@ function Get-MspkiLocalCepPolicy {
     $findings = New-Object System.Collections.ArrayList
     $list = New-Object System.Collections.ArrayList
     foreach ($loc in $script:MspkiCepPolicyLocations) {
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $sw = (New-MspkiStopwatch)
         $r = Read-MspkiPolicyServerKey -Location $loc
         if ($r.Error) {
             $ei = $r.ErrorInfo

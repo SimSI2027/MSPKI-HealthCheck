@@ -105,6 +105,66 @@ function Read-MspkiResponseBody {
     finally { $ms.Dispose(); $stream.Dispose() }
 }
 
+function Invoke-MspkiHttpRequest {
+    <#
+    .SYNOPSIS
+    One anonymous HTTP(S) GET, never following a redirect and never sending credentials. Invoke-MspkiHttpGet decides about redirects,
+    hosts and result codes.
+
+    .OUTPUTS
+    { Answered (a status came back); StatusCode; Location; Server; AuthSchemes (names only); ContentType; Bytes (200 and -ReadBody only);
+      TooLarge; FailStatus (the WebExceptionStatus name when nothing came back, '' otherwise); Error }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Url,
+        [ValidateRange(100, 600000)][int]$TimeoutMs = 5000,
+        [ValidateRange(1024, 104857600)][int]$MaxBytes = 10485760,
+        [switch]$ReadBody,
+        [switch]$UseSystemProxy,
+        $SystemProxy = $null
+    )
+    $out = [pscustomobject][ordered]@{ Answered = $false; StatusCode = 0; Location = ''; Server = ''; AuthSchemes = @(); ContentType = ''; Bytes = $null; TooLarge = $false; FailStatus = ''; Error = '' }
+    $req = [System.Net.WebRequest]::Create($Url) -as [System.Net.HttpWebRequest]
+    if ($null -eq $req) { $out.Error = 'The URL did not give an HTTP request; no request was sent.'; return $out }
+    $req.Method = 'GET'
+    $req.Timeout = $TimeoutMs
+    $req.ReadWriteTimeout = $TimeoutMs
+    $req.AllowAutoRedirect = $false
+    $req.UseDefaultCredentials = $false
+    $req.Credentials = $null
+    if ($UseSystemProxy) { $req.Proxy = $SystemProxy } else { $req.Proxy = $null }
+    $req.PreAuthenticate = $false
+    $req.KeepAlive = $false
+    $req.UserAgent = '{0}/{1}' -f $script:MspkiHttpUserAgent, $script:MspkiToolVersion
+    $resp = $null
+    try {
+        try { $resp = $req.GetResponse() }
+        catch {
+            $we = Get-MspkiWebException $_
+            if ($null -ne $we -and $null -ne $we.Response) { $resp = $we.Response }
+            else {
+                if ($null -ne $we) { $out.FailStatus = [string]$we.Status }
+                $out.Error = (Get-MspkiErrorInfo $_).Message
+                return $out
+            }
+        }
+        $out.Answered = $true
+        $out.StatusCode = [int]$resp.StatusCode
+        $out.Location = [string]$resp.Headers['Location']
+        $out.Server = [string]$resp.Headers['Server']
+        $wa = $resp.Headers.GetValues('WWW-Authenticate')
+        if ($null -ne $wa) { $out.AuthSchemes = @($wa | ForEach-Object { ([string]$_ -split '\s+')[0] } | Where-Object { $_ } | Select-Object -Unique) }
+        $out.ContentType = [string]$resp.ContentType
+        if ($out.StatusCode -eq 200 -and $ReadBody) {
+            $body = Read-MspkiResponseBody -Response $resp -MaxBytes $MaxBytes
+            if ($body.TooLarge) { $out.TooLarge = $true } else { $out.Bytes = $body.Bytes }
+        }
+        return $out
+    }
+    finally { if ($null -ne $resp) { $resp.Close() } }
+}
+
 function Invoke-MspkiHttpGet {
     <#
     .SYNOPSIS
@@ -145,7 +205,7 @@ function Invoke-MspkiHttpGet {
     if ([System.Uri]::TryCreate($Url, [System.UriKind]::Absolute, [ref]$ru)) { $requestHost = ConvertTo-MspkiHostName $ru.Host }
     $sysProxy = $null
     if ($opt.UseSystemProxy) { $sysProxy = [System.Net.WebRequest]::GetSystemWebProxy() }
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     $current = $Url
     for ($hop = 0; $hop -le $MaxRedirects; $hop++) {
         $resp = $null
@@ -159,50 +219,27 @@ function Invoke-MspkiHttpGet {
                 [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = 0; Location = ''; Error = $r.Error })
                 break
             }
-            $req = [System.Net.WebRequest]::Create($current) -as [System.Net.HttpWebRequest]
-            if ($null -eq $req) {
-                $r.Code = 'RETRIEVAL_FAIL'
-                $r.Error = 'The URL did not give an HTTP request; no request was sent.'
-                [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = 0; Location = ''; Error = $r.Error })
+            $resp = Invoke-MspkiHttpRequest -Url $current -TimeoutMs $TimeoutMs -MaxBytes $MaxBytes -ReadBody:(-not $DiscardBody) -UseSystemProxy:([bool]$opt.UseSystemProxy) -SystemProxy $sysProxy
+            if (-not $resp.Answered) {
+                $status = [string]$resp.FailStatus
+                $r.Error = [string]$resp.Error
+                switch ($status) {
+                    'Timeout' { $r.Code = 'TIMEOUT' }
+                    'NameResolutionFailure' { $r.Code = 'DNS_FAIL' }
+                    'ConnectFailure' { $r.Code = 'TCP_FAIL' }
+                    'TrustFailure' { $r.Code = Get-MspkiTrustFailureCode -Url $current -RequestHost $requestHost -TimeoutMs $TimeoutMs }
+                    'SecureChannelFailure' { $r.Code = 'TLS_HANDSHAKE_FAIL' }
+                    default { $r.Code = 'RETRIEVAL_FAIL' }
+                }
+                [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = 0; Location = ''; Error = ('{0} {1}' -f $status, $r.Error).Trim() })
                 break
             }
-            $req.Method = 'GET'
-            $req.Timeout = $TimeoutMs
-            $req.ReadWriteTimeout = $TimeoutMs
-            $req.AllowAutoRedirect = $false
-            $req.UseDefaultCredentials = $false
-            $req.Credentials = $null
-            if ($opt.UseSystemProxy) { $req.Proxy = $sysProxy } else { $req.Proxy = $null }
-            $req.PreAuthenticate = $false
-            $req.KeepAlive = $false
-            $req.UserAgent = '{0}/{1}' -f $script:MspkiHttpUserAgent, $script:MspkiToolVersion
-            try { $resp = $req.GetResponse() }
-            catch {
-                $we = Get-MspkiWebException $_
-                if ($null -ne $we -and $null -ne $we.Response) { $resp = $we.Response }
-                else {
-                    $status = ''
-                    if ($null -ne $we) { $status = [string]$we.Status }
-                    $r.Error = (Get-MspkiErrorInfo $_).Message
-                    switch ($status) {
-                        'Timeout' { $r.Code = 'TIMEOUT' }
-                        'NameResolutionFailure' { $r.Code = 'DNS_FAIL' }
-                        'ConnectFailure' { $r.Code = 'TCP_FAIL' }
-                        'TrustFailure' { $r.Code = Get-MspkiTrustFailureCode -Url $current -RequestHost $requestHost -TimeoutMs $TimeoutMs }
-                        'SecureChannelFailure' { $r.Code = 'TLS_HANDSHAKE_FAIL' }
-                        default { $r.Code = 'RETRIEVAL_FAIL' }
-                    }
-                    [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = 0; Location = ''; Error = ('{0} {1}' -f $status, $r.Error).Trim() })
-                    break
-                }
-            }
             $sc = [int]$resp.StatusCode
-            $loc = [string]$resp.Headers['Location']
+            $loc = [string]$resp.Location
             # Identity facts only (D2): the Server header (capped) and the names of the offered sign-in schemes, never their tokens.
-            $srv = [string]$resp.Headers['Server']
+            $srv = [string]$resp.Server
             if ($srv) { $r.Server = $srv.Substring(0, [Math]::Min(200, $srv.Length)) }
-            $wa = $resp.Headers.GetValues('WWW-Authenticate')
-            if ($null -ne $wa) { $r.AuthSchemes = @($wa | ForEach-Object { ([string]$_ -split '\s+')[0] } | Where-Object { $_ } | Select-Object -Unique) }
+            if (@($resp.AuthSchemes).Count -gt 0) { $r.AuthSchemes = @($resp.AuthSchemes) }
             [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = $sc; Location = $loc; Error = ''; Server = $r.Server })
             if ($sc -ge 300 -and $sc -lt 400 -and $loc) {
                 $r.Redirected = $true
@@ -254,11 +291,8 @@ function Invoke-MspkiHttpGet {
             $r.ContentType = [string]$resp.ContentType
             if ($sc -eq 200) {
                 if ($DiscardBody) { $r.Code = 'OK' }   # the body is never read (used for pages that must not be read)
-                else {
-                    $body = Read-MspkiResponseBody -Response $resp -MaxBytes $MaxBytes
-                    if ($body.TooLarge) { $r.Code = 'SIZE_LIMIT'; $r.Error = ('Response larger than {0} bytes; not read.' -f $MaxBytes) }
-                    else { $r.Bytes = $body.Bytes; $r.Code = 'OK' }
-                }
+                elseif ($resp.TooLarge) { $r.Code = 'SIZE_LIMIT'; $r.Error = ('Response larger than {0} bytes; not read.' -f $MaxBytes) }
+                else { $r.Bytes = $resp.Bytes; $r.Code = 'OK' }
             }
             elseif ($sc -eq 400) { $r.Code = 'HTTP_400' }
             elseif ($sc -eq 401 -or $sc -eq 403) { $r.Code = 'HTTP_401_403' }
@@ -275,7 +309,6 @@ function Invoke-MspkiHttpGet {
             [void]$r.Hops.Add([pscustomobject]@{ Url = $current; HttpStatus = 0; Location = ''; Error = $r.Error })
             break
         }
-        finally { if ($null -ne $resp) { $resp.Close() } }
     }
     $r.ElapsedMs = [int64]$sw.ElapsedMilliseconds
     Set-MspkiProbeCacheEntry -Key $key -Value $r
@@ -352,7 +385,7 @@ function Test-MspkiTlsEndpoint {
         DnsNames = @(); ServerClosed = $false
         OfferedProtocols = ''
     }
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     $tcp = Test-MspkiTcpPort -HostName $h -Port $Port -TimeoutMs $TimeoutMs
     if ($tcp.Status -ne 'Pass') {
         $r.Code = $tcp.StatusCode; $r.Error = $tcp.Error
@@ -503,7 +536,7 @@ function Get-MspkiLdapUrlContent {
     Send-MspkiProgress -Kind 'Target' -Text ('LDAP {0}' -f $Url)
     Send-MspkiProbeEvent -Phase Start -Probe LDAP -Subject $Url
     $r = [pscustomobject][ordered]@{ Url = $Url; Server = ''; Code = 'RETRIEVAL_FAIL'; Bytes = $null; ValueCount = 0; Error = ''; ElapsedMs = 0; Contacted = $true; Attribute = ''; AttributeDefaulted = $false; Referral = $false }
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     try {
         $p = ConvertFrom-MspkiLdapUrl -Url $Url
         $r.Server = $p.Host

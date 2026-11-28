@@ -67,7 +67,7 @@ function New-MspkiFinding {
     $f = [ordered]@{
         PSTypeName = 'Mspki.Finding'
         Id         = ('F{0:D4}' -f $script:MspkiFindingSequence)
-        Timestamp  = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+        Timestamp  = (Get-MspkiUtcNow).ToString('yyyy-MM-ddTHH:mm:ssZ')
         Stage      = (Resolve-MspkiSchemaValue -Field 'Stage' -Value $Stage)
         Category   = (Resolve-MspkiSchemaValue -Field 'Category' -Value $Category)
         Role       = (Resolve-MspkiSchemaValue -Field 'Role' -Value $Role)

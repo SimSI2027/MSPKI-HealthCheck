@@ -48,7 +48,7 @@ function Test-MspkiCaCrlPublication {
         [AllowEmptyCollection()][object[]]$Records = @(),
         [AllowEmptyCollection()][object[]]$Certificates = @(),
         [hashtable]$Thresholds = @{},
-        [DateTime]$Now = [DateTime]::UtcNow
+        [DateTime]$Now = (Get-MspkiUtcNow)
     )
     $t = Get-MspkiThreshold -Override $Thresholds
     $findings = New-Object System.Collections.ArrayList

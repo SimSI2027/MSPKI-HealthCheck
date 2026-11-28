@@ -16,7 +16,7 @@ function Test-MspkiIntuneConnector {
     param(
         [AllowNull()]$Local,
         [AllowEmptyCollection()][object[]]$NdesHosts = @(),
-        [string]$ComputerName = $env:COMPUTERNAME,
+        [string]$ComputerName = (Get-MspkiLocalComputerName),
         [string]$DnsDomain = ''
     )
     $findings = New-Object System.Collections.ArrayList
@@ -82,8 +82,7 @@ function Invoke-MspkiIntuneConnectorAnalysis {
     $findings = New-Object System.Collections.ArrayList
     $local = Get-MspkiIntuneConnectorLocal
     foreach ($f in $local.Findings) { [void]$findings.Add($f) }
-    $domain = ''
-    try { $domain = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().DomainName } catch { }
-    foreach ($f in (Test-MspkiIntuneConnector -Local $local.Data -NdesHosts $NdesHosts -ComputerName $env:COMPUTERNAME -DnsDomain $domain)) { [void]$findings.Add($f) }
+    $me = Get-MspkiLocalComputerIdentity
+    foreach ($f in (Test-MspkiIntuneConnector -Local $local.Data -NdesHosts $NdesHosts -ComputerName $me.ComputerName -DnsDomain $me.DnsDomain)) { [void]$findings.Add($f) }
     return [pscustomobject]@{ Findings = @($findings); Data = $local.Data }
 }

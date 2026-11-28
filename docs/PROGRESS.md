@@ -667,3 +667,18 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - DS2: `tools/dev/demo-site/New-MspkiWorldPki.ps1` writes `site/world/pki` (15 certificates, 7 CRLs, `pki.json`; demo clock 20 Nov 2026
   09:00 UTC; keys in memory only). `tests/DemoGenerator.Tests.ps1` verifies each object with the engine's signature code by key id.
 - Next: DS1 (clock and run-identity seams in the engine, the boundary list, the simulated boundary, the baseline world) and DS3.
+
+## DS1 (2026-11-28): simulation boundary and the baseline world - DONE
+- Engine seams (no behaviour change; full suite 1846 passed before the last two test fixes): `src/Model/Clock.ps1` (`Get-MspkiUtcNow`,
+  `New-MspkiStopwatch`; every engine "now" and recorded elapsed time; real probe deadlines keep the system clock), `Get-MspkiRunHostInfo`,
+  `New-MspkiRunId`, `Get-MspkiLocalComputerName`, `Get-MspkiLocalComputerIdentity`, `ConvertTo-MspkiAccountName`, and
+  `Invoke-MspkiHttpRequest` (one anonymous GET; redirects, host bounding and codes stay in `Invoke-MspkiHttpGet`).
+- `tools/dev/demo-site/`: `Boundary.psd1` (36 replaced functions, exemptions with reasons, I/O patterns), `SimBoundary.ps1` (answers only
+  from the world; an unknown question throws "SIMULATION: ..."; the engine's own DNS scripts run unchanged with `Resolve-DnsName`
+  shadowed), `MspkiSimulation.ps1` (world loader, overlay merge, install with a check), `New-MspkiDemoWorld.ps1` (writes
+  `site/world/world.json`: 89 directory objects, 41 templates, 2 CAs, DNS/TCP/TLS/HTTP, this computer), `Invoke-MspkiScenario.ps1`
+  (results, events with simulated offsets, manifest; writes under out\ only).
+- Baseline: 88 findings, no Error, the expected drift (LDAP-only, TLS reset, dead SAN alias, NTAuth vs AIA); two runs byte-identical.
+- Tests (`tests/DemoGenerator.Tests.ps1`): AST guard (strings and comments ignored), end to end, unknown question throws. NDES static
+  test follows the moved request code (`-SystemProxy $sysProxy` only). Hygiene: the world key is `Machine` (".Local" read as a host).
+- Next: DS3 (all scenarios, guards over the output, events for the replay), then DS4.

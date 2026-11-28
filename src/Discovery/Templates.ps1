@@ -120,7 +120,7 @@ function Get-MspkiTemplateObject {
     $list = New-Object System.Collections.ArrayList
     $dn = 'CN=Certificate Templates,{0}' -f $Context.PksDN
     $t = [math]::Max(20, $TimeoutSeconds * 6)
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     $read = $false
     $method = 'AD:CertificateTemplates:pKICertificateTemplate'
     try {
@@ -168,7 +168,7 @@ function ConvertFrom-MspkiKraRecord {
     The certificates are public userCertificate values; only validity and names are kept.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][hashtable]$Record, [DateTime]$Now = [DateTime]::UtcNow)
+    param([Parameter(Mandatory = $true)][hashtable]$Record, [DateTime]$Now = (Get-MspkiUtcNow))
     $certs = New-Object System.Collections.ArrayList
     $errs = New-Object System.Collections.ArrayList
     foreach ($raw in (Get-MspkiLdapValues -Record $Record -Name 'userCertificate')) {
@@ -200,7 +200,7 @@ function Get-MspkiKraObject {
     $list = New-Object System.Collections.ArrayList
     $dn = 'CN=KRA,{0}' -f $Context.PksDN
     $t = [math]::Max(10, $TimeoutSeconds * 3)
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     $read = $false
     try {
         $recs = @(Get-MspkiLdapObject -Server $Context.DomainController -BaseDN $dn -Scope OneLevel -Properties @('cn', 'userCertificate', 'distinguishedName') -TimeoutSeconds $t)
@@ -255,7 +255,7 @@ function Get-MspkiOidObject {
     $list = New-Object System.Collections.ArrayList
     $dn = 'CN=OID,{0}' -f $Context.PksDN
     $t = [math]::Max(10, $TimeoutSeconds * 3)
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     $read = $false
     try {
         $recs = @(Get-MspkiLdapObject -Server $Context.DomainController -BaseDN $dn -Scope OneLevel `

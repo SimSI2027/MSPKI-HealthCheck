@@ -129,7 +129,7 @@ Plan: `docs/DEMO-SITE.md`. World: `docs/DEMO-WORLD.md`.
 
 | WP | Scope (build order) | Status |
 |---|---|---|
-| DS1 | Simulation boundary and world fixture format (baseline scenario) | TODO |
+| DS1 | Simulation boundary and world fixture format (baseline scenario) | DONE (2026-11-28; engine seams for clock, run identity, computer name, HTTP request and SID lookup; boundary list with a guard; baseline runs end to end, byte-identical) |
 | DS2 | World PKI material (certificates and CRLs); developer tool in `tools/dev/` (owner approved 2026-11-23, CLAUDE.md rule added) | DONE (2026-11-28; 15 certificates, 7 CRLs, verified with the engine) |
 | DS3 | Generator: real engine per scenario, recorded events, manifest, guards | TODO |
 | DS4 | Site shell, design tokens generated from Theme.xaml | TODO |

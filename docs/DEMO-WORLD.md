@@ -32,6 +32,7 @@ Addresses come from the documentation range `192.0.2.0/24` (RFC 5737).
 | Role | Host | Address | What the demo shows |
 |---|---|---|---|
 | Domain controller (PDC) | `dc-north.alcyone-orbital.example` | 192.0.2.10 | |
+| Domain controller of the second tree | `dc-flight.flightops.example` | 192.0.2.11 | named by the forest's SRV records and server objects; never bound to |
 | Enterprise Root CA (online, domain-joined) | `root-ca.vault.alcyone-orbital.example` | 192.0.2.21 | IIS answers on 80; `/certsrv/` returns 403; HTTPS resets the connection; an Online Responder service runs but no certificate names it (`/ocsp/` returns 500); no PTR record |
 | Enterprise issuing CA | `issuing-ca.vault.alcyone-orbital.example` | 192.0.2.22 | no web server; 80/443 filtered; no PTR record |
 | NDES / SCEP server | `scep-gateway.vault.alcyone-orbital.example` | 192.0.2.24 | GetCACaps and GetCACert answer on HTTP and HTTPS; remote service control refused (RPC 1722); TLS certificate from the issuing CA |
@@ -49,13 +50,13 @@ Addresses come from the documentation range `192.0.2.0/24` (RFC 5737).
 | CA | Host | Certificate generations | Notes |
 |---|---|---|---|
 | **Alcyone Lodestar Root CA** (Enterprise Root) | root-ca | one: 5 years, RSA 2048, SHA-256 | no CDP or AIA in its own certificate; in Certification Authorities, AIA, NTAuth, Enrollment Services; publishes 3 templates (CA, CrossCA, SubCA) |
-| **Alcyone Meridian Issuing CA** (Enterprise Subordinate) | issuing-ca | two: the current one (2 years) and an older one 11 days earlier | the older generation is in NTAuth but not in AIA, and the CA's own signing list holds only the current one: "no clear current/historical split" |
+| **Alcyone Meridian Issuing CA** (Enterprise Subordinate) | issuing-ca | two: the current one (2 years, from 19 May 2026) and an older one 11 days earlier | the older generation is in NTAuth but not in AIA, and the CA's own signing list holds only the current one: "no clear current/historical split" |
 | **Alcyone Zenith Issuing CA** (`mixed-sample` only) | issuing-ca2 | unknown (not readable) | the flight-operations issuing CA; DCOM refuses the standard user |
 
 - **Publication: LDAP only.** Every AIA and CDP URL written by both CAs is `ldap:///CN=...,CN=AIA|CDP,CN=Public Key Services,...`. No HTTP
   CDP or AIA, no OCSP URL (the CA's OCSP property is empty). The issuing CA's CDP URL has no attribute part (valid: clients use the defaults).
 - **CRLs:** base and delta for both CAs, all fresh; the numbers in AD match the CAs' own CRLs.
-- **Templates:** 43 template objects, 25 published (3 on the root, 22 on the issuing CA), 18 published nowhere. Custom templates:
+- **Templates:** 41 template objects (the 33 Windows defaults and 8 of Alcyone's own), 25 published (3 on the root, 22 on the issuing CA), 16 published nowhere. Custom templates:
 
 | Template | Purpose |
 |---|---|
@@ -73,7 +74,8 @@ Addresses come from the documentation range `192.0.2.0/24` (RFC 5737).
 | Second RA account | `svc-scep-ra` | user, no SPN |
 | RA certificate subject | `scep-gateway-mscep-ra` | from `Alcyone-NDES-Agent` |
 | Test device | `groundstation-unit01` | from `Alcyone-NDES-Device` |
-| Administrator / standard user in examples | `ALCYONE\pki-admin`, `ALCYONE\ops-analyst` | |
+| Administrator / standard user in examples | `ALCYONE\pki-admin`, `ALCYONE\ops-analyst` | the simulated runs are made as `ops-analyst` on GROUND-WEB |
+| Web certificate enrollers | `Web Admins` (group) | holds Enroll on `Alcyone-WebServer` |
 
 ## Scenarios (variants of the same world, for the demo site and screenshots)
 Each scenario changes one thing in the simulated environment and lets the real analysers grade it (`docs/DEMO-SITE.md`).
@@ -97,6 +99,11 @@ analysers. The generator in `docs/DEMO-SITE.md` (DS3) replaces it with results t
 `demo/world/alcyone-expired-crl-results.json` (`expired-crl`) and `demo/world/alcyone-renewal-drift-results.json` (`renewal-drift`) are hand-made
 samples too, derived from the mixed sample by the developer-only `tools/dev/New-MspkiDemoLifecycleSample.ps1` (idempotent; it also adds the CRL
 objects the mixed sample's findings already describe). They feed the Timeline and Chain snapshots (GX7). The DS3 generator replaces all three.
+
+## The simulated world (DS1)
+The world above is data in `site/world`: `world.json` (directory objects, what each CA answers, DNS, TCP, TLS and HTTP answers, this
+computer's stores, policy and services), written by `tools/dev/demo-site/New-MspkiDemoWorld.ps1`, and one overlay per scenario in
+`site/world/scenarios/<id>.json`. `tools/dev/demo-site/Invoke-MspkiScenario.ps1` runs the real engine on it (`docs/DEMO-SITE.md` section 3).
 
 ## Demo clock and PKI material (DS2)
 The world runs at a fixed **demo clock: 20 Nov 2026, 09:00 UTC** (`site/world/pki/pki.json`, `DemoClock`), so nothing looks expired unless a

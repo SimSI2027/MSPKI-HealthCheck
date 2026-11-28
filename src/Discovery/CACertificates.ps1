@@ -16,7 +16,7 @@ function Merge-MspkiCACertificate {
         [AllowEmptyCollection()][object[]]$EnterpriseCAs = @(),
         [hashtable]$CAProperties = @{},
         [AllowEmptyCollection()][object[]]$AdEntries = @(),
-        [DateTime]$Now = [DateTime]::UtcNow
+        [DateTime]$Now = (Get-MspkiUtcNow)
     )
     $index = [ordered]@{}
     $add = {

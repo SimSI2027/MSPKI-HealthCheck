@@ -8,11 +8,11 @@
                       "Role":  "Root CA (Lodestar)",
                       "Subject":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
                       "Issuer":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "737C794E4D803AF5E2C6425DA7290C1FACB2EF5C",
-                      "Serial":  "2C02D1BBB4C858DE",
+                      "Thumbprint":  "552EEB6EF3AD27E3BA5A51E78BFB2DE402BAAD6A",
+                      "Serial":  "06E310E75E11B3AD",
                       "NotBefore":  "2024-03-04T10:12:00Z",
                       "NotAfter":  "2029-03-04T10:22:00Z",
-                      "KeyId":  "4c101801b9214ab7fd54de0a6248d2deb58139e4"
+                      "KeyId":  "866bef0872d62bad4645eb9d623a5dd6f14e7a61"
                   },
                   {
                       "File":  "meridian-g0.cer",
@@ -20,11 +20,11 @@
                       "Role":  "Meridian, older generation (V0.0)",
                       "Subject":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
                       "Issuer":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "4E93DCCDE1BA370995CB42C84BD5B2B344D59CF4",
+                      "Thumbprint":  "8FC34F5EA2BC362B7F7AA50C74EF175AF17238B4",
                       "Serial":  "1B7E000063930000000A",
-                      "NotBefore":  "2025-05-08T14:03:00Z",
-                      "NotAfter":  "2027-05-08T14:13:00Z",
-                      "KeyId":  "0dc2051bef5759ccfd5e01779a0a773d1d35b967"
+                      "NotBefore":  "2026-05-08T14:03:00Z",
+                      "NotAfter":  "2028-05-08T14:13:00Z",
+                      "KeyId":  "3ca442d241c4d598e6f974d6ba948ff40bf026b6"
                   },
                   {
                       "File":  "meridian-g1.cer",
@@ -32,11 +32,11 @@
                       "Role":  "Meridian, current generation (V1.1)",
                       "Subject":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
                       "Issuer":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "72635A3236CF4A0B7358DDE46D992F9AD1260C85",
+                      "Thumbprint":  "EB1441302EBDB9183E34A505BFDFBB379D565B39",
                       "Serial":  "1B7E000065860000000A",
-                      "NotBefore":  "2025-05-19T09:41:00Z",
-                      "NotAfter":  "2027-05-19T09:51:00Z",
-                      "KeyId":  "21c9ef06218963a4346cc7aee04554fba1630531"
+                      "NotBefore":  "2026-05-19T09:41:00Z",
+                      "NotAfter":  "2028-05-19T09:51:00Z",
+                      "KeyId":  "c1036ba7e6acf10e1116872979e427fec5a30a89"
                   },
                   {
                       "File":  "meridian-healthy.cer",
@@ -44,11 +44,11 @@
                       "Role":  "Meridian, current generation with HTTP publication (healthy)",
                       "Subject":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
                       "Issuer":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "BFF036311C9BB3C07D12002276CA9B9AD56ABAFE",
+                      "Thumbprint":  "85215F09C2B92351A49481D52616B539961F90C4",
                       "Serial":  "1B7E000067790000000A",
-                      "NotBefore":  "2025-05-19T09:41:00Z",
-                      "NotAfter":  "2027-05-19T09:51:00Z",
-                      "KeyId":  "21c9ef06218963a4346cc7aee04554fba1630531"
+                      "NotBefore":  "2026-05-19T09:41:00Z",
+                      "NotAfter":  "2028-05-19T09:51:00Z",
+                      "KeyId":  "c1036ba7e6acf10e1116872979e427fec5a30a89"
                   },
                   {
                       "File":  "meridian-g2.cer",
@@ -56,11 +56,11 @@
                       "Role":  "Meridian, third generation (V2.2, renewal-drift)",
                       "Subject":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
                       "Issuer":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "24FCCD023C2D6839288B109C227B68BB3AD9FCBE",
+                      "Thumbprint":  "8F6B06344E9C7FC0F8745639372F3F006B16B2FD",
                       "Serial":  "1B7E0000696C0000000A",
                       "NotBefore":  "2026-10-02T08:00:00Z",
                       "NotAfter":  "2028-10-02T08:10:00Z",
-                      "KeyId":  "cfb6f1f34e3af9b4ad7e7ee8532c72ce934d8742"
+                      "KeyId":  "5b0b683248b599baf447549fbe7464ad6cb24388"
                   },
                   {
                       "File":  "meridian-expired.cer",
@@ -68,11 +68,11 @@
                       "Role":  "Meridian, expired generation still published (renewal-drift)",
                       "Subject":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
                       "Issuer":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "6FA2A94E84E44FD5C63D5599B483FBA96FA24350",
+                      "Thumbprint":  "A8CCE9C25841E50EFA5FEF7BCF53F3F0CFFB4817",
                       "Serial":  "1B7E00006B5F0000000A",
                       "NotBefore":  "2024-03-11T11:00:00Z",
                       "NotAfter":  "2025-03-11T11:10:00Z",
-                      "KeyId":  "8d3a48b905f0c1cab326254349e627cfaa09449d"
+                      "KeyId":  "ddf04b1b68d3378c60fddab6ff7ef9a968b7589c"
                   },
                   {
                       "File":  "zenith.cer",
@@ -80,11 +80,11 @@
                       "Role":  "Zenith issuing CA (mixed-sample)",
                       "Subject":  "CN=Alcyone Zenith Issuing CA, DC=flightops, DC=example",
                       "Issuer":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "FE5221FADB45BA297BBD5D0FF310F88583BF0465",
+                      "Thumbprint":  "5136892093E05B2F795F30AE274E0A90F89D2DB4",
                       "Serial":  "1B7E00006D520000000A",
                       "NotBefore":  "2025-09-01T07:30:00Z",
                       "NotAfter":  "2027-09-01T07:40:00Z",
-                      "KeyId":  "56b4646aaa66c019c2b3b20ef1a4350eaefcf63e"
+                      "KeyId":  "e3bd7f91a5a3cdb31c6a80b17c70b803281289bc"
                   },
                   {
                       "File":  "lodestar-forged.cer",
@@ -92,11 +92,11 @@
                       "Role":  "Forged certificate with the root\u0027s name and another key (forged-aia)",
                       "Subject":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
                       "Issuer":  "CN=Alcyone Lodestar Root CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "693B9CF2321C9DD5B277300EDDD421FACA90C4E5",
-                      "Serial":  "305AD4EE392439E7",
+                      "Thumbprint":  "4EDBBA670DCCA7B36EA470DB50836B2499ABB97F",
+                      "Serial":  "5AD76D62FD1460AE",
                       "NotBefore":  "2024-03-04T10:12:00Z",
                       "NotAfter":  "2029-03-04T10:22:00Z",
-                      "KeyId":  "9ffbff60231bf3e4d18c3bb268d4b46655695df0"
+                      "KeyId":  "f1495fee4c14d429ca9e17cc08ff46ddfdaab571"
                   },
                   {
                       "File":  "ground-web-rdp.cer",
@@ -104,11 +104,11 @@
                       "Role":  "RDP certificate on ground-web (Alcyone-RDPServerAuth)",
                       "Subject":  "CN=ground-web.alcyone-orbital.example",
                       "Issuer":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "9F20B4A068FB3AE671047C8FE8ACD7C677AC9090",
+                      "Thumbprint":  "E937C408080DC7B25F7F922B5C577690944837F8",
                       "Serial":  "1B7E00006F450000000A",
                       "NotBefore":  "2026-08-14T06:20:00Z",
                       "NotAfter":  "2027-08-14T06:20:00Z",
-                      "KeyId":  "ed25e72952e2b95080144d420bd57c7a77eef707"
+                      "KeyId":  "928890330eba8c6c0e0682477698d119ccd77bc1"
                   },
                   {
                       "File":  "ground-web-tls.cer",
@@ -116,11 +116,11 @@
                       "Role":  "Web certificate on ground-web with a dead alias (Alcyone-WebServer)",
                       "Subject":  "CN=ground-web.alcyone-orbital.example",
                       "Issuer":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "809DD8FBB490BB1613F132CC592185A55384DA43",
+                      "Thumbprint":  "ECA31F95B908D2CC7555B504AE1704D6D09DDC46",
                       "Serial":  "1B7E000071380000000A",
                       "NotBefore":  "2026-06-02T13:05:00Z",
                       "NotAfter":  "2027-06-02T13:05:00Z",
-                      "KeyId":  "607dde68c1e2ad58805a03cbbd7cc0f07bde4f5a"
+                      "KeyId":  "f7c5758036a657252698f9e56faffda4c3c465ca"
                   },
                   {
                       "File":  "ground-web-rdp-healthy.cer",
@@ -128,11 +128,11 @@
                       "Role":  "RDP certificate on ground-web (healthy)",
                       "Subject":  "CN=ground-web.alcyone-orbital.example",
                       "Issuer":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "96384BED01E9B9A55DF4CEA454F368F99E94CEF5",
+                      "Thumbprint":  "B3ECA289098A6C5478B1FE414B0FAF7752401695",
                       "Serial":  "1B7E0000732B0000000A",
                       "NotBefore":  "2026-08-14T06:20:00Z",
                       "NotAfter":  "2027-08-14T06:20:00Z",
-                      "KeyId":  "492819ef238669771e30d16beb8fc8db869b1b8c"
+                      "KeyId":  "689b2f62131128423992ad7e9786c832d0871ff9"
                   },
                   {
                       "File":  "scep-gateway-tls.cer",
@@ -140,11 +140,11 @@
                       "Role":  "HTTPS certificate of the NDES gateway (Alcyone-NDES-HTTPS)",
                       "Subject":  "CN=scep-gateway.vault.alcyone-orbital.example",
                       "Issuer":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "9517C0CC75FC8649A4D847071726C038BD7F0C8E",
+                      "Thumbprint":  "3814193902578F196F2898C2DB46C802C852F8A0",
                       "Serial":  "1B7E0000751E0000000A",
-                      "NotBefore":  "2026-04-21T10:00:00Z",
-                      "NotAfter":  "2027-04-21T10:00:00Z",
-                      "KeyId":  "be240a08ab567d5f047a0a6e222b2433896251c9"
+                      "NotBefore":  "2026-06-01T10:00:00Z",
+                      "NotAfter":  "2027-06-01T10:00:00Z",
+                      "KeyId":  "b8629ed36b254e496811f90831670686a1d85a7a"
                   },
                   {
                       "File":  "root-ca-tls-healthy.cer",
@@ -152,11 +152,11 @@
                       "Role":  "HTTPS certificate of the PKI web host (healthy)",
                       "Subject":  "CN=root-ca.vault.alcyone-orbital.example",
                       "Issuer":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "2FB7A930DD11913BEB7B83DCB900924B6B690BD1",
+                      "Thumbprint":  "0A06684C1E0CEF23BE1674D5096F28BE01A1DEA0",
                       "Serial":  "1B7E000077110000000A",
                       "NotBefore":  "2026-07-01T09:00:00Z",
                       "NotAfter":  "2027-07-01T09:00:00Z",
-                      "KeyId":  "e95593ccb8937da29c852f72f6820fb1d2ef655d"
+                      "KeyId":  "c2a534215f9a4a1e9a430cae4cb16f5113b78ba8"
                   },
                   {
                       "File":  "ndes-ra-signing.cer",
@@ -164,11 +164,11 @@
                       "Role":  "NDES registration authority signing certificate (Alcyone-NDES-Agent)",
                       "Subject":  "CN=scep-gateway-mscep-ra, O=Alcyone Orbital Systems, C=US",
                       "Issuer":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "F3FAD2273140DBB47282A626438D558A11080BE2",
+                      "Thumbprint":  "93ECA1073741F740ADD548650BA61B55AF4714D1",
                       "Serial":  "1B7E000079040000000A",
-                      "NotBefore":  "2026-04-21T10:05:00Z",
-                      "NotAfter":  "2028-04-20T10:05:00Z",
-                      "KeyId":  "d8ea727ad16c6268f2b3cb72d137d8b7f2f9b4fb"
+                      "NotBefore":  "2026-06-01T10:05:00Z",
+                      "NotAfter":  "2028-05-18T10:05:00Z",
+                      "KeyId":  "d6b3454a48de14ce65a7293748a3009180a6a7ad"
                   },
                   {
                       "File":  "ndes-ra-encryption.cer",
@@ -176,11 +176,11 @@
                       "Role":  "NDES registration authority encryption certificate (Alcyone-NDES-Encryption)",
                       "Subject":  "CN=scep-gateway-mscep-ra, O=Alcyone Orbital Systems, C=US",
                       "Issuer":  "CN=Alcyone Meridian Issuing CA, DC=alcyone-orbital, DC=example",
-                      "Thumbprint":  "424146848287BEAADD38DC521F3D222EBACCC8C1",
+                      "Thumbprint":  "5CB8BA4848231E9D5341F29471E5ACA7D186A9EF",
                       "Serial":  "1B7E00007AF70000000A",
-                      "NotBefore":  "2026-04-21T10:05:00Z",
-                      "NotAfter":  "2028-04-20T10:05:00Z",
-                      "KeyId":  "d818038b58b03096c44f82809af929b61b60d0a4"
+                      "NotBefore":  "2026-06-01T10:05:00Z",
+                      "NotAfter":  "2028-05-18T10:05:00Z",
+                      "KeyId":  "950d623a1d5a3c8a1372f5cee81b2854b790374a"
                   },
                   {
                       "File":  "lodestar-root.crl",
@@ -190,7 +190,7 @@
                       "Number":  "12",
                       "ThisUpdate":  "2026-11-14T09:00:00Z",
                       "NextUpdate":  "2026-12-14T21:00:00Z",
-                      "Sha256":  "fb846c1ab467d249842ec25aa5e66709aa0562bac3f0ed8aba8db0d2a6200dfa"
+                      "Sha256":  "693ca4e48f974fe7a5cce12332589ee70a49420e9f9a81f9ac556b45effc742d"
                   },
                   {
                       "File":  "meridian.crl",
@@ -200,7 +200,7 @@
                       "Number":  "2B",
                       "ThisUpdate":  "2026-11-17T08:00:00Z",
                       "NextUpdate":  "2026-11-25T20:00:00Z",
-                      "Sha256":  "6c2cff67562ba1a81ab1e2f32eca130c0ea5d2c5673c8e1ff7fdb84fbec1ca1a"
+                      "Sha256":  "704e8ab7f319c51258c60c13851b4f7cc0370960cdaadae79dc6a15cd9aa407b"
                   },
                   {
                       "File":  "meridian+.crl",
@@ -210,7 +210,7 @@
                       "Number":  "2C",
                       "ThisUpdate":  "2026-11-20T06:00:00Z",
                       "NextUpdate":  "2026-11-21T18:00:00Z",
-                      "Sha256":  "73bb9b82aaf332d8c5ffcc22fce8faa36fa9369e4b3694ce28438208981b2ff8"
+                      "Sha256":  "83eaa10a89997ee78c7555577b2f9cbc15c724c2bb8315d5fd2349e38341f874"
                   },
                   {
                       "File":  "meridian-expired-crl.crl",
@@ -220,7 +220,7 @@
                       "Number":  "29",
                       "ThisUpdate":  "2026-11-09T08:00:00Z",
                       "NextUpdate":  "2026-11-17T09:00:00Z",
-                      "Sha256":  "4806e46ac515bc0e91169419a0cc7b83e79acc7c3d262d45579dfc61f53f755e"
+                      "Sha256":  "25341e0d56a02e6c3190d4588debea65fdbbd0bf22c6cbc96cda44136f80d791"
                   },
                   {
                       "File":  "meridian-expired-delta.crl",
@@ -230,7 +230,7 @@
                       "Number":  "2A",
                       "ThisUpdate":  "2026-11-12T06:00:00Z",
                       "NextUpdate":  "2026-11-13T18:00:00Z",
-                      "Sha256":  "668b74ad3efb735a3f77d78dd7e127aea2bbd6a6aab809544b718a82a08c42df"
+                      "Sha256":  "42a620263d29583f5d1c360ccade0d9fe73d7a68f82a6f4aeb43e2b013151d5f"
                   },
                   {
                       "File":  "meridian-g2.crl",
@@ -240,7 +240,7 @@
                       "Number":  "2B",
                       "ThisUpdate":  "2026-11-17T08:00:00Z",
                       "NextUpdate":  "2026-11-25T20:00:00Z",
-                      "Sha256":  "685b45505a314240cb91b6df0768498bcadd08197470ee6e92c8ccdc5b49dbff"
+                      "Sha256":  "4d851237d9bd12bd4b1cacbfc90aa25f79822ec415f2057f317a22209fbf2e98"
                   },
                   {
                       "File":  "zenith.crl",
@@ -250,7 +250,7 @@
                       "Number":  "0E",
                       "ThisUpdate":  "2026-11-18T07:00:00Z",
                       "NextUpdate":  "2026-11-26T19:00:00Z",
-                      "Sha256":  "c3c94f6627cba0d6c047f8e6ca8195976bc0fa55e193b14ce97ed3040b9ca429"
+                      "Sha256":  "f626af5127994c9497dffb6d67c024dc167c8ac661b93af32ab8176dd390f637"
                   }
               ]
 }

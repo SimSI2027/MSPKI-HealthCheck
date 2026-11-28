@@ -95,7 +95,7 @@ function Get-MspkiEnterpriseCA {
     $cas = New-Object System.Collections.ArrayList
     $dn = 'CN=Enrollment Services,{0}' -f $Context.PksDN
     $t = [math]::Max(10, $TimeoutSeconds * 3)
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     try {
         $recs = @(Get-MspkiLdapObject -Server $Context.DomainController -BaseDN $dn -Scope OneLevel `
             -Filter '(objectClass=pKIEnrollmentService)' -Properties $script:MspkiEnrollmentServiceProperties -TimeoutSeconds $t)

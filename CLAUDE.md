@@ -113,6 +113,7 @@ src/Gui/         # GUI only: MainWindow.xaml + Theme.xaml (look: see docs/GUI-DE
                  # GuiApp.ps1 (window, runspace, events), GuiSnapshot.ps1 (developer PNG snapshots; writes only inside out\)
 demo/            # demo script: runs the reporters on the example.test fixture, writes out/demo
 tools/dev/       # developer-only generators (demo world PKI, demo site data); never shipped, never referenced by the product
+site/            # the demo site: world/ (simulated world as data: world.json, scenarios/, pki/ public DER); generated data is not committed
 tests/fixtures/  # sanitised recorded samples (example.test only)
 tests/*.Tests.ps1
 out/             # run output (git-ignored)

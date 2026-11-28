@@ -3,6 +3,35 @@
 
 $script:MspkiRun = $null
 
+function Get-MspkiRunHostInfo {
+    <#
+    .SYNOPSIS
+    Who runs the tool and where (read-only): computer name, the Windows identity and whether it is an administrator, and the PowerShell,
+    .NET CLR and Windows versions.
+    #>
+    [CmdletBinding()]
+    param()
+    $isAdmin = $false
+    $user = ''
+    try {
+        $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+        $user = $id.Name
+        $isAdmin = (New-Object System.Security.Principal.WindowsPrincipal($id)).IsInRole(
+            [System.Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+    catch { $user = [Environment]::UserName }
+    return [pscustomobject]@{ ComputerName = [Environment]::MachineName; UserContext = $user; IsAdmin = [bool]$isAdmin
+        PSVersion = $PSVersionTable.PSVersion.ToString(); PSEdition = [string]$PSVersionTable.PSEdition
+        ClrVersion = [Environment]::Version.ToString(); OSVersion = [Environment]::OSVersion.Version.ToString() }
+}
+
+function New-MspkiRunId {
+    # A new run id (a random GUID).
+    [CmdletBinding()]
+    param()
+    return [guid]::NewGuid().ToString()
+}
+
 function Initialize-MspkiRun {
     <#
     .SYNOPSIS
@@ -18,15 +47,8 @@ function Initialize-MspkiRun {
     Reset-MspkiLog
     Reset-MspkiLeadRegistry
 
-    $isAdmin = $false
-    $user = ''
-    try {
-        $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-        $user = $id.Name
-        $isAdmin = (New-Object System.Security.Principal.WindowsPrincipal($id)).IsInRole(
-            [System.Security.Principal.WindowsBuiltInRole]::Administrator)
-    }
-    catch { $user = [Environment]::UserName }
+    $hostInfo = Get-MspkiRunHostInfo
+
 
     $params = [ordered]@{}
     foreach ($k in ($Parameters.Keys | Sort-Object)) { $params[$k] = [string]$Parameters[$k] }
@@ -34,24 +56,24 @@ function Initialize-MspkiRun {
     $webOpt = Get-MspkiWebProbeOption
 
     $script:MspkiRun = [ordered]@{
-        RunId          = [guid]::NewGuid().ToString()
+        RunId          = (New-MspkiRunId)
         Tool           = $script:MspkiToolName
         ToolVersion    = $script:MspkiToolVersion
-        StartedUtc     = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+        StartedUtc     = (Get-MspkiUtcNow).ToString('yyyy-MM-ddTHH:mm:ssZ')
         FinishedUtc    = ''
         Completed      = $false
-        ComputerName   = [Environment]::MachineName
-        UserContext    = $user
-        IsAdmin        = [bool]$isAdmin
-        PSVersion      = $PSVersionTable.PSVersion.ToString()
-        PSEdition      = [string]$PSVersionTable.PSEdition
-        ClrVersion     = [Environment]::Version.ToString()
+        ComputerName   = $hostInfo.ComputerName
+        UserContext    = $hostInfo.UserContext
+        IsAdmin        = [bool]$hostInfo.IsAdmin
+        PSVersion      = $hostInfo.PSVersion
+        PSEdition      = $hostInfo.PSEdition
+        ClrVersion     = $hostInfo.ClrVersion
         DotNetRelease  = $net.Release
         DotNetVersion  = $net.Version
         SignatureApisAvailable = [bool](Test-MspkiSignatureApiAvailable)
         TlsSecurityProtocol = [string][System.Net.ServicePointManager]::SecurityProtocol
         HttpProxy      = $webOpt.ProxyMode
-        OSVersion      = [Environment]::OSVersion.Version.ToString()
+        OSVersion      = $hostInfo.OSVersion
         Parameters     = $params
         Forest         = ''
         Domain         = ''
@@ -105,7 +127,7 @@ function Start-MspkiStageTimer {
     Assert-MspkiNotCancelled
     Send-MspkiProgress -Kind 'StageStart' -Text $Stage
     Write-MspkiLog -Message ('Stage {0} started' -f $Stage)
-    return [System.Diagnostics.Stopwatch]::StartNew()
+    return (New-MspkiStopwatch)
 }
 
 function Get-MspkiDotNetRelease {
@@ -137,7 +159,7 @@ function Add-MspkiStageTiming {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$Stage,
-        [Parameter(Mandatory = $true)][System.Diagnostics.Stopwatch]$Stopwatch
+        [Parameter(Mandatory = $true)]$Stopwatch
     )
     Send-MspkiProgress -Kind 'StageEnd' -Text $Stage
     if ($null -eq $script:MspkiRun) { return }
@@ -187,7 +209,7 @@ function Complete-MspkiRun {
     param([bool]$Completed = $true)
     if ($null -eq $script:MspkiRun) { return }
     [void](Remove-MspkiAbandonedProbe)
-    $script:MspkiRun.FinishedUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $script:MspkiRun.FinishedUtc = (Get-MspkiUtcNow).ToString('yyyy-MM-ddTHH:mm:ssZ')
     $script:MspkiRun.Completed = $Completed
     # One closing line for whoever reads the log: did the run finish, and where did the time go.
     $slow = @($script:MspkiRun.StageTimings | Where-Object { $_.Stage -ne 'Discovery' } | Sort-Object ElapsedMs -Descending | Select-Object -First 3)

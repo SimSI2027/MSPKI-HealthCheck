@@ -27,20 +27,20 @@ The `baseline` world plus one change each (definitions in `docs/DEMO-WORLD.md`, 
 | Renewal leftovers | CA generations, NTAuth versus AIA, the lifecycle timeline |
 
 ## 3. The generator: real analysers on a simulated environment
-`site/generator/` (a developer and build tool; never part of the product download) turns **world fixtures** into **scenario data**.
+`tools/dev/demo-site/` (developer and build tools; never part of the product download, never referenced by it; CLAUDE.md "Developer-only tools") turns **world fixtures** into **scenario data**.
 
-**World fixtures** (`site/world/<scenario>/`, data only, Alcyone names only):
+**World fixtures** (`site/world/`, data only, Alcyone names only; as built in DS1: one `world.json` for the baseline plus one overlay per scenario in `site/world/scenarios/<id>.json`, merged by property, and the DER files in `site/world/pki`):
 - `directory.json`: the Configuration partition objects the engine reads (Public Key Services containers, Enrollment Services, templates with
   their security descriptors as SDDL, NTAuth, AIA/CDP objects with their certificate and CRL bytes), RootDSE, sites, domains and trusts.
 - `ca/<ca>.json`: what `GetCAProperty` answers for each CA (or the error it returns, e.g. 0x800706BA for `rpc-denied`).
 - `network.json`: per URL, what the anonymous GET returns (status, headers, body file), per host what DNS, TCP and TLS answer.
 - `local.json`: this computer's store certificates, Lifecycle events, policy keys, services.
-- `pki/`: the DER certificates and CRLs, generated once by `site/generator/New-MspkiWorldPki.ps1` with throw-away keys that live only in
+- `pki/`: the DER certificates and CRLs, generated once by `tools/dev/demo-site/New-MspkiWorldPki.ps1` with throw-away keys that live only in
   memory during that script and are never written. **Gate:** this script creates keys and signs, which the product rules forbid for the
   product. It is a separate developer tool, but it must be cleared by the owner and written into `CLAUDE.md` as a clarification before
   DS2 starts. Only public DER bytes are committed.
 
-**How the engine runs** (`site/generator/Invoke-MspkiScenario.ps1`, Windows PowerShell 5.1):
+**How the engine runs** (`tools/dev/demo-site/Invoke-MspkiScenario.ps1`, Windows PowerShell 5.1):
 1. Import the real module (`src/MspkiHealthCheck.psd1`) unchanged.
 2. Replace only the **I/O boundary**, inside the module scope, with functions that answer from the world fixture: LDAP and
    DirectoryEntry reads (`Discovery/AdContext.ps1`, `Discovery/Ldap.ps1`), CA COM reads (`Discovery/CAProperty.ps1`), HTTP, TCP and TLS
@@ -88,7 +88,7 @@ touched a real network." The banner links to the scenario's fixture and to this 
      `tests/DemoGenerator.Tests.ps1` and the hygiene scan over the output, upload the site as the Pages artifact.
   2. Job `deploy`: `actions/deploy-pages` with `pages: write` and `id-token: write` only; the environment is `github-pages`.
 - Third-party actions are pinned to a full commit SHA; the workflow has `permissions: contents: read` by default.
-- Generated data is not committed (`site/data/` is git-ignored); a local preview is `site/generator/Build-MspkiDemoSite.ps1 -Output out\site`
+- Generated data is not committed (`site/data/` is git-ignored); a local preview is `tools/dev/demo-site/Build-MspkiDemoSite.ps1 -Output out\site`
   (writes under `out\` only) and any static file server.
 
 ## 6. Acceptance (summary; full criteria per DS work package in the roadmap)

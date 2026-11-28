@@ -21,7 +21,7 @@ function Write-MspkiLog {
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Message,
         [ValidateSet('Info', 'Warning', 'Error', 'Debug')][string]$Level = 'Info'
     )
-    $line = '{0} [{1}] {2}' -f [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'), $Level.ToUpperInvariant(), $Message
+    $line = '{0} [{1}] {2}' -f (Get-MspkiUtcNow).ToString('yyyy-MM-ddTHH:mm:ss.fffZ'), $Level.ToUpperInvariant(), $Message
     [void]$script:MspkiLogLines.Add($line)
     Write-Verbose $line
     Send-MspkiProgress -Kind 'Log' -Text $line -Level $Level

@@ -23,7 +23,7 @@ function Get-MspkiLeadGrading {
         [Parameter(Mandatory = $true)]$Lead,
         [AllowNull()]$Inventory = $null,
         [hashtable]$KnownCertificates = @{},
-        [DateTime]$Now = [DateTime]::UtcNow
+        [DateTime]$Now = (Get-MspkiUtcNow)
     )
     $live = New-Object System.Collections.ArrayList
     $hist = New-Object System.Collections.ArrayList

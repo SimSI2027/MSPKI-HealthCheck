@@ -76,7 +76,7 @@ function Invoke-MspkiLocalEvidenceAnalysis {
     discovered CAs and templates in the graph, and returns the findings.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Inventory, [DateTime]$Now = [DateTime]::UtcNow)
+    param([Parameter(Mandatory = $true)]$Inventory, [DateTime]$Now = (Get-MspkiUtcNow))
     $out = New-Object System.Collections.ArrayList
     $mk = { param([hashtable]$P) $P['Category'] = 'LocalEvidence'; $P['Role'] = 'Computer'; $P['Stage'] = 'Analysis'; $P['Scope'] = 'Local'; New-MspkiFinding @P }
     $templates = @($Inventory.Templates | Where-Object { $null -ne $_ })

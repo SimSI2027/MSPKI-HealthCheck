@@ -64,7 +64,7 @@ function Send-MspkiProgress {
     )
     $c = $script:MspkiControl
     if ($null -eq $c) { return }
-    $item = [ordered]@{ Kind = $Kind; Text = $Text; Level = $Level; Time = [DateTime]::Now }
+    $item = [ordered]@{ Kind = $Kind; Text = $Text; Level = $Level; Time = (Get-MspkiUtcNow).ToLocalTime() }
     if ($null -ne $Data) { foreach ($k in $Data.Keys) { $item[$k] = $Data[$k] } }
     $c['Queue'].Enqueue([pscustomobject]$item)
 }

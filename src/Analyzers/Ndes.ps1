@@ -25,7 +25,7 @@ function ConvertFrom-MspkiNdesCaCertificate {
     certificates as public data (subject, thumbprint, validity).
     #>
     [CmdletBinding()]
-    param([AllowNull()][byte[]]$Bytes, [DateTime]$Now = [DateTime]::UtcNow)
+    param([AllowNull()][byte[]]$Bytes, [DateTime]$Now = (Get-MspkiUtcNow))
     $out = New-Object System.Collections.ArrayList
     if ($null -eq $Bytes -or $Bytes.Length -eq 0) { return , $out.ToArray() }
     # Only a certificate or a PKCS #7 is read; a PKCS #12 / PFX is refused before any object is built (audit 2 M10).
@@ -64,7 +64,7 @@ function Test-MspkiIsLocalHost {
     True when a host name is this computer (short name or FQDN). Pure: the computer's own names are parameters.
     #>
     [CmdletBinding()]
-    param([AllowEmptyString()][string]$HostName, [string]$ComputerName = $env:COMPUTERNAME, [string]$DnsDomain = '')
+    param([AllowEmptyString()][string]$HostName, [string]$ComputerName = (Get-MspkiLocalComputerName), [string]$DnsDomain = '')
     $h = ConvertTo-MspkiHostName $HostName
     $c = ConvertTo-MspkiHostName $ComputerName
     if (-not $h -or -not $c) { return $false }
@@ -106,7 +106,7 @@ function Test-MspkiNdesHost {
         [int]$TimeoutSeconds = 5,
         [switch]$SkipNetwork,
         [switch]$IncludeAdminProbe,
-        [DateTime]$Now = [DateTime]::UtcNow
+        [DateTime]$Now = (Get-MspkiUtcNow)
     )
     $findings = New-Object System.Collections.ArrayList
     $ms = $TimeoutSeconds * 1000

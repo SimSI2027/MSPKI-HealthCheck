@@ -81,6 +81,17 @@ function Get-MspkiSidFallbackName {
     return $Sid
 }
 
+function ConvertTo-MspkiAccountName {
+    <#
+    .SYNOPSIS
+    One SID-to-name lookup through Windows (LSA): DOMAIN\name. Throws when the SID cannot be translated. Resolve-MspkiSid caches it.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Sid)
+    $obj = New-Object System.Security.Principal.SecurityIdentifier($Sid)
+    return [string]$obj.Translate([System.Security.Principal.NTAccount]).Value
+}
+
 function Resolve-MspkiSid {
     <#
     .SYNOPSIS
@@ -95,10 +106,7 @@ function Resolve-MspkiSid {
     if ($script:MspkiWellKnownSid.ContainsKey($Sid)) { $name = $script:MspkiWellKnownSid[$Sid] }
     elseif ($script:MspkiSidStats.Failures -lt $script:MspkiSidStats.Budget) {
         $script:MspkiSidStats.Lookups++
-        try {
-            $obj = New-Object System.Security.Principal.SecurityIdentifier($Sid)
-            $name = [string]$obj.Translate([System.Security.Principal.NTAccount]).Value
-        }
+        try { $name = ConvertTo-MspkiAccountName -Sid $Sid }
         catch {
             $script:MspkiSidStats.Failures++
             $name = ''

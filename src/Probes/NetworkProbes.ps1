@@ -56,7 +56,7 @@ function Resolve-MspkiDnsName {
     Send-MspkiProgress -Kind 'Target' -Text ('DNS {0}' -f $h)
     Send-MspkiProbeEvent -Phase Start -Probe DNS -Subject $h
     $r = New-MspkiProbeResult -Probe 'DNS' -Target $h
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     try {
         $ar = [System.Net.Dns]::BeginGetHostAddresses($h, $null, $null)
         if (Wait-MspkiAsyncResult -AsyncResult $ar -TimeoutMs $TimeoutMs) {
@@ -97,7 +97,7 @@ function Resolve-MspkiDnsEntry {
     if ($null -ne $cached) { $copy = $cached.psobject.Copy(); $copy.FromCache = $true; return $copy }
 
     $r = New-MspkiProbeResult -Probe 'DNS' -Target $h
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     try {
         $ar = [System.Net.Dns]::BeginGetHostEntry($h, $null, $null)
         if (Wait-MspkiAsyncResult -AsyncResult $ar -TimeoutMs $TimeoutMs) {
@@ -142,7 +142,7 @@ function Test-MspkiTcpPort {
     Send-MspkiProgress -Kind 'Target' -Text ('TCP {0}:{1}' -f $h, $Port)
     Send-MspkiProbeEvent -Phase Start -Probe TCP -Subject $h
     $r = New-MspkiProbeResult -Probe 'TCP' -Target ('{0}:{1}' -f $h, $Port)
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     $client = New-Object System.Net.Sockets.TcpClient
     try {
         $ar = $client.BeginConnect($h, $Port, $null, $null)
@@ -213,7 +213,7 @@ function Invoke-MspkiTimeLimitedScript {
     $res = [pscustomobject][ordered]@{
         Completed = $false; TimedOut = $false; Output = @(); Errors = @(); ElapsedMs = 0
     }
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
     $rs.ApartmentState = [System.Threading.ApartmentState]::STA
     $rs.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread

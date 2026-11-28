@@ -37,7 +37,7 @@ function Get-MspkiLeadReferenceFact {
     param(
         [Parameter(Mandatory = $true)]$Lead,
         [AllowNull()]$Inventory,
-        [DateTime]$Now = [DateTime]::UtcNow
+        [DateTime]$Now = (Get-MspkiUtcNow)
     )
     $currentBy = New-Object System.Collections.ArrayList
     $certs = New-Object System.Collections.ArrayList
@@ -162,7 +162,7 @@ function Test-MspkiStaleReference {
         [AllowNull()]$Inventory,
         [AllowEmptyCollection()][object[]]$Leads = @(),
         [AllowEmptyCollection()][object[]]$Findings = @(),
-        [DateTime]$Now = [DateTime]::UtcNow
+        [DateTime]$Now = (Get-MspkiUtcNow)
     )
     $out = New-Object System.Collections.ArrayList
     $common = @{ Category = 'StaleRef'; Stage = 'Analysis' }

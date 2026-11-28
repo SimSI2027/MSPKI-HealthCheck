@@ -547,7 +547,7 @@ function Test-MspkiCrlHealth {
         [Parameter(Mandatory = $true)]$Record,
         [AllowEmptyCollection()][object[]]$Certificates = @(),
         [hashtable]$Thresholds = @{},
-        [DateTime]$Now = [DateTime]::UtcNow
+        [DateTime]$Now = (Get-MspkiUtcNow)
     )
     $t = Get-MspkiThreshold -Override $Thresholds
     $crl = $Record.Crl

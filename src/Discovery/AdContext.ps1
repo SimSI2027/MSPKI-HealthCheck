@@ -1,6 +1,25 @@
 # Seeds: domain membership, RootDSE (domain controller and naming contexts), forest, domains, trusts and
 # AD site. Every method has its own try/catch; a failure becomes a finding and the run continues.
 
+function Get-MspkiLocalComputerName {
+    # This computer's NetBIOS name.
+    [CmdletBinding()]
+    param()
+    return [Environment]::MachineName
+}
+
+function Get-MspkiLocalComputerIdentity {
+    <#
+    .SYNOPSIS
+    This computer's name and the DNS domain it is joined to (read-only; the domain is '' when it cannot be read).
+    #>
+    [CmdletBinding()]
+    param()
+    $domain = ''
+    try { $domain = [string][System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().DomainName } catch { $domain = '' }
+    return [pscustomobject]@{ ComputerName = (Get-MspkiLocalComputerName); DnsDomain = $domain }
+}
+
 function Get-MspkiComputerSystemInfo {
     <#
     .SYNOPSIS
@@ -223,7 +242,7 @@ function Find-MspkiRootDse {
     $attempts = New-Object System.Collections.ArrayList
     $try = {
         param([string]$Name, [scriptblock]$Body)
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $sw = (New-MspkiStopwatch)
         try {
             $r = & $Body
             [void]$attempts.Add([pscustomobject]@{ Name = $Name; Outcome = 'Success'; Detail = ''; HResult = ''; Path = $r.Path })
@@ -372,13 +391,13 @@ function Get-MspkiAdContext {
     $ldapTimeout = [math]::Max(10, $TimeoutSeconds * 3)
 
     # 1. Domain membership (local, read-only).
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     try {
         $cs = Get-MspkiComputerSystemInfo
         Add-MspkiMethodOutcome -Method 'Local:Win32_ComputerSystem' -Outcome 'Success' -ElapsedMs $sw.ElapsedMilliseconds
         if (-not $cs.PartOfDomain) {
             [void]$findings.Add((New-MspkiErrorFinding -ErrorInfo (New-MspkiErrorInfo -Class 'NotDomainJoined') `
-                -Category 'ADDependency' -Role 'Computer' -Target ([Environment]::MachineName) `
+                -Category 'ADDependency' -Role 'Computer' -Target (Get-MspkiLocalComputerName) `
                 -Sources 'Local:Win32_ComputerSystem' -Action 'discovering Active Directory' -Scope 'Local' `
                 -Notes 'Run the tool on a domain-joined computer. AD CS discovery needs the AD Configuration partition.'))
             Add-MspkiRunLimit -Text 'This computer is not domain-joined: AD and CA discovery did not run.'
@@ -396,7 +415,7 @@ function Get-MspkiAdContext {
 
     # 2. RootDSE: domain controller and naming contexts. Several ways are tried in turn (see Find-MspkiRootDse); every attempt is
     # logged and listed in the evidence.
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     $found = Find-MspkiRootDse -ComputerDomain $ctx.ComputerDomain
     $attemptEvidence = @($found.Attempts | ForEach-Object {
         if ($_.Outcome -eq 'Success') { 'RootDSE attempt {0}: succeeded ({1})' -f $_.Name, $_.Path }
@@ -452,7 +471,7 @@ function Get-MspkiAdContext {
     }
 
     # 3. Forest, domains and trusts.
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     try {
         $fi = Get-MspkiForestInfo
         Add-MspkiMethodOutcome -Method 'AD:Forest' -Outcome 'Success' -Detail $fi.Name -ElapsedMs $sw.ElapsedMilliseconds
@@ -487,7 +506,7 @@ function Get-MspkiAdContext {
 
     # 3b. The forest's domain controllers (Configuration partition). Only these and the selected domain controller may receive a
     # directory bind for an LDAP URL that names a host, unless a verified object names it (audit 2 H1).
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     if ($found.Constructed) {
         # No domain controller answered: there is nothing to read the list from, and no LDAP URL that names a host is contacted.
         Add-MspkiMethodOutcome -Method 'AD:Sites:Servers' -Outcome 'Skipped' -Detail 'no domain controller answered for RootDSE'
@@ -529,7 +548,7 @@ function Get-MspkiAdContext {
     } }
 
     # 4. AD site of this computer.
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     try {
         $ctx.Site = Get-MspkiComputerSiteName
         Set-MspkiRunValue -Name 'Site' -Value $ctx.Site

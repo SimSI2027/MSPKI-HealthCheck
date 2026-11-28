@@ -154,7 +154,7 @@ function Get-MspkiIntuneConnectorLocal {
     Data: { ComputerName, Evidence, Methods }. Findings: read failures (permission kept apart from other errors).
     #>
     [CmdletBinding()]
-    param([string]$ComputerName = $env:COMPUTERNAME)
+    param([string]$ComputerName = (Get-MspkiLocalComputerName))
     $findings = New-Object System.Collections.ArrayList
     $methods = New-Object System.Collections.ArrayList
     $services = @(); $products = @(); $certs = @()
@@ -164,7 +164,7 @@ function Get-MspkiIntuneConnectorLocal {
         @{ Name = 'Local:CertStore:My'; What = 'certificate metadata in the local computer''s Personal store'; Fn = { Get-MspkiLocalCertificateMetadata }; Set = 'certs' }
     )
     foreach ($st in $steps) {
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $sw = (New-MspkiStopwatch)
         try {
             $r = & $st.Fn
             switch ($st.Set) { 'services' { $services = @($r) } 'products' { $products = @($r) } 'certs' { $certs = @($r) } }

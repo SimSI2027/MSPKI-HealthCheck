@@ -28,7 +28,7 @@ function Get-MspkiPkiContainer {
     $t = [math]::Max(10, $TimeoutSeconds * 3)
 
     # Public Key Services itself: if it is missing, AD CS was never installed in this forest.
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $sw = (New-MspkiStopwatch)
     try {
         $null = @(Get-MspkiLdapObject -Server $server -BaseDN $Context.PksDN -Scope Base -Properties @('cn') -TimeoutSeconds $t)
         Add-MspkiMethodOutcome -Method 'AD:PublicKeyServices' -Outcome 'Success' -ElapsedMs $sw.ElapsedMilliseconds
@@ -48,7 +48,7 @@ function Get-MspkiPkiContainer {
         $dn = '{0},{1}' -f $c.Rdn, $Context.PksDN
         $item = [ordered]@{ Name = $c.Name; DistinguishedName = $dn; Kind = $c.Kind; Exists = $null; ChildCount = $null;
                             WhenChanged = ''; Outcome = '' }
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $sw = (New-MspkiStopwatch)
         try {
             $base = @(Get-MspkiLdapObject -Server $server -BaseDN $dn -Scope Base -Properties @('cn', 'whenChanged', 'cACertificate') -TimeoutSeconds $t)
             $item.Exists = $true
@@ -111,7 +111,7 @@ function Get-MspkiAdCACertificate {
     )
     foreach ($s in $sources) {
         $dn = '{0},{1}' -f $s.Rdn, $Context.PksDN
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $sw = (New-MspkiStopwatch)
         try {
             $recs = @(Get-MspkiLdapObject -Server $server -BaseDN $dn -Scope $s.Scope -Filter $s.Filter `
                 -Properties @('cn', 'cACertificate', 'distinguishedName') -TimeoutSeconds $t)

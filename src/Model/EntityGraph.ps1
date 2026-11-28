@@ -166,7 +166,7 @@ function Add-MspkiObservation {
         if ($Detail -and $o.Detail -notlike ('*' + $Detail + '*')) { $o.Detail = (@($o.Detail, $Detail) | Where-Object { $_ }) -join '; ' }
         return
     }
-    if (-not $Timestamp) { $Timestamp = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') }
+    if (-not $Timestamp) { $Timestamp = (Get-MspkiUtcNow).ToString('yyyy-MM-ddTHH:mm:ssZ') }
     $o = [ordered]@{ EntityId = $EntityId; Kind = $Kind; Source = $Source; Location = $Location; Confidence = $Confidence; Detail = $Detail; Timestamp = $Timestamp }
     $g.ObsKeys[$k] = $o
     [void]$g.Observations.Add($o)

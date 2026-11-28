@@ -81,7 +81,7 @@ function Test-MspkiCACertificateHealth {
     param(
         [AllowEmptyCollection()][object[]]$Entries = @(),
         [hashtable]$Thresholds = @{},
-        [DateTime]$Now = [DateTime]::UtcNow,
+        [DateTime]$Now = (Get-MspkiUtcNow),
         [scriptblock]$TrustTest = $null
     )
     $t = Get-MspkiThreshold -Override $Thresholds
