@@ -615,3 +615,9 @@ Build phases A–E map to the numbered steps in REQUIREMENTS §7.
 - Tests: `tests/FindingKey.Tests.ps1` (3) + the e2e Key check in Discovery.Tests; `tests/GuiHistory.Tests.ps1` (17: run files, summaries, stepped reading, comparison,
   notes, plain words, long sections, rows and trend, performance, the real window: J4, Compare, finding opens, palette, F6, names, UI budget; GUI script-scope guard).
 - Full suite: 1770 passed, 0 failed, 1 skipped, 201 s. Next: the Opus review checkpoint (GX9 is not started).
+
+## Independent GUI review after GX8 (2026-11-28) - DONE (review only, no product code changed)
+- `docs/REVIEW-GX.md`: 14 snapshot sets (Alcyone world + LARGE estate; light, dark, reduced motion; minimum, 1360 x 860, 1920 x 1080), per-page scores, J1-J4 walk, consistency audit, 49 defects (1 Blocker, 9 High), top 10 changes, plan changes for GX9-GX11.
+- Blocker D-01: the walkthrough's "Observed in this run" pill shows for any hint (GuiView `[bool]$bt`), while the engine and the Overview need support >= 10.
+- Snapshot method defects (D-07): partial / no-CA frames are captured before the map worker finishes; frames 31-34 render the History page.
+- Next: GX8b consistency pass (D-01..D-28), then GX9.
