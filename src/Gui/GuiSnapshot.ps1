@@ -206,6 +206,29 @@ function Get-MspkiGuiSnapshotLiveItems {
     return [pscustomobject]@{ Phases = @(, @(), $phase1, $p2, $p3) }
 }
 
+function Get-MspkiGuiSnapshotExpectedPage {
+    <#
+    .SYNOPSIS
+    The page (tab name) a snapshot frame must show, from the number at the start of its name; '' for frames that may show any page
+    (palette and toasts float over the page). D-07: a test compares it with the page the window really showed.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $n = 0
+    if (-not [int]::TryParse(($Name -replace '^(\d+).*$', '$1'), [ref]$n)) { return '' }
+    if ($n -eq 2 -or $n -eq 40) { return 'TabLog' }
+    if ($n -le 19 -or $n -eq 50 -or $n -eq 60 -or $n -eq 61) { return 'TabSummary' }
+    if ($n -ge 20 -and $n -le 25) { return 'TabFindings' }
+    if ($n -ge 26 -and $n -le 29) { return '' }
+    if ($n -ge 30 -and $n -le 34) { return 'TabMap' }
+    if ($n -eq 35) { return 'TabTimeline' }
+    if ($n -eq 36) { return 'TabHistory' }
+    if ($n -ge 70 -and $n -le 79) { return 'TabObjects' }
+    if ($n -ge 80 -and $n -le 89) { return 'TabServices' }
+    if ($n -ge 90) { return 'TabFindings' }
+    return ''
+}
+
 function Invoke-MspkiGuiSnapshot {
     <#
     .SYNOPSIS
@@ -252,6 +275,7 @@ function Invoke-MspkiGuiSnapshot {
         else { $renderW = [double]$Width; $renderH = [double]$Height }
     }
     $files = New-Object 'System.Collections.Generic.List[string]'
+    $frames = New-Object 'System.Collections.Generic.List[object]'
     $shot = {
         param([string]$Name)
         $p = Join-Path $Folder ($Name + '.png')
@@ -259,6 +283,9 @@ function Invoke-MspkiGuiSnapshot {
         if ($null -ne $script:MspkiGui.MapQueue -and ($null -ne $script:MspkiGui.MapJob -or $script:MspkiGui.MapQueue.Count -gt 0 -or $script:MspkiGui.MapDraws.Count -gt 0 -or $script:MspkiGui.MapAnims.Count -gt 0)) { Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2 }
         [void](Save-MspkiGuiSnapshotImage -Window $Window -Path $p -Scale $Scale -Width $renderW -Height $renderH -KeepLayout)
         $files.Add($p)
+        # D-07: every frame records the page it really shows and the score text, so a test can prove each frame shows what its name claims.
+        $tabName = ''; if ($null -ne $ui.Tabs.SelectedItem) { $tabName = [string]$ui.Tabs.SelectedItem.Name }
+        $frames.Add([pscustomobject][ordered]@{ Name = $Name; Page = $tabName; Expected = (Get-MspkiGuiSnapshotExpectedPage -Name $Name); Score = [string]$ui.TxtScore.Text })
     }
     # Scroll targets are computed in the same fixed layout the frame is rendered in.
     $scrollTo = {
@@ -382,7 +409,10 @@ function Invoke-MspkiGuiSnapshot {
             # frame is held at the end of the build, which is the state a user sees once it has played.
             $g.ForceMotion = $true
             $settle = {
+                # D-07: a new result restarts the map in the worker; seeking the build before the map arrived froze an empty ring.
                 Wait-MspkiGuiIdle -Rounds 3
+                Wait-MspkiGuiMapIdle
+                Wait-MspkiGuiIdle -Rounds 2
                 Set-MspkiGuiMissionFrame -Ms ([double]$g.MapTotalMs + 500)
                 Wait-MspkiGuiIdle -Rounds 2
             }
@@ -567,6 +597,8 @@ function Invoke-MspkiGuiSnapshot {
             if ($ui.HistCmpScroll.IsVisible) { $ui.HistCmpScroll.ScrollToEnd(); Wait-MspkiGuiIdle -Rounds 3; & $shot '36b-history-bottom'; $ui.HistCmpScroll.ScrollToTop() }
             Invoke-MspkiGuiHistoryComparePrevious; Wait-MspkiGuiMapIdle; Wait-MspkiGuiIdle -Rounds 2
             # The tree (the text alternative): expand everything, select the first CA node, then drill into its first finding.
+            # D-07: back to the map page first (the History frames left the window on History).
+            & $page $ui.TabMap
             $ui.RbMapTree.IsChecked = $true
             Set-MspkiGuiTreeExpansion -Parent $ui.MapTree -Expand $true
             Wait-MspkiGuiIdle -Rounds 3
@@ -663,6 +695,10 @@ function Invoke-MspkiGuiSnapshot {
             & $shot '40-log'
         }
     }
-    finally { if ($renderW -gt 0) { try { Clear-MspkiGuiSnapshotLayout -Window $Window } catch { $null = $_ } }; $Window.Close() }
+    finally {
+        if ($renderW -gt 0) { try { Clear-MspkiGuiSnapshotLayout -Window $Window } catch { $null = $_ } }
+        $Window.Close()
+        try { $frames | Export-Csv -LiteralPath (Join-Path $Folder 'frames.csv') -NoTypeInformation -Encoding UTF8 } catch { $null = $_ }
+    }
     return $files.ToArray()
 }

@@ -924,6 +924,24 @@ Describe 'GUI window (single-threaded runspace)' {
             $ph = ([int]$b[20] -shl 24) + ([int]$b[21] -shl 16) + ([int]$b[22] -shl 8) + [int]$b[23]
             ('{0}x{1}' -f $pw, $ph) | Should -Be '1100x700' -Because (Split-Path -Leaf $f)
         }
+        # D-07: every frame shows the page its name claims, and the finished, partial and no-CA Overview frames have a score in the ring.
+        $frames = @(Import-Csv -LiteralPath (Join-Path $snap 'frames.csv'))
+        $frames.Count | Should -Be $files.Count
+        foreach ($fr in $frames) { if ($fr.Expected) { $fr.Page | Should -Be $fr.Expected -Because $fr.Name } }
+        foreach ($nm in @('10-summary', '50-partial', '60-no-ca')) {
+            $fr = @($frames | Where-Object { $_.Name -eq $nm })[0]
+            $fr | Should -Not -BeNullOrEmpty -Because $nm
+            $fr.Score | Should -Not -BeNullOrEmpty -Because $nm
+        }
+        @($frames | Where-Object { $_.Name -like '3[1-4]-*' }).Count | Should -BeGreaterOrEqual 2
+    }
+    It 'D-07: maps every snapshot frame name to the page it must show' {
+        . (Join-Path $script:GuiFolder 'GuiSnapshot.ps1')
+        Get-MspkiGuiSnapshotExpectedPage -Name '34-map-tree' | Should -Be 'TabMap'
+        Get-MspkiGuiSnapshotExpectedPage -Name '36b-history-bottom' | Should -Be 'TabHistory'
+        Get-MspkiGuiSnapshotExpectedPage -Name '60-no-ca' | Should -Be 'TabSummary'
+        Get-MspkiGuiSnapshotExpectedPage -Name '02-running-log' | Should -Be 'TabLog'
+        Get-MspkiGuiSnapshotExpectedPage -Name '27-palette-search' | Should -Be ''
     }
 
     It 'renders at the window minimum size when asked, and at a size larger than the screen' {
