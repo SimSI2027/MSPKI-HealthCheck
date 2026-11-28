@@ -221,3 +221,60 @@ session; **Medium** = noticed with use, weakens trust or speed; **Low** = small 
   - Carry this file's defect IDs forward and close each one with a frame that proves it.
 
 REVIEW DONE: run the fixes.
+
+## 8. Fix status (GX8b consistency pass, 2026-11-28)
+Every Blocker, High and Medium is fixed. Commits are on `main`. "Open" items are carried into GX11 with their IDs.
+
+| ID | Status | Commit | Note |
+|---|---|---|---|
+| D-01 | Fixed | 869f207 | Per-cause `Supported` in the engine; pill, strip, copied text, Overview mark and HTML report use it; weaker facts are a muted "Hint". Tested. |
+| D-02 | Fixed | fbdd5a2 | Info bar above the hero ("Earlier run from …, Run now"); headline starts "As of <date>:". |
+| D-03 | Fixed | 710cbc3 | Skipped + PERMISSION_DENIED/UNSUPPORTED = "Could not check" (lock) everywhere; Skipped = E893; §8 updated; test against the table. |
+| D-04 | Fixed | 710cbc3 | Wrapping auto-width chips. |
+| D-05 | Fixed | 710cbc3 | Readable target + qualifier, star message, width-driven columns, confidence as an icon on narrow grids, no horizontal scroll. |
+| D-06 | Fixed | 7d53a19 | Pane opens only with a selection; one filter row; zoom bar beside the minimap; opens at 84 %+ (labels 10 px+). |
+| D-07 | Fixed | f55864e | `$settle` waits for the map; tree frames switch to the map page; `frames.csv` + test (page per frame, score in the ring). |
+| D-08 | Fixed | fbdd5a2 | Meaning, causes from the knowledge base with read-only checks, timeout hint, Open run log / Run again / Change options. |
+| D-09 | Partly fixed | 7d53a19 | Gaps crossed by > 30 links widen (160-420 px); links bundle as a trunk and fan out. Not done: opening focused on one CA (tried; it hid the other CAs' problems on first view and broke the keyboard journeys, so declined), centring the Overview card on the CA columns (open, GX11). |
+| D-10 | Fixed | 231a8ff | Engine records each Enterprise CA as seen in Enrollment Services; older results get it as "named"; service panes count served-address findings like the cards. |
+| D-11 | Fixed | 710cbc3, e16b082 | One title helper with the qualifier ("at pki (HTTP)", "in AD (LDAP)", "at the CA (base CRL)") in grid, pane, palette and History. |
+| D-12 | Fixed | 710cbc3, e16b082 | Common names in titles; DNs stay in the properties; DN regex keeps the rest of a sentence. |
+| D-13 | Fixed | 710cbc3 | "Technical id" is the last property; Objects second line = type · host · state in words. |
+| D-14 | Fixed | 710cbc3 | §9 words in sentence case; "Published addresses" tile. |
+| D-15 | Fixed | 710cbc3 | CRL glyph EA41 (rendered and checked). |
+| D-16 | Fixed | e16b082 | Palette finding rows carry their status glyph; objects their type glyph. |
+| D-17 | Fixed | fbdd5a2 | Placeholders filled from the finding (quoted when spaced); prose in the body font, commands in Consolas. |
+| D-18 | Fixed | fbdd5a2 | Opened from an action, the pane starts at the first cause; finding text folds to 3 lines; basis note under the causes. |
+| D-19 | Fixed | 3878509 | Designed empty state with Open folder; count "No log for this run". |
+| D-20 | Fixed | 710cbc3 | Method in words, "was refused (access denied, 0x80070005)", "Why and what to do" opens the finding. |
+| D-21 | Fixed | 3878509 | Topic-less findings group by category + status ("22 AIA addresses failing"). |
+| D-22 | Fixed | 231a8ff | "Run with these options" and Close inside the open strip. |
+| D-23 | Fixed | 710cbc3 | Only filled properties, readable labels; layer chips wrap. |
+| D-24 | Fixed | fbdd5a2 | "Held down by Revocation (4)" under the band; the rule in its tooltip. |
+| D-25 | Fixed | fbdd5a2 | "not scored" with the reason in the row tooltip. |
+| D-26 | Fixed | e16b082 | Crumbs and Back: readable name + kind ("Back to Machine (certificate template)"). |
+| D-27 | Fixed | 3878509 | Chart hidden below two scored runs; Run health check in the single-run empty state. |
+| D-28 | Fixed | fbdd5a2 | Overview keeps the ring and stage line; inline bar removed; top bar hidden on the Overview. |
+| D-29 | Fixed | 710cbc3 | No "None" severity pill or cell. |
+| D-30 | Fixed | 710cbc3 | One formatter ("17 Nov 2026, 08:00 UTC"), also inside engine messages as shown. |
+| D-31 | Fixed | 3394927, 4e6ef21 | "CRL 0x2B" in rows, copies, texts and the pane. |
+| D-32 | Fixed | 4e6ef21 | Short CA name in the Timeline heading; full name in the tooltip. |
+| D-33 | Fixed | 3394927 | Short dates carry the year when it is not this year. |
+| D-34 | Open | | Tree selection does not yet follow the pane's trail (GX11). |
+| D-35 | Fixed | 3878509 | No count before the first result. |
+| D-36 | Fixed | 710cbc3 | Exit code in the run-details tooltip only. |
+| D-37 | Fixed | 3394927 | "contains critical", "V1.0 · current" / "replaced", directory glyph for containers. |
+| D-38 | Fixed | a8b9648 | Solid 2 px accent ring with a surface halo. Focus frames for buttons, nav, chips and pane links: GX11. |
+| D-39 | Fixed | 3394927 | "(not contacted in this run)"; a permission refusal names what was read. |
+| D-40 | Fixed | 3878509 | Clear filters button inside the empty state. |
+| D-41 | Fixed | 3394927 | Computer glyph E977 for a certificate on this computer. |
+| D-42 | Fixed | e16b082 | Middle dot in palette details. |
+| D-43 | Fixed | a8b9648 | Dot on the Findings icon in compact navigation; environment facts in the globe's tooltip. |
+| D-44 | Fixed | 3394927 | "CES on enroll"; the address stays in the properties. |
+| D-45 | Fixed | 3394927 | Eight pages and Ctrl+1..8 in both docs. |
+| D-46 | Open | | Link routing under a label box (not cheap; GX11). |
+| D-47 | Open | | Build-frame link colour ahead of node grading (not cheap; GX11). |
+| D-48 | No change | | The circle's tooltip already names the status, and the row's words carry it; tone kept. |
+| D-49 | Fixed | 4e6ef21 | Quiet "What it never does" line under the steps. |
+
+Top 10: 1-9 done; 10 is half done (method fixed and tested; focus frames on buttons, nav, chips and pane links move to GX11 as the review planned).
